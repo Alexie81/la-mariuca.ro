@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/12.5/phpunit.xsd"
+         bootstrap="tests/bootstrap.php"
+         colors="true"
+         cacheDirectory=".phpunit.cache">
+  <testsuites>
+    <testsuite name="La Mariuca Boutique">
+      <directory>tests</directory>
+    </testsuite>
+  </testsuites>
+  <php>
+    <env name="APP_ENV" value="testing" force="true"/>
+    <env name="APP_DEBUG" value="false" force="true"/>
+    <env name="APP_URL" value="http://localhost" force="true"/>
+    <env name="APP_INDEXING" value="false" force="true"/>
+    <env name="APP_KEY" value="test-key-only-not-for-production" force="true"/>
+    <env name="DB_DRIVER" value="sqlite" force="true"/>
+    <env name="DB_DATABASE" value=":memory:" force="true"/>
+  </php>
+</phpunit>

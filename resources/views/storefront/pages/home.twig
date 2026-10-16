@@ -1,0 +1,12 @@
+{% extends 'storefront/layouts/base.twig' %}
+{% block content %}
+<section class="hero">
+  <div class="container hero-grid">
+    <div><span class="eyebrow">Îmbrăcăminte pentru copii 0–8 ani</span><h1>Lucruri alese cu grijă pentru începuturi frumoase</h1><p>Descoperă seturi pentru nou-născuți, ținute de botez, hăinuțe, încălțăminte și accesorii.</p><div class="button-row"><a class="button" href="#produse">Descoperă produsele</a><a class="button button-secondary" href="{{ url('categorie/botez/') }}">Colecția de botez</a></div></div>
+    <div class="hero-placeholder" aria-label="Spațiu rezervat fotografiei principale">Fotografia principală va fi adăugată la handoff-ul de design.</div>
+  </div>
+</section>
+<section class="section container"><div class="section-heading"><div><span class="eyebrow">Explorează</span><h2>Categorii</h2></div></div><div class="category-grid">{% for category in categories|filter(c => c.parent_id is null) %}<a class="category-card" href="{{ url('categorie/' ~ category.slug ~ '/') }}"><span>{{ category.name }}</span><small>Descoperă categoria</small></a>{% else %}<p class="empty">Categoriile vor apărea după seed sau publicare din admin.</p>{% endfor %}</div></section>
+<section id="produse" class="section section-tinted"><div class="container"><div class="section-heading"><div><span class="eyebrow">Selecție editabilă</span><h2>Produse recomandate</h2></div><a href="{{ url('cautare/') }}">Vezi catalogul</a></div><div class="product-grid">{% for product in products %}{% include 'storefront/components/product-card.twig' with {product: product} %}{% else %}<p class="empty">Nu există încă produse recomandate publicate.</p>{% endfor %}</div></div></section>
+<section class="section container"><div class="editorial"><div><span class="eyebrow">Magazin modular</span><h2>Pregătit pentru momentele importante</h2><p>Conținutul acestei secțiuni poate fi ordonat și înlocuit din administrare. Fotografiile finale, logo-ul și identitatea completă vor fi conectate fără schimbarea logicii magazinului.</p></div><a class="button button-secondary" href="{{ url('pagina/despre-noi/') }}">Despre noi</a></div></section>
+{% endblock %}

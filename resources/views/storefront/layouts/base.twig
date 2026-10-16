@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="ro">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:,">
+  <title>{{ meta.title|default('La Măriuca Boutique') }} · La Măriuca Boutique</title>
+  {% if meta.description|default('') %}<meta name="description" content="{{ meta.description }}">{% endif %}
+  {% if meta.noindex|default(false) %}<meta name="robots" content="noindex,nofollow">{% endif %}
+  {% if meta.canonical|default('') %}<link rel="canonical" href="{{ meta.canonical }}">{% endif %}
+  <link rel="stylesheet" href="{{ url('assets/css/storefront/tokens.css') }}">
+  <link rel="stylesheet" href="{{ url('assets/css/storefront/base.css') }}">
+  <link rel="stylesheet" href="{{ url('assets/css/storefront/layout.css') }}">
+  <link rel="stylesheet" href="{{ url('assets/css/storefront/components.css') }}">
+  <link rel="stylesheet" href="{{ url('assets/css/storefront/pages.css') }}">
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <a class="skip-link" href="#continut">Sari la conținut</a>
+  <div class="notice">Magazin demo local · Datele comerciale și livrarea se configurează înainte de lansare</div>
+  <header class="site-header">
+    <div class="container header-row">
+      <a class="brand" href="{{ url('') }}" aria-label="La Măriuca Boutique, pagina principală">
+        <span class="brand-mark" aria-hidden="true">LM</span><span>La Măriuca <small>Boutique</small></span>
+      </a>
+      <button class="menu-toggle" type="button" data-menu-toggle aria-expanded="false" aria-controls="main-menu">Meniu</button>
+      <form class="search-form" action="{{ url('cautare/') }}" method="get" role="search">
+        <label class="sr-only" for="site-search">Caută produse</label>
+        <input id="site-search" type="search" name="q" value="" placeholder="Caută produse, SKU sau categorii" minlength="2">
+        <button type="submit">Caută</button>
+      </form>
+      {% set cart = cart_summary() %}
+      {% set user = current_user() %}
+      <nav class="utility-nav" aria-label="Cont și cumpărături">
+        <a href="{{ url('favorite/') }}">Favorite</a>
+        <a href="{{ url(user ? 'cont/' : 'cont/autentificare/') }}">{{ user ? 'Cont' : 'Autentificare' }}</a>
+        <a href="{{ url('cos/') }}">Coș <span class="count">{{ cart.count }}</span></a>
+      </nav>
+    </div>
+    <nav id="main-menu" class="main-menu" aria-label="Categorii principale" data-menu>
+      <div class="container menu-list">
+        {% for category in navigation_categories() %}
+          <div class="menu-group">
+            <a href="{{ url('categorie/' ~ category.slug ~ '/') }}">{{ category.name }}</a>
+            {% if category.children %}
+              <div class="submenu">
+                {% for child in category.children %}<a href="{{ url('categorie/' ~ child.slug ~ '/') }}">{{ child.name }}</a>{% endfor %}
+              </div>
+            {% endif %}
+          </div>
+        {% else %}<span class="muted">Categoriile apar după publicarea produselor.</span>{% endfor %}
+      </div>
+    </nav>
+  </header>
+  {% set messages = flash_messages() %}
+  {% if messages %}<div class="container alerts" aria-live="polite">{% for item in messages %}<div class="alert alert-{{ item.type }}">{{ item.message }}</div>{% endfor %}</div>{% endif %}
+  <main id="continut">{% block content %}{% endblock %}</main>
+  <footer class="site-footer">
+    <div class="container footer-grid">
+      <div><strong>La Măriuca Boutique</strong><p>Hăinuțe și accesorii pentru copii, într-o interfață temporară pregătită pentru designul final.</p></div>
+      <div><strong>Informații</strong><a href="{{ url('pagina/despre-noi/') }}">Despre noi</a><a href="{{ url('pagina/livrare-si-retur/') }}">Livrare și retur</a><a href="{{ url('pagina/contact/') }}">Contact</a></div>
+      <div><strong>Legal</strong><a href="{{ url('pagina/termeni-si-conditii/') }}">Termeni</a><a href="{{ url('pagina/confidentialitate/') }}">Confidențialitate</a><a href="{{ url('pagina/cookies/') }}">Cookies</a></div>
+      <div><strong>Cont</strong><a href="{{ url('cont/') }}">Contul meu</a><a href="{{ url('favorite/') }}">Favorite</a><a href="{{ url('cos/') }}">Coș</a></div>
+    </div>
+    <div class="container footer-bottom">© {{ "now"|date("Y") }} La Măriuca Boutique. Informațiile juridice sunt drafturi ce necesită verificare.</div>
+  </footer>
+  <script type="module" src="{{ url('assets/js/storefront/navigation.js') }}"></script>
+  <script type="module" src="{{ url('assets/js/storefront/variant-selector.js') }}"></script>
+</body>
+</html>

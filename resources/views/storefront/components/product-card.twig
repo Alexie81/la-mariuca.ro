@@ -1,0 +1,14 @@
+<article class="product-card">
+  <a class="product-image placeholder" href="{{ url('produs/' ~ product.slug ~ '/') }}" aria-label="Vezi {{ product.name }}"><span aria-hidden="true">Produs</span></a>
+  <div class="product-card-body">
+    <h3><a href="{{ url('produs/' ~ product.slug ~ '/') }}">{{ product.name }}</a></h3>
+    <div class="product-meta">
+      <strong>{{ money(product.price_bani) }}</strong>
+      <span class="stock {{ product.available_quantity > 0 ? 'in-stock' : 'out-stock' }}">{{ product.available_quantity > 0 ? 'În stoc' : 'Stoc epuizat' }}</span>
+    </div>
+    <form action="{{ url('favorite/') }}" method="post">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="product_id" value="{{ product.id }}">
+      <button class="link-button" type="submit">Adaugă la favorite</button>
+    </form>
+  </div>
+</article>

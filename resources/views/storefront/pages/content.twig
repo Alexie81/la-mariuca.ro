@@ -1,0 +1,1 @@
+{% extends 'storefront/layouts/base.twig' %}{% block content %}<article class="container page-shell prose"><h1>{{ page.title }}</h1>{% if page.legal_review_required %}<div class="alert alert-warning">Draft informativ: conținutul necesită verificare juridică înainte de lansare.</div>{% endif %}{{ page.body_html|raw }}</article>{% endblock %}

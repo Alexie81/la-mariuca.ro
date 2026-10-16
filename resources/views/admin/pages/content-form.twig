@@ -1,0 +1,15 @@
+{% extends 'admin/layouts/base.twig' %}
+{% block title %}{{ page ? 'Editare pagină' : 'Pagină nouă' }}{% endblock %}
+{% block content %}
+<div class="admin-title"><div><h1>{{ page ? 'Editare pagină' : 'Pagină nouă' }}</h1><p>HTML-ul este sanitizat după o listă permisă; scripturile, stilurile și elementele executabile sunt eliminate.</p></div></div>
+<form class="panel form" method="post"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><div class="form-grid">
+  <label>Titlu *<input name="title" value="{{ page.title|default('') }}" required></label>
+  <label>Slug<input name="slug" value="{{ page.slug|default('') }}"></label>
+  <label>Stare<select name="status"><option value="draft" {{ page.status|default('draft') == 'draft' ? 'selected' }}>Draft</option><option value="published" {{ page.status|default('') == 'published' ? 'selected' }}>Publicată</option><option value="archived" {{ page.status|default('') == 'archived' ? 'selected' }}>Arhivată</option></select></label>
+  <label class="choice"><input type="checkbox" name="indexable" {{ not page or page.indexable ? 'checked' }}> Eligibilă pentru indexare</label>
+  <label class="choice full"><input type="checkbox" name="legal_review_required" {{ page.legal_review_required|default(false) ? 'checked' }}> Necesită verificare juridică</label>
+  <label class="full">Conținut HTML permis<textarea name="body_html" rows="14">{{ page.body_html|default('') }}</textarea></label>
+  <label>Titlu SEO<input name="seo_title" value="{{ page.seo_title|default('') }}"></label>
+  <label>Meta description<input name="meta_description" value="{{ page.meta_description|default('') }}"></label>
+</div><button class="button">Salvează pagina</button></form>
+{% endblock %}

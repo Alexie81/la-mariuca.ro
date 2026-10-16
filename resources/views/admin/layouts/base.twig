@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="ro">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{% block title %}Administrare{% endblock %} · La Măriuca</title>
+  <link rel="stylesheet" href="{{ url('assets/css/admin.css') }}">
+</head>
+<body>
+  <header class="admin-header">
+    <a class="admin-brand" href="{{ url('admin/') }}">La Măriuca · Admin</a>
+    <a href="{{ url('') }}">Vezi magazinul</a>
+  </header>
+  <div class="admin-shell">
+    <nav class="admin-nav" aria-label="Administrare">
+      <a href="{{ url('admin/') }}">Dashboard</a>
+      <a href="{{ url('admin/produse/') }}">Produse</a>
+      <a href="{{ url('admin/categorii/') }}">Categorii</a>
+      <a href="{{ url('admin/comenzi/') }}">Comenzi</a>
+      <a href="{{ url('admin/continut/') }}">Homepage și pagini</a>
+      <a href="{{ url('admin/media/') }}">Media</a>
+      <span>Atribute</span><span>Stocuri</span><span>Clienți</span><a href="{{ url('admin/cupoane/') }}">Cupoane</a>
+      <span>Meniuri</span><span>Livrare</span><span>Plăți</span><span>Setări</span>
+    </nav>
+    <main class="admin-main">
+      {% set messages=flash_messages() %}
+      {% for item in messages %}<div class="alert {{ item.type }}">{{ item.message }}</div>{% endfor %}
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</body>
+</html>

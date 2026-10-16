@@ -1,0 +1,2 @@
+{% extends 'storefront/layouts/base.twig' %}
+{% block content %}<div class="container page-shell auth-shell"><form class="form-card" method="post"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><h1>Verificare în doi pași</h1><p>Introdu codul de 6 cifre din aplicația de autentificare sau un cod de recuperare nefolosit.</p><label>Cod<input name="code" autocomplete="one-time-code" inputmode="numeric" required autofocus></label><button class="button button-wide">Verifică</button></form></div>{% endblock %}

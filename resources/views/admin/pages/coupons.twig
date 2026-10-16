@@ -1,0 +1,13 @@
+{% extends 'admin/layouts/base.twig' %}
+{% block title %}Cupoane{% endblock %}
+{% block content %}
+<div class="admin-title"><div><h1>Cupoane</h1><p>Un singur cupon per coș; procentul este rotunjit la cel mai apropiat ban înainte de transport.</p></div></div>
+<form class="panel form" method="post"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><h2>Cupon nou</h2><div class="form-grid">
+  <label>Cod *<input name="code" required placeholder="PRIMUL10"></label><label>Tip<select name="type"><option value="percent">Procent</option><option value="fixed">Sumă fixă RON</option></select></label>
+  <label>Valoare *<input name="value" required placeholder="10 sau 25,00"></label><label>Prag minim RON<input name="minimum" placeholder="0,00"></label>
+  <label>Limită totală<input type="number" min="1" name="usage_limit"></label><label>Limită per email<input type="number" min="1" name="per_customer_limit"></label>
+  <label>Începe la (ora București)<input type="datetime-local" name="starts_at"></label><label>Se termină la (ora București)<input type="datetime-local" name="ends_at"></label>
+  <label>Stare<select name="status"><option value="active">Activ</option><option value="inactive">Inactiv</option></select></label>
+</div><button class="button">Creează cupon</button></form>
+<div class="panel table-wrap"><table><thead><tr><th>Cod</th><th>Tip / valoare</th><th>Prag</th><th>Limite</th><th>Perioadă UTC</th><th>Stare</th></tr></thead><tbody>{% for coupon in coupons %}<tr><td><strong>{{ coupon.code }}</strong></td><td>{{ coupon.type == 'percent' ? percent_basis_points(coupon.value) ~ '%' : money(coupon.value) }}</td><td>{{ money(coupon.minimum_bani) }}</td><td>{{ coupon.usage_limit|default('∞') }} / {{ coupon.per_customer_limit|default('∞') }} per email</td><td>{{ coupon.starts_at|default('—') }}<br>{{ coupon.ends_at|default('—') }}</td><td>{{ coupon.status }}</td></tr>{% else %}<tr><td colspan="6">Nu există cupoane.</td></tr>{% endfor %}</tbody></table></div>
+{% endblock %}

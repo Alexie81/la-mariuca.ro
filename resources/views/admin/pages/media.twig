@@ -1,0 +1,16 @@
+{% extends 'admin/layouts/base.twig' %}
+{% block title %}Media{% endblock %}
+{% block content %}
+<div class="admin-title"><div><h1>Media</h1><p>Originalele rămân private; public sunt numai derivatele validate și re-encodate.</p></div></div>
+<form class="panel form" method="post" enctype="multipart/form-data">
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  <div class="form-grid">
+    <label>Imagine JPG, PNG sau WebP (max. 8 MB / 12 MP)<input type="file" name="image" accept="image/jpeg,image/png,image/webp" required></label>
+    <label>Text alternativ<input name="alt_text" maxlength="500" placeholder="Descriere scurtă pentru accesibilitate"></label>
+  </div>
+  <button class="button">Validează și încarcă</button>
+</form>
+<div class="panel table-wrap"><table><thead><tr><th>Previzualizare</th><th>Fișier</th><th>Dimensiuni</th><th>Alt</th><th>Creat</th></tr></thead><tbody>
+{% for item in media %}<tr><td>{% if item.public_path %}<img src="{{ url(item.public_path) }}" alt="{{ item.alt_text }}" width="96" loading="lazy">{% endif %}</td><td>{{ item.original_name }}<br><small>{{ item.mime_type }}</small></td><td>{{ item.width }} × {{ item.height }}</td><td>{{ item.alt_text ?: '—' }}</td><td>{{ item.created_at }}</td></tr>{% else %}<tr><td colspan="5">Nu există fișiere media.</td></tr>{% endfor %}
+</tbody></table></div>
+{% endblock %}
