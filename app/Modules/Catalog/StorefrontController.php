@@ -26,11 +26,23 @@ final class StorefrontController
 
     public function home(ServerRequestInterface $request): ResponseInterface
     {
+        $categories = $this->catalog->homepageCategories();
+        $baptismCategory = null;
+        foreach ($categories as $category) {
+            if (($category['slug'] ?? '') === 'botez') {
+                $baptismCategory = $category;
+                break;
+            }
+        }
+        $products = $this->catalog->featuredProducts(8);
+
         return $this->view->render('storefront/pages/home.twig', [
             'meta' => $this->meta('La Măriuca Boutique', 'Îmbrăcăminte și accesorii pentru copii de la naștere la 8 ani.', '/'),
             'sections' => $this->content->homepageSections(),
-            'categories' => $this->catalog->allCategories(),
-            'products' => $this->catalog->featuredProducts(),
+            'categories' => $categories,
+            'products' => $products,
+            'new_products' => $this->catalog->latestProducts(15),
+            'baptism_category' => $baptismCategory,
         ]);
     }
 
@@ -101,6 +113,43 @@ final class StorefrontController
         return $this->view->render('storefront/pages/search.twig', ['query' => $query, 'products' => $products, 'meta' => $this->meta('Căutare', '', '/cautare/', true)]);
     }
 
+    public function searchSuggestions(ServerRequestInterface $request): ResponseInterface
+    {
+        $query = trim((string) ($request->getQueryParams()['q'] ?? ''));
+        $ip = (string) ($request->getServerParams()['REMOTE_ADDR'] ?? 'unknown');
+        $items = [];
+        $categories = [];
+        $status = 200;
+
+        if (!$this->limiter->allow('search-suggestions', $ip, 120, 60)) {
+            $status = 429;
+        } elseif (mb_strlen($query) >= 2) {
+            foreach ($this->catalog->searchCategories($query, 4) as $category) {
+                $categories[] = [
+                    'name' => (string) $category['name'],
+                    'slug' => (string) $category['slug'],
+                    'url' => $this->config->path('categorie/' . $category['slug'] . '/'),
+                ];
+            }
+            foreach ($this->catalog->search($query, 6) as $product) {
+                $items[] = [
+                    'name' => (string) $product['name'],
+                    'category' => (string) ($product['category_name'] ?? ''),
+                    'price_bani' => (int) ($product['price_bani'] ?? 0),
+                    'url' => $this->config->path('produs/' . $product['slug'] . '/'),
+                ];
+            }
+        }
+
+        $response = new Response($status);
+        $response->getBody()->write(json_encode([
+            'query' => $query,
+            'categories' => $categories,
+            'items' => $items,
+        ], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
+        return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
+    }
+
     public function favorites(): ResponseInterface
     {
         $ids = array_values(array_unique(array_map('intval', (array) ($_SESSION['favorites'] ?? []))));
@@ -123,16 +172,48 @@ final class StorefrontController
     {
         $data = (array) ($request->getParsedBody() ?? []);
         $id = (int) ($data['product_id'] ?? 0);
+        $wantsJson = str_contains(strtolower($request->getHeaderLine('Accept')), 'application/json');
+        $product = $this->catalog->productById($id);
+        if ($product === null || ($product['status'] ?? '') !== 'published') {
+            $message = 'Produsul nu mai este disponibil.';
+            if ($wantsJson) {
+                return $this->json(['ok' => false, 'message' => $message], 422);
+            }
+            Flash::set('error', $message);
+            return $this->view->redirect($request->getHeaderLine('Referer') ?: $this->config->path('favorite/'));
+        }
+
         $favorites = array_values(array_unique(array_map('intval', (array) ($_SESSION['favorites'] ?? []))));
         if (in_array($id, $favorites, true)) {
             $favorites = array_values(array_filter($favorites, static fn(int $current): bool => $current !== $id));
-            Flash::set('success', 'Produsul a fost eliminat din favorite.');
+            $state = 'removed';
+            $message = 'Produsul a fost eliminat din favorite.';
         } else {
             $favorites[] = $id;
-            Flash::set('success', 'Produsul a fost adăugat la favorite.');
+            $state = 'added';
+            $message = 'Produsul a fost adăugat la favorite.';
         }
         $_SESSION['favorites'] = $favorites;
+
+        if ($wantsJson) {
+            return $this->json([
+                'ok' => true,
+                'message' => $message,
+                'state' => $state,
+                'favorite_count' => count($favorites),
+            ]);
+        }
+
+        Flash::set('success', $message);
         return $this->view->redirect($request->getHeaderLine('Referer') ?: $this->config->path('favorite/'));
+    }
+
+    /** @param array<string, mixed> $payload */
+    private function json(array $payload, int $status = 200): ResponseInterface
+    {
+        $response = new Response($status);
+        $response->getBody()->write(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
+        return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
     }
 
     public function page(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface

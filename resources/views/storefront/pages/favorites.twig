@@ -1,1 +1,20 @@
-{% extends 'storefront/layouts/base.twig' %}{% block content %}<div class="container page-shell"><h1>Favorite</h1><div class="product-grid">{% for product in products %}{% include 'storefront/components/product-card.twig' with {product: product} %}{% else %}<div class="empty"><h2>Lista este goală</h2><p>Salvează produsele care îți plac pentru a reveni ușor la ele.</p></div>{% endfor %}</div></div>{% endblock %}
+{% extends 'storefront/layouts/base.twig' %}
+{% block content %}
+  <div class="container page-shell">
+    <h1>Favorite</h1>
+    <div class="product-grid">
+      {% for product in products %}
+        {% include 'storefront/components/product-card.twig' with {product: product} %}
+      {% else %}
+        {% include 'storefront/components/boutique-empty-panel.twig' with {
+          kind: 'favorites',
+          heading_id: 'empty-favorites-heading',
+          eyebrow: 'Lista ta de dorințe',
+          title: 'Favoritele tale așteaptă ceva drag',
+          message: 'Păstrează aici hăinuțele și micile comori pe care vrei să le regăsești ușor.',
+          action: 'Descoperă colecțiile'
+        } %}
+      {% endfor %}
+    </div>
+  </div>
+{% endblock %}

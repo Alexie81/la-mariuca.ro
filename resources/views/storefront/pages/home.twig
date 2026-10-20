@@ -1,12 +1,281 @@
 {% extends 'storefront/layouts/base.twig' %}
 {% block content %}
 <section class="hero">
+  <div class="hero-media" aria-hidden="true">
+    <img src="{{ url('assets/images/hero/la-mariuca-hero-v3-cat-head-bow.png') }}" width="1672" height="941" alt="" decoding="async" fetchpriority="high">
+  </div>
   <div class="container hero-grid">
-    <div><span class="eyebrow">Îmbrăcăminte pentru copii 0–8 ani</span><h1>Lucruri alese cu grijă pentru începuturi frumoase</h1><p>Descoperă seturi pentru nou-născuți, ținute de botez, hăinuțe, încălțăminte și accesorii.</p><div class="button-row"><a class="button" href="#produse">Descoperă produsele</a><a class="button button-secondary" href="{{ url('categorie/botez/') }}">Colecția de botez</a></div></div>
-    <div class="hero-placeholder" aria-label="Spațiu rezervat fotografiei principale">Fotografia principală va fi adăugată la handoff-ul de design.</div>
+    <svg class="hero-mobile-wave" viewBox="0 0 390 100" preserveAspectRatio="none" aria-hidden="true">
+      <path d="M0 7C86 43 239 13 329 53C354 64 376 83 390 96V100H0Z"></path>
+    </svg>
+    <div class="hero-copy">
+      <span class="eyebrow hero-eyebrow">Îmbrăcăminte pentru copii 0–8 ani</span>
+      <h1 class="hero-title">
+        <span>Lucruri alese<br>cu grijă pentru</span>
+          <strong>începuturi<br><span class="hero-title-final-word">frumoase</span></strong>
+      </h1>
+      <p>De la primele hăinuțe la cele mai frumoase momente ale copilăriei, descoperă seturi pentru nou-născuți, rochițe, costumașe, trusouri și ținute de botez, încălțăminte și accesorii pentru copii 0–8 ani, toate alese cu drag.</p>
+      <div class="button-row hero-actions">
+        <a class="button hero-primary-action" href="#produse">Descoperă produsele <span aria-hidden="true">›</span></a>
+        <a class="button button-secondary hero-secondary-action" href="{{ url('categorie/botez/') }}">Colecția de botez <span aria-hidden="true">›</span></a>
+      </div>
+      <div class="hero-benefits" aria-label="Avantajele magazinului">
+    <article class="hero-benefit-card">
+      <span class="hero-benefit-icon" aria-hidden="true">
+        <svg viewBox="0 0 96 96">
+          <defs>
+            <linearGradient id="benefit-truck" x1="18" y1="18" x2="78" y2="82" gradientUnits="userSpaceOnUse">
+              <stop stop-color="#fffaf8"/>
+              <stop offset="1" stop-color="#efb1aa"/>
+            </linearGradient>
+          </defs>
+          <path class="benefit-spark" d="M73 15v10M68 20h10M82 29v6M79 32h6"/>
+          <path d="M14 35h46v34H14z" fill="url(#benefit-truck)"/>
+          <path d="M60 46h13l10 12v11H60z" fill="#f9dfda"/>
+          <path d="M14 35h46v34H14M60 46h13l10 12v11H60M18 69h65M8 46h19M5 55h22"/>
+          <circle cx="28" cy="70" r="8" fill="#fffaf8"/><circle cx="28" cy="70" r="3" fill="#dc7776"/>
+          <circle cx="69" cy="70" r="8" fill="#fffaf8"/><circle cx="69" cy="70" r="3" fill="#dc7776"/>
+          <path class="benefit-heart" d="M31 45c-5-5-13 2 0 11 13-9 5-16 0-11Z" fill="#e98585" stroke="none"/>
+        </svg>
+      </span>
+      <p><strong>Livrare rapidă</strong><span>în toată România</span></p>
+    </article>
+    <span class="hero-benefit-divider" aria-hidden="true"><i>♥</i></span>
+    <article class="hero-benefit-card">
+      <span class="hero-benefit-icon" aria-hidden="true">
+        <svg viewBox="0 0 96 96">
+          <defs>
+            <linearGradient id="benefit-gift" x1="25" y1="24" x2="76" y2="79" gradientUnits="userSpaceOnUse">
+              <stop stop-color="#fffdfb"/>
+              <stop offset="1" stop-color="#efb8af"/>
+            </linearGradient>
+          </defs>
+          <path class="benefit-spark" d="M78 13v12M72 19h12M17 66v9M13 70h8M79 73v8M75 77h8"/>
+          <path d="M24 40h50v38H24zM20 32h58v13H20z" fill="url(#benefit-gift)"/>
+          <path d="M24 45v33h50V45M20 32h58v13H20zM45 32v46M54 32v46"/>
+          <path d="M49 32C38 31 30 25 33 19c3-6 13 0 16 13Zm0 0c11-1 19-7 16-13-3-6-13 0-16 13Z" fill="#f4cbc4"/>
+        </svg>
+      </span>
+      <p><strong>Ambalare cadou</strong><span>disponibilă</span></p>
+    </article>
+    <span class="hero-benefit-divider" aria-hidden="true"><i>♥</i></span>
+    <article class="hero-benefit-card">
+      <span class="hero-benefit-icon" aria-hidden="true">
+        <svg viewBox="0 0 96 96">
+          <defs>
+            <linearGradient id="benefit-care" x1="27" y1="19" x2="70" y2="76" gradientUnits="userSpaceOnUse">
+              <stop stop-color="#fffdfb"/>
+              <stop offset="1" stop-color="#efaaa5"/>
+            </linearGradient>
+          </defs>
+          <path class="benefit-spark" d="M20 18v10M15 23h10M77 18v8M73 22h8M80 66v11M75 71h10M15 67v7M12 70h6"/>
+          <path d="M48 76C15 57 21 30 35 28c7-1 12 4 13 9 1-5 6-10 13-9 14 2 20 29-13 48Z" fill="url(#benefit-care)"/>
+          <path d="M48 76C15 57 21 30 35 28c7-1 12 4 13 9 1-5 6-10 13-9 14 2 20 29-13 48Z"/>
+          <path class="benefit-heart" d="M48 48c-7-7-17 3 0 14 17-11 7-21 0-14Z" fill="#e98585" stroke="none"/>
+        </svg>
+      </span>
+      <p><strong>Produse atent alese</strong><span>pentru cei mici</span></p>
+    </article>
+      </div>
+    </div>
   </div>
 </section>
-<section class="section container"><div class="section-heading"><div><span class="eyebrow">Explorează</span><h2>Categorii</h2></div></div><div class="category-grid">{% for category in categories|filter(c => c.parent_id is null) %}<a class="category-card" href="{{ url('categorie/' ~ category.slug ~ '/') }}"><span>{{ category.name }}</span><small>Descoperă categoria</small></a>{% else %}<p class="empty">Categoriile vor apărea după seed sau publicare din admin.</p>{% endfor %}</div></section>
-<section id="produse" class="section section-tinted"><div class="container"><div class="section-heading"><div><span class="eyebrow">Selecție editabilă</span><h2>Produse recomandate</h2></div><a href="{{ url('cautare/') }}">Vezi catalogul</a></div><div class="product-grid">{% for product in products %}{% include 'storefront/components/product-card.twig' with {product: product} %}{% else %}<p class="empty">Nu există încă produse recomandate publicate.</p>{% endfor %}</div></div></section>
-<section class="section container"><div class="editorial"><div><span class="eyebrow">Magazin modular</span><h2>Pregătit pentru momentele importante</h2><p>Conținutul acestei secțiuni poate fi ordonat și înlocuit din administrare. Fotografiile finale, logo-ul și identitatea completă vor fi conectate fără schimbarea logicii magazinului.</p></div><a class="button button-secondary" href="{{ url('pagina/despre-noi/') }}">Despre noi</a></div></section>
+<section class="collections-editorial section" aria-labelledby="collections-title">
+  <div class="container collections-editorial-inner">
+    <header class="collections-heading">
+      <div class="collections-heading-title">
+        <span class="eyebrow">
+          <span class="collections-kicker-flower" aria-hidden="true">
+            <svg viewBox="0 0 28 28">
+              <g class="collections-flower-petals">
+                <ellipse cx="14" cy="6.2" rx="3.5" ry="5.2"></ellipse>
+                <ellipse cx="21.4" cy="11.7" rx="3.5" ry="5.2" transform="rotate(72 21.4 11.7)"></ellipse>
+                <ellipse cx="18.6" cy="20.5" rx="3.5" ry="5.2" transform="rotate(144 18.6 20.5)"></ellipse>
+                <ellipse cx="9.4" cy="20.5" rx="3.5" ry="5.2" transform="rotate(216 9.4 20.5)"></ellipse>
+                <ellipse cx="6.6" cy="11.7" rx="3.5" ry="5.2" transform="rotate(288 6.6 11.7)"></ellipse>
+              </g>
+              <circle class="collections-flower-center" cx="14" cy="14" r="3.2"></circle>
+            </svg>
+          </span>
+          Descoperă colecțiile
+        </span>
+        <h2 id="collections-title"><span>Micile bucurii</span> <em>încep aici.</em></h2>
+        <span class="collections-title-flourish" aria-hidden="true">
+          <svg viewBox="0 0 230 34">
+            <path class="collections-flourish-line" d="M2 20c45 0 67 1 93-5 19-4 31-8 47-7"></path>
+            <path class="collections-flourish-heart" d="M156 9c8-11 26 1 0 18-26-17-8-29 0-18Z"></path>
+            <path class="collections-flourish-tail" d="M172 18c19 0 35-3 56-13"></path>
+          </svg>
+        </span>
+      </div>
+      <div class="collections-intro">
+        <p><strong>De la primele hăinuțe</strong> la cele mai frumoase momente ale copilăriei, <span>descoperă colecțiile La Măriuca.</span></p>
+      </div>
+    </header>
+    {% set collection_count = categories|length %}
+    {% set collection_featured_count = collection_count == 8 ? 4 : 3 %}
+    <div class="collections-grid" data-collection-count="{{ collection_count }}">
+      {% for category in categories %}
+        <a class="collection-card {{ loop.index <= collection_featured_count ? 'is-featured' : 'is-compact' }} {{ category.image_path ? 'has-image' : 'is-graphic' }} collection-card--tone-{{ (loop.index0 % 4) + 1 }}" href="{{ url('categorie/' ~ category.slug ~ '/') }}" aria-label="Descoperă categoria {{ category.name }}">
+          <span class="collection-card-media" aria-hidden="true">
+            {% if category.image_path %}
+              <img src="{{ url(category.image_path) }}" alt="" loading="lazy" decoding="async">
+            {% else %}
+              <span class="collection-card-art">
+                <svg viewBox="0 0 240 240">
+                  <path class="collection-art-orbit" d="M42 140c33-79 133-101 163-28 25 62-38 103-101 82-48-17-73-68-42-111"></path>
+                  <path class="collection-art-heart" d="M121 82c-19-24-57 7 0 47 57-40 19-71 0-47Z"></path>
+                  <path class="collection-art-thread" d="M29 176c37 11 65 2 84-26 17-25 35-31 56-20 16 9 31 8 44-3"></path>
+                  <path class="collection-art-spark" d="M184 49v24M172 61h24M64 49v14M57 56h14"></path>
+                </svg>
+              </span>
+            {% endif %}
+            <span class="collection-card-shade"></span>
+            <span class="collection-card-index">{{ '%02d'|format(loop.index) }}</span>
+          </span>
+          <span class="collection-card-copy">
+            <strong>{{ category.name }}</strong>
+            <span class="collection-card-action">Descoperă <i aria-hidden="true">→</i></span>
+          </span>
+        </a>
+      {% else %}
+        <p class="empty">Categoriile principale vor apărea aici după publicarea lor din administrare.</p>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+<section id="produse" class="curated-products section" aria-labelledby="curated-products-title">
+  <span class="curated-products-orb curated-products-orb-one" aria-hidden="true"></span>
+  <span class="curated-products-orb curated-products-orb-two" aria-hidden="true"></span>
+  <div class="container curated-products-inner">
+    <header class="curated-products-heading">
+      <div class="curated-products-title-wrap">
+        <span class="eyebrow">Alese cu drag pentru cei mici</span>
+        <h2 id="curated-products-title">Micile detalii,<br><em>cele mai frumoase ținute.</em></h2>
+      </div>
+      <div class="curated-products-intro">
+        <p>Descoperă hăinuțe, rochițe, costumașe și accesorii atent alese pentru fiecare etapă a copilăriei.</p>
+        <span class="curated-products-signature">Selecția La Măriuca</span>
+        <a href="{{ url('cautare/') }}">Vezi toate produsele <span aria-hidden="true">→</span></a>
+      </div>
+    </header>
+
+    {% if products %}
+      <div class="boutique-carousel" data-product-carousel data-autoplay-ms="1500" role="region" aria-roledescription="carusel" aria-label="Selecția La Măriuca">
+        <div class="boutique-carousel-toolbar">
+          <span class="boutique-carousel-progress" aria-hidden="true"><span data-carousel-progress></span></span>
+          <div class="boutique-carousel-controls">
+            <button class="boutique-carousel-button" type="button" data-carousel-prev aria-label="Produsul anterior">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14.5 6.5-5.5 5.5 5.5 5.5"></path></svg>
+            </button>
+            <span class="boutique-carousel-position" data-carousel-position aria-live="polite">01 / {{ '%02d'|format(products|length) }}</span>
+            <button class="boutique-carousel-button" type="button" data-carousel-next aria-label="Produsul următor">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9.5 6.5 5.5 5.5-5.5 5.5"></path></svg>
+            </button>
+          </div>
+        </div>
+        <div class="boutique-carousel-viewport" data-carousel-viewport tabindex="0">
+          <div class="curated-products-grid boutique-carousel-track" data-carousel-track>
+            {% for product in products %}
+              <div class="boutique-carousel-slide" data-carousel-slide role="group" aria-roledescription="slide" aria-label="{{ loop.index }} din {{ products|length }}">
+                {% include 'storefront/components/boutique-product-card.twig' with {product: product} %}
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+        <p class="sr-only" data-carousel-announcement aria-live="polite"></p>
+      </div>
+    {% else %}
+      <p class="empty">Produsele alese vor apărea aici după publicarea lor din administrare.</p>
+    {% endif %}
+  </div>
+</section>
+
+<section class="baptism-story section" aria-labelledby="baptism-story-title">
+  <div class="container baptism-story-shell has-image">
+    <a class="baptism-story-media" href="{{ url('categorie/botez/') }}" aria-label="Descoperă colecția de botez">
+      <img src="{{ url('assets/images/editorial/botez-colectie-costumas-rochita-trusou-2026.webp') }}"
+           alt="Costumaș elegant pentru băieți, rochiță din dantelă și trusou complet de botez"
+           width="1918" height="820" loading="lazy" decoding="async">
+      <span class="baptism-story-media-glow" aria-hidden="true"></span>
+    </a>
+    <div class="baptism-story-copy">
+      <div class="baptism-story-kicker">
+        <span class="baptism-story-candle" aria-hidden="true">
+          <svg viewBox="0 0 32 32">
+            <path class="baptism-story-candle-flame" d="M16 3.2c2.8 3.1 3.1 5.2.9 7.4-2.5 2.5-5.4.3-4.3-2.2.6-1.5 2.2-2.6 3.4-5.2Z"></path>
+            <path d="M11.4 12h9.2v15.2h-9.2zM9.5 27.2h13M16 15v8.5M13.2 18.2h5.6"></path>
+            <path class="baptism-story-candle-ribbon" d="M11.4 21.2c-4.2-2.5-4.8 2.8-.2 2.3M20.6 21.2c4.2-2.5 4.8 2.8.2 2.3"></path>
+          </svg>
+        </span>
+        <span class="eyebrow baptism-story-label">Colecția de botez</span>
+        <span class="baptism-story-edition"><span aria-hidden="true">✦</span>Aleasă cu drag</span>
+      </div>
+      <h2 id="baptism-story-title"><span>Botezul,</span><em>o poveste de neuitat.</em></h2>
+      <div class="baptism-story-intro">
+        <span class="baptism-story-intro-quote" aria-hidden="true">“</span>
+        <p><strong>Rochițe, costumașe, trusouri și accesorii</strong><span>alese pentru o zi care rămâne pentru totdeauna în suflet.</span></p>
+      </div>
+      <ul class="baptism-story-categories" aria-label="Produse din colecția de botez">
+        <li><span aria-hidden="true"></span>Costumașe</li>
+        <li><span aria-hidden="true"></span>Rochițe</li>
+        <li><span aria-hidden="true"></span>Trusouri</li>
+      </ul>
+      <a class="baptism-story-action" href="{{ url('categorie/botez/') }}">
+        <span>Descoperă colecția</span>
+        <span class="baptism-story-action-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"></path></svg>
+        </span>
+      </a>
+      <span class="baptism-story-signature">
+        <span class="baptism-story-signature-line" aria-hidden="true"></span>
+        <span class="baptism-story-signature-copy">Pentru amintiri păstrate o viață</span>
+        <svg viewBox="0 0 34 18" aria-hidden="true"><path d="M2 15c8 0 10-7 17-7 4.5 0 5.5 4.7 1.8 6.2-3.7 1.5-6.5-3.4-3.2-7.2 3-3.6 7.8-2.5 8.9 1.3M27.5 4.5l1-2 1 2 2 .9-2 .9-1 2-1-2-2-.9 2-.9Z"></path></svg>
+      </span>
+    </div>
+  </div>
+</section>
+
+<section class="new-arrivals section" aria-labelledby="new-arrivals-title">
+  <div class="container">
+    <header class="new-arrivals-heading">
+      <div>
+        <span class="eyebrow">Noutăți alese cu drag</span>
+        <h2 id="new-arrivals-title">
+          <span>Abia sosite <span class="new-arrivals-mobile-in">în</span></span>
+          <span class="new-arrivals-title-tail"><span class="new-arrivals-desktop-in">în </span><em>boutique</em></span>
+        </h2>
+      </div>
+      <a href="{{ url('cautare/?sortare=nou') }}">Descoperă noutățile <span aria-hidden="true">→</span></a>
+    </header>
+    {% if new_products %}
+      <div class="boutique-carousel new-arrivals-carousel" data-product-carousel data-autoplay-ms="1500" role="region" aria-roledescription="carusel" aria-label="Produse recent adăugate">
+        <div class="boutique-carousel-toolbar">
+          <span class="boutique-carousel-progress" aria-hidden="true"><span data-carousel-progress></span></span>
+          <div class="boutique-carousel-controls">
+            <button class="boutique-carousel-button" type="button" data-carousel-prev aria-label="Produs nou anterior">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14.5 6.5-5.5 5.5 5.5 5.5"></path></svg>
+            </button>
+            <span class="boutique-carousel-position" data-carousel-position aria-live="polite">01 / {{ '%02d'|format(new_products|length) }}</span>
+            <button class="boutique-carousel-button" type="button" data-carousel-next aria-label="Produs nou următor">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9.5 6.5 5.5 5.5-5.5 5.5"></path></svg>
+            </button>
+          </div>
+        </div>
+        <div class="boutique-carousel-viewport" data-carousel-viewport tabindex="0">
+          <div class="curated-products-grid boutique-carousel-track" data-carousel-track>
+            {% for product in new_products %}
+              <div class="boutique-carousel-slide" data-carousel-slide role="group" aria-roledescription="slide" aria-label="{{ loop.index }} din {{ new_products|length }}">
+                {% include 'storefront/components/boutique-product-card.twig' with {product: product, show_recent_badge: true} %}
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+        <p class="sr-only" data-carousel-announcement aria-live="polite"></p>
+      </div>
+    {% else %}
+      <p class="empty">Noutățile vor apărea aici după publicarea produselor.</p>
+    {% endif %}
+  </div>
+</section>
 {% endblock %}

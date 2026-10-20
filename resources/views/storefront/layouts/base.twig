@@ -1,59 +1,256 @@
+{% macro submenu_tree(items, parent_slug, level) %}
+  <div id="submenu-{{ parent_slug }}" class="submenu submenu-level-{{ level }}" data-submenu>
+    <div class="submenu-content">
+      {% for child in items %}
+        <div class="submenu-item{{ child.children ? ' has-children' : '' }}">
+          <a href="{{ url('categorie/' ~ child.slug ~ '/') }}"{% if child.children %} class="has-children"{% endif %}>
+            {% if child.image_path %}<span class="submenu-thumbnail" aria-hidden="true"><img src="{{ url(child.image_path) }}" alt="" loading="lazy" decoding="async"></span>{% endif %}
+            <span>{{ child.name }}</span>
+          </a>
+          {% if child.children %}
+            <button class="submenu-toggle" type="button" data-submenu-toggle aria-expanded="false" aria-controls="submenu-{{ child.slug }}" aria-label="Arată subcategoriile pentru {{ child.name }}">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 9 5 5 5-5"></path></svg>
+            </button>
+            {{ _self.submenu_tree(child.children, child.slug, level + 1) }}
+          {% endif %}
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+{% endmacro %}
 <!doctype html>
 <html lang="ro">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="icon" href="data:,">
+  <link rel="icon" type="image/png" sizes="32x32" href="{{ url('assets/images/favicon-lm-32.png') }}">
+  <link rel="icon" type="image/png" sizes="192x192" href="{{ url('assets/images/favicon-lm-192.png') }}">
+  <link rel="apple-touch-icon" sizes="180x180" href="{{ url('assets/images/apple-touch-icon-lm.png') }}">
+  <meta name="theme-color" content="#fbfaf8">
   <title>{{ meta.title|default('La Măriuca Boutique') }} · La Măriuca Boutique</title>
   {% if meta.description|default('') %}<meta name="description" content="{{ meta.description }}">{% endif %}
   {% if meta.noindex|default(false) %}<meta name="robots" content="noindex,nofollow">{% endif %}
   {% if meta.canonical|default('') %}<link rel="canonical" href="{{ meta.canonical }}">{% endif %}
   <link rel="stylesheet" href="{{ url('assets/css/storefront/tokens.css') }}">
   <link rel="stylesheet" href="{{ url('assets/css/storefront/base.css') }}">
-  <link rel="stylesheet" href="{{ url('assets/css/storefront/layout.css') }}">
+  <link rel="stylesheet" href="{{ url('assets/css/storefront/typography.css') }}">
+  <link rel="stylesheet" href="{{ url('assets/css/storefront/layout.css') }}?v=20261021-desktopoverflow3">
   <link rel="stylesheet" href="{{ url('assets/css/storefront/components.css') }}">
-  <link rel="stylesheet" href="{{ url('assets/css/storefront/pages.css') }}">
+  <link rel="stylesheet" href="{{ url('assets/css/storefront/pages.css') }}?v=20261021-mobile-arrivals2">
+  <link rel="stylesheet" href="{{ url('assets/css/storefront/empty-states.css') }}">
+  <link rel="stylesheet" href="{{ url('assets/css/storefront/interactions.css') }}?v=20261020-carttoggle1">
   {% block head %}{% endblock %}
 </head>
 <body>
   <a class="skip-link" href="#continut">Sari la conținut</a>
-  <div class="notice">Magazin demo local · Datele comerciale și livrarea se configurează înainte de lansare</div>
+  <div class="mobile-delivery">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h11v10H3zM14 10h4l3 3v3h-7z"></path><circle cx="7" cy="18" r="2"></circle><circle cx="18" cy="18" r="2"></circle></svg>
+    <span>Livrare rapidă în toată România</span>
+  </div>
+  {% set cart = cart_summary() %}
+  {% set user = current_user() %}
+  {% set favorite_total = favorite_count() %}
+  {% set navigation_tree = navigation_categories() %}
   <header class="site-header">
-    <div class="container header-row">
+    <div class="header-container header-row">
       <a class="brand" href="{{ url('') }}" aria-label="La Măriuca Boutique, pagina principală">
-        <span class="brand-mark" aria-hidden="true">LM</span><span>La Măriuca <small>Boutique</small></span>
+        <img class="brand-logo" src="{{ url('assets/images/logo-la-mariuca-transparent.png') }}" width="1000" height="337" alt="" decoding="async">
+        <span class="mobile-menu-tagline">Pentru cei mai frumoși începuturi <span aria-hidden="true">♡</span></span>
       </a>
-      <button class="menu-toggle" type="button" data-menu-toggle aria-expanded="false" aria-controls="main-menu">Meniu</button>
+      <button class="menu-toggle" type="button" data-menu-toggle aria-expanded="false" aria-controls="main-menu">
+        <svg class="menu-open-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"></path></svg>
+        <svg class="menu-close-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 5 14 14M19 5 5 19"></path></svg>
+        <span class="sr-only">Deschide meniul</span>
+      </button>
       <form class="search-form" action="{{ url('cautare/') }}" method="get" role="search">
-        <label class="sr-only" for="site-search">Caută produse</label>
-        <input id="site-search" type="search" name="q" value="" placeholder="Caută produse, SKU sau categorii" minlength="2">
-        <button type="submit">Caută</button>
+        <div class="search-shell">
+          <label class="sr-only" for="site-search">Caută în magazin</label>
+          <svg class="search-menu-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"></circle><path d="m15.5 15.5 4.5 4.5"></path></svg>
+          <input id="site-search" type="search" name="q" value="" placeholder="Caută hăinuțe, rochițe, trusouri..." data-search-placeholder data-placeholder-desktop="Caută hăinuțe, rochițe, trusouri..." data-placeholder-phone="Ce cauți pentru cel mic?" minlength="2" autocomplete="off" aria-controls="search-suggestions" aria-expanded="false">
+          <button class="search-clear" type="button" data-search-clear aria-label="Șterge căutarea" hidden>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"></path></svg>
+          </button>
+          <button type="submit" aria-label="Caută"><svg class="search-submit-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"></circle><path d="m15.5 15.5 4.5 4.5"></path></svg></button>
+        </div>
+        <div class="search-quick-scroller" data-search-quick-scroller>
+          <button class="search-quick-scroll search-quick-scroll-prev" type="button" data-search-quick-prev aria-label="Vezi categoriile anterioare" aria-controls="search-quick-links" hidden>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 7-5 5 5 5"></path></svg>
+          </button>
+          <nav id="search-quick-links" class="search-quick-links" data-search-quick-links aria-label="Căutări rapide">
+            {% for category in navigation_tree %}
+              <a{% if category.image_path %} class="has-thumbnail"{% endif %} href="{{ url('categorie/' ~ category.slug ~ '/') }}">
+                {% if category.image_path %}
+                  <span class="search-quick-icon search-quick-thumbnail" aria-hidden="true"><img src="{{ url(category.image_path) }}" alt="" loading="lazy" decoding="async"></span>
+                {% endif %}
+                <span class="search-quick-label">{{ category.name }}</span>
+              </a>
+            {% endfor %}
+          </nav>
+          <button class="search-quick-scroll search-quick-scroll-next" type="button" data-search-quick-next aria-label="Vezi mai multe categorii" aria-controls="search-quick-links" hidden>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m10 7 5 5-5 5"></path></svg>
+          </button>
+        </div>
+        <div id="search-suggestions" class="search-suggestions" data-search-suggestions data-endpoint="{{ url('cautare/sugestii/') }}" role="region" aria-label="Sugestii de căutare" hidden></div>
       </form>
-      {% set cart = cart_summary() %}
-      {% set user = current_user() %}
-      <nav class="utility-nav" aria-label="Cont și cumpărături">
-        <a href="{{ url('favorite/') }}">Favorite</a>
-        <a href="{{ url(user ? 'cont/' : 'cont/autentificare/') }}">{{ user ? 'Cont' : 'Autentificare' }}</a>
-        <a href="{{ url('cos/') }}">Coș <span class="count">{{ cart.count }}</span></a>
+      <nav class="utility-nav desktop-utility-nav" aria-label="Cont și cumpărături">
+        <div class="utility-favorites">
+          {% if favorite_total > 0 %}
+            <a class="utility-link favorite-link" href="{{ url('favorite/') }}" data-animated-action>
+              <span class="utility-icon-wrap">
+                <img class="icon-heart" src="{{ url('assets/images/icon-favorite-hearts.png') }}" width="160" height="128" alt="" aria-hidden="true">
+                <span class="count" data-favorite-count>{{ favorite_total }}</span>
+              </span>
+              <span>Favorite</span>
+            </a>
+          {% else %}
+            <button class="utility-link favorite-link" type="button" data-animated-action data-utility-panel-toggle aria-expanded="false" aria-controls="desktop-empty-favorites">
+              <span class="utility-icon-wrap">
+                <img class="icon-heart" src="{{ url('assets/images/icon-favorite-hearts.png') }}" width="160" height="128" alt="" aria-hidden="true">
+              </span>
+              <span>Favorite</span>
+            </button>
+            <div id="desktop-empty-favorites" class="mini-cart mini-cart-empty mini-favorites-panel" data-utility-panel hidden>
+              <span class="mini-cart-empty-icon mini-favorites-empty-icon" aria-hidden="true">
+                <span class="mini-cart-empty-heart mini-cart-empty-heart-one">♥</span>
+                <span class="mini-cart-empty-heart mini-cart-empty-heart-two">♥</span>
+                <span class="mini-cart-empty-heart mini-cart-empty-heart-three">♥</span>
+                <img class="mini-cart-empty-favorite" src="{{ url('assets/images/icon-favorite-hearts.png') }}" width="160" height="128" alt="">
+              </span>
+              <span class="mini-cart-empty-copy">
+                <strong>Favoritele tale așteaptă ceva drag</strong>
+                <small>Salvează aici micile comori pe care vrei să le regăsești ușor.</small>
+              </span>
+              <a href="{{ url('cautare/') }}">Descoperă colecțiile <span aria-hidden="true">→</span></a>
+            </div>
+          {% endif %}
+        </div>
+        <a class="utility-link account-link" href="{{ url(user ? 'cont/' : 'cont/autentificare/') }}" data-animated-action>
+          <svg class="icon-user" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12.5"></circle><circle cx="16" cy="12" r="4"></circle><path d="M9.2 24.2c1.4-3.2 3.8-4.8 6.8-4.8s5.4 1.6 6.8 4.8"></path></svg>
+          <span>{{ user ? 'Contul meu' : 'Autentificare' }}</span>
+        </a>
+        <div class="utility-cart">
+          <button class="utility-link cart-link" type="button" data-utility-panel-toggle aria-expanded="false" aria-controls="desktop-mini-cart">
+            <span class="utility-icon-wrap">
+              <img class="icon-cart-reference" src="{{ url('assets/images/icon-cart-reference.png') }}" width="160" height="145" alt="" aria-hidden="true">
+              <span class="count" data-cart-count>{{ cart.count }}</span>
+            </span>
+            <span>Coș</span>
+          </button>
+          <div id="desktop-mini-cart" class="mini-cart{{ cart.count == 0 ? ' mini-cart-empty' }}" data-utility-panel hidden>
+            {% if cart.count > 0 %}
+              <strong>{{ cart.count }} produse în coș</strong>
+              <span>{{ money(cart.total_bani) }}</span>
+              <a href="{{ url('cos/') }}">Vezi coșul <span aria-hidden="true">→</span></a>
+            {% else %}
+              <span class="mini-cart-empty-icon" aria-hidden="true">
+                <span class="mini-cart-empty-heart mini-cart-empty-heart-one">♥</span>
+                <span class="mini-cart-empty-heart mini-cart-empty-heart-two">♥</span>
+                <span class="mini-cart-empty-heart mini-cart-empty-heart-three">♥</span>
+                <img class="mini-cart-empty-cart" src="{{ url('assets/images/icon-cart-reference.png') }}" width="160" height="145" alt="">
+              </span>
+              <span class="mini-cart-empty-copy">
+                <strong>Coșul tău așteaptă ceva special</strong>
+                <small>Descoperă hăinuțe alese cu drag pentru cei mici.</small>
+              </span>
+              <a href="{{ url('cautare/') }}">Descoperă colecțiile <span aria-hidden="true">→</span></a>
+            {% endif %}
+          </div>
+        </div>
       </nav>
+      <a class="mobile-favorite" href="{{ url('favorite/') }}" aria-label="Favorite, {{ favorite_total }} produse" data-animated-action>
+        <span class="utility-icon-wrap">
+          <img class="icon-heart" src="{{ url('assets/images/icon-favorite-hearts.png') }}" width="160" height="128" alt="" aria-hidden="true">
+          {% if favorite_total > 0 %}<span class="count" data-favorite-count>{{ favorite_total }}</span>{% endif %}
+        </span>
+      </a>
+      <a class="mobile-cart" href="{{ url('cos/') }}" aria-label="Coș, {{ cart.count }} produse">
+        <span class="utility-icon-wrap">
+          <img class="icon-cart-reference" src="{{ url('assets/images/icon-cart-reference.png') }}" width="160" height="145" alt="" aria-hidden="true">
+          <span class="count" data-cart-count>{{ cart.count }}</span>
+        </span>
+      </a>
     </div>
+    <div class="desktop-nav-separator" aria-hidden="true"></div>
     <nav id="main-menu" class="main-menu" aria-label="Categorii principale" data-menu>
-      <div class="container menu-list">
-        {% for category in navigation_categories() %}
-          <div class="menu-group">
-            <a href="{{ url('categorie/' ~ category.slug ~ '/') }}">{{ category.name }}</a>
+      <div class="container menu-list" data-desktop-menu-list>
+        <div class="menu-group mobile-home-menu">
+          <a class="mobile-home-link has-menu-icon" href="{{ url('') }}">
+            <span class="mobile-menu-icon mobile-home-icon" aria-hidden="true">
+              <svg viewBox="0 0 32 32">
+                <path class="home-roof" d="M5.5 14.1 16 5.8l10.5 8.3"></path>
+                <path class="home-body" d="M8.2 12.4v13.1h15.6V12.4"></path>
+                <path class="home-door" d="M13.3 25.5v-7.3h5.4v7.3"></path>
+                <path class="home-heart" d="M16 14.9c-2.7-2.5-5.3 1.5 0 4.7 5.3-3.2 2.7-7.2 0-4.7Z"></path>
+                <circle class="home-spark home-spark-one" cx="25.8" cy="7.2" r="1"></circle>
+                <circle class="home-spark home-spark-two" cx="6.2" cy="8.5" r=".75"></circle>
+              </svg>
+            </span>
+            <span class="mobile-menu-label">Acasă</span>
+          </a>
+        </div>
+        <div class="desktop-menu-overflow" data-desktop-menu-overflow hidden>
+          <button class="desktop-menu-overflow-toggle" type="button" data-desktop-menu-overflow-toggle aria-expanded="false" aria-controls="desktop-menu-overflow-panel">
+            <span class="desktop-menu-overflow-icon" aria-hidden="true"><i></i><i></i></span>
+            <span class="sr-only">Arată categoriile care nu încap în bară</span>
+          </button>
+          <div class="desktop-menu-overflow-panel" id="desktop-menu-overflow-panel" data-desktop-menu-overflow-panel hidden>
+            <div class="desktop-menu-overflow-heading">
+              <span>Descoperă</span>
+              <strong>Mai multe categorii</strong>
+            </div>
+            <div class="desktop-menu-overflow-items" data-desktop-menu-overflow-items></div>
+          </div>
+        </div>
+        {% for category in navigation_tree %}
+          <div class="menu-group" data-desktop-menu-item>
+            <a class="category-link{% if category.children %} has-children{% endif %}{% if category.image_path %} has-thumbnail{% endif %}" href="{{ url('categorie/' ~ category.slug ~ '/') }}">
+              {% if category.image_path %}
+                <span class="mobile-menu-icon mobile-menu-thumbnail" aria-hidden="true"><img src="{{ url(category.image_path) }}" alt="" loading="lazy" decoding="async"></span>
+              {% endif %}
+              <span class="mobile-menu-label">{{ category.name }}</span>
+            </a>
             {% if category.children %}
-              <div class="submenu">
-                {% for child in category.children %}<a href="{{ url('categorie/' ~ child.slug ~ '/') }}">{{ child.name }}</a>{% endfor %}
-              </div>
+              <button class="submenu-toggle" type="button" data-submenu-toggle aria-expanded="false" aria-controls="submenu-{{ category.slug }}" aria-label="Arată subcategoriile pentru {{ category.name }}">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 9 5 5 5-5"></path></svg>
+              </button>
+              {{ _self.submenu_tree(category.children, category.slug, 1) }}
             {% endif %}
           </div>
         {% else %}<span class="muted">Categoriile apar după publicarea produselor.</span>{% endfor %}
+        <div class="menu-group menu-highlight" data-desktop-menu-item><a class="has-menu-icon" href="{{ url('cautare/?sortare=nou') }}"><span class="mobile-menu-icon" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M16 4c0 7-3 10-10 10 7 0 10 3 10 10 0-7 3-10 10-10-7 0-10-3-10-10Z"></path><path d="M24.5 3v6M21.5 6h6M7 22v5M4.5 24.5h5"></path></svg></span><span class="mobile-menu-label">Noutăți</span></a></div>
+        <div class="menu-group menu-highlight" data-desktop-menu-item><a class="has-menu-icon" href="{{ url('cautare/?reduceri=1') }}"><span class="mobile-menu-icon" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="m5 15 10-10h10l2 2v10L17 27 5 15Z"></path><circle cx="21.5" cy="10.5" r="1.5"></circle></svg></span><span class="mobile-menu-label">Reduceri</span></a></div>
+        <div class="mobile-menu-story" aria-hidden="true"><span>Mai mult decât haine,</span><strong>povești pentru copii ♡</strong></div>
       </div>
+      <nav class="mobile-utility-nav" aria-label="Cont și cumpărături pe mobil">
+        <a class="utility-link favorite-link" href="{{ url('favorite/') }}">
+          <span class="utility-icon-wrap"><img class="icon-heart" src="{{ url('assets/images/icon-favorite-hearts.png') }}" width="160" height="128" alt="" aria-hidden="true">{% if favorite_total > 0 %}<span class="count" data-favorite-count>{{ favorite_total }}</span>{% endif %}</span>
+          <span>Favorite</span>
+        </a>
+        <a class="utility-link" href="{{ url(user ? 'cont/' : 'cont/autentificare/') }}">
+          <svg class="icon-user" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12.5"></circle><circle cx="16" cy="12" r="4"></circle><path d="M9.2 24.2c1.4-3.2 3.8-4.8 6.8-4.8s5.4 1.6 6.8 4.8"></path></svg>
+          <span>{{ user ? 'Cont' : 'Autentificare' }}</span>
+        </a>
+        <a class="utility-link" href="{{ url('cos/') }}">
+          <span class="utility-icon-wrap">
+            <img class="icon-cart-reference" src="{{ url('assets/images/icon-cart-reference.png') }}" width="160" height="145" alt="" aria-hidden="true">
+            <span class="count" data-cart-count>{{ cart.count }}</span>
+          </span>
+          <span>Coș</span>
+        </a>
+      </nav>
     </nav>
   </header>
   {% set messages = flash_messages() %}
-  {% if messages %}<div class="container alerts" aria-live="polite">{% for item in messages %}<div class="alert alert-{{ item.type }}">{{ item.message }}</div>{% endfor %}</div>{% endif %}
+  <div class="boutique-toast-region" data-storefront-toasts aria-live="polite" aria-atomic="false">
+    {% for item in messages %}
+      <div class="boutique-toast boutique-toast--{{ item.type }}" data-server-toast role="status">
+        <span class="boutique-toast-icon" aria-hidden="true">{{ item.type == 'error' ? '!' : '✓' }}</span>
+        <span class="boutique-toast-copy"><small>La Măriuca</small><strong>{{ item.message }}</strong></span>
+        <button class="boutique-toast-close" type="button" aria-label="Închide mesajul">×</button>
+        <span class="boutique-toast-progress" aria-hidden="true"></span>
+      </div>
+    {% endfor %}
+  </div>
   <main id="continut">{% block content %}{% endblock %}</main>
   <footer class="site-footer">
     <div class="container footer-grid">
@@ -64,7 +261,10 @@
     </div>
     <div class="container footer-bottom">© {{ "now"|date("Y") }} La Măriuca Boutique. Informațiile juridice sunt drafturi ce necesită verificare.</div>
   </footer>
-  <script type="module" src="{{ url('assets/js/storefront/navigation.js') }}"></script>
+  <script type="module" src="{{ url('assets/js/storefront/navigation.js') }}?v=20261021-mobile-submenu-stable1"></script>
+  <script type="module" src="{{ url('assets/js/storefront/storefront-actions.js') }}?v=20261020-carttoggle1"></script>
+  <script type="module" src="{{ url('assets/js/storefront/product-carousel.js') }}?v=20261020-carousel4"></script>
+  <script type="module" src="{{ url('assets/js/storefront/hero-parallax.js') }}"></script>
   <script type="module" src="{{ url('assets/js/storefront/variant-selector.js') }}"></script>
 </body>
 </html>

@@ -15,15 +15,25 @@ final class CatalogRepository
     /** @return list<array<string, mixed>> */
     public function navigationCategories(): array
     {
-        $rows = $this->pdo->query("SELECT c.id, c.parent_id, c.name, c.slug
+        $rows = $this->pdo->query("SELECT c.id, c.parent_id, c.name, c.slug,
+              m.public_path AS image_path, m.alt_text AS image_alt
             FROM categories c
+            LEFT JOIN media m ON m.id = c.image_media_id
             WHERE c.status = 'published' AND c.visibility = 'public'
-              AND EXISTS (
-                SELECT 1 FROM product_categories pc
-                JOIN products p ON p.id = pc.product_id AND p.status = 'published'
-                WHERE pc.category_id = c.id
-              )
-            ORDER BY c.position, c.name")->fetchAll();
+            ORDER BY
+              CASE WHEN c.parent_id IS NULL THEN
+                CASE c.slug
+                  WHEN 'nou-nascuti' THEN 1
+                  WHEN 'fetite' THEN 2
+                  WHEN 'baieti' THEN 3
+                  WHEN 'costume-traditionale' THEN 4
+                  WHEN 'botez' THEN 5
+                  WHEN 'incaltaminte' THEN 6
+                  ELSE 99
+                END
+              ELSE 100 END,
+              c.position,
+              c.name")->fetchAll();
         return $this->tree($rows);
     }
 
@@ -36,6 +46,31 @@ final class CatalogRepository
         }
         $sql .= ' ORDER BY c.position, c.name';
         return $this->pdo->query($sql)->fetchAll();
+    }
+
+    /** @return list<array<string, mixed>> */
+    public function homepageCategories(): array
+    {
+        return $this->pdo->query("SELECT c.id, c.parent_id, c.name, c.slug, c.description, c.position,
+                m.public_path AS image_path, m.alt_text AS image_alt
+            FROM categories c
+            LEFT JOIN media m ON m.id = c.image_media_id
+            WHERE c.parent_id IS NULL
+              AND c.status = 'published'
+              AND c.visibility = 'public'
+            ORDER BY
+              CASE c.slug
+                WHEN 'nou-nascuti' THEN 1
+                WHEN 'fetite' THEN 2
+                WHEN 'baieti' THEN 3
+                WHEN 'costume-traditionale' THEN 4
+                WHEN 'botez' THEN 5
+                WHEN 'incaltaminte' THEN 6
+                ELSE 99
+              END,
+              c.position,
+              c.name,
+              c.id")->fetchAll();
     }
 
     /** @return array<string, mixed>|null */
@@ -103,23 +138,46 @@ final class CatalogRepository
     }
 
     /** @return list<array<string, mixed>> */
-    public function featuredProducts(int $limit = 8): array
+    public function featuredProducts(int $limit = 4): array
     {
         $limit = max(1, min(24, $limit));
-        return $this->pdo->query("SELECT p.*, MIN(v.price_bani) AS price_bani,
-                MIN(v.compare_price_bani) AS compare_price_bani,
-                COALESCE(SUM(i.physical_quantity - i.reserved_quantity), 0) AS available_quantity
-            FROM products p
-            JOIN product_variants v ON v.product_id = p.id AND v.status = 'active'
-            LEFT JOIN inventory i ON i.variant_id = v.id
-            WHERE p.status = 'published' AND p.featured = 1
-            GROUP BY p.id ORDER BY p.published_at DESC, p.id DESC LIMIT {$limit}")->fetchAll();
+        $products = $this->homepageProductCards($limit, true);
+        if (count($products) >= $limit) {
+            return $products;
+        }
+
+        $selectedIds = array_map(static fn(array $product): int => (int) $product['id'], $products);
+        $fallback = $this->homepageProductCards($limit - count($products), false, $selectedIds);
+        return array_merge($products, $fallback);
+    }
+
+    /** @param list<int> $excludeIds @return list<array<string, mixed>> */
+    public function latestProducts(int $limit = 4, array $excludeIds = []): array
+    {
+        return $this->homepageProductCards(max(1, min(24, $limit)), false, $excludeIds);
     }
 
     /** @return array<string, mixed>|null */
     public function productBySlug(string $slug, bool $publicOnly = true): ?array
     {
-        $sql = 'SELECT p.*, c.name AS category_name, c.slug AS category_slug FROM products p LEFT JOIN categories c ON c.id = p.primary_category_id WHERE p.slug = :slug';
+        $sql = "SELECT p.*, c.name AS category_name, c.slug AS category_slug,
+                COALESCE(
+                    (SELECT product_media.public_path
+                        FROM product_images pi
+                        JOIN media product_media ON product_media.id = pi.media_id
+                        WHERE pi.product_id = p.id AND product_media.public_path IS NOT NULL
+                        ORDER BY pi.position, pi.media_id LIMIT 1),
+                    (SELECT category_media.public_path
+                        FROM product_categories image_pc
+                        JOIN categories image_category ON image_category.id = image_pc.category_id
+                        JOIN media category_media ON category_media.id = image_category.image_media_id
+                        WHERE image_pc.product_id = p.id AND category_media.public_path IS NOT NULL
+                        ORDER BY CASE WHEN image_category.parent_id IS NULL THEN 0 ELSE 1 END,
+                            image_category.position, image_category.id LIMIT 1)
+                ) AS image_path
+            FROM products p
+            LEFT JOIN categories c ON c.id = p.primary_category_id
+            WHERE p.slug = :slug";
         if ($publicOnly) {
             $sql .= " AND p.status = 'published'";
         }
@@ -155,16 +213,40 @@ final class CatalogRepository
     public function search(string $query, int $limit = 24): array
     {
         $limit = max(1, min(48, $limit));
-        $statement = $this->pdo->prepare("SELECT p.*, MIN(v.price_bani) AS price_bani,
+        $statement = $this->pdo->prepare("SELECT p.*, primary_category.name AS category_name,
+                primary_category.slug AS category_slug, MIN(v.price_bani) AS price_bani,
                 COALESCE(SUM(i.physical_quantity - i.reserved_quantity), 0) AS available_quantity
             FROM products p
             JOIN product_variants v ON v.product_id = p.id AND v.status = 'active'
             LEFT JOIN inventory i ON i.variant_id = v.id
+            LEFT JOIN categories primary_category ON primary_category.id = p.primary_category_id
             LEFT JOIN product_categories pc ON pc.product_id = p.id
             LEFT JOIN categories c ON c.id = pc.category_id
             WHERE p.status = 'published' AND (p.name LIKE :query OR v.sku LIKE :query OR c.name LIKE :query)
             GROUP BY p.id ORDER BY p.name LIMIT {$limit}");
         $statement->execute(['query' => '%' . trim($query) . '%']);
+        return $statement->fetchAll();
+    }
+
+    /** @return list<array<string, mixed>> */
+    public function searchCategories(string $query, int $limit = 4): array
+    {
+        $limit = max(1, min(12, $limit));
+        $statement = $this->pdo->prepare("SELECT c.id, c.name, c.slug
+            FROM categories c
+            WHERE c.status = 'published' AND c.visibility = 'public'
+              AND c.name LIKE :query
+              AND EXISTS (
+                SELECT 1 FROM product_categories pc
+                JOIN products p ON p.id = pc.product_id AND p.status = 'published'
+                WHERE pc.category_id = c.id
+              )
+            ORDER BY CASE WHEN c.name LIKE :prefix THEN 0 ELSE 1 END, c.position, c.name
+            LIMIT {$limit}");
+        $statement->execute([
+            'query' => '%' . trim($query) . '%',
+            'prefix' => trim($query) . '%',
+        ]);
         return $statement->fetchAll();
     }
 
@@ -218,5 +300,57 @@ final class CatalogRepository
             $result[] = $row;
         }
         return $result;
+    }
+
+    /** @param list<int> $excludeIds @return list<array<string, mixed>> */
+    private function homepageProductCards(int $limit, bool $featuredOnly, array $excludeIds = []): array
+    {
+        $featuredFilter = $featuredOnly ? ' AND p.featured = 1' : '';
+        $excludeIds = array_values(array_unique(array_filter(array_map('intval', $excludeIds), static fn(int $id): bool => $id > 0)));
+        $params = [];
+        $excludeFilter = '';
+        if ($excludeIds !== []) {
+            $placeholders = [];
+            foreach ($excludeIds as $index => $id) {
+                $key = 'exclude_' . $index;
+                $placeholders[] = ':' . $key;
+                $params[$key] = $id;
+            }
+            $excludeFilter = ' AND p.id NOT IN (' . implode(',', $placeholders) . ')';
+        }
+
+        $statement = $this->pdo->prepare("SELECT p.*, primary_category.name AS category_name,
+                primary_category.slug AS category_slug,
+                MIN(v.price_bani) AS price_bani,
+                MIN(v.compare_price_bani) AS compare_price_bani,
+                COUNT(DISTINCT v.id) AS variant_count,
+                (SELECT COUNT(*) FROM personalization_options required_option
+                    WHERE required_option.product_id = p.id AND required_option.required = 1) AS required_personalization_count,
+                COALESCE(MIN(CASE WHEN v.is_default = 1 THEN v.id END), MIN(v.id)) AS default_variant_id,
+                COALESCE(SUM(i.physical_quantity - i.reserved_quantity), 0) AS available_quantity,
+                COALESCE(
+                    (SELECT product_media.public_path
+                        FROM product_images pi
+                        JOIN media product_media ON product_media.id = pi.media_id
+                        WHERE pi.product_id = p.id AND product_media.public_path IS NOT NULL
+                        ORDER BY pi.position, pi.media_id LIMIT 1),
+                    (SELECT category_media.public_path
+                        FROM product_categories image_pc
+                        JOIN categories image_category ON image_category.id = image_pc.category_id
+                        JOIN media category_media ON category_media.id = image_category.image_media_id
+                        WHERE image_pc.product_id = p.id AND category_media.public_path IS NOT NULL
+                        ORDER BY CASE WHEN image_category.parent_id IS NULL THEN 0 ELSE 1 END,
+                            image_category.position, image_category.id LIMIT 1)
+                ) AS image_path
+            FROM products p
+            JOIN product_variants v ON v.product_id = p.id AND v.status = 'active'
+            LEFT JOIN inventory i ON i.variant_id = v.id
+            LEFT JOIN categories primary_category ON primary_category.id = p.primary_category_id
+            WHERE p.status = 'published'{$featuredFilter}{$excludeFilter}
+            GROUP BY p.id
+            ORDER BY p.published_at DESC, p.id DESC
+            LIMIT {$limit}");
+        $statement->execute($params);
+        return $statement->fetchAll();
     }
 }

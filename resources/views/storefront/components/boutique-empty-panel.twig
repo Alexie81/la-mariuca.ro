@@ -1,0 +1,20 @@
+<section class="boutique-empty-panel boutique-empty-panel-{{ kind }}" aria-labelledby="{{ heading_id }}">
+  <span class="boutique-empty-visual" aria-hidden="true">
+    <span class="boutique-empty-float boutique-empty-float-one">♥</span>
+    <span class="boutique-empty-float boutique-empty-float-two">♥</span>
+    <span class="boutique-empty-float boutique-empty-float-three">♥</span>
+    {% if kind == 'cart' %}
+      <img class="boutique-empty-cart" src="{{ url('assets/images/icon-cart-reference.png') }}" width="160" height="145" alt="">
+    {% else %}
+      <img class="boutique-empty-favorite" src="{{ url('assets/images/icon-favorite-hearts.png') }}" width="160" height="128" alt="">
+    {% endif %}
+  </span>
+  <div class="boutique-empty-copy">
+    <span class="boutique-empty-eyebrow">{{ eyebrow }}</span>
+    <h2 id="{{ heading_id }}">{{ title }}</h2>
+    <p>{{ message }}</p>
+  </div>
+  <a class="boutique-empty-cta" href="{{ url('cautare/') }}">
+    {{ action }} <span aria-hidden="true">→</span>
+  </a>
+</section>

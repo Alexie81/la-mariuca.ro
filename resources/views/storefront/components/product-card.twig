@@ -6,9 +6,10 @@
       <strong>{{ money(product.price_bani) }}</strong>
       <span class="stock {{ product.available_quantity > 0 ? 'in-stock' : 'out-stock' }}">{{ product.available_quantity > 0 ? 'În stoc' : 'Stoc epuizat' }}</span>
     </div>
-    <form action="{{ url('favorite/') }}" method="post">
+    {% set product_is_favorite = is_favorite(product.id) %}
+    <form class="{{ product_is_favorite ? 'is-selected' : '' }}" action="{{ url('favorite/') }}" method="post" data-storefront-favorite data-product-name="{{ product.name }}">
       <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="product_id" value="{{ product.id }}">
-      <button class="link-button" type="submit">Adaugă la favorite</button>
+      <button class="link-button" type="submit">{{ product_is_favorite ? 'Salvat la favorite' : 'Adaugă la favorite' }}</button>
     </form>
   </div>
 </article>

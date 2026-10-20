@@ -1,1 +1,576 @@
-const toggle=document.querySelector('[data-menu-toggle]');const menu=document.querySelector('[data-menu]');if(toggle&&menu){toggle.addEventListener('click',()=>{const open=toggle.getAttribute('aria-expanded')==='true';toggle.setAttribute('aria-expanded',String(!open));menu.classList.toggle('is-open',!open)});document.addEventListener('keydown',event=>{if(event.key==='Escape'){toggle.setAttribute('aria-expanded','false');menu.classList.remove('is-open');toggle.focus()}})}
+const toggle = document.querySelector('[data-menu-toggle]');
+const menu = document.querySelector('[data-menu]');
+const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+const phoneSearchViewport = window.matchMedia('(max-width: 560px)');
+const menuCloseDuration = 380;
+let menuTransitionTimer;
+
+const syncSearchPlaceholders = () => {
+  document.querySelectorAll('[data-search-placeholder]').forEach((input) => {
+    input.placeholder = phoneSearchViewport.matches
+      ? input.dataset.placeholderPhone
+      : input.dataset.placeholderDesktop;
+  });
+};
+
+syncSearchPlaceholders();
+phoneSearchViewport.addEventListener?.('change', syncSearchPlaceholders);
+
+document.querySelectorAll('.menu-group').forEach((group, index) => {
+  group.style.setProperty('--menu-index', index);
+  group.style.setProperty('--menu-delay', `${90 + index * 42}ms`);
+  group.style.setProperty('--menu-icon-delay', `${150 + index * 42}ms`);
+  group.style.setProperty('--menu-exit-delay', `${index * 12}ms`);
+});
+
+document.querySelectorAll('.menu-group > a').forEach((link) => {
+  const linkUrl = new URL(link.href, window.location.origin);
+  const isHomeLink = link.classList.contains('mobile-home-link') && linkUrl.pathname === '/';
+  if (linkUrl.pathname === window.location.pathname && (linkUrl.pathname.includes('/categorie/') || isHomeLink)) {
+    link.classList.add('is-current');
+    link.setAttribute('aria-current', 'page');
+  }
+});
+
+const submenuToggles = [...document.querySelectorAll('[data-submenu-toggle]')];
+
+const setSubmenuState = (control, expanded) => {
+  const panel = document.getElementById(control.getAttribute('aria-controls'));
+  if (!panel) return;
+  control.setAttribute('aria-expanded', String(expanded));
+  panel.classList.toggle('is-expanded', expanded);
+
+  if (!expanded) {
+    panel.querySelectorAll('[data-submenu-toggle][aria-expanded="true"]').forEach((nestedControl) => {
+      setSubmenuState(nestedControl, false);
+    });
+  }
+};
+
+const resetSubmenus = () => {
+  submenuToggles.forEach((control) => setSubmenuState(control, false));
+};
+
+const desktopMenuList = document.querySelector('[data-desktop-menu-list]');
+const desktopOverflow = document.querySelector('[data-desktop-menu-overflow]');
+const desktopOverflowToggle = document.querySelector('[data-desktop-menu-overflow-toggle]');
+const desktopOverflowPanel = document.querySelector('[data-desktop-menu-overflow-panel]');
+const desktopOverflowItems = document.querySelector('[data-desktop-menu-overflow-items]');
+const desktopMenuViewport = window.matchMedia('(min-width: 1101px)');
+const desktopMenuItems = desktopMenuList
+  ? [...desktopMenuList.querySelectorAll(':scope > [data-desktop-menu-item]')]
+  : [];
+const desktopCategoryItems = desktopMenuItems.filter((item) => !item.classList.contains('menu-highlight'));
+const mobileMenuStory = desktopMenuList?.querySelector(':scope > .mobile-menu-story') ?? null;
+const maximumVisibleDesktopCategories = 6;
+let desktopOverflowFrame;
+let desktopLayoutActive = false;
+let desktopMenuObservedWidth;
+
+const closeDesktopOverflow = () => {
+  if (!desktopOverflowToggle || !desktopOverflowPanel) return;
+  desktopOverflowToggle.setAttribute('aria-expanded', 'false');
+  desktopOverflowPanel.hidden = true;
+};
+
+const restoreDesktopMenuItems = () => {
+  if (!desktopMenuList) return;
+  desktopMenuItems.forEach((item) => {
+    desktopMenuList.insertBefore(item, mobileMenuStory);
+  });
+};
+
+const desktopMenuHasOverflow = () => {
+  if (!desktopMenuList) return false;
+  const visibleItems = [...desktopMenuList.querySelectorAll(':scope > [data-desktop-menu-item]')];
+  const lastItem = visibleItems.at(-1);
+  if (!lastItem) return false;
+  const listRect = desktopMenuList.getBoundingClientRect();
+  const listStyle = window.getComputedStyle(desktopMenuList);
+  const contentRight = listRect.right
+    - Number.parseFloat(listStyle.paddingRight || '0')
+    - Number.parseFloat(listStyle.borderRightWidth || '0');
+
+  return desktopMenuList.scrollWidth > desktopMenuList.clientWidth + 1
+    || lastItem.getBoundingClientRect().right > contentRight + .5;
+};
+
+const syncDesktopMenuOverflow = () => {
+  if (!desktopMenuList || !desktopOverflow || !desktopOverflowItems || !desktopOverflowToggle) return;
+
+  if (!desktopMenuViewport.matches) {
+    closeDesktopOverflow();
+    if (desktopLayoutActive || desktopOverflowItems.childElementCount > 0) restoreDesktopMenuItems();
+    desktopOverflow.hidden = true;
+    desktopMenuList.classList.remove('has-desktop-overflow');
+    desktopLayoutActive = false;
+    return;
+  }
+
+  desktopLayoutActive = true;
+  closeDesktopOverflow();
+  restoreDesktopMenuItems();
+  desktopOverflow.hidden = true;
+  desktopMenuList.classList.remove('has-desktop-overflow');
+
+  const candidates = [...desktopCategoryItems];
+  const needsCategoryLimit = candidates.length > maximumVisibleDesktopCategories;
+  const needsWidthOverflow = desktopMenuHasOverflow();
+  if (!needsCategoryLimit && !needsWidthOverflow) return;
+
+  desktopOverflow.hidden = false;
+  desktopMenuList.classList.add('has-desktop-overflow');
+
+  while (candidates.length > maximumVisibleDesktopCategories) {
+    const item = candidates.pop();
+    desktopOverflowItems.prepend(item);
+  }
+
+  while (desktopMenuHasOverflow() && candidates.length > 1) {
+    const item = candidates.pop();
+    desktopOverflowItems.prepend(item);
+  }
+
+  const hiddenCount = desktopOverflowItems.children.length;
+  if (hiddenCount === 0) {
+    desktopOverflow.hidden = true;
+    desktopMenuList.classList.remove('has-desktop-overflow');
+    return;
+  }
+
+  desktopOverflowToggle.setAttribute(
+    'aria-label',
+    `Arată ${hiddenCount} ${hiddenCount === 1 ? 'categorie care nu încape' : 'categorii care nu încap'} în bară`,
+  );
+};
+
+const scheduleDesktopMenuOverflow = () => {
+  window.cancelAnimationFrame(desktopOverflowFrame);
+  desktopOverflowFrame = window.requestAnimationFrame(() => {
+    desktopOverflowFrame = window.requestAnimationFrame(syncDesktopMenuOverflow);
+  });
+};
+
+if (desktopOverflow && desktopOverflowToggle && desktopOverflowPanel) {
+  desktopOverflowToggle.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const willOpen = desktopOverflowPanel.hidden;
+    closeDesktopOverflow();
+    if (willOpen) {
+      desktopOverflowPanel.hidden = false;
+      desktopOverflowToggle.setAttribute('aria-expanded', 'true');
+    }
+  });
+
+  document.addEventListener('pointerdown', (event) => {
+    if (!desktopOverflow.contains(event.target)) closeDesktopOverflow();
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || desktopOverflowPanel.hidden) return;
+    closeDesktopOverflow();
+    desktopOverflowToggle.focus();
+  });
+
+  window.addEventListener('resize', scheduleDesktopMenuOverflow, { passive: true });
+  new ResizeObserver(([entry]) => {
+    const observedWidth = entry?.contentRect.width;
+    if (!Number.isFinite(observedWidth)) return;
+    if (desktopMenuObservedWidth !== undefined && Math.abs(observedWidth - desktopMenuObservedWidth) < .5) return;
+    desktopMenuObservedWidth = observedWidth;
+    scheduleDesktopMenuOverflow();
+  }).observe(desktopMenuList);
+  desktopMenuViewport.addEventListener?.('change', scheduleDesktopMenuOverflow);
+  document.fonts?.ready.then(scheduleDesktopMenuOverflow);
+  window.addEventListener('load', scheduleDesktopMenuOverflow, { once: true });
+  scheduleDesktopMenuOverflow();
+}
+
+submenuToggles.forEach((control) => {
+  control.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const willOpen = control.getAttribute('aria-expanded') !== 'true';
+
+    if (willOpen) {
+      const owner = control.parentElement;
+      const siblings = owner?.parentElement?.children ?? [];
+      [...siblings].forEach((sibling) => {
+        const siblingControl = sibling.querySelector?.(':scope > [data-submenu-toggle]');
+        if (siblingControl && siblingControl !== control) setSubmenuState(siblingControl, false);
+      });
+    }
+
+    setSubmenuState(control, willOpen);
+    if (willOpen) {
+      window.requestAnimationFrame(() => control.scrollIntoView({ block: 'nearest', behavior: reducedMotion.matches ? 'auto' : 'smooth' }));
+    }
+  });
+});
+
+const closeMenu = () => {
+  if (!toggle || !menu) return;
+  window.clearTimeout(menuTransitionTimer);
+  toggle.setAttribute('aria-expanded', 'false');
+  toggle.querySelector('.sr-only').textContent = 'Deschide meniul';
+  syncSearchPlaceholders();
+
+  const finishClose = () => {
+    menu.classList.remove('is-open', 'is-closing');
+    document.body.classList.remove('menu-open', 'menu-closing');
+  };
+
+  if (!menu.classList.contains('is-open') || reducedMotion.matches) {
+    finishClose();
+    return;
+  }
+
+  menu.classList.add('is-closing');
+  document.body.classList.add('menu-closing');
+  menuTransitionTimer = window.setTimeout(finishClose, menuCloseDuration);
+};
+
+const openMenu = () => {
+  if (!toggle || !menu) return;
+  window.clearTimeout(menuTransitionTimer);
+  menu.classList.remove('is-closing');
+  document.body.classList.remove('menu-closing');
+  toggle.setAttribute('aria-expanded', 'true');
+  toggle.querySelector('.sr-only').textContent = 'Închide meniul';
+  menu.classList.add('is-open');
+  document.body.classList.add('menu-open');
+  menu.scrollTop = 0;
+  resetSubmenus();
+  syncSearchPlaceholders();
+  closeSuggestions();
+  closeUtilityPanels();
+};
+
+if (toggle && menu) {
+  toggle.addEventListener('click', () => {
+    const willOpen = toggle.getAttribute('aria-expanded') !== 'true';
+    if (willOpen) openMenu();
+    else closeMenu();
+  });
+}
+
+const closeUtilityPanels = (except = null) => {
+  document.querySelectorAll('[data-utility-panel]').forEach((panel) => {
+    if (panel === except) return;
+    panel.hidden = true;
+    const control = document.querySelector(`[aria-controls="${panel.id}"]`);
+    control?.setAttribute('aria-expanded', 'false');
+  });
+};
+
+document.querySelectorAll('[data-utility-panel-toggle]').forEach((panelToggle) => {
+  panelToggle.addEventListener('click', () => {
+    const panel = document.getElementById(panelToggle.getAttribute('aria-controls'));
+    if (!panel) return;
+    const willOpen = panel.hidden;
+    closeUtilityPanels(panel);
+    panel.hidden = !willOpen;
+    panelToggle.setAttribute('aria-expanded', String(willOpen));
+    panelToggle.classList.remove('is-pulsing');
+    void panelToggle.offsetWidth;
+    panelToggle.classList.add('is-pulsing');
+    window.setTimeout(() => panelToggle.classList.remove('is-pulsing'), 620);
+  });
+});
+
+const releaseHearts = (source) => {
+  const box = source.getBoundingClientRect();
+  [-18, 3, 21].forEach((drift, index) => {
+    const heart = document.createElement('span');
+    heart.className = 'floating-heart';
+    heart.textContent = '♥';
+    heart.style.left = `${box.left + box.width / 2 + (index - 1) * 8}px`;
+    heart.style.top = `${box.top + 8}px`;
+    heart.style.setProperty('--heart-drift', `${drift}px`);
+    heart.style.animationDelay = `${index * 55}ms`;
+    document.body.append(heart);
+    window.setTimeout(() => heart.remove(), 1100);
+  });
+};
+
+document.querySelectorAll('[data-animated-action]').forEach((action) => {
+  action.addEventListener('pointerdown', () => {
+    action.classList.remove('is-pulsing');
+    void action.offsetWidth;
+    action.classList.add('is-pulsing');
+    if (action.matches('.favorite-link, .mobile-favorite')) releaseHearts(action);
+    window.setTimeout(() => action.classList.remove('is-pulsing'), 620);
+  });
+});
+
+const search = document.querySelector('#site-search');
+const searchClear = document.querySelector('[data-search-clear]');
+const searchQuickLinks = document.querySelector('.search-quick-links');
+const searchQuickPrev = document.querySelector('[data-search-quick-prev]');
+const searchQuickNext = document.querySelector('[data-search-quick-next]');
+const suggestions = document.querySelector('[data-search-suggestions]');
+let searchTimer;
+let searchRequest;
+
+const syncSearchClear = () => {
+  if (!search || !searchClear) return;
+  searchClear.hidden = search.value.length === 0;
+};
+
+const syncQuickLinkScrollControls = () => {
+  if (!searchQuickLinks || !searchQuickPrev || !searchQuickNext) return;
+  const maxScroll = Math.max(0, searchQuickLinks.scrollWidth - searchQuickLinks.clientWidth);
+  const hasOverflow = maxScroll > 2;
+  searchQuickLinks.classList.toggle('is-scrollable', hasOverflow);
+  searchQuickPrev.hidden = !hasOverflow || searchQuickLinks.scrollLeft <= 2;
+  searchQuickNext.hidden = !hasOverflow || searchQuickLinks.scrollLeft >= maxScroll - 2;
+};
+
+const scrollQuickLinks = (direction) => {
+  if (!searchQuickLinks) return;
+  searchQuickLinks.scrollBy({
+    left: direction * Math.max(220, searchQuickLinks.clientWidth * .72),
+    behavior: reducedMotion.matches ? 'auto' : 'smooth',
+  });
+};
+
+const activateQuickLinkScroll = (direction) => {
+  scrollQuickLinks(direction);
+  window.requestAnimationFrame(() => search?.focus({ preventScroll: true }));
+};
+
+if (searchQuickLinks && searchQuickPrev && searchQuickNext) {
+  searchQuickPrev.addEventListener('click', () => activateQuickLinkScroll(-1));
+  searchQuickNext.addEventListener('click', () => activateQuickLinkScroll(1));
+  searchQuickLinks.addEventListener('scroll', syncQuickLinkScrollControls, { passive: true });
+  searchQuickLinks.addEventListener('wheel', (event) => {
+    const maxScroll = searchQuickLinks.scrollWidth - searchQuickLinks.clientWidth;
+    if (maxScroll <= 2 || Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+    event.preventDefault();
+    searchQuickLinks.scrollLeft += event.deltaY;
+  }, { passive: false });
+  search?.addEventListener('focus', () => window.requestAnimationFrame(syncQuickLinkScrollControls));
+  window.addEventListener('resize', syncQuickLinkScrollControls);
+  window.requestAnimationFrame(syncQuickLinkScrollControls);
+}
+
+const closeSuggestions = () => {
+  if (!search || !suggestions) return;
+  suggestions.hidden = true;
+  search.setAttribute('aria-expanded', 'false');
+  document.body.classList.remove('search-open');
+};
+
+const searchIconFor = (value = '') => {
+  const normalized = value.toLocaleLowerCase('ro-RO');
+  if (normalized.includes('botez')) return '🎀';
+  if (normalized.includes('nou') || normalized.includes('bebe')) return '🧸';
+  if (normalized.includes('acces')) return '🌸';
+  if (normalized.includes('roch')) return '👗';
+  if (normalized.includes('încăl') || normalized.includes('pantof')) return '👟';
+  return '♡';
+};
+
+const searchSectionTitle = (label) => {
+  const title = document.createElement('p');
+  title.className = 'search-section-title';
+  title.textContent = label;
+  return title;
+};
+
+const renderSuggestions = (payload) => {
+  if (!search || !suggestions) return;
+  suggestions.replaceChildren();
+  const items = Array.isArray(payload.items) ? payload.items : [];
+  const categories = Array.isArray(payload.categories) ? payload.categories : [];
+  const query = search.value.trim();
+
+  const close = document.createElement('button');
+  close.className = 'search-panel-close';
+  close.type = 'button';
+  close.setAttribute('aria-label', 'Închide sugestiile');
+  close.textContent = '×';
+  close.addEventListener('click', () => {
+    closeSuggestions();
+    search.blur();
+  });
+  suggestions.append(close);
+
+  if (searchQuickLinks) {
+    const mobileShortcuts = document.createElement('section');
+    mobileShortcuts.className = 'search-mobile-shortcuts';
+    mobileShortcuts.setAttribute('aria-label', 'Categorii populare');
+
+    const shortcutTitle = document.createElement('p');
+    shortcutTitle.className = 'search-mobile-shortcuts-title';
+    shortcutTitle.textContent = 'Caută rapid';
+
+    const shortcutGrid = document.createElement('div');
+    shortcutGrid.className = 'search-mobile-shortcuts-grid';
+    searchQuickLinks.querySelectorAll('a').forEach((link) => shortcutGrid.append(link.cloneNode(true)));
+    mobileShortcuts.append(shortcutTitle, shortcutGrid);
+    suggestions.append(mobileShortcuts);
+  }
+
+  if (categories.length > 0) {
+    const categoryList = document.createElement('div');
+    categoryList.className = 'search-category-list';
+    categoryList.append(searchSectionTitle('Categorii'));
+    categories.forEach((category) => {
+      const link = document.createElement('a');
+      link.className = 'search-category-suggestion';
+      link.href = category.url;
+
+      const icon = document.createElement('span');
+      icon.className = 'search-category-icon';
+      icon.setAttribute('aria-hidden', 'true');
+      icon.textContent = searchIconFor(category.slug || category.name);
+
+      const name = document.createElement('strong');
+      name.textContent = category.name;
+
+      const arrow = document.createElement('span');
+      arrow.className = 'search-suggestion-arrow';
+      arrow.setAttribute('aria-hidden', 'true');
+      arrow.textContent = '›';
+      link.append(icon, name, arrow);
+      categoryList.append(link);
+    });
+    suggestions.append(categoryList);
+  }
+
+  if (items.length > 0) {
+    const productList = document.createElement('div');
+    productList.className = 'search-product-list';
+    productList.append(searchSectionTitle('Produse sugerate'));
+    const priceFormatter = new Intl.NumberFormat('ro-RO', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+
+    items.forEach((item) => {
+      const link = document.createElement('a');
+      link.className = 'search-product-suggestion';
+      link.href = item.url;
+
+      const thumb = document.createElement('span');
+      thumb.className = 'search-suggestion-thumb';
+      thumb.setAttribute('aria-hidden', 'true');
+      thumb.textContent = searchIconFor(`${item.name} ${item.category || ''}`);
+
+      const copy = document.createElement('span');
+      copy.className = 'search-suggestion-copy';
+      const title = document.createElement('strong');
+      title.textContent = item.name;
+      const price = document.createElement('small');
+      price.className = 'search-suggestion-price';
+      price.textContent = `${priceFormatter.format((item.price_bani || 0) / 100)} Lei`;
+      copy.append(title, price);
+
+      const arrow = document.createElement('span');
+      arrow.className = 'search-suggestion-arrow';
+      arrow.setAttribute('aria-hidden', 'true');
+      arrow.textContent = '›';
+      link.append(thumb, copy, arrow);
+      productList.append(link);
+    });
+    suggestions.append(productList);
+  }
+
+  if (items.length === 0 && categories.length === 0) {
+    const empty = document.createElement('p');
+    empty.className = 'search-empty';
+    empty.textContent = 'Nu am găsit categorii sau produse pentru această căutare.';
+    suggestions.append(empty);
+  }
+
+  const allResults = document.createElement('a');
+  const searchUrl = new URL(search.form.action, window.location.origin);
+  searchUrl.searchParams.set('q', query);
+  allResults.className = 'search-all-results';
+  allResults.href = searchUrl.toString();
+  allResults.innerHTML = '<span aria-hidden="true">⌕</span>';
+  const allResultsLabel = document.createElement('strong');
+  allResultsLabel.textContent = `Vezi toate rezultatele pentru „${query}”`;
+  const allResultsArrow = document.createElement('span');
+  allResultsArrow.className = 'search-suggestion-arrow';
+  allResultsArrow.setAttribute('aria-hidden', 'true');
+  allResultsArrow.textContent = '›';
+  allResults.append(allResultsLabel, allResultsArrow);
+  suggestions.append(allResults);
+
+  suggestions.hidden = false;
+  search.setAttribute('aria-expanded', 'true');
+  document.body.classList.add('search-open');
+};
+
+const loadSuggestions = () => {
+  if (!search || !suggestions) return;
+  const query = search.value.trim();
+  window.clearTimeout(searchTimer);
+  searchRequest?.abort();
+
+  if (query.length < 2) {
+    closeSuggestions();
+    return;
+  }
+
+  searchTimer = window.setTimeout(async () => {
+    searchRequest = new AbortController();
+    try {
+      const url = new URL(suggestions.dataset.endpoint, window.location.origin);
+      url.searchParams.set('q', query);
+      const response = await fetch(url, {
+        headers: { Accept: 'application/json' },
+        signal: searchRequest.signal,
+      });
+      if (!response.ok) throw new Error('Search request failed');
+      const payload = await response.json();
+      renderSuggestions(payload);
+    } catch (error) {
+      if (error.name !== 'AbortError') closeSuggestions();
+    }
+  }, 160);
+};
+
+search?.addEventListener('input', () => {
+  syncSearchClear();
+  loadSuggestions();
+});
+search?.addEventListener('focus', loadSuggestions);
+searchClear?.addEventListener('click', () => {
+  if (!search) return;
+  search.value = '';
+  syncSearchClear();
+  closeSuggestions();
+  search.focus();
+});
+syncSearchClear();
+
+document.addEventListener('click', (event) => {
+  if (suggestions && search && !event.target.closest('.search-form')) closeSuggestions();
+  if (!event.target.closest('[data-utility-panel-toggle]') && !event.target.closest('[data-utility-panel]')) closeUtilityPanels();
+});
+
+document.addEventListener('keydown', (event) => {
+  if (event.key !== 'Escape') return;
+
+  const activeControl = document.activeElement?.closest?.('[data-submenu-toggle][aria-expanded="true"]');
+  const activePanel = document.activeElement?.closest?.('.submenu.is-expanded');
+  const panelControl = activePanel ? document.querySelector(`[aria-controls="${activePanel.id}"]`) : null;
+  const submenuControl = activeControl || panelControl;
+  if (submenuControl) {
+    event.preventDefault();
+    setSubmenuState(submenuControl, false);
+    submenuControl.focus();
+    return;
+  }
+
+  closeSuggestions();
+  closeUtilityPanels();
+  if (document.body.classList.contains('menu-open')) {
+    closeMenu();
+    toggle?.focus();
+  }
+});

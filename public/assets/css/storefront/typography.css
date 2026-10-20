@@ -1,0 +1,63 @@
+@font-face {
+  font-family: "Fraunces";
+  src: url("../../fonts/fraunces-variable.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Fraunces";
+  src: url("../../fonts/fraunces-italic-variable.ttf") format("truetype");
+  font-style: italic;
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Nunito Sans";
+  src: url("../../fonts/nunito-sans-variable.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+}
+
+body {
+  font-kerning: normal;
+  font-optical-sizing: auto;
+  text-rendering: optimizeLegibility;
+  letter-spacing: .002em;
+}
+
+h1,
+h2,
+h3 {
+  font-weight: 600;
+  font-variation-settings: "SOFT" 55, "WONK" 1;
+  letter-spacing: -.014em;
+}
+
+h1 {
+  line-height: 1.03;
+}
+
+p,
+li,
+label,
+input,
+select,
+textarea,
+button {
+  font-feature-settings: "kern" 1, "liga" 1;
+}
+
+button,
+.button,
+.utility-link,
+.menu-group > a {
+  letter-spacing: .006em;
+}
+
+.lead {
+  letter-spacing: .002em;
+}

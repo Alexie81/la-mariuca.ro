@@ -1,3 +1,61 @@
 {% extends 'storefront/layouts/base.twig' %}
 {% block head %}<script type="application/ld+json">{{ structured_data|raw }}</script>{% endblock %}
-{% block content %}<div class="container page-shell"><nav class="breadcrumbs"><a href="{{ url('') }}">Acasă</a>{% if product.category_slug %}<span>/</span><a href="{{ url('categorie/' ~ product.category_slug ~ '/') }}">{{ product.category_name }}</a>{% endif %}<span>/</span><span>{{ product.name }}</span></nav><div class="product-detail"><div class="product-gallery placeholder">Galeria foto va fi completată ulterior.</div><div class="product-info"><span class="eyebrow">{{ product.category_name }}</span><h1>{{ product.name }}</h1><p class="lead">{{ product.short_description }}</p>{% if product.variants %}<form action="{{ url('cos/adauga/') }}" method="post" data-cart-form><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><label for="variant">Variantă</label><select id="variant" name="variant_id" data-variant-select>{% for variant in product.variants %}<option value="{{ variant.id }}" data-price="{{ variant.price_bani }}" data-stock="{{ variant.available_quantity }}" {{ variant.is_default ? 'selected' }}>{{ variant.option_summary ?: 'Variantă standard' }} — {{ money(variant.price_bani) }} — {{ variant.available_quantity > 0 ? variant.available_quantity ~ ' disponibile' : 'stoc epuizat' }}</option>{% endfor %}</select>{% for option in product.personalization_options %}<label for="option_{{ option.id }}">{{ option.label }}{{ option.required ? ' *' }}</label>{% if option.type == 'select' %}<select id="option_{{ option.id }}" name="option_{{ option.id }}" {{ option.required ? 'required' }}><option value="">Alege</option>{% for value in option.allowed_values_json|json_decode %}<option>{{ value }}</option>{% endfor %}</select>{% elseif option.type == 'checkbox' %}<input id="option_{{ option.id }}" type="checkbox" name="option_{{ option.id }}" value="da">{% else %}<input id="option_{{ option.id }}" name="option_{{ option.id }}" maxlength="{{ option.max_length ?: 120 }}" {{ option.required ? 'required' }}>{% endif %}{% endfor %}<div class="quantity-row"><label for="quantity">Cantitate</label><input id="quantity" name="quantity" type="number" min="1" max="20" value="1"><button class="button" type="submit">Adaugă în coș</button></div></form>{% endif %}<form action="{{ url('favorite/') }}" method="post"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="product_id" value="{{ product.id }}"><button class="link-button" type="submit">Adaugă la favorite</button></form></div></div><div class="product-description"><h2>Descriere</h2><p>{{ product.description|nl2br }}</p>{% if product.package_contents %}<h2>Ce conține pachetul</h2><p>{{ product.package_contents|nl2br }}</p>{% endif %}{% if product.excluded_accessories %}<p><strong>Nu sunt incluse:</strong> {{ product.excluded_accessories }}</p>{% endif %}{% if product.composition %}<h2>Compoziție și întreținere</h2><p>{{ product.composition }}</p><p>{{ product.care_instructions }}</p>{% endif %}</div></div>{% endblock %}
+{% block content %}
+<div class="container page-shell">
+  <nav class="breadcrumbs">
+    <a href="{{ url('') }}">Acasă</a>
+    {% if product.category_slug %}<span>/</span><a href="{{ url('categorie/' ~ product.category_slug ~ '/') }}">{{ product.category_name }}</a>{% endif %}
+    <span>/</span><span>{{ product.name }}</span>
+  </nav>
+  <div class="product-detail">
+    <div class="product-gallery placeholder">Galeria foto va fi completată ulterior.</div>
+    <div class="product-info">
+      <span class="eyebrow">{{ product.category_name }}</span>
+      <h1>{{ product.name }}</h1>
+      <p class="lead">{{ product.short_description }}</p>
+      {% if product.variants %}
+        <form action="{{ url('cos/adauga/') }}" method="post" data-cart-form data-storefront-cart data-product-name="{{ product.name }}" data-product-url="{{ url('produs/' ~ product.slug ~ '/') }}"{% if product.image_path %} data-product-image="{{ url(product.image_path) }}"{% endif %} data-cart-url="{{ url('cos/') }}">
+          <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+          <label for="variant">Variantă</label>
+          <select id="variant" name="variant_id" data-variant-select>
+            {% for variant in product.variants %}
+              <option value="{{ variant.id }}" data-price="{{ variant.price_bani }}" data-stock="{{ variant.available_quantity }}" {{ variant.is_default ? 'selected' }}>{{ variant.option_summary ?: 'Variantă standard' }} — {{ money(variant.price_bani) }} — {{ variant.available_quantity > 0 ? variant.available_quantity ~ ' disponibile' : 'stoc epuizat' }}</option>
+            {% endfor %}
+          </select>
+          {% for option in product.personalization_options %}
+            <label for="option_{{ option.id }}">{{ option.label }}{{ option.required ? ' *' }}</label>
+            {% if option.type == 'select' %}
+              <select id="option_{{ option.id }}" name="option_{{ option.id }}" {{ option.required ? 'required' }}>
+                <option value="">Alege</option>
+                {% for value in option.allowed_values_json|json_decode %}<option>{{ value }}</option>{% endfor %}
+              </select>
+            {% elseif option.type == 'checkbox' %}
+              <input id="option_{{ option.id }}" type="checkbox" name="option_{{ option.id }}" value="da">
+            {% else %}
+              <input id="option_{{ option.id }}" name="option_{{ option.id }}" maxlength="{{ option.max_length ?: 120 }}" {{ option.required ? 'required' }}>
+            {% endif %}
+          {% endfor %}
+          <div class="quantity-row">
+            <label for="quantity">Cantitate</label>
+            <input id="quantity" name="quantity" type="number" min="1" max="20" value="1">
+            <button class="button" type="submit">Adaugă în coș</button>
+          </div>
+        </form>
+      {% endif %}
+      {% set product_is_favorite = is_favorite(product.id) %}
+      <form class="{{ product_is_favorite ? 'is-selected' : '' }}" action="{{ url('favorite/') }}" method="post" data-storefront-favorite data-product-name="{{ product.name }}">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <input type="hidden" name="product_id" value="{{ product.id }}">
+        <button class="link-button" type="submit">{{ product_is_favorite ? 'Salvat la favorite' : 'Adaugă la favorite' }}</button>
+      </form>
+    </div>
+  </div>
+  <div class="product-description">
+    <h2>Descriere</h2>
+    <p>{{ product.description|nl2br }}</p>
+    {% if product.package_contents %}<h2>Ce conține pachetul</h2><p>{{ product.package_contents|nl2br }}</p>{% endif %}
+    {% if product.excluded_accessories %}<p><strong>Nu sunt incluse:</strong> {{ product.excluded_accessories }}</p>{% endif %}
+    {% if product.composition %}<h2>Compoziție și întreținere</h2><p>{{ product.composition }}</p><p>{{ product.care_instructions }}</p>{% endif %}
+  </div>
+</div>
+{% endblock %}

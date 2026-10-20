@@ -73,6 +73,30 @@ final class CartService
         $this->pdo->prepare('UPDATE carts SET updated_at = :now WHERE id = :id')->execute(['now' => $now, 'id' => $cartId]);
     }
 
+    /** @param array<string, string> $personalization @return 'added'|'removed' */
+    public function toggle(int $variantId, int $quantity = 1, array $personalization = []): string
+    {
+        $cartId = $this->cartId();
+        $statement = $this->pdo->prepare('SELECT 1 FROM cart_items WHERE cart_id = :cart AND variant_id = :variant LIMIT 1');
+        $statement->execute(['cart' => $cartId, 'variant' => $variantId]);
+        $exists = $statement->fetchColumn();
+
+        if ($exists !== false) {
+            $this->pdo->prepare('DELETE FROM cart_items WHERE cart_id = :cart AND variant_id = :variant')->execute([
+                'cart' => $cartId,
+                'variant' => $variantId,
+            ]);
+            $this->pdo->prepare('UPDATE carts SET updated_at = :now WHERE id = :id')->execute([
+                'now' => gmdate('c'),
+                'id' => $cartId,
+            ]);
+            return 'removed';
+        }
+
+        $this->add($variantId, $quantity, $personalization);
+        return 'added';
+    }
+
     public function update(int $itemId, int $quantity): void
     {
         $cartId = $this->cartId();

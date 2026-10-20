@@ -1,1 +1,24 @@
-{% extends 'storefront/layouts/base.twig' %}{% block content %}<div class="container page-shell"><h1>Căutare</h1><form class="search-page-form" method="get"><label for="q">Produs, SKU sau categorie</label><div><input id="q" name="q" value="{{ query }}" minlength="2" required><button class="button">Caută</button></div></form>{% if error %}<p class="alert alert-error">{{ error }}</p>{% endif %}{% if query %}<h2>Rezultate pentru „{{ query }}”</h2><div class="product-grid">{% for product in products %}{% include 'storefront/components/product-card.twig' with {product: product} %}{% else %}<p class="empty">Nu am găsit produse pentru această căutare.</p>{% endfor %}</div>{% endif %}</div>{% endblock %}
+{% extends 'storefront/layouts/base.twig' %}
+{% block content %}
+  <div class="container page-shell">
+    <h1>Căutare</h1>
+    <form class="search-page-form" method="get" role="search">
+      <label for="q">Caută în magazin</label>
+      <div>
+        <input id="q" type="search" name="q" value="{{ query }}" placeholder="Caută hăinuțe, rochițe, trusouri..." data-search-placeholder data-placeholder-desktop="Caută hăinuțe, rochițe, trusouri..." data-placeholder-phone="Ce cauți pentru cel mic?" minlength="2" required>
+        <button class="button">Caută</button>
+      </div>
+    </form>
+    {% if error %}<p class="alert alert-error">{{ error }}</p>{% endif %}
+    {% if query %}
+      <h2>Rezultate pentru „{{ query }}”</h2>
+      <div class="product-grid">
+        {% for product in products %}
+          {% include 'storefront/components/product-card.twig' with {product: product} %}
+        {% else %}
+          <p class="empty">Nu am găsit produse pentru această căutare.</p>
+        {% endfor %}
+      </div>
+    {% endif %}
+  </div>
+{% endblock %}

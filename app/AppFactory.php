@@ -73,6 +73,21 @@ final class AppFactory
         $twig->addFunction(new TwigFunction('current_user', static fn(): ?array => $auth->user()));
         $twig->addFunction(new TwigFunction('navigation_categories', static fn(): array => $catalog->navigationCategories()));
         $twig->addFunction(new TwigFunction('cart_summary', static fn(): array => $cart->summary()));
+        $cartVariantIds = null;
+        $twig->addFunction(new TwigFunction('is_variant_in_cart', static function (int|string|null $variantId) use ($cart, &$cartVariantIds): bool {
+            if ((int) $variantId <= 0) {
+                return false;
+            }
+            if ($cartVariantIds === null) {
+                $cartVariantIds = [];
+                foreach ($cart->summary()['items'] as $item) {
+                    $cartVariantIds[(int) $item['variant_id']] = true;
+                }
+            }
+            return isset($cartVariantIds[(int) $variantId]);
+        }));
+        $twig->addFunction(new TwigFunction('favorite_count', static fn(): int => count(array_unique(array_map('intval', (array) ($_SESSION['favorites'] ?? []))))));
+        $twig->addFunction(new TwigFunction('is_favorite', static fn(int|string $productId): bool => in_array((int) $productId, array_unique(array_map('intval', (array) ($_SESSION['favorites'] ?? []))), true)));
         $twig->addFilter(new TwigFilter('json_decode', static fn(string $value): array => json_decode($value, true) ?: []));
         $view = new View($twig);
         $rateLimiter = new RateLimiter($pdo);
@@ -97,6 +112,7 @@ final class AppFactory
         $app->get('/colectie/{slug}/', [$storefront, 'collection']);
         $app->get('/produs/{slug}/', [$storefront, 'product']);
         $app->get('/cautare/', [$storefront, 'search']);
+        $app->get('/cautare/sugestii/', [$storefront, 'searchSuggestions']);
         $app->get('/favorite/', [$storefront, 'favorites']);
         $app->post('/favorite/', [$storefront, 'toggleFavorite']);
         $app->get('/cos/', [$cartController, 'show']);

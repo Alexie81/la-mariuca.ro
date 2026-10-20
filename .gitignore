@@ -6,6 +6,7 @@
 /storage/cache/*
 /storage/logs/*
 /storage/private/*
+/storage/*.png
 /public/media/*
 !/storage/cache/.gitkeep
 !/storage/logs/.gitkeep
