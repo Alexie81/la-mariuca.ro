@@ -2,7 +2,7 @@
 {% block content %}
 <section class="hero">
   <div class="hero-media" aria-hidden="true">
-    <img src="{{ url('assets/images/hero/la-mariuca-hero-v3-cat-head-bow.png') }}" width="1672" height="941" alt="" decoding="async" fetchpriority="high">
+    <img src="{{ url('assets/images/hero/la-mariuca-hero-v4-sora-costum-traditional.png') }}" width="1672" height="941" alt="" decoding="async" fetchpriority="high">
   </div>
   <div class="container hero-grid">
     <svg class="hero-mobile-wave" viewBox="0 0 390 100" preserveAspectRatio="none" aria-hidden="true">
@@ -144,6 +144,78 @@
     </div>
   </div>
 </section>
+<section id="povestea-noastra" class="brand-story section" aria-labelledby="brand-story-title">
+  <div class="container story-strip">
+    <span class="story-marker" aria-hidden="true">
+      <b>01</b>
+      <i></i>
+      <small>din inimă</small>
+    </span>
+
+    <div class="story-copy">
+      <div class="story-kicker">
+        <span class="story-flower" aria-hidden="true">
+          <svg viewBox="0 0 34 34">
+            <g class="story-flower-petals">
+              <ellipse cx="17" cy="7.2" rx="3.8" ry="6"></ellipse>
+              <ellipse cx="25.4" cy="13.3" rx="3.8" ry="6" transform="rotate(72 25.4 13.3)"></ellipse>
+              <ellipse cx="22.2" cy="23.2" rx="3.8" ry="6" transform="rotate(144 22.2 23.2)"></ellipse>
+              <ellipse cx="11.8" cy="23.2" rx="3.8" ry="6" transform="rotate(216 11.8 23.2)"></ellipse>
+              <ellipse cx="8.6" cy="13.3" rx="3.8" ry="6" transform="rotate(288 8.6 13.3)"></ellipse>
+            </g>
+            <circle cx="17" cy="17" r="3.4"></circle>
+          </svg>
+        </span>
+        <span class="eyebrow">Povestea noastră</span>
+      </div>
+
+      <h2 id="brand-story-title"><span>Povestea</span> <em>noastră.</em></h2>
+
+      <p class="story-lead">La Măriuca Boutique este un colț delicat pentru copilărie, în care fiecare lucru este ales cu grijă, căldură și bucuria momentelor care rămân.</p>
+
+      <div class="story-values" aria-label="Valorile La Măriuca Boutique">
+        <span>Alese cu grijă</span><i aria-hidden="true"></i>
+        <span>Pregătite cu drag</span><i aria-hidden="true"></i>
+        <span>Pentru amintiri frumoase</span>
+      </div>
+
+      <a class="story-action" href="{{ url('pagina/despre-noi/') }}">
+        <span>Descoperă cine suntem</span>
+        <span class="story-action-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"></path></svg>
+        </span>
+      </a>
+    </div>
+
+    <a class="story-visual" href="{{ url('pagina/despre-noi/') }}" aria-label="Descoperă povestea La Măriuca Boutique">
+      <span class="story-portrait">
+        <span class="story-portrait-logo" aria-hidden="true">
+          <img src="{{ url('assets/images/logo-la-mariuca-transparent.png') }}" alt="" width="1000" height="365" loading="lazy" decoding="async">
+        </span>
+      </span>
+      <span class="story-orbit" aria-hidden="true">
+        <svg viewBox="0 0 260 260">
+          <circle cx="130" cy="130" r="116"></circle>
+          <path d="M36 63c17-23 42-39 71-46"></path>
+          <path d="M222 196c-17 23-42 39-71 46"></path>
+          <circle class="story-orbit-dot" cx="37" cy="63" r="4"></circle>
+        </svg>
+      </span>
+    </a>
+
+    <span class="story-thread" aria-hidden="true">
+      <svg class="story-thread-wave" viewBox="0 0 1000 170" preserveAspectRatio="none">
+        <path class="story-thread-line" vector-effect="non-scaling-stroke" d="M2 112C85 120 119 18 221 49c108 33 119 112 246 48C585 38 629 8 735 59c69 34 128 75 170 33"></path>
+      </svg>
+      <span class="story-thread-ending">
+        <svg viewBox="0 0 120 80" preserveAspectRatio="xMidYMid meet">
+          <path class="story-thread-heart" vector-effect="non-scaling-stroke" d="M50 58C45 53 28 43 28 33c0-7 5-12 12-12 4 0 8 2 10 7 3-5 7-7 11-7 7 0 12 5 12 12 0 10-17 20-23 25Z"></path>
+          <path class="story-thread-tail" vector-effect="non-scaling-stroke" d="M70 42c16 6 30 4 47-9"></path>
+        </svg>
+      </span>
+    </span>
+  </div>
+</section>
 <section id="produse" class="curated-products section" aria-labelledby="curated-products-title">
   <span class="curated-products-orb curated-products-orb-one" aria-hidden="true"></span>
   <span class="curated-products-orb curated-products-orb-two" aria-hidden="true"></span>
@@ -156,7 +228,7 @@
       <div class="curated-products-intro">
         <p>Descoperă hăinuțe, rochițe, costumașe și accesorii atent alese pentru fiecare etapă a copilăriei.</p>
         <span class="curated-products-signature">Selecția La Măriuca</span>
-        <a href="{{ url('cautare/') }}">Vezi toate produsele <span aria-hidden="true">→</span></a>
+        <a href="{{ url('magazin/') }}">Vezi toate produsele <span aria-hidden="true">→</span></a>
       </div>
     </header>
 
@@ -276,6 +348,77 @@
     {% else %}
       <p class="empty">Noutățile vor apărea aici după publicarea produselor.</p>
     {% endif %}
+  </div>
+</section>
+
+<section id="costume-traditionale" class="traditional-story section" aria-labelledby="traditional-story-title">
+  <div class="container traditional-story-shell">
+    <a class="traditional-story-media" href="{{ url('categorie/costume-traditionale/') }}" aria-label="Descoperă colecția de costume tradiționale">
+      <img src="{{ url('assets/images/categories/costume-traditionale-editorial-2026.webp') }}"
+           alt="Costume tradiționale românești pentru fetițe și băieței"
+           width="1122" height="1402" loading="lazy" decoding="async">
+      <span class="traditional-story-media-wash" aria-hidden="true"></span>
+      <span class="traditional-story-stitch" aria-hidden="true"></span>
+    </a>
+
+    <div class="traditional-story-copy">
+      <div class="traditional-story-kicker">
+        <span class="traditional-story-flag" aria-hidden="true">
+          <svg viewBox="0 0 36 36">
+            <path class="traditional-story-flag-pole" d="M8.5 5.5v25M6.5 30.5h5"></path>
+            <g class="traditional-story-flag-cloth">
+              <path class="traditional-story-flag-blue" d="M9 7.2c2.8-1.1 5.3-.9 7.5-.2v14.2c-2.2-.7-4.7-.9-7.5.2Z"></path>
+              <path class="traditional-story-flag-yellow" d="M16.5 7c2.5.8 4.8 1.4 7.2.7v14.2c-2.4.7-4.7.1-7.2-.7Z"></path>
+              <path class="traditional-story-flag-red" d="M23.7 7.7c2.2-.7 4.3-1 6.3-.2v14.2c-2-.8-4.1-.5-6.3.2Z"></path>
+              <path class="traditional-story-flag-outline" d="M9 7.2c7.5-3 13.5 3 21 .3v14.2c-7.5-2.7-13.5 3.3-21-.3Z"></path>
+            </g>
+          </svg>
+        </span>
+        <span class="eyebrow traditional-story-label">Costume tradiționale</span>
+      </div>
+
+      <h2 id="traditional-story-title"><span>Tradiția,</span><em>purtată cu bucurie.</em></h2>
+
+      <div class="traditional-story-intro">
+        <span class="traditional-story-intro-mark" aria-hidden="true">
+          <svg viewBox="0 0 28 28"><path d="M14 3v22M3 14h22M6.2 6.2l15.6 15.6M21.8 6.2 6.2 21.8"></path><circle cx="14" cy="14" r="4.3"></circle></svg>
+        </span>
+        <p><strong>Ii, fote, veste și costumașe pentru cei mici</strong><span>inspirate de motive românești și pregătite pentru sărbători cu suflet.</span></p>
+      </div>
+
+      <ul class="traditional-story-categories" aria-label="Costume tradiționale pentru copii">
+        <li>
+          <span class="traditional-story-category-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4.2"></circle><path d="M12 12.2V21M8.8 17.5h6.4"></path></svg>
+          </span>
+          Fetițe
+        </li>
+        <li>
+          <span class="traditional-story-category-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><circle cx="9.2" cy="14.8" r="4.2"></circle><path d="m12.2 11.8 7-7M14.2 4.8h5v5"></path></svg>
+          </span>
+          Băieței
+        </li>
+        <li>
+          <span class="traditional-story-category-icon traditional-story-category-icon--star" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="m12 3 2.15 5.22L20 9l-4.43 3.67L16.9 18 12 15.15 7.1 18l1.33-5.33L4 9l5.85-.78Z"></path></svg>
+          </span>
+          Sărbătoare
+        </li>
+      </ul>
+
+      <a class="traditional-story-action" href="{{ url('categorie/costume-traditionale/') }}">
+        <span>Descoperă colecția</span>
+        <span class="traditional-story-action-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"></path></svg>
+        </span>
+      </a>
+
+      <span class="traditional-story-signature">
+        <svg viewBox="0 0 44 14" aria-hidden="true"><path d="M1 7h9l3-4 4 8 4-8 4 8 4-8 3 4h11"></path></svg>
+        <span>Rădăcini frumoase, amintiri de-o viață</span>
+      </span>
+    </div>
   </div>
 </section>
 {% endblock %}

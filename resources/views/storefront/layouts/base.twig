@@ -34,9 +34,9 @@
   <link rel="stylesheet" href="{{ url('assets/css/storefront/tokens.css') }}">
   <link rel="stylesheet" href="{{ url('assets/css/storefront/base.css') }}">
   <link rel="stylesheet" href="{{ url('assets/css/storefront/typography.css') }}">
-  <link rel="stylesheet" href="{{ url('assets/css/storefront/layout.css') }}?v=20261021-desktopoverflow3">
+  <link rel="stylesheet" href="{{ url('assets/css/storefront/layout.css') }}?v=20261023-csp1">
   <link rel="stylesheet" href="{{ url('assets/css/storefront/components.css') }}">
-  <link rel="stylesheet" href="{{ url('assets/css/storefront/pages.css') }}?v=20261021-mobile-arrivals2">
+  <link rel="stylesheet" href="{{ url('assets/css/storefront/pages.css') }}?v=20261023-shop-toolbar1">
   <link rel="stylesheet" href="{{ url('assets/css/storefront/empty-states.css') }}">
   <link rel="stylesheet" href="{{ url('assets/css/storefront/interactions.css') }}?v=20261020-carttoggle1">
   {% block head %}{% endblock %}
@@ -94,22 +94,30 @@
       </form>
       <nav class="utility-nav desktop-utility-nav" aria-label="Cont și cumpărături">
         <div class="utility-favorites">
-          {% if favorite_total > 0 %}
-            <a class="utility-link favorite-link" href="{{ url('favorite/') }}" data-animated-action>
-              <span class="utility-icon-wrap">
-                <img class="icon-heart" src="{{ url('assets/images/icon-favorite-hearts.png') }}" width="160" height="128" alt="" aria-hidden="true">
-                <span class="count" data-favorite-count>{{ favorite_total }}</span>
+          <button class="utility-link favorite-link" type="button" data-animated-action data-utility-panel-toggle aria-expanded="false" aria-controls="desktop-favorites-panel">
+            <span class="utility-icon-wrap">
+              <img class="icon-heart" src="{{ url('assets/images/icon-favorite-hearts.png') }}" width="160" height="128" alt="" aria-hidden="true">
+              {% if favorite_total > 0 %}<span class="count" data-favorite-count>{{ favorite_total }}</span>{% endif %}
+            </span>
+            <span>Favorite</span>
+          </button>
+          <div id="desktop-favorites-panel" class="mini-cart mini-favorites-panel{{ favorite_total == 0 ? ' mini-cart-empty' : ' mini-cart-filled' }}" data-utility-panel hidden>
+            {% if favorite_total > 0 %}
+              <span class="mini-panel-head">
+                <span class="mini-panel-icon mini-panel-icon-favorite" aria-hidden="true">
+                  <svg viewBox="0 0 32 32"><path d="M16 26.4C6.8 20.6 4.2 16.2 4.2 11.5A6.1 6.1 0 0 1 16 9.2a6.1 6.1 0 0 1 11.8 2.3c0 4.7-2.6 9.1-11.8 14.9Z"></path><path d="M22.6 5.2v4.2M20.5 7.3h4.2"></path></svg>
+                </span>
+                <span class="mini-panel-title">
+                  <small>Selecția ta</small>
+                  <strong>{{ favorite_total }} {{ favorite_total == 1 ? 'produs păstrat cu drag' : 'produse păstrate cu drag' }}</strong>
+                </span>
               </span>
-              <span>Favorite</span>
-            </a>
-          {% else %}
-            <button class="utility-link favorite-link" type="button" data-animated-action data-utility-panel-toggle aria-expanded="false" aria-controls="desktop-empty-favorites">
-              <span class="utility-icon-wrap">
-                <img class="icon-heart" src="{{ url('assets/images/icon-favorite-hearts.png') }}" width="160" height="128" alt="" aria-hidden="true">
-              </span>
-              <span>Favorite</span>
-            </button>
-            <div id="desktop-empty-favorites" class="mini-cart mini-cart-empty mini-favorites-panel" data-utility-panel hidden>
+              <p class="mini-panel-message">Micile tale alegeri sunt gata să le regăsești oricând.</p>
+              <a class="mini-panel-action" href="{{ url('favorite/') }}">
+                <span>Vezi favoritele</span>
+                <span class="mini-panel-action-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"></path></svg></span>
+              </a>
+            {% else %}
               <span class="mini-cart-empty-icon mini-favorites-empty-icon" aria-hidden="true">
                 <span class="mini-cart-empty-heart mini-cart-empty-heart-one">♥</span>
                 <span class="mini-cart-empty-heart mini-cart-empty-heart-two">♥</span>
@@ -121,8 +129,8 @@
                 <small>Salvează aici micile comori pe care vrei să le regăsești ușor.</small>
               </span>
               <a href="{{ url('cautare/') }}">Descoperă colecțiile <span aria-hidden="true">→</span></a>
-            </div>
-          {% endif %}
+            {% endif %}
+          </div>
         </div>
         <a class="utility-link account-link" href="{{ url(user ? 'cont/' : 'cont/autentificare/') }}" data-animated-action>
           <svg class="icon-user" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12.5"></circle><circle cx="16" cy="12" r="4"></circle><path d="M9.2 24.2c1.4-3.2 3.8-4.8 6.8-4.8s5.4 1.6 6.8 4.8"></path></svg>
@@ -136,11 +144,22 @@
             </span>
             <span>Coș</span>
           </button>
-          <div id="desktop-mini-cart" class="mini-cart{{ cart.count == 0 ? ' mini-cart-empty' }}" data-utility-panel hidden>
+          <div id="desktop-mini-cart" class="mini-cart{{ cart.count == 0 ? ' mini-cart-empty' : ' mini-cart-filled' }}" data-utility-panel hidden>
             {% if cart.count > 0 %}
-              <strong>{{ cart.count }} produse în coș</strong>
-              <span>{{ money(cart.total_bani) }}</span>
-              <a href="{{ url('cos/') }}">Vezi coșul <span aria-hidden="true">→</span></a>
+              <span class="mini-panel-head">
+                <span class="mini-panel-icon mini-panel-icon-cart" aria-hidden="true">
+                  <svg viewBox="0 0 32 32"><path d="M5 7.5h3l2.3 12.1h13.5l2.4-8.4H10"></path><circle cx="13" cy="25" r="1.7"></circle><circle cx="23" cy="25" r="1.7"></circle><path d="M15.3 14.8c.7-1.7 3.2-1.5 3.6.3.4-1.8 2.9-2 3.6-.3.7 1.8-1.3 3.2-3.6 4.7-2.3-1.5-4.3-2.9-3.6-4.7Z"></path></svg>
+                </span>
+                <span class="mini-panel-title">
+                  <small>Coșul tău</small>
+                  <strong>{{ cart.count }} {{ cart.count == 1 ? 'produs pregătit' : 'produse pregătite' }}</strong>
+                </span>
+              </span>
+              <span class="mini-panel-total"><small>Total estimat</small><strong>{{ money(cart.total_bani) }}</strong></span>
+              <a class="mini-panel-action" href="{{ url('cos/') }}">
+                <span>Vezi coșul</span>
+                <span class="mini-panel-action-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"></path></svg></span>
+              </a>
             {% else %}
               <span class="mini-cart-empty-icon" aria-hidden="true">
                 <span class="mini-cart-empty-heart mini-cart-empty-heart-one">♥</span>
@@ -201,6 +220,18 @@
             <div class="desktop-menu-overflow-items" data-desktop-menu-overflow-items></div>
           </div>
         </div>
+        <div class="menu-group menu-fixed menu-all-products" data-desktop-menu-item>
+          <a class="category-link has-menu-icon all-products-link" href="{{ url('magazin/') }}">
+            <span class="mobile-menu-icon" aria-hidden="true">
+              <svg viewBox="0 0 32 32">
+                <path d="M7 8.5h18l-1.2 17H8.2L7 8.5Z"></path>
+                <path d="M11.5 10V7.3A4.5 4.5 0 0 1 16 2.8a4.5 4.5 0 0 1 4.5 4.5V10"></path>
+                <path d="M11.5 15.2h9M11.5 19.2h6"></path>
+              </svg>
+            </span>
+            <span class="mobile-menu-label">Toate produsele</span>
+          </a>
+        </div>
         {% for category in navigation_tree %}
           <div class="menu-group" data-desktop-menu-item>
             <a class="category-link{% if category.children %} has-children{% endif %}{% if category.image_path %} has-thumbnail{% endif %}" href="{{ url('categorie/' ~ category.slug ~ '/') }}">
@@ -253,18 +284,170 @@
   </div>
   <main id="continut">{% block content %}{% endblock %}</main>
   <footer class="site-footer">
-    <div class="container footer-grid">
-      <div><strong>La Măriuca Boutique</strong><p>Hăinuțe și accesorii pentru copii, într-o interfață temporară pregătită pentru designul final.</p></div>
-      <div><strong>Informații</strong><a href="{{ url('pagina/despre-noi/') }}">Despre noi</a><a href="{{ url('pagina/livrare-si-retur/') }}">Livrare și retur</a><a href="{{ url('pagina/contact/') }}">Contact</a></div>
-      <div><strong>Legal</strong><a href="{{ url('pagina/termeni-si-conditii/') }}">Termeni</a><a href="{{ url('pagina/confidentialitate/') }}">Confidențialitate</a><a href="{{ url('pagina/cookies/') }}">Cookies</a></div>
-      <div><strong>Cont</strong><a href="{{ url('cont/') }}">Contul meu</a><a href="{{ url('favorite/') }}">Favorite</a><a href="{{ url('cos/') }}">Coș</a></div>
+    <section id="footer-newsletter" class="footer-newsletter container" aria-labelledby="footer-newsletter-title">
+      <img class="footer-newsletter-image" src="{{ url('assets/images/footer-newsletter-v1.webp') }}" width="2172" height="724" alt="" loading="lazy" decoding="async">
+      <div class="footer-newsletter-content">
+        <span class="footer-newsletter-ornament" aria-hidden="true"><i></i><svg viewBox="0 0 32 30"><path d="M16 26C6 19 3 14 3 9.5 3 5.8 5.7 3 9.3 3c2.8 0 5.1 1.7 6.7 4.3C17.6 4.7 19.9 3 22.7 3 26.3 3 29 5.8 29 9.5 29 14 26 19 16 26Z"></path></svg><i></i></span>
+        <span class="footer-newsletter-eyebrow">Fii primul care află</span>
+        <h2 id="footer-newsletter-title">Noutăți, oferte și colecții speciale</h2>
+        <p>Abonează-te la newsletter și primești inspirație, oferte exclusive și cele mai noi produse pentru cei mici.</p>
+        <div class="footer-newsletter-form" role="group" aria-label="Abonare la newsletter">
+          <label class="footer-newsletter-email" for="footer-newsletter-email">
+            <span class="sr-only">Adresa de email</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="m4 7 8 6 8-6"></path></svg>
+            <input id="footer-newsletter-email" type="email" name="newsletter_email" autocomplete="email" placeholder="Introdu adresa ta de email">
+          </label>
+          <button type="button" aria-label="Abonează-mă la newsletter">Mă abonez <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"></path></svg></button>
+        </div>
+        <label class="footer-newsletter-consent">
+          <input type="checkbox" name="newsletter_consent">
+          <span aria-hidden="true"><svg viewBox="0 0 20 20"><path d="m5 10 3 3 7-7"></path></svg></span>
+          <small>Sunt de acord să primesc noutăți și oferte pe email.</small>
+        </label>
+      </div>
+      <svg class="footer-newsletter-wave" viewBox="0 0 1600 48" preserveAspectRatio="none" aria-hidden="true">
+        <path d="M0 25C135 43 239 7 376 25s252-13 390 0 248 12 388 0 253-16 446 1"></path>
+      </svg>
+    </section>
+
+    <div class="container footer-main">
+      <div class="footer-brand-panel">
+        <a class="footer-brand" href="{{ url('') }}" aria-label="La Măriuca Boutique, pagina principală">
+          <img src="{{ url('assets/images/logo-la-mariuca-transparent.png') }}" width="1000" height="337" alt="La Măriuca Boutique" loading="lazy" decoding="async">
+        </a>
+        <div class="footer-brand-copy">
+          <span class="footer-brand-copy-ornament" aria-hidden="true">
+            <i></i>
+            <svg viewBox="0 0 24 22"><path d="M12 19.4S3.2 14.2 3.2 7.8A4.3 4.3 0 0 1 12 5.9a4.3 4.3 0 0 1 8.8 1.9c0 6.4-8.8 11.6-8.8 11.6Z"></path></svg>
+            <i></i>
+          </span>
+          <p>Hăinuțe și accesorii pentru copii, <strong>alese cu grijă</strong> pentru începuturi și amintiri frumoase.</p>
+        </div>
+        <div class="footer-socials" aria-label="Rețele sociale">
+          <span class="footer-social" title="Facebook" aria-label="Facebook"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 8h3V4h-3c-3 0-5 2-5 5v3H6v4h3v5h4v-5h3l1-4h-4V9c0-.7.3-1 1-1Z"></path></svg></span>
+          <span class="footer-social" title="Instagram" aria-label="Instagram"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"></rect><circle cx="12" cy="12" r="4"></circle><circle cx="17.4" cy="6.7" r="1"></circle></svg></span>
+          <span class="footer-social" title="TikTok" aria-label="TikTok"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4v11.1a4.5 4.5 0 1 1-3-4.2V15a1.7 1.7 0 1 0 0 2.7V4h3Zm0 0c.5 3 2.2 4.7 5 5V5.5c-1.5-.2-2.4-.7-3-1.5"></path></svg></span>
+          <span class="footer-social footer-social-vinted" title="Vinted" aria-label="Vinted"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.316 0c-.258 0-.571.217-1.415.953-.3.108-.627.027-1.008.613-2.15 3.09-3.825 14.648-5.255 17.984-.286-1.444-.885-10.837-1.116-13.41-.028-.477.027-1.076.027-1.43 0-2.368-.516-3.567-2.886-3.567-1.198 0-2.382.436-3.008 1.226-.299.408-.409.708-.409 1.443 0 4.915 1.171 12.973 2.478 18.228C7.132 23.688 8.603 24 9.99 24c.654 0 1.307-.081 2.233-.544 3.212-1.567 4.07-5.84 4.9-9.993.15-.749.899-4.37 1.253-6.275.476-2.6 1.02-5.54 1.347-6.617C19.833.245 19.63 0 19.317 0Z"></path></svg></span>
+        </div>
+        <div class="footer-reassurance" aria-label="Avantajele magazinului">
+          <span class="footer-reassurance-item">
+            <span class="footer-reassurance-icon" aria-hidden="true">
+              <svg viewBox="0 0 40 40"><path d="M5 12.5h18v14H5z"></path><path d="M23 17h5.5l5.5 5.5v4H23z"></path><circle cx="11" cy="29" r="2.7"></circle><circle cx="29" cy="29" r="2.7"></circle><path d="M12 18.1c.8-2 3.7-1.7 4 .4.4-2.1 3.2-2.4 4-.4.8 2-1.5 3.8-4 5.4-2.5-1.6-4.8-3.4-4-5.4Z"></path><path d="M7.8 9.2h8.5"></path></svg>
+            </span>
+            <span class="footer-reassurance-copy"><strong>Livrare rapidă</strong><small>în toată România</small></span>
+          </span>
+          <span class="footer-reassurance-item">
+            <span class="footer-reassurance-icon" aria-hidden="true">
+              <svg viewBox="0 0 40 40"><path d="M7 16h26v18H7z"></path><path d="M5 11h30v7H5zM20 11v23"></path><path d="M20 11c-5.7 0-8.2-1.7-8.2-4.1 0-1.7 1.3-2.9 3-2.9 3.2 0 5.2 4.1 5.2 7Z"></path><path d="M20 11c5.7 0 8.2-1.7 8.2-4.1 0-1.7-1.3-2.9-3-2.9C22 4 20 8.1 20 11Z"></path><path d="M14.7 24.5c.8-2 3.7-1.7 4 .4.4-2.1 3.2-2.4 4-.4.8 2-1.5 3.8-4 5.4-2.5-1.6-4.8-3.4-4-5.4Z"></path></svg>
+            </span>
+            <span class="footer-reassurance-copy"><strong>Alese cu grijă</strong><small>pentru cei mici</small></span>
+          </span>
+        </div>
+        <div class="footer-payments footer-payments--brand" aria-label="Metode de plată acceptate">
+          <span class="footer-payment footer-payment-visa" title="Visa"><img src="{{ url('assets/images/payments/visa.svg') }}" width="50" height="18" alt="Visa" loading="lazy" decoding="async"></span>
+          <span class="footer-payment footer-payment-mastercard" title="Mastercard"><img src="{{ url('assets/images/payments/mastercard.svg') }}" width="40" height="25" alt="Mastercard" loading="lazy" decoding="async"></span>
+          <span class="footer-payment footer-payment-apple" title="Apple Pay"><img src="{{ url('assets/images/payments/apple-pay.svg') }}" width="48" height="20" alt="Apple Pay" loading="lazy" decoding="async"></span>
+          <span class="footer-payment footer-payment-google" title="Google Pay"><img src="{{ url('assets/images/payments/google-pay.svg') }}" width="48" height="18" alt="Google Pay" loading="lazy" decoding="async"></span>
+          <span class="footer-payment footer-payment-stripe" title="Stripe"><img src="{{ url('assets/images/payments/stripe.svg') }}" width="48" height="20" alt="Stripe" loading="lazy" decoding="async"></span>
+        </div>
+      </div>
+
+      <details class="footer-menu footer-menu--discover" open>
+        <summary><span class="footer-menu-icon footer-menu-icon--discover" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5.2 8.2h13.6l-1 11.2H6.2L5.2 8.2Z"></path><path d="M8.7 9V6.8A3.3 3.3 0 0 1 12 3.5a3.3 3.3 0 0 1 3.3 3.3V9"></path><path d="M9.2 13.3c.6-1.4 2.5-1.2 2.8.3.3-1.5 2.2-1.7 2.8-.3.5 1.4-1 2.6-2.8 3.8-1.8-1.2-3.3-2.4-2.8-3.8Z"></path></svg></span><span class="footer-menu-title">Descoperă</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 9 5 5 5-5"></path></svg></summary>
+        <div class="footer-menu-links" data-footer-category-list>
+          <a class="footer-all-products" href="{{ url('magazin/') }}">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="6" height="6" rx="1.5"></rect><rect x="14" y="4" width="6" height="6" rx="1.5"></rect><rect x="4" y="14" width="6" height="6" rx="1.5"></rect><rect x="14" y="14" width="6" height="6" rx="1.5"></rect></svg>
+            <span>Toate produsele</span>
+          </a>
+          {% for category in navigation_tree %}<a class="footer-category-link" data-footer-category href="{{ url('categorie/' ~ category.slug ~ '/') }}">{{ category.name }}</a>{% endfor %}
+          <button class="footer-category-more" type="button" data-footer-category-more hidden aria-expanded="false">
+            <span>… mai multe</span>
+            <small data-footer-category-more-count></small>
+          </button>
+          <span class="footer-menu-specials">
+            <a href="{{ url('cautare/?sortare=nou') }}">Noutăți</a>
+            <a href="{{ url('cautare/?reduceri=1') }}">Reduceri</a>
+          </span>
+        </div>
+      </details>
+      <details class="footer-menu footer-menu--compact" open>
+        <summary><span class="footer-menu-icon footer-menu-icon--information" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3.8 5.8A3.8 3.8 0 0 1 7.6 3H11v16H7.5a4.7 4.7 0 0 0-3.7 1.7V5.8ZM20.2 5.8A3.8 3.8 0 0 0 16.4 3H13v16h3.5a4.7 4.7 0 0 1 3.7 1.7V5.8Z"></path><path d="M6.7 7.3h2M15.3 7.3h2"></path><path d="m17.7 11 .5 1.1 1.1.5-1.1.5-.5 1.1-.5-1.1-1.1-.5 1.1-.5.5-1.1Z"></path></svg></span><span class="footer-menu-title">Informații</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 9 5 5 5-5"></path></svg></summary>
+        <div class="footer-menu-links">
+          <a href="{{ url('pagina/despre-noi/') }}">Despre noi</a>
+          <a href="{{ url('pagina/livrare-si-retur/') }}">Livrare și retur</a>
+          <a href="{{ url('pagina/contact/') }}">Contact</a>
+        </div>
+      </details>
+      <details class="footer-menu footer-menu--compact footer-menu--legal" open>
+        <summary><span class="footer-menu-icon footer-menu-icon--legal" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 2.8c2.2 1.5 4.8 2.4 7.4 2.7v5.2c0 5-3 8.3-7.4 10.5-4.4-2.2-7.4-5.5-7.4-10.5V5.5c2.6-.3 5.2-1.2 7.4-2.7Z"></path><path d="M8.5 12.3 11 14.8l4.8-5.2"></path><path d="m17.5 3.3.4.9.9.4-.9.4-.4.9-.4-.9-.9-.4.9-.4.4-.9Z"></path></svg></span><span class="footer-menu-title">Legal</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 9 5 5 5-5"></path></svg></summary>
+        <div class="footer-menu-links">
+          <a href="{{ url('pagina/termeni-si-conditii/') }}">Termeni și condiții</a>
+          <a href="{{ url('pagina/confidentialitate/') }}">Politica de confidențialitate</a>
+          <a href="{{ url('pagina/cookies/') }}">Politica de cookie-uri</a>
+        </div>
+        <a class="footer-anpc footer-anpc--desktop" href="https://anpc.ro/sal/" target="_blank" rel="noopener nofollow external" aria-label="ANPC — Soluționarea Alternativă a Litigiilor, deschide detaliile într-o filă nouă">
+          <img src="{{ url('assets/images/anpc-sal.png') }}" width="202" height="50" alt="ANPC — Soluționarea Alternativă a Litigiilor" loading="lazy" decoding="async">
+        </a>
+      </details>
+      <details class="footer-menu footer-menu--compact" open>
+        <summary><span class="footer-menu-icon footer-menu-icon--account" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="10.5" cy="8" r="3.2"></circle><path d="M4.3 20c.5-4 2.6-6.1 6.2-6.1s5.7 2.1 6.2 6.1"></path><path d="M17.8 8.1c.8-1.2 2.9-1 3.3.5.5 1.8-1.4 2.9-3.3 4.1-1.9-1.2-3.8-2.3-3.3-4.1.4-1.5 2.5-1.7 3.3-.5Z"></path></svg></span><span class="footer-menu-title">Contul meu</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 9 5 5 5-5"></path></svg></summary>
+        <div class="footer-menu-links">
+          <a href="{{ url(user ? 'cont/' : 'cont/autentificare/') }}">{{ user ? 'Contul meu' : 'Autentificare' }}</a>
+          <a href="{{ url('cont/') }}">Comenzile mele</a>
+          <a href="{{ url('favorite/') }}">Lista de favorite</a>
+          <a href="{{ url('cos/') }}">Coș</a>
+        </div>
+      </details>
+      <div class="footer-payments footer-payments--mobile" aria-label="Metode de plată acceptate">
+        <span class="footer-payment footer-payment-visa" title="Visa"><img src="{{ url('assets/images/payments/visa.svg') }}" width="50" height="18" alt="Visa" loading="lazy" decoding="async"></span>
+        <span class="footer-payment footer-payment-mastercard" title="Mastercard"><img src="{{ url('assets/images/payments/mastercard.svg') }}" width="40" height="25" alt="Mastercard" loading="lazy" decoding="async"></span>
+        <span class="footer-payment footer-payment-apple" title="Apple Pay"><img src="{{ url('assets/images/payments/apple-pay.svg') }}" width="48" height="20" alt="Apple Pay" loading="lazy" decoding="async"></span>
+        <span class="footer-payment footer-payment-google" title="Google Pay"><img src="{{ url('assets/images/payments/google-pay.svg') }}" width="48" height="18" alt="Google Pay" loading="lazy" decoding="async"></span>
+        <span class="footer-payment footer-payment-stripe" title="Stripe"><img src="{{ url('assets/images/payments/stripe.svg') }}" width="48" height="20" alt="Stripe" loading="lazy" decoding="async"></span>
+      </div>
+      <a class="footer-anpc footer-anpc--mobile" href="https://anpc.ro/sal/" target="_blank" rel="noopener nofollow external" aria-label="ANPC — Soluționarea Alternativă a Litigiilor, deschide detaliile într-o filă nouă">
+        <img src="{{ url('assets/images/anpc-sal.png') }}" width="202" height="50" alt="ANPC — Soluționarea Alternativă a Litigiilor" loading="lazy" decoding="async">
+      </a>
     </div>
-    <div class="container footer-bottom">© {{ "now"|date("Y") }} La Măriuca Boutique. Informațiile juridice sunt drafturi ce necesită verificare.</div>
+
+    <div class="container footer-bottom">
+      <div class="footer-copyright">
+        <span class="footer-copyright-mark" aria-hidden="true">©</span>
+        <p class="footer-copyright-copy">
+          <span class="footer-copyright-primary"><span>{{ "now"|date("Y") }}</span> <strong>La Măriuca Boutique</strong></span>
+          <span class="footer-copyright-secondary">Toate drepturile rezervate.</span>
+        </p>
+      </div>
+      <a class="footer-creator-credit" href="https://cab-it.ro/" target="_blank" rel="noopener external" aria-label="Website realizat de CAB IT, deschide site-ul într-o filă nouă">
+        <span class="footer-creator-label">Designed by</span>
+        <span class="footer-creator-logo" aria-hidden="true"><img src="{{ url('assets/images/cab-it-credit.png') }}" width="302" height="49" alt="" loading="lazy" decoding="async"></span>
+        <strong class="footer-creator-site">cab-it.ro</strong>
+      </a>
+    </div>
   </footer>
-  <script type="module" src="{{ url('assets/js/storefront/navigation.js') }}?v=20261021-mobile-submenu-stable1"></script>
-  <script type="module" src="{{ url('assets/js/storefront/storefront-actions.js') }}?v=20261020-carttoggle1"></script>
+  <a class="whatsapp-float" href="{{ whatsapp_url() }}" target="_blank" rel="noopener external" aria-label="Hai sa vorbim pe WhatsApp cu La Măriuca Boutique">
+    <span class="whatsapp-float-label">Hai sa vorbim!</span>
+    <span class="whatsapp-float-icon" aria-hidden="true">
+      <svg viewBox="0 0 32 32">
+        <path class="whatsapp-float-bubble" d="M16 4.2A11.6 11.6 0 0 0 6.1 21.8L4.5 27.6l6-1.6A11.6 11.6 0 1 0 16 4.2Z"></path>
+        <path class="whatsapp-float-phone" d="M11.1 9.8c.3-.7.7-.7 1.1-.7h.5c.2 0 .5.1.6.5l1.1 2.7c.1.3.1.6-.1.9l-.8 1c-.2.2-.3.5-.1.8.7 1.3 1.7 2.4 3 3.1.3.2.6.2.8-.1l1-1.2c.2-.3.5-.4.8-.2l2.7 1.3c.3.2.5.4.5.7 0 .4-.2 1.8-1.2 2.6-.8.7-1.9 1.1-3.1.8-1.4-.3-3.1-.9-5-2.6-1.5-1.3-2.8-3-3.5-4.8-.7-1.8.2-4 .7-4.8Z"></path>
+      </svg>
+    </span>
+    <span class="whatsapp-float-message" aria-hidden="true">
+      <svg viewBox="0 0 30 30">
+        <path class="whatsapp-message-back" d="M12.4 8.3h9.1a5 5 0 0 1 5 5v2.9a5 5 0 0 1-5 5h-2.1l-4.2 3v-3h-2.8a5 5 0 0 1-5-5v-2.9a5 5 0 0 1 5-5Z"></path>
+        <path class="whatsapp-message-front" d="M4.4 4.2h9.2a5 5 0 0 1 5 5v2.9a5 5 0 0 1-5 5h-2.2l-4.2 3v-3H4.4a5 5 0 0 1-5-5V9.2a5 5 0 0 1 5-5Z"></path>
+        <circle class="whatsapp-message-dot whatsapp-message-dot-one" cx="5.3" cy="10.7" r="1.05"></circle>
+        <circle class="whatsapp-message-dot whatsapp-message-dot-two" cx="9.4" cy="10.7" r="1.05"></circle>
+        <circle class="whatsapp-message-dot whatsapp-message-dot-three" cx="13.5" cy="10.7" r="1.05"></circle>
+      </svg>
+    </span>
+  </a>
+  <script type="module" src="{{ url('assets/js/storefront/navigation.js') }}?v=20261023-shop-toolbar1"></script>
+  <script type="module" src="{{ url('assets/js/storefront/storefront-actions.js') }}?v=20261023-favorites2"></script>
   <script type="module" src="{{ url('assets/js/storefront/product-carousel.js') }}?v=20261020-carousel4"></script>
   <script type="module" src="{{ url('assets/js/storefront/hero-parallax.js') }}"></script>
   <script type="module" src="{{ url('assets/js/storefront/variant-selector.js') }}"></script>
+  <script type="module" src="{{ url('assets/js/storefront/footer.js') }}?v=20261021-footer3"></script>
 </body>
 </html>

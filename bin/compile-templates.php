@@ -12,7 +12,7 @@ require dirname(__DIR__) . '/vendor/autoload.php';
 $root = dirname(__DIR__);
 $twig = new Environment(new FilesystemLoader($root . '/resources/views'));
 
-foreach (['absolute_url', 'cart_summary', 'csrf_token', 'current_user', 'favorite_count', 'flash_messages', 'is_favorite', 'is_variant_in_cart', 'money', 'navigation_categories', 'percent_basis_points', 'url'] as $name) {
+foreach (['absolute_url', 'cart_summary', 'csrf_token', 'current_user', 'favorite_count', 'flash_messages', 'is_favorite', 'is_variant_in_cart', 'money', 'navigation_categories', 'percent_basis_points', 'url', 'whatsapp_url'] as $name) {
     $twig->addFunction(new TwigFunction($name, static fn(): null => null));
 }
 $twig->addFilter(new TwigFilter('json_decode', static fn(): array => []));

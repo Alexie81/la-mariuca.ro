@@ -106,6 +106,15 @@ Actualizat: 2026-10-21
 Pe desktop sunt păstrate în capsulă maximum șase categorii principale; restul sunt mutate în panoul
 „Mai multe categorii”, accesibil din controlul cu două linii din stânga. La micșorarea lățimii, bara măsoară
 spațiul real și mută succesiv ultima categorie obișnuită înainte ca textul ori separatoarele să se suprapună.
+„Toate produsele” este afișat permanent înainte de „Nou-născuți”, trimite către pagina dedicată `/magazin/`
+și nu este mutat în panoul de overflow; în meniul mobil apare imediat după „Acasă”, înaintea categoriilor din
+baza de date. Pagina Magazin listează toate produsele publicate prin componenta comună de card, cu sortare,
+paginare și layout responsive de patru, trei sau două coloane. Antetul Magazin este un interludiu editorial
+compact, cu un singur titlu și un medalion decupat pe pisicuța cu fundiță din imaginea de brand; pe telefon
+tipografia și medalionul se reduc fără suprapunere, iar ornamentele secundare sunt simplificate.
+Sub antet, numărul total de produse și selectorul de sortare sunt reunite într-o bară editorială inspirată
+din referința vizuală, adaptată paletei La Măriuca; selectorul aplică sortarea imediat cu JavaScript și păstrează
+un buton de trimitere în fallback-ul fără JavaScript. Bara rămâne pe un singur rând și fără overflow la 390 px.
 „Noutăți” și „Reduceri” rămân permanent fixate în dreapta și nu sunt mutate în panou. Categoria publicată
 „Încălțăminte” rămâne inclusă în calcul și în ordinea navigației, fără duplicare în baza de date.
 Categoria „Cadouri” are acum o imagine editorială originală optimizată WebP și un arbore public pe trei
@@ -122,6 +131,25 @@ Antetul secțiunii „Noutăți” are pe telefon un panou editorial compact, cu
 „boutique” pe al doilea, accent decorativ discret și o acțiune tip capsulă simplă și compactă. Hover-ul
 acțiunii păstrează o culoare stabilă, fără flash alb; spațiul gol dintre titlu și carusel a fost eliminat, fără a
 modifica prezentarea desktop.
+Subcategoriile din meniul mobil au fost refăcute ca rânduri tactile 2D, cu miniaturi mai mari, contrast și
+spațiere mai bune; pe tabletă, primul nivel folosește două coloane pentru a evita panourile late și goale.
+Dropdown-urile desktop folosesc acum miniaturi pătrate, compacte și consistente, cu textul și săgeata
+aliniate într-un rând editorial; imaginile nu mai măresc necontrolat înălțimea panoului.
+- După caruselul „Abia sosite în boutique”, homepage-ul include un banner editorial dedicat costumelor
+  tradiționale: imaginea categoriei este în stânga și conținutul în dreapta pe desktop, iar pe telefon
+  compoziția devine verticală. Steagul României, firul decorativ, fotografia, etichetele și CTA-ul folosesc
+  animații fine, dezactivate automat pentru utilizatorii care preferă mișcare redusă. Subtitlul „purtată cu
+  bucurie.” rămâne pe un singur rând, iar etichetele folosesc simbolurile feminin, masculin și stea.
+- Între colecțiile vizuale și selecția de produse, homepage-ul include secțiunea editorială „Povestea
+  noastră”, refăcută ca interludiu editorial compact și minimalist: fără panou supradimensionat, cu reper
+  vertical, valori tipografice și un fir-inimă animat cu valuri caligrafice înalte, permanent vizibile și
+  fără o bordură dreaptă care să le aplatizeze vizual. CTA-ul și medalionul
+  trimit către pagina „Despre noi”; medalionul conține exclusiv logo-ul boutique-ului, fără fotografie,
+  legendă ori alte elemente vizuale, iar mișcarea este dezactivată pentru `prefers-reduced-motion`. Pe
+  telefon, compoziția este compactă: medalionul redus este aliniat cu CTA-ul, spațiul vertical inutil a fost
+  eliminat, iar firul decorativ rămâne vizibil la baza secțiunii. Inima firului are un SVG separat, cu
+  proporții păstrate pe orice lățime, astfel încât redimensionarea mobilă nu o mai îngustează sau deformează;
+  traseul este continuu și nu mai introduce goluri animate între fir, inimă și terminație.
 - După colecții, homepage-ul afișează secțiunea editorială „Alese cu drag pentru cei mici”, cu
   patru produse reale din catalog pe desktop și două pe rând pe telefon. Cardurile folosesc fotografia
   produsului sau, până la încărcarea fotografiilor individuale, miniatura categoriei asociate; includ
@@ -231,6 +259,126 @@ modifica prezentarea desktop.
   animației de intrare.
 - Contul QA temporar a fost șters. Comanda demo `LM-2026-000001` rămâne în baza locală ca dovadă
   a smoke testului și nu conține date reale.
+
+## 2026-10-21 — Newsletter editorial și footer responsive
+
+- Zona finală a storefrontului a fost refăcută într-un stil editorial: banner newsletter cu fotografie
+  originală, centru liber pentru conținut, formular compact, ornament cu inimă și linie animată.
+- Footerul desktop are acum aceeași lățime vizuală ca navigația, logo, descriere, iconuri sociale,
+  categorii principale preluate din arborele bazei de date, coloane informative și legale, avantaje și
+  marcaje pentru metodele de plată. Cele patru panouri de navigare au lățimi și înălțimi egale pe desktop,
+  iar conținutul panourilor mai scurte este distribuit echilibrat pe verticală.
+- Semnătura de sub logo are un ornament liniar cu inimă, text echilibrat și accent tipografic coral pe
+  „alese cu grijă”; pe mobil ornamentul și mesajul sunt centrate deasupra iconurilor sociale.
+- Grupul social folosește acum patru simboluri vectoriale 2D — Facebook, Instagram, TikTok și Vinted —
+  cu inel interior, accent auriu și animație de apariție; Pinterest și YouTube au fost eliminate.
+- Avantajele „Livrare rapidă” și „Alese cu grijă” au fost mutate imediat sub rețelele sociale și refăcute
+  ca două mini-carduri editoriale, cu pictograme vectoriale originale pentru transport și cadou; rămân
+  vizibile și într-o compoziție compactă, pe două coloane, în footerul mobil.
+- Marcajele metodelor de plată folosesc acum sigle SVG locale, cu proporțiile și culorile de brand pentru
+  Visa, Mastercard, Apple Pay, Google Pay și Stripe; pe desktop sunt așezate sub avantajul „Alese cu grijă”,
+  iar pe telefon apar imediat după acordeonul „Contul meu”. Reprezentările anterioare construite din text/CSS
+  au fost eliminate. Apple Pay și Google Pay folosesc wordmark-uri curate în carduri 2D uniforme, fără
+  contururile rigide ale vechilor pictograme.
+- Pictograma ANPC pentru Soluționarea Alternativă a Litigiilor este disponibilă în panoul „Legal” pe desktop
+  și imediat sub metodele de plată pe telefon; ambele variante trimit către pagina oficială SAL.
+- Copyrightul folosește acum o compoziție editorială compactă, cu marcaj circular, numele boutique-ului
+  evidențiat și drepturile păstrate pe un al doilea nivel tipografic. Semnătura CAB IT este aliniată în
+  dreapta copyrightului pe desktop și imediat sub acesta pe telefon, cu link către site-ul realizatorului;
+  creditul este prezentat liber, fără casetă, cu text HTML lizibil și grupul centrat corect în ambele layouturi.
+- Coloana „Descoperă” începe cu „Toate produsele”, afișează inițial maximum patru categorii principale
+  și dezvăluie progresiv următoarele grupuri de maximum patru prin butonul „… mai multe”; Noutățile și
+  Reducerile rămân linkuri speciale separate, iar fără JavaScript toate categoriile rămân vizibile.
+- Coloanele „Descoperă”, „Informații”, „Legal” și „Contul meu” folosesc panouri editoriale 2D pe desktop,
+  iconuri tematice redesenate (geantă boutique, carte, scut și profil cu inimă) și stări hover fără umbre.
+  Pe mobil, acordeoanele au animații line de deschidere și
+  restrângere bazate pe înălțime, opacitate și translație, cu fallback pentru `prefers-reduced-motion`.
+- Pe telefon, fotografia folosește un decupaj dedicat, formularul este vertical, iar coloanele sunt
+  acordeoane tactile. Fără JavaScript, legăturile rămân server-rendered și vizibile; scriptul doar
+  sincronizează starea deschis/închis la schimbarea breakpointului.
+- Consimțământul newsletter folosește un switch tactil 2D, cu stare neutră albă și stare activă coral,
+  bifă vizibilă, cursor glisant, spațiere optică egalizată în interior și focus accesibil din tastatură.
+- Pe telefon, cardul newsletter ocupă acum întreaga lățime a viewportului; verificarea responsive la
+  367 px a confirmat dimensiunile `left: 0`, `right: 367`, fără spații laterale reziduale.
+- Imaginea generată este păstrată versionat și optimizată în `public/assets/images/footer-newsletter-v1.webp`; sursele
+  existente din `logo-uri/` nu au fost modificate.
+- Verificări reale: pagina răspunde HTTP 200, lint-ul proiectului și suita PHPUnit (21 teste,
+  91 de aserțiuni) trec, iar previzualizarea în browser a confirmat desktopul, mobilul, deschiderea
+  acordeonului și lipsa erorilor în consolă.
+- Formularul newsletter este deocamdată prezentare UI; persistarea adreselor, confirmarea abonării și
+  integrarea cu un furnizor de email rămân neimplementate până la alegerea serviciului și aprobarea
+  explicită a configurării SMTP/marketing.
+
+## 2026-10-21 — Hero personalizat cu fotografia de referință
+
+- Imaginea principală a Hero-ului a fost refăcută pornind de la fotografia furnizată, păstrând chipul,
+  expresia, coafura și ținuta tradițională alb-albastră a fetiței.
+- Compoziția păstrează atmosfera crem-roz, pisicuța cu fundă și spațiul luminos din stânga necesar
+  textului, butoanelor și decupajelor responsive existente.
+- Varianta nouă este salvată versionat în
+  `public/assets/images/hero/la-mariuca-hero-v4-sora-costum-traditional.png`; imaginea Hero anterioară
+  a rămas intactă pentru revenire sau comparație.
+- Verificări reale: Hero-ul a fost inspectat vizual pe desktop și telefon, fără decuparea chipului sau
+  pierderea ținutei; pagina răspunde HTTP 200, nu produce erori în consola browserului, lint-ul trece,
+  iar suita PHPUnit rulează cu succes toate cele 21 de teste și 91 de aserțiuni.
+
+## 2026-10-23 — Panouri Favorite și Coș
+
+- Panourile desktop pentru Favorite și Coș au fost refăcute ca elemente editoriale compacte, cu
+  pictograme dedicate, ierarhie tipografică mai clară, fundal crem-roz și acțiuni pe toată lățimea.
+- Coșul afișează separat numărul de produse și totalul estimat, iar Favorite păstrează un mesaj
+  scurt și cald; ambele panouri păstrează și variantele ilustrate pentru starea goală.
+- Actualizările asincrone reconstruiesc acum aceeași structură vizuală după adăugare sau eliminare,
+  fără refresh și fără revenirea la vechile casete de text.
+- Animația de intrare și tranzițiile sunt scurte și plate, fără flash alb, iar pentru
+  `prefers-reduced-motion` mișcarea este dezactivată.
+- Pictogramele rețelelor sociale din footer folosesc acum cursorul `grab`, care devine `grabbing`
+  în timpul apăsării, pentru feedback-ul tactil solicitat.
+- Verificări reale: ambele panouri populate au fost inspectate vizual în browserul desktop, pagina
+  răspunde HTTP 200, lint-ul și compilarea celor 31 de șabloane Twig trec, PHPStan nu raportează
+  erori, iar PHPUnit rulează cu succes toate cele 21 de teste și 91 de aserțiuni.
+
+## 2026-10-23 — Contact WhatsApp global
+
+- Toate paginile storefront includ acum un buton WhatsApp fix în colțul din dreapta-jos, furnizat de
+  layoutul comun și accesibil prin tastatură și cititoare de ecran.
+- Pe telefon este afișată exclusiv sigla într-un medalion alb de 56 px; pe desktop componenta pornește
+  compact și se extinde fluid la hover sau focus pentru a afișa „Hai sa vorbim!”.
+- Designul folosește o capsulă albă cu text verde și un medalion WhatsApp verde cu siglă albă, cerc
+  dublu, pulsație, salut animat al pictogramei, bule de conversație cu indicator de scriere și reflexie
+  fină; animațiile sunt eliminate pentru `prefers-reduced-motion`.
+- Butonul se ridică automat deasupra toasturilor și se ascunde cât timp meniul mobil ocupă ecranul,
+  prevenind suprapunerile cu alte acțiuni importante.
+- Destinația și mesajul inițial pot fi configurate prin `WHATSAPP_NUMBER` și `WHATSAPP_MESSAGE`;
+  fără număr, linkul deschide WhatsApp cu mesajul pregătit și permite alegerea conversației.
+- Verificări reale: componenta a fost inspectată la 1920 px și 390 px, inclusiv starea desktop
+  extinsă, fără erori în consola browserului; homepage-ul, o categorie și un produs răspund HTTP 200
+  și conțin componenta, cele 31 de șabloane Twig se compilează, PHPStan nu raportează erori, iar
+  PHPUnit rulează cu succes toate cele 21 de teste și 91 de aserțiuni.
+
+## 2026-10-23 — Pagina Favorite
+
+- Pagina `/favorite/` folosește acum exact componenta comună de produs din homepage, cu imagine,
+  categorie, preț comparativ, stoc, variante, personalizări, Favorite și acțiunea corectă pentru coș.
+- Datele produselor favorite sunt hidratate pentru cardul comun, iar produsele retrase sau
+  nepublicate sunt eliminate din sesiune pentru ca numărul din navbar să rămână corect.
+- Antetul paginii a fost refăcut ca o compoziție compactă și directă: fără acțiuni redundante, cu
+  simbolul comun de Favorite lângă „Selecția ta”, numărul actualizat live în medalion și eticheta
+  „alese de tine”; grila afișează patru carduri pe desktop, trei pe ecrane intermediare și două pe mobil.
+- Eliminarea unui produs funcționează asincron, animă ieșirea cardului, actualizează contoarele și
+  afișează automat starea goală când este eliminat ultimul produs; submitul server-side rămâne fallback.
+- Mișcările decorative sunt oprite pentru `prefers-reduced-motion`, iar starea goală reutilizează
+  panoul accesibil existent.
+- Eticheta „Lista se actualizează automat” a fost eliminată pentru un antet de listă mai simplu.
+  Întârzierile animațiilor cardurilor și meniului folosesc acum exclusiv clase și selectori din
+  stylesheet, iar inimile animate din navbar folosesc variante CSS predefinite; pagina Favorite nu
+  mai generează stiluri inline blocate de politica CSP.
+- Verificări reale: pagina populată și starea goală au fost testate în browser la lățime desktop,
+  390 px și 320 px; eliminarea ultimului produs actualizează medalionul la zero și afișează starea
+  goală fără refresh, iar produsul de test a fost readăugat la final. După corecția CSP, reload-ul cu
+  patru produse a confirmat zero stiluri inline și zero erori în consolă. Compilarea celor 31 de
+  șabloane Twig, lint-ul, PHPStan, verificarea sintaxei JavaScript și PHPUnit (21 teste,
+  91 de aserțiuni) trec.
 
 ## IMPLEMENTED_UNVERIFIED
 

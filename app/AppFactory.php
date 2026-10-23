@@ -61,6 +61,11 @@ final class AppFactory
         ]);
         $twig->addFunction(new TwigFunction('url', static fn(string $path = ''): string => $config->path($path)));
         $twig->addFunction(new TwigFunction('absolute_url', static fn(string $path = ''): string => $config->rootUrl() . '/' . ltrim($path, '/')));
+        $twig->addFunction(new TwigFunction('whatsapp_url', static function () use ($config): string {
+            $number = preg_replace('/\D+/', '', $config->get('WHATSAPP_NUMBER')) ?? '';
+            $message = $config->get('WHATSAPP_MESSAGE', 'Bună! Aș dori mai multe informații despre produsele La Măriuca Boutique.');
+            return 'https://wa.me/' . $number . '?text=' . rawurlencode($message);
+        }));
         $twig->addFunction(new TwigFunction('money', static fn(int|string|null $bani): string => Money::format((int) $bani)));
         $twig->addFunction(new TwigFunction('percent_basis_points', static function (int|string|null $basisPoints): string {
             $value = (int) $basisPoints;
@@ -111,6 +116,7 @@ final class AppFactory
         $app->get('/categorie/{slug}/', [$storefront, 'category']);
         $app->get('/colectie/{slug}/', [$storefront, 'collection']);
         $app->get('/produs/{slug}/', [$storefront, 'product']);
+        $app->get('/magazin/', [$storefront, 'shop']);
         $app->get('/cautare/', [$storefront, 'search']);
         $app->get('/cautare/sugestii/', [$storefront, 'searchSuggestions']);
         $app->get('/favorite/', [$storefront, 'favorites']);

@@ -71,7 +71,7 @@ că a fost deja implementată sau verificată.
 
 ## Pagini și SEO
 
-- Rute: `/`, `/categorie/{slug}/`, `/colectie/{slug}/`, `/produs/{slug}/`, `/cautare/`,
+- Rute: `/`, `/magazin/`, `/categorie/{slug}/`, `/colectie/{slug}/`, `/produs/{slug}/`, `/cautare/`,
   `/favorite/`, `/cos/`, `/finalizare-comanda/`, `/cont/`, `/admin/` și pagini CMS.
 - Fiecare entitate publicată/indexabilă are URL permanent, HTTP 200, H1 și conținut specific în
   HTML, canonical propriu, linkuri reale, breadcrumbs și sitemap. Subcategoria nu este doar filtru.

@@ -157,6 +157,60 @@ final class CatalogRepository
         return $this->homepageProductCards(max(1, min(24, $limit)), false, $excludeIds);
     }
 
+    /** @return list<array<string, mixed>> */
+    public function shopProducts(int $page = 1, int $perPage = 12, string $sort = 'new'): array
+    {
+        $sorts = [
+            'new' => 'p.published_at DESC, p.id DESC',
+            'price-asc' => 'price_bani ASC, p.id DESC',
+            'price-desc' => 'price_bani DESC, p.id DESC',
+            'name' => 'p.name ASC, p.id DESC',
+        ];
+        $order = $sorts[$sort] ?? $sorts['new'];
+        $limit = max(1, min(48, $perPage));
+        $offset = max(0, ($page - 1) * $limit);
+
+        return $this->pdo->query("SELECT p.*, primary_category.name AS category_name,
+                primary_category.slug AS category_slug,
+                MIN(v.price_bani) AS price_bani,
+                MIN(v.compare_price_bani) AS compare_price_bani,
+                COUNT(DISTINCT v.id) AS variant_count,
+                (SELECT COUNT(*) FROM personalization_options required_option
+                    WHERE required_option.product_id = p.id AND required_option.required = 1) AS required_personalization_count,
+                COALESCE(MIN(CASE WHEN v.is_default = 1 THEN v.id END), MIN(v.id)) AS default_variant_id,
+                COALESCE(SUM(i.physical_quantity - i.reserved_quantity), 0) AS available_quantity,
+                COALESCE(
+                    (SELECT product_media.public_path
+                        FROM product_images pi
+                        JOIN media product_media ON product_media.id = pi.media_id
+                        WHERE pi.product_id = p.id AND product_media.public_path IS NOT NULL
+                        ORDER BY pi.position, pi.media_id LIMIT 1),
+                    (SELECT category_media.public_path
+                        FROM product_categories image_pc
+                        JOIN categories image_category ON image_category.id = image_pc.category_id
+                        JOIN media category_media ON category_media.id = image_category.image_media_id
+                        WHERE image_pc.product_id = p.id AND category_media.public_path IS NOT NULL
+                        ORDER BY CASE WHEN image_category.parent_id IS NULL THEN 0 ELSE 1 END,
+                            image_category.position, image_category.id LIMIT 1)
+                ) AS image_path
+            FROM products p
+            JOIN product_variants v ON v.product_id = p.id AND v.status = 'active'
+            LEFT JOIN inventory i ON i.variant_id = v.id
+            LEFT JOIN categories primary_category ON primary_category.id = p.primary_category_id
+            WHERE p.status = 'published'
+            GROUP BY p.id
+            ORDER BY {$order}
+            LIMIT {$limit} OFFSET {$offset}")->fetchAll();
+    }
+
+    public function publishedProductCount(): int
+    {
+        return (int) $this->pdo->query("SELECT COUNT(DISTINCT p.id)
+            FROM products p
+            JOIN product_variants v ON v.product_id = p.id AND v.status = 'active'
+            WHERE p.status = 'published'")->fetchColumn();
+    }
+
     /** @return array<string, mixed>|null */
     public function productBySlug(string $slug, bool $publicOnly = true): ?array
     {

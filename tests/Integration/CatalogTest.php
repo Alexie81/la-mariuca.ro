@@ -165,4 +165,24 @@ final class CatalogTest extends DatabaseTestCase
         self::assertCount(4, $fallback);
         self::assertSame(array_column($repository->latestProducts(4), 'id'), array_column($fallback, 'id'));
     }
+
+    public function testShopListsEveryPublishedProductWithSharedCardData(): void
+    {
+        $this->seed();
+        $repository = new CatalogRepository($this->pdo);
+
+        $products = $repository->shopProducts(1, 48);
+
+        self::assertCount($repository->publishedProductCount(), $products);
+        self::assertNotEmpty($products);
+        self::assertNotContains(null, array_column($products, 'default_variant_id'));
+        self::assertNotContains(null, array_column($products, 'variant_count'));
+        self::assertNotContains(null, array_column($products, 'available_quantity'));
+
+        $productsByPrice = $repository->shopProducts(1, 48, 'price-asc');
+        $prices = array_map('intval', array_column($productsByPrice, 'price_bani'));
+        $sortedPrices = $prices;
+        sort($sortedPrices, SORT_NUMERIC);
+        self::assertSame($sortedPrices, $prices);
+    }
 }

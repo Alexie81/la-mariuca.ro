@@ -38,6 +38,8 @@ final class Config
             'TAX_RATE_BASIS_POINTS' => '0',
             'PRICES_INCLUDE_TAX' => 'true',
             'STRIPE_ENABLED' => 'false',
+            'WHATSAPP_NUMBER' => '',
+            'WHATSAPP_MESSAGE' => 'Bună! Aș dori mai multe informații despre produsele La Măriuca Boutique.',
         ];
 
         $values = [];

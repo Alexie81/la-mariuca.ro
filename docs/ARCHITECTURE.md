@@ -24,7 +24,7 @@ Integrarea Stripe și SMTP se execută după commit, prin idempotency/outbox.
 
 ## Rute publice
 
-`/`, `/categorie/{slug}/`, `/colectie/{slug}/`, `/produs/{slug}/`, `/cautare/`,
+`/`, `/magazin/`, `/categorie/{slug}/`, `/colectie/{slug}/`, `/produs/{slug}/`, `/cautare/`,
 `/favorite/`, `/cos/`, `/finalizare-comanda/`, `/comanda/{token}/`, `/cont/`,
 `/pagina/{slug}/`, `/sitemap.xml`, `/robots.txt` și `/stripe/webhook`.
 

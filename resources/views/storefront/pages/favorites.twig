@@ -1,11 +1,53 @@
 {% extends 'storefront/layouts/base.twig' %}
 {% block content %}
-  <div class="container page-shell">
-    <h1>Favorite</h1>
-    <div class="product-grid">
-      {% for product in products %}
-        {% include 'storefront/components/product-card.twig' with {product: product} %}
-      {% else %}
+  {% set favorites_total = products|length %}
+  <div class="favorites-page" data-favorites-page data-favorites-count="{{ favorites_total }}">
+    <section class="favorites-hero" aria-labelledby="favorites-title">
+      <div class="container favorites-hero-inner">
+        <div class="favorites-hero-copy">
+          <span class="favorites-eyebrow">
+            <span class="favorites-eyebrow-icon" aria-hidden="true">
+              <img src="{{ url('assets/images/icon-favorite-hearts.png') }}" width="160" height="128" alt="">
+            </span>
+            Selecția ta
+          </span>
+          <h1 id="favorites-title">Lucrurile tale <em>favorite.</em></h1>
+          <p>Păstrează într-un singur loc hăinuțele și micile comori la care vrei să revii cu drag.</p>
+        </div>
+        <div class="favorites-hero-art">
+          <span class="favorites-orbit favorites-orbit-one" aria-hidden="true"></span>
+          <span class="favorites-orbit favorites-orbit-two" aria-hidden="true"></span>
+          <span class="favorites-art-heart favorites-art-heart-one" aria-hidden="true">♥</span>
+          <span class="favorites-art-heart favorites-art-heart-two" aria-hidden="true">♥</span>
+          <span class="favorites-art-medallion" aria-hidden="true">
+            <strong data-favorites-count-number>{{ favorites_total }}</strong>
+          </span>
+          <span class="sr-only" aria-live="polite" aria-atomic="true">
+            <span data-favorites-count-number>{{ favorites_total }}</span>
+            <span data-favorites-count-label>{{ favorites_total == 1 ? 'produs favorit' : 'produse favorite' }}</span>
+          </span>
+          <small aria-hidden="true">alese de tine</small>
+        </div>
+      </div>
+    </section>
+
+    <section class="container favorites-content" aria-labelledby="favorites-selection-title">
+      <div class="favorites-toolbar" data-favorites-toolbar{% if favorites_total == 0 %} hidden{% endif %}>
+        <div>
+          <span>Cu drag, pentru mai târziu</span>
+          <h2 id="favorites-selection-title">Produse păstrate de tine</h2>
+        </div>
+      </div>
+
+      <div class="favorites-product-grid" data-favorites-grid{% if favorites_total == 0 %} hidden{% endif %}>
+        {% for product in products %}
+          <div class="favorites-product-item" data-favorites-item>
+            {% include 'storefront/components/boutique-product-card.twig' with {product: product} %}
+          </div>
+        {% endfor %}
+      </div>
+
+      <div class="favorites-empty-state" data-favorites-empty{% if favorites_total > 0 %} hidden{% endif %}>
         {% include 'storefront/components/boutique-empty-panel.twig' with {
           kind: 'favorites',
           heading_id: 'empty-favorites-heading',
@@ -14,7 +56,7 @@
           message: 'Păstrează aici hăinuțele și micile comori pe care vrei să le regăsești ușor.',
           action: 'Descoperă colecțiile'
         } %}
-      {% endfor %}
-    </div>
+      </div>
+    </section>
   </div>
 {% endblock %}

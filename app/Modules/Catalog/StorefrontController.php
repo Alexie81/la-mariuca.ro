@@ -102,6 +102,34 @@ final class StorefrontController
         ]);
     }
 
+    public function shop(ServerRequestInterface $request): ResponseInterface
+    {
+        $query = $request->getQueryParams();
+        $page = max(1, (int) ($query['pagina'] ?? 1));
+        $sort = (string) ($query['sortare'] ?? 'new');
+        if (!in_array($sort, ['new', 'price-asc', 'price-desc', 'name'], true)) {
+            $sort = 'new';
+        }
+        $perPage = 12;
+        $products = $this->catalog->shopProducts($page, $perPage, $sort);
+        $productTotal = $this->catalog->publishedProductCount();
+        $hasNextPage = $page * $perPage < $productTotal;
+
+        return $this->view->render('storefront/pages/shop.twig', [
+            'products' => $products,
+            'page' => $page,
+            'sort' => $sort,
+            'product_total' => $productTotal,
+            'has_next_page' => $hasNextPage,
+            'meta' => $this->meta(
+                'Magazin',
+                'Descoperă toate hăinuțele și accesoriile pentru copii disponibile la La Măriuca Boutique.',
+                '/magazin/',
+                $page !== 1 || $sort !== 'new'
+            ),
+        ]);
+    }
+
     public function search(ServerRequestInterface $request): ResponseInterface
     {
         $query = trim((string) ($request->getQueryParams()['q'] ?? ''));
@@ -154,18 +182,69 @@ final class StorefrontController
     {
         $ids = array_values(array_unique(array_map('intval', (array) ($_SESSION['favorites'] ?? []))));
         $products = [];
+        $validIds = [];
         foreach ($ids as $id) {
             $row = $this->catalog->productById($id);
             if ($row !== null && $row['status'] === 'published') {
                 $full = $this->catalog->productBySlug((string) $row['slug']);
                 if ($full !== null) {
-                    $full['price_bani'] = $full['variants'][0]['price_bani'] ?? 0;
-                    $full['available_quantity'] = array_sum(array_map(static fn(array $v): int => (int) $v['available_quantity'], $full['variants']));
-                    $products[] = $full;
+                    $validIds[] = $id;
+                    $products[] = $this->favoriteProductCard($full);
                 }
             }
         }
+
+        // Remove products that are no longer publicly available so the navbar count stays accurate.
+        $_SESSION['favorites'] = $validIds;
+
         return $this->view->render('storefront/pages/favorites.twig', ['products' => $products, 'meta' => $this->meta('Favorite', '', '/favorite/', true)]);
+    }
+
+    /**
+     * Hydrate the shared storefront product-card fields from the full product payload.
+     *
+     * @param array<string, mixed> $product
+     * @return array<string, mixed>
+     */
+    private function favoriteProductCard(array $product): array
+    {
+        $variants = array_values(array_filter((array) ($product['variants'] ?? []), 'is_array'));
+        $prices = [];
+        $comparePrices = [];
+        $availableQuantity = 0;
+        $defaultVariantId = null;
+
+        foreach ($variants as $variant) {
+            $prices[] = (int) ($variant['price_bani'] ?? 0);
+            $comparePrice = (int) ($variant['compare_price_bani'] ?? 0);
+            if ($comparePrice > 0) {
+                $comparePrices[] = $comparePrice;
+            }
+            $availableQuantity += (int) ($variant['available_quantity'] ?? 0);
+            if ((int) ($variant['is_default'] ?? 0) === 1) {
+                $defaultVariantId = (int) ($variant['id'] ?? 0);
+            }
+        }
+
+        if ($defaultVariantId === null && isset($variants[0]['id'])) {
+            $defaultVariantId = (int) $variants[0]['id'];
+        }
+
+        $requiredPersonalizationCount = 0;
+        foreach ((array) ($product['personalization_options'] ?? []) as $option) {
+            if (is_array($option) && (int) ($option['required'] ?? 0) === 1) {
+                ++$requiredPersonalizationCount;
+            }
+        }
+
+        $product['price_bani'] = $prices === [] ? 0 : min($prices);
+        $product['compare_price_bani'] = $comparePrices === [] ? null : min($comparePrices);
+        $product['available_quantity'] = $availableQuantity;
+        $product['variant_count'] = count($variants);
+        $product['default_variant_id'] = $defaultVariantId;
+        $product['required_personalization_count'] = $requiredPersonalizationCount;
+
+        return $product;
     }
 
     public function toggleFavorite(ServerRequestInterface $request): ResponseInterface

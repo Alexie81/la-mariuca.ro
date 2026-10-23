@@ -160,25 +160,116 @@ const syncCounter = (wrappers, selector, count) => {
   });
 };
 
-const updateFavoritePanel = (count) => {
-  const panel = document.querySelector('.mini-favorites-panel');
-  if (!panel) return;
-  panel.classList.toggle('mini-cart-empty', count === 0);
+const miniPanelIconMarkup = {
+  favorite: '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 26.4C6.8 20.6 4.2 16.2 4.2 11.5A6.1 6.1 0 0 1 16 9.2a6.1 6.1 0 0 1 11.8 2.3c0 4.7-2.6 9.1-11.8 14.9Z"></path><path d="M22.6 5.2v4.2M20.5 7.3h4.2"></path></svg>',
+  cart: '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M5 7.5h3l2.3 12.1h13.5l2.4-8.4H10"></path><circle cx="13" cy="25" r="1.7"></circle><circle cx="23" cy="25" r="1.7"></circle><path d="M15.3 14.8c.7-1.7 3.2-1.5 3.6.3.4-1.8 2.9-2 3.6-.3.7 1.8-1.3 3.2-3.6 4.7-2.3-1.5-4.3-2.9-3.6-4.7Z"></path></svg>',
+};
+
+const createMiniPanelAction = (label, href) => {
+  const link = document.createElement('a');
+  link.className = 'mini-panel-action';
+  link.href = href;
+
+  const text = document.createElement('span');
+  text.textContent = label;
+  const icon = document.createElement('span');
+  icon.className = 'mini-panel-action-icon';
+  icon.setAttribute('aria-hidden', 'true');
+  icon.innerHTML = '<svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"></path></svg>';
+  link.append(text, icon);
+  return link;
+};
+
+const createMiniPanelHead = (kind, eyebrow, heading) => {
+  const head = document.createElement('span');
+  head.className = 'mini-panel-head';
+
+  const icon = document.createElement('span');
+  icon.className = `mini-panel-icon mini-panel-icon-${kind}`;
+  icon.setAttribute('aria-hidden', 'true');
+  icon.innerHTML = miniPanelIconMarkup[kind];
+
+  const copy = document.createElement('span');
+  copy.className = 'mini-panel-title';
+  const small = document.createElement('small');
+  small.textContent = eyebrow;
+  const strong = document.createElement('strong');
+  strong.textContent = heading;
+  copy.append(small, strong);
+  head.append(icon, copy);
+  return head;
+};
+
+const renderEmptyUtilityPanel = (panel, kind) => {
+  panel.classList.add('mini-cart-empty');
+  panel.classList.remove('mini-cart-filled');
   panel.replaceChildren();
+
+  const icon = document.createElement('span');
+  icon.className = `mini-cart-empty-icon${kind === 'favorite' ? ' mini-favorites-empty-icon' : ''}`;
+  icon.setAttribute('aria-hidden', 'true');
+  ['one', 'two', 'three'].forEach((suffix) => {
+    const heart = document.createElement('span');
+    heart.className = `mini-cart-empty-heart mini-cart-empty-heart-${suffix}`;
+    heart.textContent = '♥';
+    icon.append(heart);
+  });
+  const image = document.createElement('img');
+  image.className = kind === 'favorite' ? 'mini-cart-empty-favorite' : 'mini-cart-empty-cart';
+  image.src = document.querySelector(kind === 'favorite' ? '.favorite-link .icon-heart' : '.cart-link .icon-cart-reference')?.src || '';
+  image.alt = '';
+  icon.append(image);
 
   const copy = document.createElement('span');
   copy.className = 'mini-cart-empty-copy';
   const heading = document.createElement('strong');
+  heading.textContent = kind === 'favorite' ? 'Favoritele tale așteaptă ceva drag' : 'Coșul tău așteaptă ceva special';
   const detail = document.createElement('small');
-  heading.textContent = count > 0 ? `${count} ${count === 1 ? 'produs păstrat cu drag' : 'produse păstrate cu drag'}` : 'Favoritele tale așteaptă ceva drag';
-  detail.textContent = count > 0 ? 'Le găsești pe toate în lista ta de favorite.' : 'Salvează aici micile comori pe care vrei să le regăsești ușor.';
+  detail.textContent = kind === 'favorite'
+    ? 'Salvează aici micile comori pe care vrei să le regăsești ușor.'
+    : 'Descoperă hăinuțe alese cu drag pentru cei mici.';
   copy.append(heading, detail);
 
-  const link = document.createElement('a');
-  link.href = document.querySelector('.mobile-favorite')?.href || '/favorite/';
-  link.textContent = count > 0 ? 'Vezi favoritele →' : 'Descoperă colecțiile →';
-  if (count === 0) link.href = document.querySelector('.search-form')?.action || '/cautare/';
-  panel.append(copy, link);
+  const searchUrl = document.querySelector('.search-form')?.action || '/cautare/';
+  panel.append(icon, copy, createMiniPanelAction('Descoperă colecțiile', searchUrl));
+};
+
+const renderFilledUtilityPanel = (panel, kind, count, totalBani = 0) => {
+  panel.classList.remove('mini-cart-empty');
+  panel.classList.add('mini-cart-filled');
+  panel.replaceChildren();
+
+  const isFavorite = kind === 'favorite';
+  const heading = isFavorite
+    ? `${count} ${count === 1 ? 'produs păstrat cu drag' : 'produse păstrate cu drag'}`
+    : `${count} ${count === 1 ? 'produs pregătit' : 'produse pregătite'}`;
+  panel.append(createMiniPanelHead(kind, isFavorite ? 'Selecția ta' : 'Coșul tău', heading));
+
+  if (isFavorite) {
+    const message = document.createElement('p');
+    message.className = 'mini-panel-message';
+    message.textContent = 'Micile tale alegeri sunt gata să le regăsești oricând.';
+    panel.append(message);
+  } else {
+    const total = document.createElement('span');
+    total.className = 'mini-panel-total';
+    const label = document.createElement('small');
+    label.textContent = 'Total estimat';
+    const value = document.createElement('strong');
+    value.textContent = `${moneyFormatter.format(totalBani / 100)} Lei`;
+    total.append(label, value);
+    panel.append(total);
+  }
+
+  const href = document.querySelector(isFavorite ? '.mobile-favorite' : '.mobile-cart')?.href || (isFavorite ? '/favorite/' : '/cos/');
+  panel.append(createMiniPanelAction(isFavorite ? 'Vezi favoritele' : 'Vezi coșul', href));
+};
+
+const updateFavoritePanel = (count) => {
+  const panel = document.querySelector('.mini-favorites-panel');
+  if (!panel) return;
+  if (count > 0) renderFilledUtilityPanel(panel, 'favorite', count);
+  else renderEmptyUtilityPanel(panel, 'favorite');
 };
 
 const updateFavoriteCount = (count) => {
@@ -188,20 +279,52 @@ const updateFavoriteCount = (count) => {
   updateFavoritePanel(count);
 };
 
+const updateFavoritesPage = (form, state, count) => {
+  const page = form.closest('[data-favorites-page]');
+  if (!page) return;
+
+  page.dataset.favoritesCount = String(count);
+  page.querySelectorAll('[data-favorites-count-number]').forEach((element) => {
+    element.textContent = String(count);
+  });
+  page.querySelectorAll('[data-favorites-count-label]').forEach((element) => {
+    element.textContent = count === 1 ? 'produs favorit' : 'produse favorite';
+  });
+
+  if (state !== 'removed') return;
+  const item = form.closest('[data-favorites-item]');
+  if (!item || item.classList.contains('is-removing')) return;
+  item.classList.add('is-removing');
+
+  let removalFinished = false;
+  const finishRemoval = () => {
+    if (removalFinished) return;
+    removalFinished = true;
+    item.remove();
+
+    const grid = page.querySelector('[data-favorites-grid]');
+    const toolbar = page.querySelector('[data-favorites-toolbar]');
+    const emptyState = page.querySelector('[data-favorites-empty]');
+    const remainingItems = grid?.querySelectorAll('[data-favorites-item]').length || 0;
+    if (count > 0 && remainingItems > 0) return;
+
+    if (grid) grid.hidden = true;
+    if (toolbar) toolbar.hidden = true;
+    if (emptyState) {
+      emptyState.hidden = false;
+      window.requestAnimationFrame(() => emptyState.classList.add('is-visible'));
+    }
+  };
+
+  item.addEventListener('animationend', finishRemoval, { once: true });
+  window.setTimeout(finishRemoval, 560);
+};
+
 const updateCartPanel = (count, totalBani) => {
   const panel = document.querySelector('#desktop-mini-cart');
   if (!panel) return;
-  panel.classList.remove('mini-cart-empty');
-  panel.replaceChildren();
-
-  const heading = document.createElement('strong');
-  heading.textContent = `${count} ${count === 1 ? 'produs în coș' : 'produse în coș'}`;
-  const total = document.createElement('span');
-  total.textContent = `${moneyFormatter.format(totalBani / 100)} Lei`;
-  const link = document.createElement('a');
-  link.href = document.querySelector('.mobile-cart')?.href || '/cos/';
-  link.textContent = 'Vezi coșul →';
-  panel.append(heading, total, link);
+  if (count > 0) renderFilledUtilityPanel(panel, 'cart', count, totalBani);
+  else renderEmptyUtilityPanel(panel, 'cart');
 };
 
 const updateCartCount = (count, totalBani) => {
@@ -306,7 +429,9 @@ document.addEventListener('submit', async (event) => {
 
     if (form.matches('[data-storefront-favorite]')) {
       updateFavoriteForms(form.querySelector('[name="product_id"]')?.value || '', payload.state);
-      updateFavoriteCount(Number(payload.favorite_count || 0));
+      const favoriteCount = Number(payload.favorite_count || 0);
+      updateFavoriteCount(favoriteCount);
+      updateFavoritesPage(form, payload.state, favoriteCount);
       showToast(payload.message, payload.state === 'removed' ? 'favorite-removed' : 'favorite');
     } else {
       updateCartCount(Number(payload.cart_count || 0), Number(payload.cart_total_bani || 0));

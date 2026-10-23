@@ -1,0 +1,59 @@
+{% extends 'storefront/layouts/base.twig' %}
+{% block content %}
+  <div class="container page-shell shop-page">
+    <header class="shop-editorial" aria-labelledby="shop-title">
+      <span class="shop-editorial-glow shop-editorial-glow-one" aria-hidden="true"></span>
+      <span class="shop-editorial-glow shop-editorial-glow-two" aria-hidden="true"></span>
+      <span class="shop-editorial-line" aria-hidden="true">
+        <svg viewBox="0 0 520 72" preserveAspectRatio="none">
+          <path d="M2 46c78 0 86-30 155-30 72 0 76 40 148 40 53 0 76-27 123-27 35 0 56 14 90 13"></path>
+          <path d="M430 29c10-18 36-10 30 8-5 13-22 21-22 21s-13-12-12-22c1-5 2-6 4-7Z"></path>
+        </svg>
+      </span>
+      <h1 id="shop-title">Magazin</h1>
+      <div class="shop-cat-portrait" aria-hidden="true">
+        <span class="shop-cat-orbit"></span>
+        <span class="shop-cat-spark shop-cat-spark-one">✦</span>
+        <span class="shop-cat-spark shop-cat-spark-two">✦</span>
+        <img src="{{ url('assets/images/hero/la-mariuca-hero-v3-cat-head-bow.png') }}" width="1920" height="960" alt="" loading="eager" decoding="async">
+      </div>
+    </header>
+
+    <div class="shop-toolbar">
+      <div class="shop-product-count" aria-live="polite">
+        <strong>{{ product_total }}</strong>
+        <span>{{ product_total == 1 ? 'produs' : 'produse' }}</span>
+      </div>
+      <form class="shop-sort" method="get" data-shop-sort>
+        <label for="sortare">Sortează</label>
+        <div>
+          <select id="sortare" name="sortare">
+            <option value="new" {{ sort == 'new' ? 'selected' }}>Cele mai noi</option>
+            <option value="price-asc" {{ sort == 'price-asc' ? 'selected' }}>Preț crescător</option>
+            <option value="price-desc" {{ sort == 'price-desc' ? 'selected' }}>Preț descrescător</option>
+            <option value="name" {{ sort == 'name' ? 'selected' }}>Nume</option>
+          </select>
+          <noscript><button class="shop-sort-submit" type="submit">Aplică</button></noscript>
+        </div>
+      </form>
+    </div>
+
+    <div class="shop-product-grid">
+      {% for product in products %}
+        <div class="shop-product-item">
+          {% include 'storefront/components/boutique-product-card.twig' with {product: product} %}
+        </div>
+      {% else %}
+        <div class="empty"><h2>Produsele sunt pe drum</h2><p>Revino în curând pentru noile selecții.</p></div>
+      {% endfor %}
+    </div>
+
+    {% if page > 1 or has_next_page %}
+      <nav class="shop-pagination" aria-label="Paginile magazinului">
+        {% if page > 1 %}<a href="?pagina={{ page - 1 }}&sortare={{ sort }}">← Pagina anterioară</a>{% endif %}
+        <span>Pagina {{ page }}</span>
+        {% if has_next_page %}<a href="?pagina={{ page + 1 }}&sortare={{ sort }}">Pagina următoare →</a>{% endif %}
+      </nav>
+    {% endif %}
+  </div>
+{% endblock %}

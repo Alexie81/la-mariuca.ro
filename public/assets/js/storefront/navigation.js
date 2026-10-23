@@ -17,19 +17,23 @@ syncSearchPlaceholders();
 phoneSearchViewport.addEventListener?.('change', syncSearchPlaceholders);
 
 document.querySelectorAll('.menu-group').forEach((group, index) => {
-  group.style.setProperty('--menu-index', index);
-  group.style.setProperty('--menu-delay', `${90 + index * 42}ms`);
-  group.style.setProperty('--menu-icon-delay', `${150 + index * 42}ms`);
-  group.style.setProperty('--menu-exit-delay', `${index * 12}ms`);
+  group.classList.add(`menu-sequence-${Math.min(index, 12)}`);
 });
 
 document.querySelectorAll('.menu-group > a').forEach((link) => {
   const linkUrl = new URL(link.href, window.location.origin);
   const isHomeLink = link.classList.contains('mobile-home-link') && linkUrl.pathname === '/';
-  if (linkUrl.pathname === window.location.pathname && (linkUrl.pathname.includes('/categorie/') || isHomeLink)) {
+  const isAllProductsLink = link.classList.contains('all-products-link')
+    && linkUrl.pathname === window.location.pathname;
+  if (linkUrl.pathname === window.location.pathname && (linkUrl.pathname.includes('/categorie/') || isHomeLink || isAllProductsLink)) {
     link.classList.add('is-current');
     link.setAttribute('aria-current', 'page');
   }
+});
+
+document.querySelectorAll('[data-shop-sort]').forEach((form) => {
+  const select = form.querySelector('select[name="sortare"]');
+  select?.addEventListener('change', () => form.requestSubmit());
 });
 
 const submenuToggles = [...document.querySelectorAll('[data-submenu-toggle]')];
@@ -60,7 +64,9 @@ const desktopMenuViewport = window.matchMedia('(min-width: 1101px)');
 const desktopMenuItems = desktopMenuList
   ? [...desktopMenuList.querySelectorAll(':scope > [data-desktop-menu-item]')]
   : [];
-const desktopCategoryItems = desktopMenuItems.filter((item) => !item.classList.contains('menu-highlight'));
+const desktopCategoryItems = desktopMenuItems.filter(
+  (item) => !item.classList.contains('menu-highlight') && !item.classList.contains('menu-fixed'),
+);
 const mobileMenuStory = desktopMenuList?.querySelector(':scope > .mobile-menu-story') ?? null;
 const maximumVisibleDesktopCategories = 6;
 let desktopOverflowFrame;
@@ -280,16 +286,11 @@ document.querySelectorAll('[data-utility-panel-toggle]').forEach((panelToggle) =
 });
 
 const releaseHearts = (source) => {
-  const box = source.getBoundingClientRect();
-  [-18, 3, 21].forEach((drift, index) => {
+  ['left', 'center', 'right'].forEach((direction) => {
     const heart = document.createElement('span');
-    heart.className = 'floating-heart';
+    heart.className = `floating-heart floating-heart--${direction}`;
     heart.textContent = '♥';
-    heart.style.left = `${box.left + box.width / 2 + (index - 1) * 8}px`;
-    heart.style.top = `${box.top + 8}px`;
-    heart.style.setProperty('--heart-drift', `${drift}px`);
-    heart.style.animationDelay = `${index * 55}ms`;
-    document.body.append(heart);
+    source.append(heart);
     window.setTimeout(() => heart.remove(), 1100);
   });
 };
