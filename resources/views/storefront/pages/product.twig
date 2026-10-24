@@ -9,7 +9,6 @@
     <nav class="breadcrumbs product-breadcrumbs" aria-label="Navigare ierarhică">
       <a href="{{ url('') }}">Acasă</a>
       {% for category in product_category_trail %}<span aria-hidden="true">/</span><a href="{{ url('categorie/' ~ category.path ~ '/') }}">{{ category.name }}</a>{% endfor %}
-      <span aria-hidden="true">/</span><span aria-current="page">{{ product.name }}</span>
     </nav>
 
     <div class="product-detail">
@@ -113,7 +112,10 @@
 
       <section class="product-info" aria-labelledby="product-title">
         <div class="product-info-heading">
-          {% if product.category_name %}<a class="product-category-kicker" href="{{ product_category_trail ? url('categorie/' ~ (product_category_trail|last).path ~ '/') : url('magazin/') }}">{{ product.category_name }}</a>{% endif %}
+          <div class="product-heading-meta">
+            {% if product.category_name %}<a class="product-category-kicker" href="{{ product_category_trail ? url('categorie/' ~ (product_category_trail|last).path ~ '/') : url('magazin/') }}">{{ product.category_name }}</a>{% endif %}
+            {% if default_variant %}<span class="product-sku-pill" data-product-sku>{{ default_variant.sku }}</span>{% endif %}
+          </div>
           <h1 id="product-title">{{ product.name }}</h1>
           <div class="product-intro-note">
             <span class="product-intro-icon" aria-hidden="true">
@@ -132,10 +134,6 @@
               <span class="product-price-label">Preț</span>
               <strong class="product-price" data-product-price>{{ money(default_variant.price_bani) }}</strong>
               <del data-product-compare-price{% if not default_variant.compare_price_bani or default_variant.compare_price_bani <= default_variant.price_bani %} hidden{% endif %}>{{ default_variant.compare_price_bani and default_variant.compare_price_bani > default_variant.price_bani ? money(default_variant.compare_price_bani) : '' }}</del>
-            </div>
-            <div class="product-code-wrap">
-              <span>Cod produs</span>
-              <strong data-product-sku>{{ default_variant.sku }}</strong>
             </div>
           </div>
         {% endif %}
