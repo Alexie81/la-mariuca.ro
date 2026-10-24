@@ -490,6 +490,7 @@ atribute și filtre fără schimbarea contractelor existente.
 - Filtrul ierarhic de categorii din Magazin a fost simplificat vizual: miniaturile apar numai când există o imagine reală, fără inițiale sau casete goale, denumirile lungi se împart sigur pe rânduri, iar selectorul, numărul și controlul de extindere ocupă coloane separate fără suprapuneri.
 - Categoriile și subcategoriile din filtrul Magazin folosesc checkboxuri cu selecție multiplă; interogarea reunește ramurile selectate împreună cu descendenții lor, elimină duplicatele și păstrează selecțiile în sortare și paginare.
 - Cardurile din ambele carusele ale paginii principale rămân interactive inclusiv în copiile temporare folosite pentru bucla infinită: hoverul și linkurile nu mai sunt blocate, iar un click pe suprafața liberă a cardului deschide produsul fără să interfereze cu gesturile, favoritele sau coșul.
+- Pe desktop, coloana filtrului lateral din Magazin a fost lărgită discret de la maximum 250 px la 272 px, astfel încât denumirile lungi ale categoriilor să nu mai fie fragmentate excesiv, păstrând grila cu patru produse.
 
 ## 2026-10-24 — Controale și grilă responsive în Magazin
 
