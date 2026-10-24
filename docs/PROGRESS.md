@@ -536,3 +536,8 @@ atribute și filtre fără schimbarea contractelor existente.
 - Când căutarea este deschisă pe telefon, headerul este fixat în viewport, pagina din spate este blocată și estompată, iar WhatsApp este ascuns temporar; panoul rămâne utilizabil inclusiv dacă interogarea pornește de la mijlocul sau finalul paginii.
 - Verificarea reală în browser a fost făcută la 390 și 320 px, inclusiv după derularea paginii, și la 1280 px cu interogarea „cost”: URL-urile ierarhice, imaginile reale, lipsa miniaturilor false, cardurile desktop, închiderea panoului și CTA-ul persistent au fost confirmate vizual.
 - Verificări locale trecute: lint PHP/JavaScript, răspunsul JSON live pentru imagini și PHPUnit cu 35 de teste / 198 de aserțiuni. Runtime-ul CLI a necesitat încărcarea explicită a extensiilor instalate, deoarece nu folosește implicit un `php.ini`.
+
+## 2026-10-24 — CTA principal homepage
+
+- Butonul principal „Descoperă produsele” din hero deschide acum pagina `/magazin/` în locul ancorei interne către selecția de produse.
+- Verificări locale trecute: lint-ul proiectului și răspuns HTTP 200 pentru `/magazin/`.
