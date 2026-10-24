@@ -835,21 +835,22 @@ const closeSuggestions = () => {
   document.body.classList.remove('search-open');
 };
 
-const searchIconFor = (value = '') => {
-  const normalized = value.toLocaleLowerCase('ro-RO');
-  if (normalized.includes('botez')) return '🎀';
-  if (normalized.includes('nou') || normalized.includes('bebe')) return '🧸';
-  if (normalized.includes('acces')) return '🌸';
-  if (normalized.includes('roch')) return '👗';
-  if (normalized.includes('încăl') || normalized.includes('pantof')) return '👟';
-  return '♡';
-};
-
 const searchSectionTitle = (label) => {
   const title = document.createElement('p');
   title.className = 'search-section-title';
   title.textContent = label;
   return title;
+};
+
+const searchMedia = (url, className) => {
+  if (!url) return null;
+  const image = document.createElement('img');
+  image.className = className;
+  image.src = url;
+  image.alt = '';
+  image.loading = 'lazy';
+  image.decoding = 'async';
+  return image;
 };
 
 const renderSuggestions = (payload) => {
@@ -868,7 +869,15 @@ const renderSuggestions = (payload) => {
     closeSuggestions();
     search.blur();
   });
-  suggestions.append(close);
+
+  const intro = document.createElement('div');
+  intro.className = 'search-panel-intro';
+  const introEyebrow = document.createElement('span');
+  introEyebrow.textContent = 'Rezultate rapide';
+  const introTitle = document.createElement('strong');
+  introTitle.textContent = `Pentru „${query}”`;
+  intro.append(introEyebrow, introTitle);
+  suggestions.append(intro, close);
 
   if (searchQuickLinks) {
     const mobileShortcuts = document.createElement('section');
@@ -895,10 +904,15 @@ const renderSuggestions = (payload) => {
       link.className = 'search-category-suggestion';
       link.href = category.url;
 
-      const icon = document.createElement('span');
-      icon.className = 'search-category-icon';
-      icon.setAttribute('aria-hidden', 'true');
-      icon.textContent = searchIconFor(category.slug || category.name);
+      const categoryImage = searchMedia(category.image_url, 'search-category-image');
+      if (categoryImage) {
+        const icon = document.createElement('span');
+        icon.className = 'search-category-icon has-image';
+        icon.setAttribute('aria-hidden', 'true');
+        icon.append(categoryImage);
+        link.classList.add('has-image');
+        link.append(icon);
+      }
 
       const name = document.createElement('strong');
       name.textContent = category.name;
@@ -907,7 +921,7 @@ const renderSuggestions = (payload) => {
       arrow.className = 'search-suggestion-arrow';
       arrow.setAttribute('aria-hidden', 'true');
       arrow.textContent = '›';
-      link.append(icon, name, arrow);
+      link.append(name, arrow);
       categoryList.append(link);
     });
     suggestions.append(categoryList);
@@ -927,10 +941,15 @@ const renderSuggestions = (payload) => {
       link.className = 'search-product-suggestion';
       link.href = item.url;
 
-      const thumb = document.createElement('span');
-      thumb.className = 'search-suggestion-thumb';
-      thumb.setAttribute('aria-hidden', 'true');
-      thumb.textContent = searchIconFor(`${item.name} ${item.category || ''}`);
+      const productImage = searchMedia(item.image_url, 'search-product-image');
+      if (productImage) {
+        const thumb = document.createElement('span');
+        thumb.className = 'search-suggestion-thumb has-image';
+        thumb.setAttribute('aria-hidden', 'true');
+        thumb.append(productImage);
+        link.classList.add('has-image');
+        link.append(thumb);
+      }
 
       const copy = document.createElement('span');
       copy.className = 'search-suggestion-copy';
@@ -945,7 +964,7 @@ const renderSuggestions = (payload) => {
       arrow.className = 'search-suggestion-arrow';
       arrow.setAttribute('aria-hidden', 'true');
       arrow.textContent = '›';
-      link.append(thumb, copy, arrow);
+      link.append(copy, arrow);
       productList.append(link);
     });
     suggestions.append(productList);

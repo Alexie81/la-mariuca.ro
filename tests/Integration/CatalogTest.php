@@ -50,9 +50,14 @@ final class CatalogTest extends DatabaseTestCase
 
         self::assertNotEmpty($results);
         self::assertSame('Rochițe de botez', $results[0]['category_name']);
+        self::assertArrayHasKey('image_path', $results[0]);
+        self::assertArrayHasKey('image_alt', $results[0]);
+        self::assertNotEmpty($results[0]['image_path']);
         self::assertLessThanOrEqual(6, count($results));
         self::assertNotEmpty($categories);
         self::assertStringContainsString('Rochițe', $categories[0]['name']);
+        self::assertArrayHasKey('image_path', $categories[0]);
+        self::assertArrayHasKey('image_alt', $categories[0]);
         self::assertLessThanOrEqual(4, count($categories));
     }
 

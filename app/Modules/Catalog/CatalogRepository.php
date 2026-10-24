@@ -495,7 +495,35 @@ final class CatalogRepository
         $limit = max(1, min(48, $limit));
         $statement = $this->pdo->prepare("SELECT p.*, primary_category.name AS category_name,
                 primary_category.slug AS category_slug, MIN(v.price_bani) AS price_bani,
-                COALESCE(SUM(i.physical_quantity - i.reserved_quantity), 0) AS available_quantity
+                COALESCE(SUM(i.physical_quantity - i.reserved_quantity), 0) AS available_quantity,
+                COALESCE(
+                    (SELECT product_media.public_path
+                        FROM product_images pi
+                        JOIN media product_media ON product_media.id = pi.media_id
+                        WHERE pi.product_id = p.id AND product_media.public_path IS NOT NULL
+                        ORDER BY pi.position, pi.media_id LIMIT 1),
+                    (SELECT category_media.public_path
+                        FROM product_categories image_pc
+                        JOIN categories image_category ON image_category.id = image_pc.category_id
+                        JOIN media category_media ON category_media.id = image_category.image_media_id
+                        WHERE image_pc.product_id = p.id AND category_media.public_path IS NOT NULL
+                        ORDER BY CASE WHEN image_category.parent_id IS NULL THEN 0 ELSE 1 END,
+                            image_category.position, image_category.id LIMIT 1)
+                ) AS image_path,
+                COALESCE(
+                    (SELECT product_media.alt_text
+                        FROM product_images pi
+                        JOIN media product_media ON product_media.id = pi.media_id
+                        WHERE pi.product_id = p.id AND product_media.public_path IS NOT NULL
+                        ORDER BY pi.position, pi.media_id LIMIT 1),
+                    (SELECT category_media.alt_text
+                        FROM product_categories image_pc
+                        JOIN categories image_category ON image_category.id = image_pc.category_id
+                        JOIN media category_media ON category_media.id = image_category.image_media_id
+                        WHERE image_pc.product_id = p.id AND category_media.public_path IS NOT NULL
+                        ORDER BY CASE WHEN image_category.parent_id IS NULL THEN 0 ELSE 1 END,
+                            image_category.position, image_category.id LIMIT 1)
+                ) AS image_alt
             FROM products p
             JOIN product_variants v ON v.product_id = p.id AND v.status = 'active'
             LEFT JOIN inventory i ON i.variant_id = v.id
@@ -512,8 +540,11 @@ final class CatalogRepository
     public function searchCategories(string $query, int $limit = 4): array
     {
         $limit = max(1, min(12, $limit));
-        $statement = $this->pdo->prepare("SELECT c.id, c.name, c.slug
+        $statement = $this->pdo->prepare("SELECT c.id, c.name, c.slug,
+                category_media.public_path AS image_path,
+                category_media.alt_text AS image_alt
             FROM categories c
+            LEFT JOIN media category_media ON category_media.id = c.image_media_id
             WHERE c.status = 'published' AND c.visibility = 'public'
               AND c.name LIKE :query
               AND EXISTS (

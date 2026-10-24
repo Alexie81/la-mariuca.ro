@@ -486,6 +486,8 @@ final class StorefrontController
                     'name' => (string) $category['name'],
                     'slug' => (string) $category['slug'],
                     'url' => $this->config->path('categorie/' . $categoryPath . '/'),
+                    'image_url' => empty($category['image_path']) ? null : $this->config->path((string) $category['image_path']),
+                    'image_alt' => (string) ($category['image_alt'] ?? ''),
                 ];
             }
             foreach ($this->catalog->search($query, 6) as $product) {
@@ -494,6 +496,8 @@ final class StorefrontController
                     'category' => (string) ($product['category_name'] ?? ''),
                     'price_bani' => (int) ($product['price_bani'] ?? 0),
                     'url' => $this->config->path('produs/' . $product['slug'] . '/'),
+                    'image_url' => empty($product['image_path']) ? null : $this->config->path((string) $product['image_path']),
+                    'image_alt' => (string) ($product['image_alt'] ?? ''),
                 ];
             }
         }
