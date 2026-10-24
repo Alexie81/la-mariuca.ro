@@ -4658,8 +4658,8 @@
 }
 
 @keyframes boutique-product-reveal {
-  from { opacity: .15; transform: translateY(24px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: .15; translate: 0 24px; }
+  to { opacity: 1; translate: 0 0; }
 }
 
 @supports (animation-timeline: view()) {
