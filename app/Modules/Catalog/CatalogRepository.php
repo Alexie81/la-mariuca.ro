@@ -517,9 +517,14 @@ final class CatalogRepository
             WHERE v.product_id = :id AND v.status = 'active' ORDER BY v.is_default DESC, v.id");
         $variantStatement->execute(['id' => $product['id']]);
         $product['variants'] = $variantStatement->fetchAll();
+        $product['variant_groups'] = $this->variantGroups($product['variants']);
         $optionStatement = $this->pdo->prepare('SELECT * FROM personalization_options WHERE product_id = :id ORDER BY position, id');
         $optionStatement->execute(['id' => $product['id']]);
         $product['personalization_options'] = $optionStatement->fetchAll();
+        $product['required_personalization_count'] = count(array_filter(
+            $product['personalization_options'],
+            static fn(array $option): bool => (int) ($option['required'] ?? 0) === 1,
+        ));
         return $product;
     }
 
@@ -731,6 +736,40 @@ final class CatalogRepository
         }
         $extra = $type === 'category' ? " AND visibility = 'public' AND EXISTS (SELECT 1 FROM product_categories pc JOIN products p ON p.id = pc.product_id AND p.status = 'published' WHERE pc.category_id = categories.id)" : '';
         return $this->pdo->query("SELECT slug, updated_at FROM {$table} WHERE status = 'published' AND indexable = 1{$extra} ORDER BY id")->fetchAll();
+    }
+
+    /**
+     * @param list<array<string, mixed>> $variants
+     * @return list<array{name: string, values: list<string>}>
+     */
+    private function variantGroups(array $variants): array
+    {
+        $groups = [];
+        foreach ($variants as $variant) {
+            $options = json_decode((string) ($variant['options_json'] ?? ''), true);
+            if (!is_array($options)) {
+                continue;
+            }
+
+            foreach ($options as $name => $value) {
+                if (!is_scalar($value)) {
+                    continue;
+                }
+                $name = trim((string) $name);
+                $value = trim((string) $value);
+                if ($name === '' || $value === '') {
+                    continue;
+                }
+                if (!isset($groups[$name])) {
+                    $groups[$name] = ['name' => $name, 'values' => []];
+                }
+                if (!in_array($value, $groups[$name]['values'], true)) {
+                    $groups[$name]['values'][] = $value;
+                }
+            }
+        }
+
+        return array_values($groups);
     }
 
     /** @param list<array<string, mixed>> $rows @return list<array<string, mixed>> */

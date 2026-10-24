@@ -214,6 +214,9 @@ final class CatalogTest extends DatabaseTestCase
 
         $gentleman = $repository->productBySlug('costumas-micul-gentleman');
         self::assertSame(['2 ani', '4 ani'], array_column($gentleman['variants'], 'option_summary'));
+        self::assertSame([
+            ['name' => 'Mărime', 'values' => ['2 ani', '4 ani']],
+        ], $gentleman['variant_groups']);
         self::assertNotEmpty($gentleman['image_path']);
 
         $this->pdo->exec("UPDATE personalization_options SET required = 1 WHERE product_id = " . (int) $selected[0]['id']);
@@ -236,6 +239,27 @@ final class CatalogTest extends DatabaseTestCase
         $fallback = $repository->featuredProducts(4);
         self::assertCount(4, $fallback);
         self::assertSame(array_column($repository->latestProducts(4), 'id'), array_column($fallback, 'id'));
+    }
+
+    public function testProductVariantGroupsAreBuiltDynamicallyFromEveryOptionKey(): void
+    {
+        $this->seed();
+        $repository = new CatalogRepository($this->pdo);
+        $product = $repository->productBySlug('costumas-micul-gentleman');
+        self::assertNotNull($product);
+
+        $variants = $product['variants'];
+        $firstOptions = json_encode(['Mărime' => '2 ani', 'Culoare' => 'Bleu'], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+        $secondOptions = json_encode(['Mărime' => '4 ani', 'Culoare' => 'Roz'], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+        $statement = $this->pdo->prepare('UPDATE product_variants SET options_json = :options, options_key = :key WHERE id = :id');
+        $statement->execute(['options' => $firstOptions, 'key' => hash('sha256', $firstOptions), 'id' => $variants[0]['id']]);
+        $statement->execute(['options' => $secondOptions, 'key' => hash('sha256', $secondOptions), 'id' => $variants[1]['id']]);
+
+        $updated = $repository->productBySlug('costumas-micul-gentleman');
+        self::assertSame([
+            ['name' => 'Mărime', 'values' => ['2 ani', '4 ani']],
+            ['name' => 'Culoare', 'values' => ['Bleu', 'Roz']],
+        ], $updated['variant_groups']);
     }
 
     public function testShopListsEveryPublishedProductWithSharedCardData(): void

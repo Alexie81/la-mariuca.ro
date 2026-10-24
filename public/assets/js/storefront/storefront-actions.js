@@ -382,11 +382,17 @@ const updateCartToggleForms = (variantId, state) => {
   const isAdded = state === 'added';
 
   document.querySelectorAll('[data-cart-toggle]').forEach((cartForm) => {
-    const formVariantId = cartForm.querySelector('[name="variant_id"]')?.value || '';
+    const variantControl = cartForm.querySelector('[name="variant_id"]');
+    const formVariantId = variantControl?.value || '';
     if (String(formVariantId) !== String(variantId)) return;
 
     const button = cartForm.querySelector('button[type="submit"]');
+    const buttonLabel = button?.querySelector('[data-add-to-cart-label]');
     const productName = cartForm.dataset.productName || 'produsul';
+    const selectedVariant = variantControl instanceof HTMLSelectElement
+      ? variantControl.selectedOptions[0]
+      : variantControl;
+    if (selectedVariant instanceof HTMLElement) selectedVariant.dataset.inCart = isAdded ? '1' : '0';
     cartForm.classList.toggle('is-added', isAdded);
     cartForm.dataset.cartState = isAdded ? 'added' : 'removed';
     cartForm.classList.remove('is-cart-added', 'is-cart-removed');
@@ -396,6 +402,7 @@ const updateCartToggleForms = (variantId, state) => {
       button.setAttribute('aria-label', isAdded ? `Scoate ${productName} din coș` : `Adaugă ${productName} în coș`);
       button.title = isAdded ? 'Scoate din coș' : 'Adaugă în coș';
     }
+    if (buttonLabel) buttonLabel.textContent = isAdded ? 'În coș' : 'Adaugă în coș';
 
     window.requestAnimationFrame(() => {
       cartForm.classList.add(isAdded ? 'is-cart-added' : 'is-cart-removed');
@@ -453,6 +460,6 @@ document.addEventListener('submit', async (event) => {
   } finally {
     delete form.dataset.requestPending;
     form.classList.remove('is-submitting');
-    if (button) button.disabled = false;
+    if (button) button.disabled = form.dataset.cartReady === 'false';
   }
 });

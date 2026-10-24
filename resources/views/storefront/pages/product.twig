@@ -3,6 +3,7 @@
 {% block content %}
 {% set gallery_count = product.images|length %}
 {% set default_variant = product.variants|first %}
+{% set default_variant_is_in_cart = default_variant ? is_variant_in_cart(default_variant.id) : false %}
 {% set product_is_favorite = is_favorite(product.id) %}
 <main class="product-page">
   <div class="container product-page-shell">
@@ -139,22 +140,42 @@
         {% endif %}
 
         {% if product.variants %}
-          <form class="product-buy-form" action="{{ url('cos/adauga/') }}" method="post" data-cart-form data-storefront-cart data-product-name="{{ product.name }}" data-product-url="{{ url('produs/' ~ product.slug ~ '/') }}"{% if product.image_path %} data-product-image="{{ url(product.image_path) }}"{% endif %} data-cart-url="{{ url('cos/') }}">
+          {% set product_requires_selection = product.variants|length > 1 or product.required_personalization_count|default(0) > 0 %}
+          {% set product_initially_in_cart = product.variants|length == 1 and default_variant_is_in_cart %}
+          <form class="product-buy-form{{ product_initially_in_cart ? ' is-added' : '' }}" action="{{ url('cos/adauga/') }}" method="post" data-cart-form data-storefront-cart data-cart-toggle data-cart-state="{{ product_initially_in_cart ? 'added' : 'removed' }}" data-product-name="{{ product.name }}" data-product-url="{{ url('produs/' ~ product.slug ~ '/') }}"{% if product.image_path %} data-product-image="{{ url(product.image_path) }}"{% endif %} data-cart-url="{{ url('cos/') }}" data-cart-ready="{{ product_requires_selection or default_variant.available_quantity <= 0 ? 'false' : 'true' }}">
             <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <input type="hidden" name="toggle_cart" value="1">
             {% if product.variants|length > 1 %}
-              <label class="product-field" for="variant">
+              {% if product.variant_groups|default([]) %}
+                <div class="product-variant-groups" data-variant-groups aria-label="Opțiunile produsului">
+                  {% for group in product.variant_groups %}
+                    <label class="product-field" for="variant-option-{{ loop.index }}">
+                      <span>{{ group.name }}</span>
+                      <span class="product-select-shell">
+                        <select id="variant-option-{{ loop.index }}" data-variant-option data-option-name="{{ group.name }}" aria-required="true">
+                          <option value="">Selectează</option>
+                          {% for value in group.values %}<option value="{{ value }}">{{ value }}</option>{% endfor %}
+                        </select>
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"></path></svg>
+                      </span>
+                    </label>
+                  {% endfor %}
+                </div>
+              {% endif %}
+              <label class="product-field product-variant-fallback" for="variant">
                 <span>Variantă</span>
                 <span class="product-select-shell">
-                  <select id="variant" name="variant_id" data-variant-select>
+                  <select id="variant" name="variant_id" data-variant-select required>
+                    <option value="" selected>Selectează varianta</option>
                     {% for variant in product.variants %}
-                      <option value="{{ variant.id }}" data-price="{{ variant.price_bani }}" data-compare-price="{{ variant.compare_price_bani ?: 0 }}" data-stock="{{ variant.available_quantity }}" data-sku="{{ variant.sku }}" {{ variant.is_default ? 'selected' }}>{{ variant.option_summary ?: 'Variantă standard' }} — {{ money(variant.price_bani) }}</option>
+                      <option value="{{ variant.id }}" data-options="{{ variant.options_json|default('{}') }}" data-price="{{ variant.price_bani }}" data-compare-price="{{ variant.compare_price_bani ?: 0 }}" data-stock="{{ variant.available_quantity }}" data-sku="{{ variant.sku }}" data-in-cart="{{ is_variant_in_cart(variant.id) ? '1' : '0' }}">{{ variant.option_summary ?: 'Variantă standard' }} — {{ money(variant.price_bani) }}</option>
                     {% endfor %}
                   </select>
                   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"></path></svg>
                 </span>
               </label>
             {% else %}
-              <input type="hidden" name="variant_id" value="{{ default_variant.id }}" data-variant-select data-price="{{ default_variant.price_bani }}" data-compare-price="{{ default_variant.compare_price_bani ?: 0 }}" data-stock="{{ default_variant.available_quantity }}" data-sku="{{ default_variant.sku }}">
+              <input type="hidden" name="variant_id" value="{{ default_variant.id }}" data-variant-select data-price="{{ default_variant.price_bani }}" data-compare-price="{{ default_variant.compare_price_bani ?: 0 }}" data-stock="{{ default_variant.available_quantity }}" data-sku="{{ default_variant.sku }}" data-in-cart="{{ default_variant_is_in_cart ? '1' : '0' }}">
             {% endif %}
 
             {% for option in product.personalization_options %}
@@ -162,19 +183,21 @@
                 <span>{{ option.label }}{{ option.required ? ' *' }}</span>
                 {% if option.type == 'select' %}
                   <span class="product-select-shell">
-                    <select id="option_{{ option.id }}" name="option_{{ option.id }}" {{ option.required ? 'required' }}>
+                    <select id="option_{{ option.id }}" name="option_{{ option.id }}" data-product-option {{ option.required ? 'required' }}>
                       <option value="">Alege</option>
                       {% for value in option.allowed_values_json|json_decode %}<option>{{ value }}</option>{% endfor %}
                     </select>
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"></path></svg>
                   </span>
                 {% elseif option.type == 'checkbox' %}
-                  <span class="product-checkbox"><input id="option_{{ option.id }}" type="checkbox" name="option_{{ option.id }}" value="da"><span>Da, doresc această opțiune</span></span>
+                  <span class="product-checkbox"><input id="option_{{ option.id }}" type="checkbox" name="option_{{ option.id }}" value="da" data-product-option {{ option.required ? 'required' }}><span>Da, doresc această opțiune</span></span>
                 {% else %}
-                  <input id="option_{{ option.id }}" name="option_{{ option.id }}" maxlength="{{ option.max_length ?: 120 }}" {{ option.required ? 'required' }}>
+                  <input id="option_{{ option.id }}" name="option_{{ option.id }}" maxlength="{{ option.max_length ?: 120 }}" data-product-option {{ option.required ? 'required' }}>
                 {% endif %}
               </label>
             {% endfor %}
+
+            <p class="product-selection-hint" data-product-selection-hint role="status" hidden></p>
 
             <div class="product-buy-row">
               <label class="product-quantity-label" for="quantity">Cantitate</label>
@@ -183,10 +206,13 @@
                 <input id="quantity" name="quantity" type="number" min="1" max="20" value="1" inputmode="numeric">
                 <button type="button" data-quantity-increase aria-label="Crește cantitatea">+</button>
               </div>
-              <button class="product-add-button" type="submit">
+              <button class="product-add-button" type="submit" aria-pressed="{{ product_initially_in_cart ? 'true' : 'false' }}" aria-label="{{ product_initially_in_cart ? 'Scoate ' ~ product.name ~ ' din coș' : 'Adaugă ' ~ product.name ~ ' în coș' }}"{{ product.variants|length == 1 and default_variant.available_quantity <= 0 ? ' disabled' : '' }}>
                 <span class="product-add-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3.5 5h2.1l1.2 9.2a2 2 0 0 0 2 1.7h7.6a2 2 0 0 0 1.9-1.4l1.4-5.8H6.2"></path><circle cx="9.2" cy="19" r="1.25"></circle><circle cx="17" cy="19" r="1.25"></circle></svg></span>
-                <span data-add-to-cart-label>{{ default_variant.available_quantity > 0 ? 'Adaugă în coș' : 'Stoc epuizat' }}</span>
-                <span class="product-add-arrow" aria-hidden="true"><svg viewBox="0 0 20 20"><path d="m7.5 5 5 5-5 5"></path></svg></span>
+                <span data-add-to-cart-label>{{ product_initially_in_cart ? 'În coș' : (default_variant.available_quantity > 0 ? 'Adaugă în coș' : 'Stoc epuizat') }}</span>
+                <span class="product-add-arrow" aria-hidden="true">
+                  <svg class="product-add-chevron" viewBox="0 0 20 20"><path d="m7.5 5 5 5-5 5"></path></svg>
+                  <svg class="product-add-check" viewBox="0 0 20 20"><path class="product-add-check-mark" d="m4.7 10.2 3.5 3.6 7.2-8"></path><path class="product-add-check-spark" d="M15.8 2.8v2.4M14.6 4h2.4"></path></svg>
+                </span>
               </button>
             </div>
           </form>

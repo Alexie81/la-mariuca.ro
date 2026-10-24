@@ -255,18 +255,20 @@
 
 .boutique-product-cart.is-added,
 .boutique-product-cart.is-cart-confirmed {
-  border-color: #367a59;
-  background: #438f69;
-  box-shadow: none;
+  border-color: #447d61;
+  background: linear-gradient(135deg, #609c7b, #417c60);
+  box-shadow: inset 0 1px rgba(255, 255, 255, .2);
 }
 
 .boutique-product-cart.is-cart-added,
-.boutique-product-cart.is-cart-confirmed {
+.boutique-product-cart.is-cart-confirmed,
+.product-buy-form.is-cart-added .product-add-button {
   animation: boutique-cart-added .72s cubic-bezier(.16, 1, .3, 1) both;
 }
 
 .boutique-product-cart.is-cart-added .boutique-product-cart-icon,
-.boutique-product-cart.is-cart-confirmed .boutique-product-cart-icon {
+.boutique-product-cart.is-cart-confirmed .boutique-product-cart-icon,
+.product-buy-form.is-cart-added .product-add-icon {
   animation: boutique-cart-icon-celebrate .7s cubic-bezier(.16, 1, .3, 1) both;
 }
 
@@ -274,17 +276,26 @@
   animation: boutique-cart-check-draw .58s cubic-bezier(.2, .8, .2, 1) both;
 }
 
+.product-buy-form.is-cart-added .product-add-check-mark {
+  animation: boutique-cart-check-draw .58s cubic-bezier(.2, .8, .2, 1) both;
+}
+
 .boutique-product-cart.is-cart-added .boutique-product-cart-check-spark {
   animation: boutique-cart-check-spark .64s .12s cubic-bezier(.16, 1, .3, 1) both;
 }
 
-.boutique-product-cart.is-cart-removed {
+.product-buy-form.is-cart-added .product-add-check-spark {
+  animation: boutique-cart-check-spark .64s .12s cubic-bezier(.16, 1, .3, 1) both;
+}
+
+.boutique-product-cart.is-cart-removed,
+.product-buy-form.is-cart-removed .product-add-button {
   animation: boutique-cart-removed .54s cubic-bezier(.16, 1, .3, 1) both;
 }
 
 .boutique-product-cart.is-added.is-submitting {
-  border-color: #2f684c;
-  background: #347653;
+  border-color: #376d53;
+  background: #356c52;
 }
 
 .boutique-product-favorite {
@@ -552,6 +563,11 @@
   .boutique-product-cart.is-cart-removed,
   .boutique-product-cart.is-cart-confirmed,
   .boutique-product-cart.is-cart-confirmed .boutique-product-cart-icon,
+  .product-buy-form.is-cart-added .product-add-button,
+  .product-buy-form.is-cart-added .product-add-icon,
+  .product-buy-form.is-cart-added .product-add-check-mark,
+  .product-buy-form.is-cart-added .product-add-check-spark,
+  .product-buy-form.is-cart-removed .product-add-button,
   .boutique-product-favorite.is-favorite-added button,
   .boutique-product-favorite.is-favorite-added .boutique-product-favorite-icon,
   .boutique-product-favorite.is-favorite-added::before,
