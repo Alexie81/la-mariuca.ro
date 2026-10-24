@@ -6427,7 +6427,7 @@
 
 .shop-catalog-layout {
   display: grid;
-  grid-template-columns: minmax(230px, 250px) minmax(0, 1fr);
+  grid-template-columns: minmax(250px, 272px) minmax(0, 1fr);
   align-items: start;
   gap: clamp(1rem, 1.65vw, 1.45rem);
 }
