@@ -4253,6 +4253,67 @@
   text-transform: uppercase;
 }
 
+.boutique-product-discount-badge {
+  position: absolute;
+  top: .75rem;
+  left: .75rem;
+  z-index: 4;
+  display: grid;
+  width: 3rem;
+  height: 3rem;
+  place-items: center;
+  overflow: hidden;
+  border: 2px solid rgba(255, 255, 255, .78);
+  border-radius: 50%;
+  color: #fff;
+  background:
+    radial-gradient(circle at 32% 25%, rgba(255, 255, 255, .28), transparent 30%),
+    linear-gradient(145deg, #df737a 0%, #c74f58 72%, #b9424c 100%);
+  box-shadow: 0 10px 24px rgba(170, 61, 69, .25), inset 0 1px 0 rgba(255, 255, 255, .3);
+  isolation: isolate;
+  scale: 1;
+  rotate: 0deg;
+  animation:
+    boutique-discount-badge-in .72s cubic-bezier(.16, 1.35, .35, 1) both,
+    boutique-discount-badge-glow 3.4s ease-in-out .72s infinite;
+}
+
+.boutique-product-discount-badge::after {
+  position: absolute;
+  inset: -35% auto -35% -70%;
+  z-index: -1;
+  width: 42%;
+  content: '';
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .42), transparent);
+  transform: rotate(18deg);
+  animation: boutique-discount-badge-shine 3.4s ease-in-out 1.15s infinite;
+}
+
+.boutique-product-discount-value {
+  display: inline-flex;
+  align-items: flex-start;
+  justify-content: center;
+  font-size: .82rem;
+  font-weight: 920;
+  letter-spacing: -.055em;
+  line-height: 1;
+  text-shadow: 0 1px 4px rgba(104, 26, 34, .24);
+  animation: boutique-discount-value 3.4s ease-in-out .72s infinite;
+}
+
+.boutique-product-discount-symbol {
+  display: inline-block;
+  margin: -.08rem 0 0 .05rem;
+  font-size: .7em;
+  letter-spacing: 0;
+  transform-origin: 50% 70%;
+  animation: boutique-discount-symbol 3.4s cubic-bezier(.2, .8, .2, 1) .72s infinite;
+}
+
+.boutique-product-discount-badge + .boutique-product-recent-badge {
+  top: 4.05rem;
+}
+
 .boutique-product-recent-spark {
   display: inline-block;
   color: #d3a05d;
@@ -5824,6 +5885,35 @@
   48% { opacity: 1; transform: rotate(90deg) scale(1.12); }
 }
 
+@keyframes boutique-discount-badge-in {
+  from { opacity: 0; scale: .42; rotate: -14deg; }
+  70% { opacity: 1; scale: 1.08; rotate: 3deg; }
+  to { opacity: 1; scale: 1; rotate: 0deg; }
+}
+
+@keyframes boutique-discount-badge-glow {
+  0%, 100% { box-shadow: 0 10px 24px rgba(170, 61, 69, .22), inset 0 1px 0 rgba(255, 255, 255, .3); }
+  50% { box-shadow: 0 13px 30px rgba(170, 61, 69, .36), 0 0 0 5px rgba(213, 93, 101, .1), inset 0 1px 0 rgba(255, 255, 255, .38); }
+}
+
+@keyframes boutique-discount-badge-shine {
+  0%, 34% { left: -70%; opacity: 0; }
+  48% { opacity: .9; }
+  62%, 100% { left: 125%; opacity: 0; }
+}
+
+@keyframes boutique-discount-value {
+  0%, 100% { transform: translateY(0) scale(1); }
+  46% { transform: translateY(-1px) scale(1.06); }
+  56% { transform: translateY(0) scale(1); }
+}
+
+@keyframes boutique-discount-symbol {
+  0%, 38%, 62%, 100% { transform: rotate(0deg) scale(1); }
+  48% { transform: rotate(-12deg) scale(1.2); }
+  55% { transform: rotate(8deg) scale(1.08); }
+}
+
 @keyframes boutique-product-reveal {
   from { opacity: .15; translate: 0 24px; }
   to { opacity: 1; translate: 0 0; }
@@ -5969,6 +6059,21 @@
     font-size: .58rem;
     letter-spacing: .02em;
     text-transform: none;
+  }
+
+  .boutique-product-discount-badge {
+    top: .45rem;
+    left: .45rem;
+    width: 2.35rem;
+    height: 2.35rem;
+  }
+
+  .boutique-product-discount-value {
+    font-size: .68rem;
+  }
+
+  .boutique-product-discount-badge + .boutique-product-recent-badge {
+    top: 3.05rem;
   }
 
   .boutique-product-recent-spark {
@@ -6305,6 +6410,10 @@
   .boutique-product-stock-icon > span,
   .boutique-product-favorite button,
   .boutique-product-favorite-icon,
+  .boutique-product-discount-badge,
+  .boutique-product-discount-badge::after,
+  .boutique-product-discount-value,
+  .boutique-product-discount-symbol,
   .boutique-product-recent-spark,
   .baptism-story-shell,
   .baptism-story-media img,

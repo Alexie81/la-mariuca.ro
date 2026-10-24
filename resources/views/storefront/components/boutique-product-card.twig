@@ -1,4 +1,6 @@
 {% set product_is_favorite = is_favorite(product.id) %}
+{% set product_has_discount = product.compare_price_bani and product.compare_price_bani > product.price_bani %}
+{% set product_discount_percent = product_has_discount ? (((product.compare_price_bani - product.price_bani) * 100 / product.compare_price_bani)|round) : 0 %}
 <article class="boutique-product-card" data-product-url="{{ url('produs/' ~ product.slug ~ '/') }}">
   <a class="boutique-product-media{{ product.image_path ? '' : ' is-placeholder' }}" href="{{ url('produs/' ~ product.slug ~ '/') }}">
     {% if product.image_path %}
@@ -9,6 +11,13 @@
           <path d="M25 79c17-39 57-55 77-26 17 25-7 52-39 47-27-4-48-30-38-50"></path>
           <path d="M62 40c-10-13-31 4 0 25 31-21 10-38 0-25Z"></path>
         </svg>
+      </span>
+    {% endif %}
+    {% if product_has_discount %}
+      <span class="boutique-product-discount-badge" aria-label="Reducere de {{ product_discount_percent }}%">
+        <span class="boutique-product-discount-value" aria-hidden="true">
+          <span class="boutique-product-discount-number">−{{ product_discount_percent }}</span><span class="boutique-product-discount-symbol">%</span>
+        </span>
       </span>
     {% endif %}
     {% if show_recent_badge|default(false) %}
@@ -33,7 +42,7 @@
     <h3><a href="{{ url('produs/' ~ product.slug ~ '/') }}">{{ product.name }}</a></h3>
     <div class="boutique-product-price">
       <strong>{{ money(product.price_bani) }}</strong>
-      {% if product.compare_price_bani and product.compare_price_bani > product.price_bani %}
+      {% if product_has_discount %}
         <del>{{ money(product.compare_price_bani) }}</del>
       {% endif %}
     </div>
