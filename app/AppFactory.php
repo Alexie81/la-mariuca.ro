@@ -9,6 +9,7 @@ use App\Modules\Cart\CartController;
 use App\Modules\Cart\CartService;
 use App\Modules\Catalog\CatalogAdminService;
 use App\Modules\Catalog\CatalogRepository;
+use App\Modules\Catalog\CategoryPathRepository;
 use App\Modules\Catalog\StorefrontController;
 use App\Modules\Checkout\CheckoutController;
 use App\Modules\Checkout\CheckoutService;
@@ -51,6 +52,7 @@ final class AppFactory
         $csrf = new Csrf();
         $auth = new Auth($pdo);
         $catalog = new CatalogRepository($pdo);
+        $categoryPaths = new CategoryPathRepository($pdo);
         $cart = new CartService($pdo);
 
         $twig = new Environment(new FilesystemLoader($root . '/resources/views'), [
@@ -76,7 +78,7 @@ final class AppFactory
         $twig->addFunction(new TwigFunction('csrf_token', static fn(): string => $csrf->token()));
         $twig->addFunction(new TwigFunction('flash_messages', static fn(): array => Flash::pull()));
         $twig->addFunction(new TwigFunction('current_user', static fn(): ?array => $auth->user()));
-        $twig->addFunction(new TwigFunction('navigation_categories', static fn(): array => $catalog->navigationCategories()));
+        $twig->addFunction(new TwigFunction('navigation_categories', static fn(): array => $categoryPaths->addPathsToTree($catalog->navigationCategories())));
         $twig->addFunction(new TwigFunction('cart_summary', static fn(): array => $cart->summary()));
         $cartVariantIds = null;
         $twig->addFunction(new TwigFunction('is_variant_in_cart', static function (int|string|null $variantId) use ($cart, &$cartVariantIds): bool {
@@ -99,7 +101,7 @@ final class AppFactory
         $content = new ContentRepository($pdo);
         $orders = new OrderService($pdo);
 
-        $storefront = new StorefrontController($catalog, $content, $rateLimiter, $view, $config);
+        $storefront = new StorefrontController($catalog, $categoryPaths, $content, $rateLimiter, $view, $config);
         $cartController = new CartController($cart, $view, $config);
         $checkoutController = new CheckoutController(new CheckoutService($pdo, $cart, $config), $cart, $orders, new StripeCheckoutService($pdo, $config), $rateLimiter, $view, $config);
         $authController = new AuthController($pdo, $auth, $rateLimiter, $view, $config);
@@ -113,7 +115,7 @@ final class AppFactory
         }
 
         $app->get('/', [$storefront, 'home']);
-        $app->get('/categorie/{slug}/', [$storefront, 'category']);
+        $app->get('/categorie/{path:.+}/', [$storefront, 'category']);
         $app->get('/colectie/{slug}/', [$storefront, 'collection']);
         $app->get('/produs/{slug}/', [$storefront, 'product']);
         $app->get('/magazin/', [$storefront, 'shop']);

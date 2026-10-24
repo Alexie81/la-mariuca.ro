@@ -1,2 +1,46 @@
 {% extends 'storefront/layouts/base.twig' %}
-{% block content %}<div class="container page-shell"><nav class="breadcrumbs"><a href="{{ url('') }}">Acasă</a><span>/</span><span>{{ category.name }}</span></nav><div class="page-title"><div><span class="eyebrow">Categorie</span><h1>{{ category.name }}</h1><p>{{ category.description }}</p></div><form method="get"><label for="sortare">Sortare</label><select id="sortare" name="sortare" onchange="this.form.submit()"><option value="new" {{ sort == 'new' ? 'selected' }}>Cele mai noi</option><option value="price-asc" {{ sort == 'price-asc' ? 'selected' }}>Preț crescător</option><option value="price-desc" {{ sort == 'price-desc' ? 'selected' }}>Preț descrescător</option><option value="name" {{ sort == 'name' ? 'selected' }}>Nume</option></select></form></div><div class="product-grid">{% for product in products %}{% include 'storefront/components/product-card.twig' with {product: product} %}{% else %}<div class="empty"><h2>Nicio ofertă publicată</h2><p>Categoria nu are încă produse disponibile.</p></div>{% endfor %}</div>{% if products|length == 12 %}<nav class="pagination"><a href="?pagina={{ page + 1 }}&sortare={{ sort }}">Pagina următoare</a></nav>{% endif %}</div>{% endblock %}
+{% block head %}<script type="application/ld+json">{{ structured_data|raw }}</script>{% endblock %}
+{% block content %}
+  <div class="container page-shell">
+    <nav class="breadcrumbs" aria-label="Navigare ierarhică">
+      <a href="{{ url('') }}">Acasă</a>
+      {% for trail_category in category_trail %}
+        <span>/</span>
+        {% if loop.last %}
+          <span aria-current="page">{{ trail_category.name }}</span>
+        {% else %}
+          <a href="{{ url('categorie/' ~ trail_category.path ~ '/') }}">{{ trail_category.name }}</a>
+        {% endif %}
+      {% endfor %}
+    </nav>
+    <div class="page-title">
+      <div>
+        <span class="eyebrow">Categorie</span>
+        <h1>{{ category.name }}</h1>
+        <p>{{ category.description }}</p>
+      </div>
+      <form method="get">
+        <label for="sortare">Sortare</label>
+        <select id="sortare" name="sortare" onchange="this.form.submit()">
+          <option value="new" {{ sort == 'new' ? 'selected' }}>Cele mai noi</option>
+          <option value="price-asc" {{ sort == 'price-asc' ? 'selected' }}>Preț crescător</option>
+          <option value="price-desc" {{ sort == 'price-desc' ? 'selected' }}>Preț descrescător</option>
+          <option value="name" {{ sort == 'name' ? 'selected' }}>Nume</option>
+        </select>
+      </form>
+    </div>
+    <div class="product-grid">
+      {% for product in products %}
+        {% include 'storefront/components/product-card.twig' with {product: product} %}
+      {% else %}
+        <div class="empty">
+          <h2>Nicio ofertă publicată</h2>
+          <p>Categoria nu are încă produse disponibile.</p>
+        </div>
+      {% endfor %}
+    </div>
+    {% if products|length == 12 %}
+      <nav class="pagination"><a href="?pagina={{ page + 1 }}&sortare={{ sort }}">Pagina următoare</a></nav>
+    {% endif %}
+  </div>
+{% endblock %}

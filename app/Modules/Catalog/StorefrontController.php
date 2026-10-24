@@ -17,6 +17,7 @@ final class StorefrontController
 {
     public function __construct(
         private readonly CatalogRepository $catalog,
+        private readonly CategoryPathRepository $categoryPaths,
         private readonly ContentRepository $content,
         private readonly RateLimiter $limiter,
         private readonly View $view,
@@ -26,7 +27,7 @@ final class StorefrontController
 
     public function home(ServerRequestInterface $request): ResponseInterface
     {
-        $categories = $this->catalog->homepageCategories();
+        $categories = $this->categoryPaths->addRootPaths($this->catalog->homepageCategories());
         $baptismCategory = null;
         foreach ($categories as $category) {
             if (($category['slug'] ?? '') === 'botez') {
@@ -48,20 +49,48 @@ final class StorefrontController
 
     public function category(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
     {
-        $slug = (string) $args['slug'];
-        $category = $this->catalog->categoryBySlug($slug);
-        if ($category === null) {
-            $redirect = $this->catalog->redirectFor('category', $slug);
-            return $redirect !== null ? $this->view->redirect($this->config->path('categorie/' . $redirect['new_slug'] . '/'), 301) : $this->notFound();
+        $requestedPath = trim((string) ($args['path'] ?? ''), '/');
+        $segments = $requestedPath === '' ? [] : explode('/', $requestedPath);
+        $resolved = $this->categoryPaths->resolve($requestedPath);
+
+        if ($resolved === null) {
+            if (count($segments) !== 1) {
+                return $this->notFound();
+            }
+
+            $redirect = $this->catalog->redirectFor('category', $segments[0]);
+            $redirectPath = $redirect === null
+                ? null
+                : $this->categoryPaths->pathForSlug((string) $redirect['new_slug']);
+            return $redirectPath === null
+                ? $this->notFound()
+                : $this->categoryRedirect($request, $redirectPath);
         }
+
+        if ($requestedPath !== $resolved['path']) {
+            return count($segments) === 1
+                ? $this->categoryRedirect($request, $resolved['path'])
+                : $this->notFound();
+        }
+
+        $category = $resolved['category'];
+        $categoryTrail = $resolved['trail'];
         $query = $request->getQueryParams();
         $page = max(1, (int) ($query['pagina'] ?? 1));
         $sort = (string) ($query['sortare'] ?? 'new');
         $products = $this->catalog->productsForCategory((int) $category['id'], $page, 12, $sort);
         $indexable = (int) $category['indexable'] === 1 && $products !== [] && $page === 1 && $sort === 'new';
         return $this->view->render('storefront/pages/category.twig', [
-            'category' => $category, 'products' => $products, 'page' => $page, 'sort' => $sort,
-            'meta' => $this->meta($category['seo_title'] ?: $category['name'], $category['meta_description'] ?: $category['description'], '/categorie/' . $category['slug'] . '/', !$indexable),
+            'category' => $category,
+            'category_trail' => $categoryTrail,
+            'products' => $products,
+            'page' => $page,
+            'sort' => $sort,
+            'structured_data' => json_encode(
+                $this->breadcrumbStructuredData($categoryTrail),
+                JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
+            ),
+            'meta' => $this->meta($category['seo_title'] ?: $category['name'], $category['meta_description'] ?: $category['description'], '/categorie/' . $resolved['path'] . '/', !$indexable),
         ]);
     }
 
@@ -74,6 +103,9 @@ final class StorefrontController
             return $redirect !== null ? $this->view->redirect($this->config->path('produs/' . $redirect['new_slug'] . '/'), 301) : $this->notFound();
         }
         $variants = (array) $product['variants'];
+        $categoryTrail = empty($product['category_slug'])
+            ? []
+            : $this->categoryPaths->trailForSlug((string) $product['category_slug']);
         $offers = [];
         foreach ($variants as $variant) {
             $offers[] = [
@@ -82,9 +114,17 @@ final class StorefrontController
                 'sku' => $variant['sku'], 'url' => $this->config->rootUrl() . '/produs/' . $product['slug'] . '/',
             ];
         }
-        $structured = ['@context' => 'https://schema.org', '@type' => 'Product', 'name' => $product['name'], 'description' => $product['short_description'], 'sku' => $variants[0]['sku'] ?? '', 'offers' => $offers];
+        $structured = [
+            '@context' => 'https://schema.org',
+            '@graph' => [
+                ['@type' => 'Product', 'name' => $product['name'], 'description' => $product['short_description'], 'sku' => $variants[0]['sku'] ?? '', 'offers' => $offers],
+                $this->breadcrumbStructuredData($categoryTrail, (string) $product['name'], '/produs/' . $product['slug'] . '/', false),
+            ],
+        ];
         return $this->view->render('storefront/pages/product.twig', [
-            'product' => $product, 'structured_data' => json_encode($structured, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
+            'product' => $product,
+            'product_category_trail' => $categoryTrail,
+            'structured_data' => json_encode($structured, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
             'meta' => $this->meta($product['seo_title'] ?: $product['name'], $product['meta_description'] ?: $product['short_description'], '/produs/' . $product['slug'] . '/', (int) $product['indexable'] !== 1),
         ]);
     }
@@ -212,7 +252,7 @@ final class StorefrontController
             'product_total' => $productTotal,
             'all_product_total' => $this->catalog->publishedProductCount(),
             'has_next_page' => $hasNextPage,
-            'filter_categories' => $this->catalog->shopFilterCategories(),
+            'filter_categories' => $this->categoryPaths->addPathsToTree($this->catalog->shopFilterCategories()),
             'expanded_category_ids' => $expandedCategoryIds,
             'active_category_slugs' => $categorySlugs,
             'filter_in_stock' => $inStock,
@@ -290,10 +330,14 @@ final class StorefrontController
             $status = 429;
         } elseif (mb_strlen($query) >= 2) {
             foreach ($this->catalog->searchCategories($query, 4) as $category) {
+                $categoryPath = $this->categoryPaths->pathForSlug((string) $category['slug']);
+                if ($categoryPath === null) {
+                    continue;
+                }
                 $categories[] = [
                     'name' => (string) $category['name'],
                     'slug' => (string) $category['slug'],
-                    'url' => $this->config->path('categorie/' . $category['slug'] . '/'),
+                    'url' => $this->config->path('categorie/' . $categoryPath . '/'),
                 ];
             }
             foreach ($this->catalog->search($query, 6) as $product) {
@@ -456,7 +500,13 @@ final class StorefrontController
         $urls = [['loc' => $this->config->rootUrl() . '/', 'lastmod' => null]];
         foreach (['category' => 'categorie', 'product' => 'produs', 'collection' => 'colectie', 'page' => 'pagina'] as $type => $prefix) {
             foreach ($this->catalog->sitemapEntities($type) as $entity) {
-                $urls[] = ['loc' => $this->config->rootUrl() . '/' . $prefix . '/' . $entity['slug'] . '/', 'lastmod' => substr((string) $entity['updated_at'], 0, 10)];
+                $entityPath = $type === 'category'
+                    ? $this->categoryPaths->pathForSlug((string) $entity['slug'])
+                    : (string) $entity['slug'];
+                if ($entityPath === null) {
+                    continue;
+                }
+                $urls[] = ['loc' => $this->config->rootUrl() . '/' . $prefix . '/' . $entityPath . '/', 'lastmod' => substr((string) $entity['updated_at'], 0, 10)];
             }
         }
         $xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n";
@@ -467,6 +517,63 @@ final class StorefrontController
         $response = new Response();
         $response->getBody()->write($xml);
         return $response->withHeader('Content-Type', 'application/xml; charset=utf-8');
+    }
+
+    private function categoryRedirect(ServerRequestInterface $request, string $path): ResponseInterface
+    {
+        $location = $this->config->path('categorie/' . $path . '/');
+        $query = $request->getUri()->getQuery();
+        if ($query !== '') {
+            $location .= '?' . $query;
+        }
+
+        return $this->view->redirect($location, 301);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $categoryTrail
+     * @return array<string, mixed>
+     */
+    private function breadcrumbStructuredData(
+        array $categoryTrail,
+        ?string $currentName = null,
+        ?string $currentPath = null,
+        bool $includeContext = true,
+    ): array {
+        $items = [[
+            '@type' => 'ListItem',
+            'position' => 1,
+            'name' => 'Acasă',
+            'item' => $this->config->rootUrl() . '/',
+        ]];
+
+        foreach ($categoryTrail as $category) {
+            $items[] = [
+                '@type' => 'ListItem',
+                'position' => count($items) + 1,
+                'name' => (string) $category['name'],
+                'item' => $this->config->rootUrl() . '/categorie/' . $category['path'] . '/',
+            ];
+        }
+
+        if ($currentName !== null && $currentPath !== null) {
+            $items[] = [
+                '@type' => 'ListItem',
+                'position' => count($items) + 1,
+                'name' => $currentName,
+                'item' => $this->config->rootUrl() . '/' . ltrim($currentPath, '/'),
+            ];
+        }
+
+        $data = [
+            '@type' => 'BreadcrumbList',
+            'itemListElement' => $items,
+        ];
+        if ($includeContext) {
+            $data = ['@context' => 'https://schema.org'] + $data;
+        }
+
+        return $data;
     }
 
     /** @return array<string,mixed> */
