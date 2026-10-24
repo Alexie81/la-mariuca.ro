@@ -54,4 +54,18 @@ final class CategoryPathRepositoryTest extends DatabaseTestCase
         self::assertSame('parinte/copil', $tree[0]['children'][0]['path']);
         self::assertSame('parinte/copil/nepot', $tree[0]['children'][0]['children'][0]['path']);
     }
+
+    public function testResolvedCategoryIncludesItsOwnOptionalArtwork(): void
+    {
+        $this->seed();
+        $paths = new CategoryPathRepository($this->pdo);
+
+        $withImage = $paths->resolve('fetite');
+        $withoutImage = $paths->resolve('fetite/rochite/rochite-ocazie');
+
+        self::assertNotNull($withImage);
+        self::assertSame('assets/images/categories/fetite-editorial-2026.webp', $withImage['category']['image_path']);
+        self::assertNotNull($withoutImage);
+        self::assertNull($withoutImage['category']['image_path']);
+    }
 }

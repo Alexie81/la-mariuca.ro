@@ -1,8 +1,8 @@
 {% extends 'storefront/layouts/base.twig' %}
 {% block head %}<script type="application/ld+json">{{ structured_data|raw }}</script>{% endblock %}
 {% block content %}
-  <div class="container page-shell">
-    <nav class="breadcrumbs" aria-label="Navigare ierarhică">
+  <div class="container page-shell shop-page category-page">
+    <nav class="breadcrumbs category-breadcrumbs" aria-label="Navigare ierarhică">
       <a href="{{ url('') }}">Acasă</a>
       {% for trail_category in category_trail %}
         <span>/</span>
@@ -13,34 +13,118 @@
         {% endif %}
       {% endfor %}
     </nav>
-    <div class="page-title">
-      <div>
-        <span class="eyebrow">Categorie</span>
-        <h1>{{ category.name }}</h1>
-        <p>{{ category.description }}</p>
+
+    <header class="shop-editorial category-editorial{{ category.image_path ? ' has-category-image' : '' }}" aria-labelledby="category-title">
+      <span class="shop-editorial-glow shop-editorial-glow-one" aria-hidden="true"></span>
+      <span class="shop-editorial-glow shop-editorial-glow-two" aria-hidden="true"></span>
+      <span class="shop-editorial-line" aria-hidden="true">
+        <svg viewBox="0 0 520 72" preserveAspectRatio="none">
+          <path d="M2 46c78 0 86-30 155-30 72 0 76 40 148 40 53 0 76-27 123-27 35 0 56 14 90 13"></path>
+          <path d="M430 29c10-18 36-10 30 8-5 13-22 21-22 21s-13-12-12-22c1-5 2-6 4-7Z"></path>
+        </svg>
+      </span>
+      <div class="category-editorial-copy">
+        <span class="category-editorial-eyebrow">{{ category.parent_id ? 'Subcategorie' : 'Categorie' }}</span>
+        <h1 id="category-title">{{ category.name }}</h1>
+        {% if category.description %}<p>{{ category.description }}</p>{% endif %}
       </div>
-      <form method="get">
-        <label for="sortare">Sortare</label>
-        <select id="sortare" name="sortare" onchange="this.form.submit()">
-          <option value="new" {{ sort == 'new' ? 'selected' }}>Cele mai noi</option>
-          <option value="price-asc" {{ sort == 'price-asc' ? 'selected' }}>Preț crescător</option>
-          <option value="price-desc" {{ sort == 'price-desc' ? 'selected' }}>Preț descrescător</option>
-          <option value="name" {{ sort == 'name' ? 'selected' }}>Nume</option>
-        </select>
-      </form>
-    </div>
-    <div class="product-grid">
-      {% for product in products %}
-        {% include 'storefront/components/product-card.twig' with {product: product} %}
-      {% else %}
-        <div class="empty">
-          <h2>Nicio ofertă publicată</h2>
-          <p>Categoria nu are încă produse disponibile.</p>
+      {% if category.image_path %}
+        <figure class="shop-cat-portrait category-editorial-portrait">
+          <img src="{{ url(category.image_path) }}" alt="{{ category.image_alt ?: category.name }}" width="320" height="320" loading="eager" decoding="async">
+        </figure>
+      {% endif %}
+    </header>
+
+    <section class="category-catalog" aria-label="Produse din {{ category.name }}">
+      <div class="shop-toolbar category-toolbar">
+        <div class="shop-product-count category-product-count" aria-live="polite">
+          <strong>{{ product_total }}</strong>
+          <span>{{ product_total == 1 ? 'produs' : 'produse' }}</span>
         </div>
-      {% endfor %}
-    </div>
-    {% if products|length == 12 %}
-      <nav class="pagination"><a href="?pagina={{ page + 1 }}&sortare={{ sort }}">Pagina următoare</a></nav>
-    {% endif %}
+        <form class="shop-sort category-sort" method="get" data-shop-sort>
+          <input type="hidden" name="pe_pagina" value="{{ per_page }}">
+          <div class="shop-sort-control">
+            <span class="shop-sort-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M8 5v14M5 8l3-3 3 3M16 19V5M13 16l3 3 3-3"></path></svg>
+            </span>
+            <label for="sortare">Sortează</label>
+            <select id="sortare" name="sortare" data-shop-sort-select>
+              <option value="new" data-mobile-label="Noi" {{ sort == 'new' ? 'selected' }}>Cele mai noi</option>
+              <option value="price-asc" data-mobile-label="Crescător" {{ sort == 'price-asc' ? 'selected' }}>Preț crescător</option>
+              <option value="price-desc" data-mobile-label="Descrescător" {{ sort == 'price-desc' ? 'selected' }}>Preț descrescător</option>
+              <option value="name-asc" data-mobile-label="Nume A–Z" {{ sort == 'name-asc' ? 'selected' }}>Nume A–Z</option>
+              <option value="name-desc" data-mobile-label="Nume Z–A" {{ sort == 'name-desc' ? 'selected' }}>Nume Z–A</option>
+            </select>
+          </div>
+          <noscript><button class="shop-sort-submit" type="submit">Aplică</button></noscript>
+        </form>
+      </div>
+
+      <div class="shop-results category-results">
+        <div class="shop-product-grid">
+          {% for product in products %}
+            <div class="shop-product-item">
+              {% include 'storefront/components/boutique-product-card.twig' with {product: product} %}
+            </div>
+          {% else %}
+            <div class="shop-filter-empty category-empty-state">
+              <span aria-hidden="true">♡</span>
+              <h2>Pregătim ceva frumos aici</h2>
+              <p>Categoria nu are momentan produse disponibile.</p>
+              <a href="{{ url('magazin/') }}">Descoperă întregul magazin</a>
+            </div>
+          {% endfor %}
+        </div>
+
+        {% if product_total > 0 %}
+          <nav class="shop-pagination category-pagination" aria-label="Paginile categoriei {{ category.name }}">
+            <form class="shop-pagination-size" method="get" data-shop-sort>
+              <input type="hidden" name="sortare" value="{{ sort }}">
+              <label for="pe-pagina">Produse pe pagină</label>
+              <select id="pe-pagina" name="pe_pagina" aria-label="Număr de produse afișate pe pagină">
+                {% for option in per_page_options %}
+                  <option value="{{ option }}" {{ per_page == option ? 'selected' }}>{{ option }}</option>
+                {% endfor %}
+              </select>
+              <noscript><button type="submit">Aplică</button></noscript>
+            </form>
+
+            <div class="shop-pagination-pages">
+              {% if page > 1 %}
+                <a class="shop-pagination-arrow" href="?{{ category_query }}&pagina={{ page - 1 }}" aria-label="Pagina anterioară">
+                  <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m12.5 4-6 6 6 6"></path></svg>
+                </a>
+              {% else %}
+                <span class="shop-pagination-arrow is-disabled" aria-hidden="true"><svg viewBox="0 0 20 20"><path d="m12.5 4-6 6 6 6"></path></svg></span>
+              {% endif %}
+
+              {% for item in pagination_items %}
+                {% if item == 'ellipsis' %}
+                  <span class="shop-pagination-ellipsis" aria-hidden="true">•••</span>
+                {% elseif item == page %}
+                  <span class="shop-pagination-number is-current" aria-current="page" aria-label="Pagina {{ item }}">{{ item }}</span>
+                {% else %}
+                  <a class="shop-pagination-number" href="?{{ category_query }}&pagina={{ item }}" aria-label="Pagina {{ item }}">{{ item }}</a>
+                {% endif %}
+              {% endfor %}
+
+              {% if has_next_page %}
+                <a class="shop-pagination-arrow" href="?{{ category_query }}&pagina={{ page + 1 }}" aria-label="Pagina următoare">
+                  <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m7.5 4 6 6-6 6"></path></svg>
+                </a>
+              {% else %}
+                <span class="shop-pagination-arrow is-disabled" aria-hidden="true"><svg viewBox="0 0 20 20"><path d="m7.5 4 6 6-6 6"></path></svg></span>
+              {% endif %}
+            </div>
+
+            <div class="shop-pagination-position">
+              <span>Pagina</span>
+              <strong>{{ page }}</strong>
+              <span>din {{ last_page }}</span>
+            </div>
+          </nav>
+        {% endif %}
+      </div>
+    </section>
   </div>
 {% endblock %}

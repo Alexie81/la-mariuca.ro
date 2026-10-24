@@ -138,8 +138,12 @@ final class CategoryPathRepository
             return $this->byId[$id];
         }
 
-        $statement = $this->pdo->prepare("SELECT * FROM categories
-            WHERE id = :id AND status = 'published' AND visibility = 'public'
+        $statement = $this->pdo->prepare("SELECT category.*,
+                media.public_path AS image_path,
+                media.alt_text AS image_alt
+            FROM categories category
+            LEFT JOIN media ON media.id = category.image_media_id
+            WHERE category.id = :id AND category.status = 'published' AND category.visibility = 'public'
             LIMIT 1");
         $statement->execute(['id' => $id]);
         $row = $statement->fetch();
@@ -159,8 +163,12 @@ final class CategoryPathRepository
             return $this->bySlug[$slug];
         }
 
-        $statement = $this->pdo->prepare("SELECT * FROM categories
-            WHERE slug = :slug AND status = 'published' AND visibility = 'public'
+        $statement = $this->pdo->prepare("SELECT category.*,
+                media.public_path AS image_path,
+                media.alt_text AS image_alt
+            FROM categories category
+            LEFT JOIN media ON media.id = category.image_media_id
+            WHERE category.slug = :slug AND category.status = 'published' AND category.visibility = 'public'
             LIMIT 1");
         $statement->execute(['slug' => $slug]);
         $row = $statement->fetch();

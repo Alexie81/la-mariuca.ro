@@ -89,6 +89,21 @@ final class CategoryRouteTest extends DatabaseTestCase
         );
     }
 
+    public function testCategoryArtworkReplacesTheShopMascotOnlyWhenItExists(): void
+    {
+        $this->seed();
+
+        $categoryBody = (string) $this->get('/categorie/fetite/')->getBody();
+        $subcategoryBody = (string) $this->get('/categorie/fetite/rochite/rochite-ocazie/')->getBody();
+
+        self::assertStringContainsString('category-editorial-portrait', $categoryBody);
+        self::assertStringContainsString('assets/images/categories/fetite-editorial-2026.webp', $categoryBody);
+        self::assertStringNotContainsString('la-mariuca-hero-v3-cat-head-bow.png', $categoryBody);
+        self::assertStringContainsString('boutique-product-card', $categoryBody);
+        self::assertStringNotContainsString('category-editorial-portrait', $subcategoryBody);
+        self::assertStringNotContainsString('la-mariuca-hero-v3-cat-head-bow.png', $subcategoryBody);
+    }
+
     private function get(string $path): ResponseInterface
     {
         $request = (new ServerRequestFactory())->createServerRequest('GET', 'http://localhost' . $path);

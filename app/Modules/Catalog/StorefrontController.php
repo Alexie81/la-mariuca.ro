@@ -78,14 +78,37 @@ final class StorefrontController
         $query = $request->getQueryParams();
         $page = max(1, (int) ($query['pagina'] ?? 1));
         $sort = (string) ($query['sortare'] ?? 'new');
-        $products = $this->catalog->productsForCategory((int) $category['id'], $page, 12, $sort);
-        $indexable = (int) $category['indexable'] === 1 && $products !== [] && $page === 1 && $sort === 'new';
+        if ($sort === 'name') {
+            $sort = 'name-asc';
+        }
+        if (!in_array($sort, ['new', 'price-asc', 'price-desc', 'name-asc', 'name-desc'], true)) {
+            $sort = 'new';
+        }
+
+        $requestedPerPage = filter_var($query['pe_pagina'] ?? null, FILTER_VALIDATE_INT);
+        $perPage = in_array($requestedPerPage, [12, 24, 50], true) ? (int) $requestedPerPage : 12;
+        $productTotal = $this->catalog->publishedProductCount([(int) $category['id']]);
+        $lastPage = max(1, (int) ceil($productTotal / $perPage));
+        $page = min($page, $lastPage);
+        $products = $this->catalog->shopProducts($page, $perPage, $sort, [(int) $category['id']]);
+        $indexable = (int) $category['indexable'] === 1 && $products !== [] && $page === 1 && $sort === 'new' && $perPage === 12;
+        $categoryQuery = ['sortare' => $sort];
+        if ($perPage !== 12) {
+            $categoryQuery['pe_pagina'] = (string) $perPage;
+        }
         return $this->view->render('storefront/pages/category.twig', [
             'category' => $category,
             'category_trail' => $categoryTrail,
             'products' => $products,
             'page' => $page,
+            'last_page' => $lastPage,
+            'pagination_items' => $this->paginationItems($page, $lastPage),
+            'per_page' => $perPage,
+            'per_page_options' => [12, 24, 50],
             'sort' => $sort,
+            'product_total' => $productTotal,
+            'has_next_page' => $page < $lastPage,
+            'category_query' => http_build_query($categoryQuery),
             'structured_data' => json_encode(
                 $this->breadcrumbStructuredData($categoryTrail),
                 JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR

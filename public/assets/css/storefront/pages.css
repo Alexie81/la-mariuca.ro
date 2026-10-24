@@ -2499,6 +2499,212 @@
   }
 }
 
+/* Category pages share the shop's visual language without inventing fallback artwork. */
+.category-breadcrumbs {
+  margin-bottom: .85rem;
+  padding-inline: .35rem;
+  flex-wrap: wrap;
+}
+
+.category-editorial {
+  min-height: clamp(190px, 17vw, 235px);
+  margin-bottom: 1rem;
+}
+
+.category-editorial-copy {
+  max-width: min(70%, 780px);
+  position: relative;
+  z-index: 2;
+}
+
+.category-editorial:not(.has-category-image) .category-editorial-copy {
+  max-width: min(88%, 920px);
+}
+
+.category-editorial-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: .55rem;
+  margin-bottom: .7rem;
+  color: #ae5658;
+  font-size: .64rem;
+  font-weight: 820;
+  letter-spacing: .19em;
+  text-transform: uppercase;
+}
+
+.category-editorial-eyebrow::before {
+  content: "";
+  width: 1.7rem;
+  height: 1px;
+  background: linear-gradient(90deg, #d16a6f, #dfad80);
+}
+
+.shop-editorial.category-editorial h1 {
+  max-width: none;
+  font-size: clamp(2.75rem, 5vw, 5rem);
+}
+
+.category-editorial-copy p {
+  max-width: 680px;
+  margin: 1rem 0 0;
+  color: #806660;
+  font-size: clamp(.88rem, 1.15vw, 1rem);
+  line-height: 1.58;
+}
+
+.category-editorial-portrait {
+  width: clamp(132px, 14vw, 190px);
+  height: clamp(132px, 14vw, 190px);
+  margin: 0;
+  border-radius: 32px 10px 32px 10px;
+  background: #f8ebe6;
+  transform: translateY(-50%) rotate(1.5deg);
+}
+
+.shop-cat-portrait.category-editorial-portrait img {
+  object-position: center;
+  transform: none;
+  transform-origin: center;
+}
+
+.category-catalog {
+  display: grid;
+  gap: clamp(1rem, 1.6vw, 1.4rem);
+}
+
+.category-toolbar {
+  margin: 0;
+}
+
+.category-results {
+  min-width: 0;
+}
+
+.category-empty-state {
+  min-height: 300px;
+}
+
+@media (max-width: 1100px) {
+  .shop-toolbar.category-toolbar {
+    display: flex;
+  }
+
+  .shop-product-count.category-product-count {
+    display: flex;
+  }
+
+  .shop-sort.category-sort {
+    width: auto;
+    min-width: 210px;
+    grid-column: auto;
+    grid-row: auto;
+  }
+}
+
+@media (max-width: 760px) {
+  .category-breadcrumbs {
+    margin-bottom: .7rem;
+    padding-inline: .2rem;
+    font-size: .74rem;
+  }
+
+  .category-editorial {
+    min-height: 154px;
+    padding-block: 1.35rem;
+  }
+
+  .category-editorial-copy {
+    max-width: calc(100% - 108px);
+  }
+
+  .category-editorial:not(.has-category-image) .category-editorial-copy {
+    max-width: 100%;
+  }
+
+  .category-editorial-eyebrow {
+    margin-bottom: .5rem;
+    font-size: .55rem;
+  }
+
+  .shop-editorial.category-editorial h1,
+  .shop-editorial.category-editorial:not(.has-category-image) h1 {
+    max-width: 100%;
+    font-size: clamp(2.2rem, 10.5vw, 3.2rem);
+  }
+
+  .category-editorial-copy p {
+    margin-top: .7rem;
+    font-size: .78rem;
+    line-height: 1.45;
+  }
+
+  .category-editorial-portrait {
+    width: 86px;
+    height: 102px;
+    right: 1.1rem;
+    border-radius: 22px 7px 22px 7px;
+  }
+
+  .shop-toolbar.category-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(150px, 1fr);
+    gap: .6rem;
+    padding: .45rem;
+  }
+
+  .shop-product-count.category-product-count {
+    min-height: 48px;
+    padding-inline: .75rem;
+  }
+
+  .shop-sort.category-sort {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 420px) {
+  .category-editorial-copy p {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .category-product-count {
+    gap: .28rem;
+    padding-inline: .55rem;
+  }
+
+  .category-product-count span {
+    font-size: .58rem;
+    letter-spacing: .09em;
+  }
+}
+
+@media (max-width: 340px) {
+  .category-editorial-copy {
+    max-width: calc(100% - 88px);
+  }
+
+  .category-editorial-portrait {
+    width: 72px;
+    height: 88px;
+    right: .75rem;
+  }
+
+  .shop-editorial.category-editorial h1,
+  .shop-editorial.category-editorial:not(.has-category-image) h1 {
+    max-width: 100%;
+    font-size: 2.05rem;
+  }
+
+  .shop-toolbar.category-toolbar {
+    grid-template-columns: minmax(88px, .72fr) minmax(132px, 1.28fr);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .story-strip::before,
   .story-copy,
