@@ -6787,14 +6787,11 @@
   box-shadow: 0 8px 18px rgba(130, 65, 58, .08);
 }
 
-.product-intro-icon svg {
-  width: 27px;
-  height: 27px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.45;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+.product-intro-icon img {
+  display: block;
+  width: 28px;
+  height: 24px;
+  object-fit: contain;
 }
 
 .product-intro-kicker {
@@ -7572,9 +7569,9 @@ html.has-product-lightbox {
     border-radius: 13px;
   }
 
-  .product-intro-icon svg {
-    width: 23px;
-    height: 23px;
+  .product-intro-icon img {
+    width: 25px;
+    height: 21px;
   }
 
   .product-purchase-summary {

@@ -570,7 +570,7 @@ atribute și filtre fără schimbarea contractelor existente.
 - Favoritul suprapus peste fotografie reutilizează exact assetul cu două inimi din navbar, inclusiv starea selectată și animațiile existente, în locul unei pictograme independente.
 - Pe telefon, titlul produsului folosește o scară tipografică mai compactă și întreaga lățime a panoului, evitând ruperea disproporționată a numelor lungi și păstrând mai mult spațiu vizual în dreapta.
 - Pe telefon, panoul complet de cumpărare se extinde până la marginile viewportului, păstrând spațiere interioară confortabilă și colțurile editoriale rotunjite.
-- Descrierea scurtă rămâne alimentată din câmpul `short_description` al fiecărui produs și este prezentată într-un cartuș editorial propriu, cu eticheta „Pe scurt”, icon decorativ și accente La Măriuca responsive.
+- Descrierea scurtă rămâne alimentată din câmpul `short_description` al fiecărui produs și este prezentată într-un cartuș editorial propriu, cu eticheta „Pe scurt”, assetul cu inimioare folosit deja în navbar și accente La Măriuca responsive.
 - Lightbox-ul accesibil afișează imaginea mare, contorul curent, navigare din săgeți sau tastatură, swipe, zoom între 100% și 200% și închidere animată prin buton sau Escape.
 - Zona de detalii a devenit un grup de panouri semantice pentru descriere, conținutul pachetului, materiale, îngrijire și dimensiuni. Pagina rămâne funcțională fără JavaScript, iar tranzițiile respectă `prefers-reduced-motion`.
 - Prețul, SKU-ul, stocul și textul CTA-ului se actualizează la schimbarea variantei fără a distruge pictogramele butonului; confirmarea asincronă de adăugare în coș păstrează noua structură vizuală.
