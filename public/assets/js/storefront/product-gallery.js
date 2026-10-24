@@ -53,6 +53,8 @@ document.querySelectorAll('[data-product-gallery]').forEach((gallery) => {
 
   let currentIndex = 0;
   let zoom = 1;
+  let panX = 0;
+  let panY = 0;
   let changeTimer = null;
   let closeTimer = null;
 
@@ -71,16 +73,73 @@ document.querySelectorAll('[data-product-gallery]').forEach((gallery) => {
 
   const normalizedIndex = (index) => (index + images.length) % images.length;
 
-  const updateZoom = (nextZoom) => {
-    zoom = Math.max(1, Math.min(2, nextZoom));
+  const renderLightboxTransform = () => {
     if (lightboxStage instanceof HTMLElement) {
       lightboxStage.style.setProperty('--gallery-zoom', String(zoom));
+      lightboxStage.style.setProperty('--gallery-pan-x', `${panX}px`);
+      lightboxStage.style.setProperty('--gallery-pan-y', `${panY}px`);
+      lightboxStage.classList.toggle('is-zoomed', zoom > 1.01);
     }
     if (zoomLevel instanceof HTMLOutputElement) {
       zoomLevel.value = `${Math.round(zoom * 100)}%`;
     } else if (zoomLevel instanceof HTMLElement) {
       zoomLevel.textContent = `${Math.round(zoom * 100)}%`;
     }
+  };
+
+  const clampPan = () => {
+    if (!(lightboxStage instanceof HTMLElement) || !(lightboxImage instanceof HTMLImageElement)) {
+      panX = 0;
+      panY = 0;
+      return;
+    }
+
+    const baseCenterX = lightboxImage.offsetLeft + lightboxImage.offsetWidth / 2 - lightboxStage.clientWidth / 2;
+    const baseCenterY = lightboxImage.offsetTop + lightboxImage.offsetHeight / 2 - lightboxStage.clientHeight / 2;
+    const scaledHalfWidth = lightboxImage.offsetWidth * zoom / 2;
+    const scaledHalfHeight = lightboxImage.offsetHeight * zoom / 2;
+
+    if (scaledHalfWidth * 2 <= lightboxStage.clientWidth) {
+      panX = 0;
+    } else {
+      const minimumX = lightboxStage.clientWidth / 2 - scaledHalfWidth - baseCenterX;
+      const maximumX = scaledHalfWidth - lightboxStage.clientWidth / 2 - baseCenterX;
+      panX = Math.max(minimumX, Math.min(maximumX, panX));
+    }
+
+    if (scaledHalfHeight * 2 <= lightboxStage.clientHeight) {
+      panY = 0;
+    } else {
+      const minimumY = lightboxStage.clientHeight / 2 - scaledHalfHeight - baseCenterY;
+      const maximumY = scaledHalfHeight - lightboxStage.clientHeight / 2 - baseCenterY;
+      panY = Math.max(minimumY, Math.min(maximumY, panY));
+    }
+  };
+
+  const updateZoom = (nextZoom, focalPoint = null) => {
+    const previousZoom = zoom;
+    const normalizedZoom = Math.max(1, Math.min(4, nextZoom));
+
+    if (focalPoint && lightboxStage instanceof HTMLElement && previousZoom > 0) {
+      const stageBounds = lightboxStage.getBoundingClientRect();
+      const focalX = focalPoint.x - stageBounds.left - stageBounds.width / 2;
+      const focalY = focalPoint.y - stageBounds.top - stageBounds.height / 2;
+      const baseCenterX = lightboxImage.offsetLeft + lightboxImage.offsetWidth / 2 - lightboxStage.clientWidth / 2;
+      const baseCenterY = lightboxImage.offsetTop + lightboxImage.offsetHeight / 2 - lightboxStage.clientHeight / 2;
+      const contentX = (focalX - baseCenterX - panX) / previousZoom;
+      const contentY = (focalY - baseCenterY - panY) / previousZoom;
+      panX = focalX - baseCenterX - contentX * normalizedZoom;
+      panY = focalY - baseCenterY - contentY * normalizedZoom;
+    }
+
+    zoom = normalizedZoom;
+    if (zoom <= 1.01) {
+      zoom = 1;
+      panX = 0;
+      panY = 0;
+    }
+    clampPan();
+    renderLightboxTransform();
   };
 
   const showImage = (requestedIndex, animate = true) => {
@@ -146,7 +205,120 @@ document.querySelectorAll('[data-product-gallery]').forEach((gallery) => {
   }
 
   bindSwipe(stage, showPrevious, showNext);
-  bindSwipe(lightboxStage, showPrevious, showNext);
+
+  if (lightboxStage instanceof HTMLElement && lightboxImage instanceof HTMLImageElement) {
+    const activePointers = new Map();
+    let singleGesture = null;
+    let pinchGesture = null;
+
+    const pointerCenter = (points) => ({
+      x: (points[0].x + points[1].x) / 2,
+      y: (points[0].y + points[1].y) / 2,
+    });
+    const pointerDistance = (points) => Math.hypot(points[1].x - points[0].x, points[1].y - points[0].y);
+
+    const beginSingleGesture = (point) => {
+      singleGesture = {
+        startX: point.x,
+        startY: point.y,
+        startPanX: panX,
+        startPanY: panY,
+      };
+      pinchGesture = null;
+    };
+
+    const beginPinchGesture = () => {
+      const points = Array.from(activePointers.values()).slice(0, 2);
+      if (points.length < 2) return;
+      const center = pointerCenter(points);
+      const stageBounds = lightboxStage.getBoundingClientRect();
+      const centerX = center.x - stageBounds.left - stageBounds.width / 2;
+      const centerY = center.y - stageBounds.top - stageBounds.height / 2;
+      const baseCenterX = lightboxImage.offsetLeft + lightboxImage.offsetWidth / 2 - lightboxStage.clientWidth / 2;
+      const baseCenterY = lightboxImage.offsetTop + lightboxImage.offsetHeight / 2 - lightboxStage.clientHeight / 2;
+      pinchGesture = {
+        distance: Math.max(1, pointerDistance(points)),
+        startZoom: zoom,
+        contentX: (centerX - baseCenterX - panX) / zoom,
+        contentY: (centerY - baseCenterY - panY) / zoom,
+      };
+      singleGesture = null;
+    };
+
+    lightboxStage.addEventListener('pointerdown', (event) => {
+      if (event.target instanceof Element && event.target.closest('button')) return;
+      event.preventDefault();
+      lightboxStage.setPointerCapture(event.pointerId);
+      activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+      if (activePointers.size === 1) beginSingleGesture({ x: event.clientX, y: event.clientY });
+      if (activePointers.size === 2) beginPinchGesture();
+    });
+
+    lightboxStage.addEventListener('pointermove', (event) => {
+      if (!activePointers.has(event.pointerId)) return;
+      event.preventDefault();
+      activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+      if (activePointers.size >= 2 && pinchGesture) {
+        const points = Array.from(activePointers.values()).slice(0, 2);
+        const center = pointerCenter(points);
+        const stageBounds = lightboxStage.getBoundingClientRect();
+        const centerX = center.x - stageBounds.left - stageBounds.width / 2;
+        const centerY = center.y - stageBounds.top - stageBounds.height / 2;
+        const baseCenterX = lightboxImage.offsetLeft + lightboxImage.offsetWidth / 2 - lightboxStage.clientWidth / 2;
+        const baseCenterY = lightboxImage.offsetTop + lightboxImage.offsetHeight / 2 - lightboxStage.clientHeight / 2;
+        zoom = Math.max(1, Math.min(4, pinchGesture.startZoom * pointerDistance(points) / pinchGesture.distance));
+        panX = centerX - baseCenterX - pinchGesture.contentX * zoom;
+        panY = centerY - baseCenterY - pinchGesture.contentY * zoom;
+        clampPan();
+        renderLightboxTransform();
+        lightboxStage.classList.add('is-panning');
+        return;
+      }
+
+      if (activePointers.size === 1 && singleGesture && zoom > 1.01) {
+        panX = singleGesture.startPanX + event.clientX - singleGesture.startX;
+        panY = singleGesture.startPanY + event.clientY - singleGesture.startY;
+        clampPan();
+        renderLightboxTransform();
+        lightboxStage.classList.add('is-panning');
+      }
+    });
+
+    const finishPointerGesture = (event) => {
+      if (!activePointers.has(event.pointerId)) return;
+      activePointers.delete(event.pointerId);
+      lightboxStage.classList.remove('is-panning');
+
+      if (activePointers.size === 1) {
+        beginSingleGesture(Array.from(activePointers.values())[0]);
+        return;
+      }
+
+      if (activePointers.size === 0) {
+        singleGesture = null;
+        pinchGesture = null;
+      }
+    };
+
+    lightboxStage.addEventListener('pointerup', finishPointerGesture);
+    lightboxStage.addEventListener('pointercancel', finishPointerGesture);
+    lightboxStage.addEventListener('wheel', (event) => {
+      if (!(lightbox instanceof HTMLDialogElement) || !lightbox.open) return;
+      event.preventDefault();
+      const zoomDelta = Math.max(-0.35, Math.min(0.35, -event.deltaY * 0.002));
+      updateZoom(zoom + zoomDelta, { x: event.clientX, y: event.clientY });
+    }, { passive: false });
+    lightboxImage.addEventListener('load', () => {
+      clampPan();
+      renderLightboxTransform();
+    });
+    window.addEventListener('resize', () => {
+      clampPan();
+      renderLightboxTransform();
+    }, { passive: true });
+  }
 
   const openLightbox = () => {
     if (!(lightbox instanceof HTMLDialogElement)) return;

@@ -7424,7 +7424,7 @@
 
 .product-gallery-lightbox {
   width: min(1500px, calc(100vw - 36px));
-  height: min(920px, calc(100dvh - 36px));
+  height: min(1200px, calc(100dvh - 36px));
   max-width: none;
   max-height: none;
   overflow: hidden;
@@ -7538,24 +7538,45 @@ html.has-product-lightbox {
 
 .product-gallery-lightbox-stage {
   position: relative;
+  isolation: isolate;
   display: grid;
   min-height: 0;
   place-items: center;
-  overflow: auto;
-  padding: clamp(1.2rem, 4vw, 3.5rem);
-  touch-action: pan-y;
+  overflow: hidden;
+  padding: clamp(1rem, 2vw, 2.25rem);
+  touch-action: none;
 }
 
 .product-gallery-lightbox-stage img {
+  position: relative;
+  z-index: 1;
   display: block;
-  width: min(72dvh, 900px);
-  max-width: 85%;
+  width: min(85%, 900px, calc(100dvh - 230px));
+  max-width: 100%;
   height: auto;
+  max-height: none;
+  object-fit: contain;
   border-radius: 8px;
   box-shadow: 0 20px 65px rgba(87, 56, 49, .14);
-  transform: scale(var(--gallery-zoom, 1));
+  cursor: zoom-in;
+  transform: translate3d(var(--gallery-pan-x, 0), var(--gallery-pan-y, 0), 0) scale(var(--gallery-zoom, 1));
   transform-origin: center;
   transition: transform 220ms ease, opacity 180ms ease;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.product-gallery-lightbox-stage .product-gallery-lightbox-arrow {
+  z-index: 5;
+}
+
+.product-gallery-lightbox-stage.is-zoomed img {
+  cursor: grab;
+}
+
+.product-gallery-lightbox-stage.is-panning img {
+  cursor: grabbing;
+  transition: opacity 180ms ease;
 }
 
 .product-gallery-lightbox-hint {
@@ -7912,12 +7933,15 @@ html.has-product-lightbox {
   }
 
   .product-gallery-lightbox-stage {
+    place-items: center;
     padding: 1rem;
   }
 
   .product-gallery-lightbox-stage img {
     width: 100%;
     max-width: 100%;
+    height: auto;
+    max-height: 100%;
   }
 
   .product-gallery-lightbox-arrow {
