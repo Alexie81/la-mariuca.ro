@@ -37,6 +37,10 @@ document.querySelectorAll('[data-product-gallery]').forEach((gallery) => {
   const lightboxStage = gallery.querySelector('[data-gallery-lightbox-stage]');
   const lightboxCount = gallery.querySelector('[data-gallery-current]');
   const zoomLevel = gallery.querySelector('[data-gallery-zoom-level]');
+  const thumbnailRail = gallery.querySelector('[data-gallery-thumbnails]');
+  const thumbnailRailShell = thumbnailRail?.closest('.product-gallery-rail');
+  const railPrevious = gallery.querySelector('[data-gallery-rail-previous]');
+  const railNext = gallery.querySelector('[data-gallery-rail-next]');
 
   if (!(mainImage instanceof HTMLImageElement)) return;
 
@@ -51,6 +55,19 @@ document.querySelectorAll('[data-product-gallery]').forEach((gallery) => {
   let zoom = 1;
   let changeTimer = null;
   let closeTimer = null;
+
+  const updateRailControls = () => {
+    if (!(thumbnailRail instanceof HTMLElement) || !(thumbnailRailShell instanceof HTMLElement)) return;
+    const maximumScroll = Math.max(0, thumbnailRail.scrollHeight - thumbnailRail.clientHeight);
+    const hasOverflow = maximumScroll > 2;
+    const canScrollPrevious = hasOverflow && thumbnailRail.scrollTop > 2;
+    const canScrollNext = hasOverflow && thumbnailRail.scrollTop < maximumScroll - 2;
+
+    thumbnailRailShell.classList.toggle('has-scroll-previous', canScrollPrevious);
+    thumbnailRailShell.classList.toggle('has-scroll-next', canScrollNext);
+    if (railPrevious instanceof HTMLButtonElement) railPrevious.disabled = !canScrollPrevious;
+    if (railNext instanceof HTMLButtonElement) railNext.disabled = !canScrollNext;
+  };
 
   const normalizedIndex = (index) => (index + images.length) % images.length;
 
@@ -114,13 +131,19 @@ document.querySelectorAll('[data-product-gallery]').forEach((gallery) => {
   gallery.querySelector('[data-gallery-lightbox-previous]')?.addEventListener('click', showPrevious);
   gallery.querySelector('[data-gallery-lightbox-next]')?.addEventListener('click', showNext);
 
-  const thumbnailRail = gallery.querySelector('[data-gallery-thumbnails]');
-  gallery.querySelector('[data-gallery-rail-previous]')?.addEventListener('click', () => {
+  railPrevious?.addEventListener('click', () => {
     thumbnailRail?.scrollBy({ top: -150, behavior: 'smooth' });
   });
-  gallery.querySelector('[data-gallery-rail-next]')?.addEventListener('click', () => {
+  railNext?.addEventListener('click', () => {
     thumbnailRail?.scrollBy({ top: 150, behavior: 'smooth' });
   });
+
+  thumbnailRail?.addEventListener('scroll', updateRailControls, { passive: true });
+  if (thumbnailRail instanceof HTMLElement && 'ResizeObserver' in window) {
+    new ResizeObserver(updateRailControls).observe(thumbnailRail);
+  } else {
+    window.addEventListener('resize', updateRailControls, { passive: true });
+  }
 
   bindSwipe(stage, showPrevious, showNext);
   bindSwipe(lightboxStage, showPrevious, showNext);
@@ -163,6 +186,7 @@ document.querySelectorAll('[data-product-gallery]').forEach((gallery) => {
   });
 
   showImage(0, false);
+  updateRailControls();
 });
 
 document.querySelectorAll('[data-product-quantity]').forEach((control) => {
