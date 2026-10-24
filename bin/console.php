@@ -6,6 +6,7 @@ use App\Shared\Config\Config;
 use App\Shared\Database\ConnectionFactory;
 use App\Shared\Database\Migrator;
 use Database\Seeders\DemoSeeder;
+use Database\Seeders\ExpandedCatalogSeeder;
 use Symfony\Component\Mailer\Mailer;
 use Symfony\Component\Mailer\Transport;
 use Symfony\Component\Mime\Email;
@@ -25,6 +26,10 @@ try {
         case 'seed:demo':
             (new DemoSeeder($pdo))->run();
             fwrite(STDOUT, "Datele demo au fost verificate/încărcate.\n");
+            break;
+        case 'seed:catalog':
+            $inserted = (new ExpandedCatalogSeeder($pdo))->run();
+            fwrite(STDOUT, "Colecția extinsă a fost verificată; produse noi adăugate: {$inserted}.\n");
             break;
         case 'admin:create':
             $email = mb_strtolower(trim((string) (getenv('ADMIN_EMAIL') ?: prompt('Email administrator: '))));
@@ -145,7 +150,7 @@ try {
             break;
         case 'help':
         default:
-            fwrite(STDOUT, "Comenzi: migrate, seed:demo, admin:create, outbox:process, reservations:expire, csv:export [fișier], csv:import <fișier> --dry-run\n");
+            fwrite(STDOUT, "Comenzi: migrate, seed:demo, seed:catalog, admin:create, outbox:process, reservations:expire, csv:export [fișier], csv:import <fișier> --dry-run\n");
     }
 } catch (Throwable $exception) {
     if ($pdo->inTransaction()) {

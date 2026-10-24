@@ -8,7 +8,24 @@
     <span>/</span><span>{{ product.name }}</span>
   </nav>
   <div class="product-detail">
-    <div class="product-gallery placeholder">Galeria foto va fi completată ulterior.</div>
+    {% if product.image_path %}
+      <div class="product-gallery-shell" data-product-gallery>
+        <figure class="product-gallery has-image">
+          <img src="{{ url(product.image_path) }}" alt="{{ product.image_alt ?: product.name }}" width="960" height="960" decoding="async" data-product-gallery-main>
+        </figure>
+        {% if product.images|length > 1 %}
+          <div class="product-gallery-thumbnails" aria-label="Galeria produsului">
+            {% for image in product.images %}
+              <button class="product-gallery-thumbnail{{ loop.first ? ' is-active' : '' }}" type="button" data-product-gallery-thumbnail data-gallery-src="{{ url(image.image_path) }}" data-gallery-alt="{{ image.image_alt ?: product.name }}" aria-label="Afișează imaginea {{ loop.index }} din {{ product.images|length }}" aria-pressed="{{ loop.first ? 'true' : 'false' }}">
+                <img src="{{ url(image.image_path) }}" alt="" width="120" height="120" loading="lazy" decoding="async">
+              </button>
+            {% endfor %}
+          </div>
+        {% endif %}
+      </div>
+    {% else %}
+      <div class="product-gallery placeholder">Galeria foto va fi completată ulterior.</div>
+    {% endif %}
     <div class="product-info">
       <span class="eyebrow">{{ product.category_name }}</span>
       <h1>{{ product.name }}</h1>
@@ -58,4 +75,5 @@
     {% if product.composition %}<h2>Compoziție și întreținere</h2><p>{{ product.composition }}</p><p>{{ product.care_instructions }}</p>{% endif %}
   </div>
 </div>
+<script type="module" src="{{ url('assets/js/storefront/product-gallery.js') }}?v=20261024-gallery1"></script>
 {% endblock %}

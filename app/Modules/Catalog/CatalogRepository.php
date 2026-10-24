@@ -220,7 +220,21 @@ final class CatalogRepository
                         WHERE image_pc.product_id = p.id AND category_media.public_path IS NOT NULL
                         ORDER BY CASE WHEN image_category.parent_id IS NULL THEN 0 ELSE 1 END,
                             image_category.position, image_category.id LIMIT 1)
-                ) AS image_path
+                ) AS image_path,
+                COALESCE(
+                    (SELECT product_media.alt_text
+                        FROM product_images pi
+                        JOIN media product_media ON product_media.id = pi.media_id
+                        WHERE pi.product_id = p.id AND product_media.public_path IS NOT NULL
+                        ORDER BY pi.position, pi.media_id LIMIT 1),
+                    (SELECT category_media.alt_text
+                        FROM product_categories image_pc
+                        JOIN categories image_category ON image_category.id = image_pc.category_id
+                        JOIN media category_media ON category_media.id = image_category.image_media_id
+                        WHERE image_pc.product_id = p.id AND category_media.public_path IS NOT NULL
+                        ORDER BY CASE WHEN image_category.parent_id IS NULL THEN 0 ELSE 1 END,
+                            image_category.position, image_category.id LIMIT 1)
+                ) AS image_alt
             FROM products p
             JOIN product_variants v ON v.product_id = p.id AND v.status = 'active'
             LEFT JOIN inventory i ON i.variant_id = v.id
@@ -454,7 +468,21 @@ final class CatalogRepository
                         WHERE image_pc.product_id = p.id AND category_media.public_path IS NOT NULL
                         ORDER BY CASE WHEN image_category.parent_id IS NULL THEN 0 ELSE 1 END,
                             image_category.position, image_category.id LIMIT 1)
-                ) AS image_path
+                ) AS image_path,
+                COALESCE(
+                    (SELECT product_media.alt_text
+                        FROM product_images pi
+                        JOIN media product_media ON product_media.id = pi.media_id
+                        WHERE pi.product_id = p.id AND product_media.public_path IS NOT NULL
+                        ORDER BY pi.position, pi.media_id LIMIT 1),
+                    (SELECT category_media.alt_text
+                        FROM product_categories image_pc
+                        JOIN categories image_category ON image_category.id = image_pc.category_id
+                        JOIN media category_media ON category_media.id = image_category.image_media_id
+                        WHERE image_pc.product_id = p.id AND category_media.public_path IS NOT NULL
+                        ORDER BY CASE WHEN image_category.parent_id IS NULL THEN 0 ELSE 1 END,
+                            image_category.position, image_category.id LIMIT 1)
+                ) AS image_alt
             FROM products p
             LEFT JOIN categories c ON c.id = p.primary_category_id
             WHERE p.slug = :slug";
@@ -466,6 +494,21 @@ final class CatalogRepository
         $product = $statement->fetch();
         if (!is_array($product)) {
             return null;
+        }
+        $imageStatement = $this->pdo->prepare("SELECT product_media.public_path AS image_path,
+                product_media.alt_text AS image_alt, pi.position
+            FROM product_images pi
+            JOIN media product_media ON product_media.id = pi.media_id
+            WHERE pi.product_id = :id AND product_media.public_path IS NOT NULL
+            ORDER BY pi.position, pi.media_id");
+        $imageStatement->execute(['id' => $product['id']]);
+        $product['images'] = $imageStatement->fetchAll();
+        if ($product['images'] === [] && !empty($product['image_path'])) {
+            $product['images'][] = [
+                'image_path' => $product['image_path'],
+                'image_alt' => $product['image_alt'] ?? '',
+                'position' => 0,
+            ];
         }
         $variantStatement = $this->pdo->prepare("SELECT v.*, COALESCE(i.physical_quantity, 0) AS physical_quantity,
                 COALESCE(i.reserved_quantity, 0) AS reserved_quantity,
