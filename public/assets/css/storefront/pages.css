@@ -7162,29 +7162,54 @@
 .product-reassurance {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: .55rem;
+  gap: .7rem;
   margin: 1.25rem 0 0;
-  padding: 1.1rem 0 0;
-  border-top: 1px solid var(--product-line);
+  padding: .72rem;
+  border: 1px solid rgba(190, 107, 97, .18);
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 100% 0, rgba(219, 109, 112, .09), transparent 32%),
+    linear-gradient(135deg, rgba(255, 252, 250, .98), rgba(250, 240, 235, .82));
+  box-shadow: 0 14px 34px rgba(105, 66, 57, .07);
   list-style: none;
 }
 
 .product-reassurance li {
+  position: relative;
   display: flex;
   min-width: 0;
   align-items: center;
-  gap: .55rem;
+  gap: .62rem;
+  padding: .72rem;
+  overflow: hidden;
+  border: 1px solid rgba(190, 107, 97, .13);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, .78);
+  box-shadow: 0 8px 20px rgba(105, 66, 57, .045);
+}
+
+.product-reassurance li::after {
+  position: absolute;
+  top: -19px;
+  right: -16px;
+  width: 48px;
+  height: 48px;
+  border: 1px solid rgba(205, 98, 102, .1);
+  border-radius: 50%;
+  content: "";
 }
 
 .product-reassurance li > span {
   display: grid;
-  width: 34px;
-  height: 34px;
-  flex: 0 0 34px;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
   place-items: center;
-  border-radius: 12px;
+  border: 1px solid rgba(205, 98, 102, .14);
+  border-radius: 13px;
   color: #bd5b5f;
-  background: #fff1ed;
+  background: linear-gradient(145deg, #fff8f5, #fbe9e4);
+  box-shadow: inset 0 1px #fff, 0 7px 16px rgba(178, 75, 80, .08);
 }
 
 .product-reassurance svg {
@@ -7201,15 +7226,16 @@
 
 .product-reassurance strong {
   color: #5b4742;
-  font-size: .66rem;
-  line-height: 1.2;
+  font-size: .69rem;
+  line-height: 1.25;
 }
 
 .product-reassurance small {
-  margin-top: .16rem;
+  margin-top: .2rem;
   color: #987e78;
-  font-size: .58rem;
-  white-space: nowrap;
+  font-size: .59rem;
+  line-height: 1.3;
+  white-space: normal;
 }
 
 .product-story {
@@ -7502,6 +7528,10 @@ html.has-product-lightbox {
     max-width: 18ch;
   }
 
+  .product-buy-row {
+    grid-template-columns: minmax(0, 35fr) minmax(0, 65fr);
+  }
+
   .product-story {
     grid-template-columns: 1fr;
   }
@@ -7699,10 +7729,6 @@ html.has-product-lightbox {
     font-size: 2rem;
   }
 
-  .product-buy-row {
-    grid-template-columns: 105px minmax(0, 1fr);
-  }
-
   .product-add-button {
     grid-template-columns: 32px minmax(0, 1fr) 26px;
     gap: .45rem;
@@ -7721,16 +7747,37 @@ html.has-product-lightbox {
   }
 
   .product-reassurance {
-    grid-template-columns: 1fr;
-    gap: .7rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: .42rem;
+    padding: .5rem;
+    border-radius: 19px;
+  }
+
+  .product-reassurance li {
+    align-items: center;
+    flex-direction: column;
+    gap: .48rem;
+    padding: .68rem .38rem;
+    border-radius: 14px;
+    text-align: center;
+  }
+
+  .product-reassurance li > span {
+    width: 34px;
+    height: 34px;
+    flex-basis: 34px;
+    border-radius: 12px;
   }
 
   .product-reassurance strong {
-    font-size: .72rem;
+    font-size: .62rem;
+    line-height: 1.2;
   }
 
   .product-reassurance small {
-    font-size: .62rem;
+    margin-top: .18rem;
+    font-size: .53rem;
+    line-height: 1.25;
   }
 
   .product-story {
@@ -7810,17 +7857,29 @@ html.has-product-lightbox {
 
 @media (max-width: 390px) {
   .product-buy-row {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 35fr) minmax(0, 65fr);
+    gap: .45rem;
   }
 
-  .product-quantity-label,
-  .product-quantity,
-  .product-add-button {
-    grid-column: 1;
+  .product-quantity {
+    grid-template-columns: 28px minmax(0, 1fr) 28px;
   }
 
   .product-add-button {
-    grid-row: 4;
+    grid-template-columns: 28px minmax(0, 1fr) 24px;
+    gap: .25rem;
+    padding-inline: .4rem;
+    font-size: .76rem;
+  }
+
+  .product-add-icon {
+    width: 28px;
+    height: 28px;
+  }
+
+  .product-add-arrow {
+    width: 24px;
+    height: 24px;
   }
 
   .product-purchase-summary {
