@@ -2924,6 +2924,7 @@
 .boutique-carousel-slide > .boutique-product-card {
   width: 100%;
   height: 100%;
+  cursor: pointer;
 }
 
 @media (max-width: 1024px) {

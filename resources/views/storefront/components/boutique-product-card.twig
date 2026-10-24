@@ -1,5 +1,5 @@
 {% set product_is_favorite = is_favorite(product.id) %}
-<article class="boutique-product-card">
+<article class="boutique-product-card" data-product-url="{{ url('produs/' ~ product.slug ~ '/') }}">
   <a class="boutique-product-media{{ product.image_path ? '' : ' is-placeholder' }}" href="{{ url('produs/' ~ product.slug ~ '/') }}">
     {% if product.image_path %}
       <img src="{{ url(product.image_path) }}" alt="{{ product.name }}" loading="lazy" decoding="async">

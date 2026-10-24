@@ -1,6 +1,7 @@
 const carousels = document.querySelectorAll('[data-product-carousel]');
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 const gestureViewport = window.matchMedia('(max-width: 1024px)');
+const interactiveSelector = 'a, button, input, select, textarea, label';
 
 carousels.forEach((carousel) => {
   const viewport = carousel.querySelector('[data-carousel-viewport]');
@@ -30,8 +31,10 @@ carousels.forEach((carousel) => {
   let isPointerDown = false;
   let isJumping = false;
   let dragStartX = 0;
+  let dragStartY = 0;
   let dragStartScroll = 0;
   let dragged = false;
+  let pointerCardUrl = '';
   let interactionResumeAt = 0;
   let ignorePassivePause = false;
 
@@ -123,7 +126,10 @@ carousels.forEach((carousel) => {
     slide.classList.add('is-carousel-clone');
     slide.removeAttribute('data-carousel-slide');
     slide.setAttribute('aria-hidden', 'true');
-    slide.setAttribute('inert', '');
+    // Clones can be visible briefly while the infinite loop wraps. Keeping the
+    // clone out of the tab order avoids duplicate keyboard stops without making
+    // its links and buttons inert for pointer users during that interval.
+    slide.querySelectorAll(interactiveSelector).forEach((control) => control.setAttribute('tabindex', '-1'));
     return slide;
   };
 
@@ -154,7 +160,19 @@ carousels.forEach((carousel) => {
 
   carousel.addEventListener('click', (event) => {
     const target = event.target instanceof Element ? event.target : null;
-    if (target?.closest('a, button, input, select, textarea, label')) pauseForInteraction();
+    if (!target) return;
+
+    if (target.closest(interactiveSelector)) {
+      pauseForInteraction();
+      return;
+    }
+
+    const productCard = target.closest('.boutique-product-card[data-product-url]');
+    const productUrl = productCard?.dataset.productUrl;
+    if (!productCard || !productUrl || !carousel.contains(productCard)) return;
+
+    pauseForInteraction();
+    window.location.assign(productUrl);
   });
 
   viewport.addEventListener('scroll', () => {
@@ -165,7 +183,7 @@ carousels.forEach((carousel) => {
 
   viewport.addEventListener('pointerdown', (event) => {
     const target = event.target instanceof Element ? event.target : null;
-    const isInteractiveTarget = target?.closest('a, button, input, select, textarea, label');
+    const isInteractiveTarget = target?.closest(interactiveSelector);
 
     if (isInteractiveTarget) {
       pauseForInteraction();
@@ -177,28 +195,33 @@ carousels.forEach((carousel) => {
 
     isPointerDown = true;
     window.clearTimeout(autoplayTimer);
-    if (event.pointerType !== 'mouse') return;
     dragStartX = event.clientX;
-    dragStartScroll = viewport.scrollLeft;
+    dragStartY = event.clientY;
     dragged = false;
+    pointerCardUrl = target?.closest('.boutique-product-card[data-product-url]')?.dataset.productUrl || '';
+    if (event.pointerType !== 'mouse') return;
+    dragStartScroll = viewport.scrollLeft;
     viewport.setPointerCapture(event.pointerId);
   });
 
   viewport.addEventListener('pointermove', (event) => {
-    if (!isPointerDown || event.pointerType !== 'mouse' || !viewport.hasPointerCapture(event.pointerId)) return;
-    const distance = event.clientX - dragStartX;
-    if (Math.abs(distance) > 10) {
+    if (!isPointerDown) return;
+    const distanceX = event.clientX - dragStartX;
+    const distanceY = event.clientY - dragStartY;
+    if (Math.abs(distanceX) > 10 || Math.abs(distanceY) > 10) {
       dragged = true;
       viewport.classList.add('is-dragging');
     }
-    if (!dragged) return;
+    if (!dragged || event.pointerType !== 'mouse' || !viewport.hasPointerCapture(event.pointerId)) return;
     event.preventDefault();
-    viewport.scrollLeft = dragStartScroll - distance;
+    viewport.scrollLeft = dragStartScroll - distanceX;
   });
 
   const finishPointer = (event) => {
     if (!isPointerDown) return;
+    const productUrl = dragged ? '' : pointerCardUrl;
     isPointerDown = false;
+    pointerCardUrl = '';
     if (event.pointerType === 'mouse' && viewport.hasPointerCapture(event.pointerId)) viewport.releasePointerCapture(event.pointerId);
     viewport.classList.remove('is-dragging');
     if (dragged) {
@@ -210,6 +233,10 @@ carousels.forEach((carousel) => {
     pauseForInteraction();
     window.clearTimeout(scrollTimer);
     scrollTimer = window.setTimeout(() => settle(true), 80);
+    if (productUrl) {
+      event.preventDefault();
+      window.location.assign(productUrl);
+    }
   };
 
   viewport.addEventListener('pointerup', finishPointer);
