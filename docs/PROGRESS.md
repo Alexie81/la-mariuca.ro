@@ -509,3 +509,11 @@ atribute și filtre fără schimbarea contractelor existente.
 - Paginile de categorie și produs includ breadcrumb HTML complet și date structurate `BreadcrumbList`; canonical-ul categoriei folosește aceeași adresă ierarhică.
 - Redirecturile de slug sunt validate pe fiecare segment al ierarhiei, astfel încât o adresă canonică veche rămâne recuperabilă fără ca un lanț arbitrar de categorii să fie acceptat.
 - Verificări locale trecute: lint PHP, compilarea tuturor celor 32 de template-uri Twig, PHPStan fără erori, smoke HTTP pentru 301/200/404, canonical, breadcrumb și sitemap, plus PHPUnit cu 31 de teste / 158 de aserțiuni. Extensiile PHP existente au fost încărcate explicit deoarece runtime-ul CLI implicit nu folosește niciun `php.ini`.
+
+## 2026-10-24 — Pagini uniforme pentru categorii
+
+- Paginile de categorie și subcategorie reutilizează limbajul vizual al Magazinului: antet editorial, toolbar de sortare, carduri de produs, paginator și grila responsive cu două coloane pe telefon, trei pe tabletă și patru pe desktop.
+- Portretul editorial afișează imaginea reală asociată categoriei sau subcategoriei numai când aceasta există. În lipsa imaginii, antetul ocupă elegant toată lățimea și nu mai afișează pisica ori alt fallback decorativ.
+- Listarea folosește aceleași date bogate și aceleași acțiuni ca Magazinul, cu sortare după noutate, preț sau nume și opțiuni de 12, 24 ori 50 de produse pe pagină.
+- Verificarea vizuală în browser a fost făcută la 390, 800 și 1280 px, atât pentru categoria „Fetițe”, care are imagine, cât și pentru subcategoria „Rochițe de ocazie”, care nu are imagine. Au fost confirmate absența fallback-ului, grila 2/3/4 și lipsa overflow-ului orizontal.
+- Verificări locale trecute: lint PHP, compilarea tuturor celor 32 de template-uri Twig, PHPStan fără erori și PHPUnit cu 33 de teste / 168 de aserțiuni.
