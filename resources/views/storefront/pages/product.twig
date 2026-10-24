@@ -115,7 +115,15 @@
         <div class="product-info-heading">
           {% if product.category_name %}<a class="product-category-kicker" href="{{ product_category_trail ? url('categorie/' ~ (product_category_trail|last).path ~ '/') : url('magazin/') }}">{{ product.category_name }}</a>{% endif %}
           <h1 id="product-title">{{ product.name }}</h1>
-          <p class="product-lead">{{ product.short_description }}</p>
+          <div class="product-intro-note">
+            <span class="product-intro-icon" aria-hidden="true">
+              <svg viewBox="0 0 32 32"><path d="M16 25.8C8.2 21 5.8 17.2 5.8 12.9A5.3 5.3 0 0 1 16 10.8a5.3 5.3 0 0 1 10.2 2.1c0 4.3-2.4 8.1-10.2 12.9Z"></path><path d="M24.2 5.2v3.6M22.4 7h3.6M7.2 4.8v2.8M5.8 6.2h2.8"></path></svg>
+            </span>
+            <div>
+              <span class="product-intro-kicker">Pe scurt</span>
+              <p class="product-lead">{{ product.short_description }}</p>
+            </div>
+          </div>
         </div>
 
         {% if default_variant %}
