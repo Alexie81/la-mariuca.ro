@@ -64,7 +64,7 @@ final class ExpandedCatalogSeeder
             $existingStatement = $this->pdo->prepare('SELECT p.id FROM products p LEFT JOIN product_variants pv ON pv.product_id = p.id WHERE p.slug = :slug OR pv.sku = :sku LIMIT 1');
             $productStatement = $this->pdo->prepare("INSERT INTO products (name,slug,short_description,description,status,primary_category_id,seo_title,meta_description,composition,care_instructions,size_guide,package_contents,excluded_accessories,featured,indexable,published_at,created_at,updated_at) VALUES (:name,:slug,:short,:description,'published',:category,:seo,:meta,:composition,:care,:size_guide,:package_contents,:excluded_accessories,:featured,1,:now,:now,:now)");
             $productCategoryStatement = $this->pdo->prepare('INSERT INTO product_categories (product_id,category_id) VALUES (:product,:category)');
-            $variantStatement = $this->pdo->prepare("INSERT INTO product_variants (product_id,sku,option_summary,options_json,options_key,price_bani,compare_price_bani,status,is_default,created_at,updated_at) VALUES (:product,:sku,'Mărime standard','{}',:options_key,:price,:compare_price,'active',1,:now,:now)");
+            $variantStatement = $this->pdo->prepare("INSERT INTO product_variants (product_id,sku,option_summary,options_json,options_key,price_bani,compare_price_bani,status,is_default,created_at,updated_at) VALUES (:product,:sku,:option_summary,:options_json,:options_key,:price,:compare_price,'active',:is_default,:now,:now)");
             $inventoryStatement = $this->pdo->prepare('INSERT INTO inventory (variant_id,physical_quantity,reserved_quantity,updated_at) VALUES (:variant,:stock,0,:now)');
             $movementStatement = $this->pdo->prepare("INSERT INTO inventory_movements (variant_id,type,physical_delta,reserved_delta,reason,created_at) VALUES (:variant,'catalog_seed',:stock,0,'Colecție editorială demo 2026',:now)");
             $mediaLookupStatement = $this->pdo->prepare('SELECT id FROM media WHERE storage_path = :storage LIMIT 1');
@@ -107,17 +107,32 @@ final class ExpandedCatalogSeeder
                     $categoryId = $parentId;
                 }
 
-                $variantStatement->execute([
-                    'product' => $productId,
+                $variants = $product['variants'] ?: [[
                     'sku' => $product['sku'],
-                    'options_key' => hash('sha256', '{}'),
+                    'option_summary' => 'Mărime standard',
+                    'options' => [],
                     'price' => $product['price'],
                     'compare_price' => $product['compare_price'],
-                    'now' => $now,
-                ]);
-                $variantId = (int) $this->pdo->lastInsertId();
-                $inventoryStatement->execute(['variant' => $variantId, 'stock' => $product['stock'], 'now' => $now]);
-                $movementStatement->execute(['variant' => $variantId, 'stock' => $product['stock'], 'now' => $now]);
+                    'stock' => $product['stock'],
+                    'is_default' => true,
+                ]];
+                foreach ($variants as $variant) {
+                    $optionsJson = json_encode($variant['options'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+                    $variantStatement->execute([
+                        'product' => $productId,
+                        'sku' => $variant['sku'],
+                        'option_summary' => $variant['option_summary'],
+                        'options_json' => $optionsJson,
+                        'options_key' => hash('sha256', $optionsJson),
+                        'price' => $variant['price'],
+                        'compare_price' => $variant['compare_price'],
+                        'is_default' => $variant['is_default'] ? 1 : 0,
+                        'now' => $now,
+                    ]);
+                    $variantId = (int) $this->pdo->lastInsertId();
+                    $inventoryStatement->execute(['variant' => $variantId, 'stock' => $variant['stock'], 'now' => $now]);
+                    $movementStatement->execute(['variant' => $variantId, 'stock' => $variant['stock'], 'now' => $now]);
+                }
 
                 $productImages = array_merge(
                     [['image' => $product['image'], 'alt' => $product['alt']]],
@@ -234,6 +249,7 @@ final class ExpandedCatalogSeeder
                     ],
                 ],
                 16900,
+                $this->softCubeVariants(),
             ),
         ];
     }
@@ -259,11 +275,52 @@ final class ExpandedCatalogSeeder
         string $alt,
         array $gallery = [],
         ?int $comparePrice = null,
+        array $variants = [],
     ): array {
-        return compact('name', 'category', 'sku', 'price', 'stock', 'featured', 'short', 'description', 'composition', 'care', 'sizeGuide', 'packageContents', 'image', 'alt', 'gallery') + [
+        return compact('name', 'category', 'sku', 'price', 'stock', 'featured', 'short', 'description', 'composition', 'care', 'sizeGuide', 'packageContents', 'image', 'alt', 'gallery', 'variants') + [
             'compare_price' => $comparePrice,
             'size_guide' => $sizeGuide,
             'package_contents' => $packageContents,
         ];
+    }
+
+    /** @return list<array<string, mixed>> */
+    private function softCubeVariants(): array
+    {
+        $sizes = [
+            ['code' => 'S01', 'label' => '0-6 luni', 'price' => 13900],
+            ['code' => 'S02', 'label' => '0-7 luni', 'price' => 13600],
+            ['code' => 'S03', 'label' => '0-8 luni', 'price' => 13500],
+            ['code' => 'S04', 'label' => '0-9 luni', 'price' => 13000],
+            ['code' => 'S05', 'label' => '1 an–1,5 ani', 'price' => 13900],
+            ['code' => 'S06', 'label' => '0-3 luni', 'price' => 13900],
+            ['code' => 'S07', 'label' => '0-2 luni', 'price' => 14900],
+        ];
+        $colors = [
+            ['code' => 'C01', 'label' => 'Roșu', 'surcharge' => 1000],
+            ['code' => 'C02', 'label' => 'Negru', 'surcharge' => 0],
+            ['code' => 'C03', 'label' => 'Verde', 'surcharge' => 500],
+            ['code' => 'C04', 'label' => 'Galben', 'surcharge' => 1500],
+            ['code' => 'C05', 'label' => 'Bej', 'surcharge' => 1200],
+            ['code' => 'C06', 'label' => 'Alb', 'surcharge' => 0],
+        ];
+
+        $variants = [];
+        foreach ($sizes as $sizeIndex => $size) {
+            foreach ($colors as $colorIndex => $color) {
+                $isDefault = $sizeIndex === 0 && $colorIndex === 0;
+                $variants[] = [
+                    'sku' => $isDefault ? 'LM-26-030' : sprintf('LM-26-030-%s-%s', $size['code'], $color['code']),
+                    'option_summary' => sprintf('Mărime: %s · Culoare: %s', $size['label'], $color['label']),
+                    'options' => ['Mărime' => $size['label'], 'Culoare' => $color['label']],
+                    'price' => $size['price'] + $color['surcharge'],
+                    'compare_price' => 16900 + $color['surcharge'],
+                    'stock' => 10,
+                    'is_default' => $isDefault,
+                ];
+            }
+        }
+
+        return $variants;
     }
 }
