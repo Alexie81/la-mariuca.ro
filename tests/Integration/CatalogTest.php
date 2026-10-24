@@ -61,6 +61,23 @@ final class CatalogTest extends DatabaseTestCase
         self::assertLessThanOrEqual(4, count($categories));
     }
 
+    public function testSearchResultsCanBeCountedAndPaginated(): void
+    {
+        $this->seed();
+        $repository = new CatalogRepository($this->pdo);
+        $total = $repository->searchCount('roch');
+        $allResults = $repository->search('roch', 50);
+        $firstPage = $repository->search('roch', 1);
+        $secondPage = $repository->search('roch', 1, 1);
+
+        self::assertSame($total, count($allResults));
+        self::assertNotEmpty($firstPage);
+        if ($total > 1) {
+            self::assertNotEmpty($secondPage);
+            self::assertNotSame($firstPage[0]['id'], $secondPage[0]['id']);
+        }
+    }
+
     public function testHomepageCollectionsContainOnlyPublishedMainCategories(): void
     {
         $this->seed();

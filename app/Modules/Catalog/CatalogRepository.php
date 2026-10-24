@@ -490,9 +490,10 @@ final class CatalogRepository
     }
 
     /** @return list<array<string, mixed>> */
-    public function search(string $query, int $limit = 24): array
+    public function search(string $query, int $limit = 24, int $offset = 0): array
     {
-        $limit = max(1, min(48, $limit));
+        $limit = max(1, min(50, $limit));
+        $offset = max(0, $offset);
         $statement = $this->pdo->prepare("SELECT p.*, primary_category.name AS category_name,
                 primary_category.slug AS category_slug, MIN(v.price_bani) AS price_bani,
                 COALESCE(SUM(i.physical_quantity - i.reserved_quantity), 0) AS available_quantity,
@@ -531,9 +532,21 @@ final class CatalogRepository
             LEFT JOIN product_categories pc ON pc.product_id = p.id
             LEFT JOIN categories c ON c.id = pc.category_id
             WHERE p.status = 'published' AND (p.name LIKE :query OR v.sku LIKE :query OR c.name LIKE :query)
-            GROUP BY p.id ORDER BY p.name LIMIT {$limit}");
+            GROUP BY p.id ORDER BY p.name, p.id LIMIT {$limit} OFFSET {$offset}");
         $statement->execute(['query' => '%' . trim($query) . '%']);
         return $statement->fetchAll();
+    }
+
+    public function searchCount(string $query): int
+    {
+        $statement = $this->pdo->prepare("SELECT COUNT(DISTINCT p.id)
+            FROM products p
+            JOIN product_variants v ON v.product_id = p.id AND v.status = 'active'
+            LEFT JOIN product_categories pc ON pc.product_id = p.id
+            LEFT JOIN categories c ON c.id = pc.category_id
+            WHERE p.status = 'published' AND (p.name LIKE :query OR v.sku LIKE :query OR c.name LIKE :query)");
+        $statement->execute(['query' => '%' . trim($query) . '%']);
+        return (int) $statement->fetchColumn();
     }
 
     /** @return list<array<string, mixed>> */

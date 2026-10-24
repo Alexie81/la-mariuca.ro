@@ -5,7 +5,7 @@
       <section class="catalog-search-results catalog-search-results-first" aria-labelledby="catalog-search-results-title">
         <header class="catalog-search-results-heading">
           <div>
-            <span class="catalog-search-results-count">{{ products|length }} {{ products|length == 1 ? 'rezultat găsit' : 'rezultate găsite' }}</span>
+            <span class="catalog-search-results-count">{{ product_total }} {{ product_total == 1 ? 'rezultat găsit' : 'rezultate găsite' }}</span>
             <h2 id="catalog-search-results-title">Pentru „<em>{{ query }}</em>”</h2>
           </div>
           <a href="{{ url('magazin/') }}">Vezi tot magazinul <span aria-hidden="true">→</span></a>
@@ -18,6 +18,55 @@
             </div>
           {% endfor %}
         </div>
+
+        {% if last_page > 1 %}
+          <nav class="shop-pagination catalog-search-pagination" aria-label="Paginile rezultatelor căutării">
+            <form class="shop-pagination-size" method="get" data-shop-sort>
+              <input type="hidden" name="q" value="{{ query }}">
+              <label for="search-pe-pagina">Produse pe pagină</label>
+              <select id="search-pe-pagina" name="pe_pagina" aria-label="Număr de rezultate afișate pe pagină">
+                {% for option in per_page_options %}
+                  <option value="{{ option }}" {{ per_page == option ? 'selected' }}>{{ option }}</option>
+                {% endfor %}
+              </select>
+              <noscript><button type="submit">Aplică</button></noscript>
+            </form>
+
+            <div class="shop-pagination-pages">
+              {% if page > 1 %}
+                <a class="shop-pagination-arrow" href="?{{ search_query }}&pagina={{ page - 1 }}" aria-label="Pagina anterioară">
+                  <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m12.5 4-6 6 6 6"></path></svg>
+                </a>
+              {% else %}
+                <span class="shop-pagination-arrow is-disabled" aria-hidden="true"><svg viewBox="0 0 20 20"><path d="m12.5 4-6 6 6 6"></path></svg></span>
+              {% endif %}
+
+              {% for item in pagination_items %}
+                {% if item == 'ellipsis' %}
+                  <span class="shop-pagination-ellipsis" aria-hidden="true">•••</span>
+                {% elseif item == page %}
+                  <span class="shop-pagination-number is-current" aria-current="page" aria-label="Pagina {{ item }}">{{ item }}</span>
+                {% else %}
+                  <a class="shop-pagination-number" href="?{{ search_query }}&pagina={{ item }}" aria-label="Pagina {{ item }}">{{ item }}</a>
+                {% endif %}
+              {% endfor %}
+
+              {% if has_next_page %}
+                <a class="shop-pagination-arrow" href="?{{ search_query }}&pagina={{ page + 1 }}" aria-label="Pagina următoare">
+                  <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m7.5 4 6 6-6 6"></path></svg>
+                </a>
+              {% else %}
+                <span class="shop-pagination-arrow is-disabled" aria-hidden="true"><svg viewBox="0 0 20 20"><path d="m7.5 4 6 6-6 6"></path></svg></span>
+              {% endif %}
+            </div>
+
+            <div class="shop-pagination-position">
+              <span>Pagina</span>
+              <strong>{{ page }}</strong>
+              <span>din {{ last_page }}</span>
+            </div>
+          </nav>
+        {% endif %}
       </section>
     {% endif %}
 

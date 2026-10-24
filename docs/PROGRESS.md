@@ -492,6 +492,7 @@ atribute și filtre fără schimbarea contractelor existente.
 - Cardurile din ambele carusele ale paginii principale rămân interactive inclusiv în copiile temporare folosite pentru bucla infinită: hoverul și linkurile nu mai sunt blocate, iar un click pe suprafața liberă a cardului deschide produsul fără să interfereze cu gesturile, favoritele sau coșul.
 - Pe desktop, coloana filtrului lateral din Magazin a fost lărgită discret de la maximum 250 px la 272 px, astfel încât denumirile lungi ale categoriilor să nu mai fie fragmentate excesiv, păstrând grila cu patru produse.
 - Pagina de căutare folosește acum un hero editorial responsive, sugestii rapide de categorii, o stare fără rezultate utilă și cardurile moderne ale catalogului; căutările reușite afișează produsele înaintea zonei de descoperire, în patru coloane pe desktop și două pe telefon. Controalele de ștergere și închidere ale căutării au fost redesenate și centrate, cu stări clare pentru hover, focus și atingere.
+- Rezultatele căutării sunt paginate server-side câte 12, 24 sau 50 de produse; paginatorul apare numai când totalul depășește limita aleasă și păstrează termenul căutat între pagini. Au fost verificate pagina a doua, selectorul de limită, layoutul desktop și cel de 390 px, fără overflow ori erori în consolă.
 
 ## 2026-10-24 — Controale și grilă responsive în Magazin
 

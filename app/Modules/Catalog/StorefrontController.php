@@ -457,13 +457,54 @@ final class StorefrontController
 
     public function search(ServerRequestInterface $request): ResponseInterface
     {
-        $query = trim((string) ($request->getQueryParams()['q'] ?? ''));
+        $requestQuery = $request->getQueryParams();
+        $query = trim((string) ($requestQuery['q'] ?? ''));
+        $page = max(1, (int) ($requestQuery['pagina'] ?? 1));
+        $requestedPerPage = filter_var($requestQuery['pe_pagina'] ?? null, FILTER_VALIDATE_INT);
+        $perPage = in_array($requestedPerPage, [12, 24, 50], true) ? (int) $requestedPerPage : 12;
+        $productTotal = 0;
+        $lastPage = 1;
+        $products = [];
         $ip = $request->getServerParams()['REMOTE_ADDR'] ?? 'unknown';
         if (!$this->limiter->allow('search', (string) $ip, 60, 60)) {
-            return $this->view->render('storefront/pages/search.twig', ['query' => $query, 'products' => [], 'error' => 'Prea multe căutări. Încearcă din nou peste un minut.', 'meta' => $this->meta('Căutare', '', '/cautare/', true)], 429);
+            return $this->view->render('storefront/pages/search.twig', [
+                'query' => $query,
+                'products' => [],
+                'product_total' => 0,
+                'page' => 1,
+                'last_page' => 1,
+                'error' => 'Prea multe căutări. Încearcă din nou peste un minut.',
+                'meta' => $this->meta('Căutare', '', '/cautare/', true),
+            ], 429);
         }
-        $products = mb_strlen($query) >= 2 ? $this->catalog->search($query) : [];
-        return $this->view->render('storefront/pages/search.twig', ['query' => $query, 'products' => $products, 'meta' => $this->meta('Căutare', '', '/cautare/', true)]);
+
+        if (mb_strlen($query) >= 2) {
+            $productTotal = $this->catalog->searchCount($query);
+            $lastPage = max(1, (int) ceil($productTotal / $perPage));
+            $page = min($page, $lastPage);
+            $products = $this->catalog->search($query, $perPage, ($page - 1) * $perPage);
+        }
+
+        $searchQuery = ['q' => $query];
+        if ($perPage !== 12) {
+            $searchQuery['pe_pagina'] = (string) $perPage;
+        }
+
+        return $this->view->render('storefront/pages/search.twig', [
+            'query' => $query,
+            'products' => $products,
+            'product_total' => $productTotal,
+            'page' => $page,
+            'last_page' => $lastPage,
+            'pagination_items' => $this->paginationItems($page, $lastPage),
+            'page_start' => $productTotal === 0 ? 0 : (($page - 1) * $perPage) + 1,
+            'page_end' => min($productTotal, $page * $perPage),
+            'per_page' => $perPage,
+            'per_page_options' => [12, 24, 50],
+            'has_next_page' => $page < $lastPage,
+            'search_query' => http_build_query($searchQuery),
+            'meta' => $this->meta('Căutare', '', '/cautare/', true),
+        ]);
     }
 
     public function searchSuggestions(ServerRequestInterface $request): ResponseInterface
