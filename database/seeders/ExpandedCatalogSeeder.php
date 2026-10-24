@@ -311,10 +311,10 @@ final class ExpandedCatalogSeeder
                 $isDefault = $sizeIndex === 0 && $colorIndex === 0;
                 $variants[] = [
                     'sku' => $isDefault ? 'LM-26-030' : sprintf('LM-26-030-%s-%s', $size['code'], $color['code']),
-                    'option_summary' => sprintf('Mărime: %s · Culoare: %s', $size['label'], $color['label']),
-                    'options' => ['Mărime' => $size['label'], 'Culoare' => $color['label']],
-                    'price' => $size['price'] + $color['surcharge'],
-                    'compare_price' => 16900 + $color['surcharge'],
+                    'option_summary' => sprintf('Mărime: %s · Culoare: %s · Dimensiune: 1 cm', $size['label'], $color['label']),
+                    'options' => ['Mărime' => $size['label'], 'Culoare' => $color['label'], 'Dimensiune' => '1 cm'],
+                    'price' => $size['price'] + $color['surcharge'] + 1000,
+                    'compare_price' => 16900 + $color['surcharge'] + 1000,
                     'stock' => 10,
                     'is_default' => $isDefault,
                 ];

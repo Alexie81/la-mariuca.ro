@@ -29,17 +29,19 @@ final class ExpandedCatalogSeederTest extends DatabaseTestCase
         self::assertSame([
             ['name' => 'Mărime', 'values' => ['0-6 luni', '0-7 luni', '0-8 luni', '0-9 luni', '1 an–1,5 ani', '0-3 luni', '0-2 luni']],
             ['name' => 'Culoare', 'values' => ['Roșu', 'Negru', 'Verde', 'Galben', 'Bej', 'Alb']],
+            ['name' => 'Dimensiune', 'values' => ['1 cm']],
         ], $product['variant_groups']);
 
         $pricesByCombination = [];
         foreach ($product['variants'] as $variant) {
             $options = json_decode((string) $variant['options_json'], true, 512, JSON_THROW_ON_ERROR);
+            self::assertSame('1 cm', $options['Dimensiune']);
             $pricesByCombination[$options['Mărime'] . '|' . $options['Culoare']] = (int) $variant['price_bani'];
         }
-        self::assertSame(14900, $pricesByCombination['0-6 luni|Roșu']);
-        self::assertSame(13900, $pricesByCombination['0-6 luni|Negru']);
-        self::assertSame(14500, $pricesByCombination['0-9 luni|Galben']);
-        self::assertSame(16100, $pricesByCombination['0-2 luni|Bej']);
+        self::assertSame(15900, $pricesByCombination['0-6 luni|Roșu']);
+        self::assertSame(14900, $pricesByCombination['0-6 luni|Negru']);
+        self::assertSame(15500, $pricesByCombination['0-9 luni|Galben']);
+        self::assertSame(17100, $pricesByCombination['0-2 luni|Bej']);
         self::assertSame(
             [
                 'assets/images/products/collection-2026/cuburi-moi-poveste.webp',
