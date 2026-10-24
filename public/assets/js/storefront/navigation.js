@@ -32,8 +32,165 @@ document.querySelectorAll('.menu-group > a').forEach((link) => {
 });
 
 document.querySelectorAll('[data-shop-sort]').forEach((form) => {
-  const select = form.querySelector('select[name="sortare"]');
-  select?.addEventListener('change', () => form.requestSubmit());
+  form.querySelectorAll('select').forEach((select) => {
+    select.addEventListener('change', () => form.requestSubmit());
+  });
+});
+
+document.querySelectorAll('[data-shop-budget-range]').forEach((range) => {
+  const form = range.closest('[data-shop-filter-form]');
+  const output = form?.querySelector('[data-shop-budget-value]');
+  const progress = form?.querySelector('[data-shop-budget-progress]');
+  const filter = range.closest('.shop-budget-filter');
+  const formatter = new Intl.NumberFormat('ro-RO');
+  let interactionTimer;
+  const animateBudget = () => {
+    if (!filter || reducedMotion.matches) return;
+    filter.classList.remove('is-interacting');
+    window.requestAnimationFrame(() => filter.classList.add('is-interacting'));
+    window.clearTimeout(interactionTimer);
+    interactionTimer = window.setTimeout(() => filter.classList.remove('is-interacting'), 520);
+  };
+  const syncBudget = () => {
+    if (output) output.textContent = formatter.format(Number(range.value));
+    if (progress) progress.value = Number(range.value) - Number(range.min);
+    range.setAttribute('aria-valuetext', `${formatter.format(Number(range.value))} lei`);
+  };
+
+  syncBudget();
+  range.addEventListener('input', () => {
+    syncBudget();
+    animateBudget();
+  });
+
+  let precisionDrag = null;
+  const setPreciseValue = (value) => {
+    const minimum = Number(range.min);
+    const maximum = Number(range.max);
+    const nextValue = Math.max(minimum, Math.min(maximum, Math.round(value)));
+    if (Number(range.value) === nextValue) return;
+    range.value = String(nextValue);
+    range.dispatchEvent(new Event('input', { bubbles: true }));
+  };
+
+  range.addEventListener('pointerdown', (event) => {
+    if (event.button !== 0) return;
+    const rect = range.getBoundingClientRect();
+    const minimum = Number(range.min);
+    const maximum = Number(range.max);
+    const current = Number(range.value);
+    const thumbPosition = rect.left + ((current - minimum) / (maximum - minimum)) * rect.width;
+    let startValue = current;
+
+    if (Math.abs(event.clientX - thumbPosition) > 14) {
+      startValue = minimum + ((event.clientX - rect.left) / rect.width) * (maximum - minimum);
+      setPreciseValue(startValue);
+      startValue = Number(range.value);
+    }
+
+    precisionDrag = { pointerId: event.pointerId, startX: event.clientX, startValue };
+    range.setPointerCapture?.(event.pointerId);
+    event.preventDefault();
+  }, { passive: false });
+
+  range.addEventListener('pointermove', (event) => {
+    if (!precisionDrag || precisionDrag.pointerId !== event.pointerId) return;
+    setPreciseValue(precisionDrag.startValue + (event.clientX - precisionDrag.startX));
+    event.preventDefault();
+  }, { passive: false });
+
+  const finishPrecisionDrag = (event) => {
+    if (!precisionDrag || precisionDrag.pointerId !== event.pointerId) return;
+    precisionDrag = null;
+    range.releasePointerCapture?.(event.pointerId);
+    range.dispatchEvent(new Event('change', { bubbles: true }));
+  };
+
+  range.addEventListener('pointerup', finishPrecisionDrag);
+  range.addEventListener('pointercancel', finishPrecisionDrag);
+});
+
+document.querySelectorAll('[data-shop-filter-form]').forEach((form) => {
+  const button = form.querySelector('.shop-filter-actions button[type="submit"]');
+  const count = form.querySelector('[data-shop-filter-result-count]');
+  const label = form.querySelector('[data-shop-filter-result-label]');
+  const range = form.querySelector('[data-shop-budget-range]');
+  if (!button || !count || !label) return;
+
+  let debounceTimer;
+  let requestController;
+  let requestSequence = 0;
+
+  const updateResultCount = async () => {
+    const sequence = ++requestSequence;
+    requestController?.abort();
+    requestController = new AbortController();
+
+    const url = new URL(form.getAttribute('action') || window.location.href, window.location.href);
+    url.search = '';
+    const params = new URLSearchParams(new FormData(form));
+    params.set('preview', '1');
+    url.search = params.toString();
+    button.setAttribute('aria-busy', 'true');
+
+    try {
+      const response = await fetch(url, {
+        headers: { Accept: 'application/json' },
+        signal: requestController.signal,
+      });
+      if (!response.ok) throw new Error('Nu s-a putut actualiza numărul produselor.');
+      const payload = await response.json();
+      if (sequence !== requestSequence || !Number.isInteger(payload.count)) return;
+      count.textContent = String(payload.count);
+      label.textContent = payload.count === 1 ? 'produs' : 'produse';
+    } catch (error) {
+      if (error.name !== 'AbortError') console.warn(error.message);
+    } finally {
+      if (sequence === requestSequence) button.removeAttribute('aria-busy');
+    }
+  };
+
+  const scheduleResultCount = (delay = 0) => {
+    window.clearTimeout(debounceTimer);
+    debounceTimer = window.setTimeout(updateResultCount, delay);
+  };
+
+  form.addEventListener('change', (event) => {
+    if (event.target === range) return;
+    scheduleResultCount();
+  });
+
+  range?.addEventListener('input', () => scheduleResultCount(120));
+});
+
+document.querySelectorAll('[data-shop-category-tree]').forEach((tree) => {
+  tree.classList.add('is-enhanced');
+
+  tree.querySelectorAll('[data-shop-category-toggle]').forEach((toggle) => {
+    const branch = document.getElementById(toggle.getAttribute('aria-controls'));
+    if (!branch) return;
+
+    const setExpanded = (expanded) => {
+      toggle.setAttribute('aria-expanded', String(expanded));
+      toggle.setAttribute('aria-label', expanded ? toggle.dataset.labelClose : toggle.dataset.labelOpen);
+      branch.hidden = !expanded;
+    };
+
+    setExpanded(toggle.getAttribute('aria-expanded') === 'true');
+    toggle.addEventListener('click', () => {
+      setExpanded(toggle.getAttribute('aria-expanded') !== 'true');
+    });
+  });
+});
+
+const shopFilterViewport = window.matchMedia('(min-width: 1101px)');
+document.querySelectorAll('[data-shop-filters]').forEach((panel) => {
+  const syncFilterDisclosure = () => {
+    panel.open = shopFilterViewport.matches;
+  };
+
+  syncFilterDisclosure();
+  shopFilterViewport.addEventListener?.('change', syncFilterDisclosure);
 });
 
 const submenuToggles = [...document.querySelectorAll('[data-submenu-toggle]')];

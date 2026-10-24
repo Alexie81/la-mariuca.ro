@@ -110,24 +110,158 @@ final class StorefrontController
         if (!in_array($sort, ['new', 'price-asc', 'price-desc', 'name'], true)) {
             $sort = 'new';
         }
-        $perPage = 12;
-        $products = $this->catalog->shopProducts($page, $perPage, $sort);
-        $productTotal = $this->catalog->publishedProductCount();
+
+        $requestedCategorySlugs = $query['categorie'] ?? [];
+        if (!is_array($requestedCategorySlugs)) {
+            $requestedCategorySlugs = [$requestedCategorySlugs];
+        }
+        $categorySlugs = [];
+        $categoryIds = [];
+        $categories = [];
+        foreach (array_slice($requestedCategorySlugs, 0, 50) as $requestedCategorySlug) {
+            if (!is_string($requestedCategorySlug) && !is_int($requestedCategorySlug)) {
+                continue;
+            }
+            $requestedCategorySlug = trim((string) $requestedCategorySlug);
+            if ($requestedCategorySlug === '' || in_array($requestedCategorySlug, $categorySlugs, true)) {
+                continue;
+            }
+            $category = $this->catalog->categoryBySlug($requestedCategorySlug);
+            if (!is_array($category)) {
+                continue;
+            }
+            $categorySlugs[] = (string) $category['slug'];
+            $categoryIds[] = (int) $category['id'];
+            $categories[] = $category;
+        }
+
+        $inStock = (string) ($query['stoc'] ?? '') === '1';
+        $priceRange = $this->catalog->shopPriceRange();
+        $priceMinLei = max(0, (int) floor($priceRange['min_bani'] / 100));
+        $priceMaxLei = max($priceMinLei + 1, (int) ceil($priceRange['max_bani'] / 100));
+        $requestedMaxPrice = filter_var($query['pret_max'] ?? null, FILTER_VALIDATE_INT);
+        $selectedMaxPriceLei = $requestedMaxPrice === false
+            ? $priceMaxLei
+            : max($priceMinLei, min($priceMaxLei, (int) $requestedMaxPrice));
+        $maxPriceBani = $selectedMaxPriceLei < $priceMaxLei ? $selectedMaxPriceLei * 100 : null;
+
+        $requestedPerPage = filter_var($query['pe_pagina'] ?? null, FILTER_VALIDATE_INT);
+        $perPage = in_array($requestedPerPage, [12, 24, 50], true) ? (int) $requestedPerPage : 12;
+        $productTotal = $this->catalog->publishedProductCount($categoryIds, $inStock, $maxPriceBani);
+
+        if ((string) ($query['preview'] ?? '') === '1') {
+            return $this->json(['count' => $productTotal])
+                ->withHeader('Cache-Control', 'no-store');
+        }
+
+        $lastPage = max(1, (int) ceil($productTotal / $perPage));
+        $page = min($page, $lastPage);
+        $products = $this->catalog->shopProducts($page, $perPage, $sort, $categoryIds, $inStock, $maxPriceBani);
         $hasNextPage = $page * $perPage < $productTotal;
+        $isFiltered = $categoryIds !== [] || $inStock || $maxPriceBani !== null;
+
+        $displayQuery = ['sortare' => $sort];
+        if ($perPage !== 12) {
+            $displayQuery['pe_pagina'] = (string) $perPage;
+        }
+        $activeQuery = $displayQuery;
+        if ($categorySlugs !== []) {
+            $activeQuery['categorie'] = $categorySlugs;
+        }
+        if ($inStock) {
+            $activeQuery['stoc'] = '1';
+        }
+        if ($maxPriceBani !== null) {
+            $activeQuery['pret_max'] = (string) $selectedMaxPriceLei;
+        }
+
+        $expandedCategoryIds = [];
+        foreach ($categories as $selectedCategory) {
+            $categoryCursor = $selectedCategory;
+            $visitedCategoryIds = [];
+            while (is_array($categoryCursor)) {
+                $cursorId = (int) $categoryCursor['id'];
+                if (in_array($cursorId, $visitedCategoryIds, true)) {
+                    break;
+                }
+                $visitedCategoryIds[] = $cursorId;
+                if (!in_array($cursorId, $expandedCategoryIds, true)) {
+                    $expandedCategoryIds[] = $cursorId;
+                }
+                $parentId = $categoryCursor['parent_id'] === null ? null : (int) $categoryCursor['parent_id'];
+                $categoryCursor = $parentId === null ? null : $this->catalog->categoryById($parentId);
+            }
+        }
+
+        $categoryResetQuery = $activeQuery;
+        unset($categoryResetQuery['categorie']);
 
         return $this->view->render('storefront/pages/shop.twig', [
             'products' => $products,
             'page' => $page,
+            'last_page' => $lastPage,
+            'pagination_items' => $this->paginationItems($page, $lastPage),
+            'page_start' => $productTotal === 0 ? 0 : (($page - 1) * $perPage) + 1,
+            'page_end' => min($productTotal, $page * $perPage),
+            'per_page' => $perPage,
+            'per_page_options' => [12, 24, 50],
             'sort' => $sort,
             'product_total' => $productTotal,
+            'all_product_total' => $this->catalog->publishedProductCount(),
             'has_next_page' => $hasNextPage,
+            'filter_categories' => $this->catalog->shopFilterCategories(),
+            'expanded_category_ids' => $expandedCategoryIds,
+            'active_category_slugs' => $categorySlugs,
+            'filter_in_stock' => $inStock,
+            'filter_price_min' => $priceMinLei,
+            'filter_price_max' => $priceMaxLei,
+            'filter_price_value' => $selectedMaxPriceLei,
+            'filter_price_active' => $maxPriceBani !== null,
+            'filters_active' => $isFiltered,
+            'shop_query' => http_build_query($activeQuery),
+            'shop_reset_query' => http_build_query($displayQuery),
+            'shop_category_reset_query' => http_build_query($categoryResetQuery),
             'meta' => $this->meta(
                 'Magazin',
                 'Descoperă toate hăinuțele și accesoriile pentru copii disponibile la La Măriuca Boutique.',
                 '/magazin/',
-                $page !== 1 || $sort !== 'new'
+                $page !== 1 || $sort !== 'new' || $perPage !== 12 || $isFiltered
             ),
         ]);
+    }
+
+    /** @return list<int|string> */
+    private function paginationItems(int $page, int $lastPage): array
+    {
+        if ($lastPage <= 7) {
+            return range(1, $lastPage);
+        }
+
+        $visiblePages = [1, $lastPage, $page - 1, $page, $page + 1];
+        if ($page <= 4) {
+            $visiblePages = array_merge($visiblePages, [2, 3, 4, 5]);
+        }
+        if ($page >= $lastPage - 3) {
+            $visiblePages = array_merge($visiblePages, [$lastPage - 4, $lastPage - 3, $lastPage - 2, $lastPage - 1]);
+        }
+
+        $visiblePages = array_values(array_unique(array_filter(
+            $visiblePages,
+            static fn(int $candidate): bool => $candidate >= 1 && $candidate <= $lastPage
+        )));
+        sort($visiblePages, SORT_NUMERIC);
+
+        $items = [];
+        $previous = 0;
+        foreach ($visiblePages as $visiblePage) {
+            if ($previous !== 0 && $visiblePage - $previous > 1) {
+                $items[] = 'ellipsis';
+            }
+            $items[] = $visiblePage;
+            $previous = $visiblePage;
+        }
+
+        return $items;
     }
 
     public function search(ServerRequestInterface $request): ResponseInterface

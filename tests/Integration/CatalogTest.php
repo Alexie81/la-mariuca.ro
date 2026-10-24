@@ -171,7 +171,7 @@ final class CatalogTest extends DatabaseTestCase
         $this->seed();
         $repository = new CatalogRepository($this->pdo);
 
-        $products = $repository->shopProducts(1, 48);
+        $products = $repository->shopProducts(1, 50);
 
         self::assertCount($repository->publishedProductCount(), $products);
         self::assertNotEmpty($products);
@@ -179,10 +179,83 @@ final class CatalogTest extends DatabaseTestCase
         self::assertNotContains(null, array_column($products, 'variant_count'));
         self::assertNotContains(null, array_column($products, 'available_quantity'));
 
-        $productsByPrice = $repository->shopProducts(1, 48, 'price-asc');
+        $productsByPrice = $repository->shopProducts(1, 50, 'price-asc');
         $prices = array_map('intval', array_column($productsByPrice, 'price_bani'));
         $sortedPrices = $prices;
         sort($sortedPrices, SORT_NUMERIC);
         self::assertSame($sortedPrices, $prices);
+
+        $filterCategories = $repository->shopFilterCategories();
+        self::assertNotEmpty($filterCategories);
+        $girlsCategory = current(array_filter(
+            $filterCategories,
+            static fn(array $item): bool => $item['slug'] === 'fetite'
+        ));
+        self::assertIsArray($girlsCategory);
+        self::assertContains('rochite', array_column($girlsCategory['children'], 'slug'));
+        $dressesCategory = current(array_filter(
+            $girlsCategory['children'],
+            static fn(array $item): bool => $item['slug'] === 'rochite'
+        ));
+        self::assertIsArray($dressesCategory);
+        self::assertSame(
+            ['rochite-zi', 'rochite-ocazie'],
+            array_values(array_intersect(
+                ['rochite-zi', 'rochite-ocazie'],
+                array_column($dressesCategory['children'], 'slug')
+            ))
+        );
+
+        $category = current(array_filter(
+            $filterCategories,
+            static fn(array $item): bool => (int) $item['product_count'] > 0
+        ));
+        self::assertIsArray($category);
+        $categoryProducts = $repository->shopProducts(1, 50, 'new', (int) $category['id']);
+        self::assertCount((int) $category['product_count'], $categoryProducts);
+        self::assertSame(
+            (int) $category['product_count'],
+            $repository->publishedProductCount((int) $category['id'])
+        );
+
+        $boysCategory = current(array_filter(
+            $filterCategories,
+            static fn(array $item): bool => $item['slug'] === 'baieti'
+        ));
+        self::assertIsArray($boysCategory);
+        $girlsProducts = $repository->shopProducts(1, 50, 'new', [(int) $girlsCategory['id']]);
+        $boysProducts = $repository->shopProducts(1, 50, 'new', [(int) $boysCategory['id']]);
+        $multiCategoryProducts = $repository->shopProducts(
+            1,
+            50,
+            'new',
+            [(int) $girlsCategory['id'], (int) $boysCategory['id']]
+        );
+        $expectedMultiCategoryIds = array_values(array_unique(array_merge(
+            array_map('intval', array_column($girlsProducts, 'id')),
+            array_map('intval', array_column($boysProducts, 'id'))
+        )));
+        $actualMultiCategoryIds = array_map('intval', array_column($multiCategoryProducts, 'id'));
+        sort($expectedMultiCategoryIds, SORT_NUMERIC);
+        sort($actualMultiCategoryIds, SORT_NUMERIC);
+        self::assertSame($expectedMultiCategoryIds, $actualMultiCategoryIds);
+        self::assertSame(
+            count($expectedMultiCategoryIds),
+            $repository->publishedProductCount([(int) $girlsCategory['id'], (int) $boysCategory['id']])
+        );
+
+        $availableProducts = $repository->shopProducts(1, 50, 'new', null, true);
+        self::assertNotEmpty($availableProducts);
+        foreach ($availableProducts as $availableProduct) {
+            self::assertGreaterThan(0, (int) $availableProduct['available_quantity']);
+        }
+
+        $range = $repository->shopPriceRange();
+        self::assertLessThanOrEqual($range['max_bani'], $range['min_bani']);
+        $budgetProducts = $repository->shopProducts(1, 50, 'new', null, false, $range['min_bani']);
+        self::assertNotEmpty($budgetProducts);
+        foreach ($budgetProducts as $budgetProduct) {
+            self::assertLessThanOrEqual($range['min_bani'], (int) $budgetProduct['price_bani']);
+        }
     }
 }

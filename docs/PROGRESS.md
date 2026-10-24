@@ -380,6 +380,47 @@ aliniate într-un rând editorial; imaginile nu mai măresc necontrolat înălț
   șabloane Twig, lint-ul, PHPStan, verificarea sintaxei JavaScript și PHPUnit (21 teste,
   91 de aserțiuni) trec.
 
+## 2026-10-23 — Filtre sticky în Magazin
+
+- Pagina `/magazin/` are acum un panou editorial de filtrare în stânga, cu imagini și contoare reale
+  pentru categoriile principale, disponibilitate și buget maxim calculat din prețurile variantelor active.
+- Filtrele sunt aplicate server-side, păstrează sortarea și paginarea, includ descendenții categoriei
+  selectate și au fallback complet fără JavaScript; selecțiile filtrate sunt marcate `noindex`.
+- Panoul rămâne sticky sub header cât timp sunt parcurse produsele, are acțiunea principală vizibilă și
+  o stare goală dedicată; pe telefon devine un acordeon compact, închis implicit prin enhancement JS.
+- Antetul „Rafinare / Filtre” și zona cu „Arată produsele / Resetează filtrele” sunt independente de
+  lista scrollabilă din mijloc, astfel încât ambele rămân permanent accesibile pe desktop; antetul este
+  un rând modern și compact, cu pictogramă de reglaje și titlu clar.
+- Selectorul de buget are valoarea într-o capsulă separată, progres vizual sincronizat și un cursor
+  personalizat, fără suprapuneri la valoarea maximă sau pe ecranele mobile; pasul este de 1 leu, iar
+  interacțiunea animă discret cursorul, progresul și capsula valorii, cu respectarea `prefers-reduced-motion`.
+  Tragerea folosește un control precis propriu, astfel încât un pixel deplasat înseamnă exact 1 leu chiar
+  dacă bara este mai îngustă decât numărul valorilor din interval.
+- Numărul din butonul „Arată produsele” este recalculat automat la schimbarea categoriei,
+  disponibilității sau bugetului, înainte ca filtrele să fie aplicate paginii; cererile sliderului sunt
+  temporizate și cele depășite sunt anulate.
+- Categoriile sunt prezentate ca mini-carduri compacte cu toate colțurile uniform rotunjite, imagini
+  pătrate clare, numere rotunde și o stare selectată bine delimitată, păstrând totodată comenzile radio
+  accesibile din tastatură; spațiul dintre titluri și controale a fost redus uniform pentru categorii,
+  disponibilitate și buget, iar comportamentul nativ al elementelor `legend` a fost normalizat pentru ca
+  separatoarele să nu mai treacă lipit peste titluri.
+- Filtrul de categorii redă acum întreaga ierarhie recursivă, inclusiv subcategorii ale subcategoriilor;
+  fiecare nivel poate fi selectat separat, ramurile au controale accesibile de extindere, iar ramura
+  selecției curente se deschide automat. Fără JavaScript, arborele rămâne complet vizibil și utilizabil.
+- Catalogul păstrează patru coloane pe desktop, cu carduri ușor micșorate, trei coloane pe tabletă și
+  două pe telefon.
+- Magazinul are paginare server-side completă și un selector „Produse pe pagină” așezat în partea
+  stângă a paginatorului, cu valorile permise 12, 24 și 50; filtrele și sortarea păstrează alegerea,
+  iar valorile arbitrare revin sigur la 12.
+  Controlul de paginare afișează intervalul curent, totalul produselor, numărul paginii, săgeți și
+  numere cu puncte de suspensie pentru cataloage mari; pe mobil devine un panou compact, cu zona
+  numerelor derulabilă doar dacă nu mai încape pe un ecran foarte îngust.
+- Verificări reale: filtrul Botez a redus catalogul de la 12 la 3 produse și resetarea a restaurat toate
+  cele 12; la 1440 px sunt patru carduri de aproximativ 216 px și panoul de 250 px, iar la 390 px sunt
+  două coloane fără overflow. Selectorii 24 și 50 au fost verificați în browser, iar valoarea 24 s-a
+  păstrat după aplicarea filtrului Botez. Lint-ul, 32 de șabloane Twig, PHPStan și PHPUnit (22 teste,
+  120 de aserțiuni) trec; consola browserului nu raportează erori.
+
 ## IMPLEMENTED_UNVERIFIED
 
 - Schema MySQL/MariaDB InnoDB/utf8mb4 și query-urile portabile; motorul real nu este disponibil local.
@@ -446,3 +487,5 @@ atribute și filtre fără schimbarea contractelor existente.
 - Optimizarea RAM este opțională și reduce doar working set-ul proceselor neesențiale din sesiunea utilizatorului, fără închiderea aplicațiilor; procesele Windows critice și shell-ul sunt excluse.
 - Verificări reale: build Release cu avertismente tratate ca erori, smoke test de scanare/ștergere într-un director temporar izolat, verificarea refuzului pentru Documents și inițializarea interfeței pe fir STA — toate au trecut. Testul pentru legături simbolice se rulează automat numai când configurația Windows permite crearea lor.
 - Curățarea pe datele reale ale calculatorului și execuția optimizării RAM nu au fost lansate în timpul testului. Executabilul local este autonom, dar nu este semnat digital.
+- Filtrul ierarhic de categorii din Magazin a fost simplificat vizual: miniaturile apar numai când există o imagine reală, fără inițiale sau casete goale, denumirile lungi se împart sigur pe rânduri, iar selectorul, numărul și controlul de extindere ocupă coloane separate fără suprapuneri.
+- Categoriile și subcategoriile din filtrul Magazin folosesc checkboxuri cu selecție multiplă; interogarea reunește ramurile selectate împreună cu descendenții lor, elimină duplicatele și păstrează selecțiile în sortare și paginare.

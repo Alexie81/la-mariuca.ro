@@ -1,4 +1,48 @@
 {% extends 'storefront/layouts/base.twig' %}
+{% macro shop_category_nodes(categories, active_slugs, expanded_ids, level) %}
+  <ul class="shop-category-level" data-category-level="{{ level }}">
+    {% for category in categories %}
+      {% set has_children = category.children is not empty %}
+      {% set branch_expanded = category.id in expanded_ids %}
+      <li class="shop-category-node{{ has_children ? ' has-children' : '' }}">
+        <div class="shop-category-row{{ has_children ? ' has-children' : '' }}">
+          <label class="shop-filter-option{{ category.image_path ? ' has-thumbnail' : '' }}{{ category.product_count == 0 ? ' is-disabled' : '' }}">
+            <input type="checkbox" name="categorie[]" value="{{ category.slug }}" {{ category.slug in active_slugs ? 'checked' }} {{ category.product_count == 0 ? 'disabled' }}>
+            <span class="shop-filter-check" aria-hidden="true">
+              <svg viewBox="0 0 16 16"><path d="m3.4 8.2 2.7 2.7 6.4-6.2"></path></svg>
+            </span>
+            {% if category.image_path %}
+              <span class="shop-filter-thumb" aria-hidden="true">
+                <img src="{{ url(category.image_path) }}" alt="" loading="lazy" decoding="async">
+              </span>
+            {% endif %}
+            <span class="shop-filter-option-name">{{ category.name }}</span>
+            <small>{{ category.product_count }}</small>
+          </label>
+          {% if has_children %}
+            <button
+              class="shop-category-toggle"
+              type="button"
+              aria-expanded="{{ branch_expanded ? 'true' : 'false' }}"
+              aria-controls="shop-category-branch-{{ category.id }}"
+              aria-label="{{ branch_expanded ? 'Ascunde' : 'Arată' }} subcategoriile pentru {{ category.name }}"
+              data-label-open="Arată subcategoriile pentru {{ category.name }}"
+              data-label-close="Ascunde subcategoriile pentru {{ category.name }}"
+              data-shop-category-toggle
+            >
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 8 4 4 4-4"></path></svg>
+            </button>
+          {% endif %}
+        </div>
+        {% if has_children %}
+          <div class="shop-category-branch" id="shop-category-branch-{{ category.id }}" data-shop-category-branch>
+            {{ _self.shop_category_nodes(category.children, active_slugs, expanded_ids, level + 1) }}
+          </div>
+        {% endif %}
+      </li>
+    {% endfor %}
+  </ul>
+{% endmacro %}
 {% block content %}
   <div class="container page-shell shop-page">
     <header class="shop-editorial" aria-labelledby="shop-title">
@@ -25,35 +69,184 @@
         <span>{{ product_total == 1 ? 'produs' : 'produse' }}</span>
       </div>
       <form class="shop-sort" method="get" data-shop-sort>
-        <label for="sortare">Sortează</label>
-        <div>
+        {% for active_category_slug in active_category_slugs %}<input type="hidden" name="categorie[]" value="{{ active_category_slug }}">{% endfor %}
+        {% if filter_in_stock %}<input type="hidden" name="stoc" value="1">{% endif %}
+        {% if filter_price_active %}<input type="hidden" name="pret_max" value="{{ filter_price_value }}">{% endif %}
+        <input type="hidden" name="pe_pagina" value="{{ per_page }}">
+        <div class="shop-sort-control">
+          <label for="sortare">Sortează</label>
           <select id="sortare" name="sortare">
             <option value="new" {{ sort == 'new' ? 'selected' }}>Cele mai noi</option>
             <option value="price-asc" {{ sort == 'price-asc' ? 'selected' }}>Preț crescător</option>
             <option value="price-desc" {{ sort == 'price-desc' ? 'selected' }}>Preț descrescător</option>
             <option value="name" {{ sort == 'name' ? 'selected' }}>Nume</option>
           </select>
-          <noscript><button class="shop-sort-submit" type="submit">Aplică</button></noscript>
         </div>
+        <noscript><button class="shop-sort-submit" type="submit">Aplică</button></noscript>
       </form>
     </div>
 
-    <div class="shop-product-grid">
-      {% for product in products %}
-        <div class="shop-product-item">
-          {% include 'storefront/components/boutique-product-card.twig' with {product: product} %}
-        </div>
-      {% else %}
-        <div class="empty"><h2>Produsele sunt pe drum</h2><p>Revino în curând pentru noile selecții.</p></div>
-      {% endfor %}
-    </div>
+    <div class="shop-catalog-layout">
+      <aside class="shop-filter-column" aria-label="Filtre produse">
+        <details class="shop-filter-panel{{ filters_active ? ' has-active-filters' : '' }}" data-shop-filters open>
+          <summary class="shop-filter-summary">
+            <span class="shop-filter-summary-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h2M10 17h10M14 4v6M6 14v6"></path></svg>
+            </span>
+            <span class="shop-filter-summary-copy">
+              <small>Rafinare</small>
+              <strong>Filtre</strong>
+            </span>
+            {% if filters_active %}<span class="shop-filter-active-dot" aria-label="Există filtre active"></span>{% endif %}
+            <svg class="shop-filter-summary-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m7 9 5 5 5-5"></path></svg>
+          </summary>
 
-    {% if page > 1 or has_next_page %}
-      <nav class="shop-pagination" aria-label="Paginile magazinului">
-        {% if page > 1 %}<a href="?pagina={{ page - 1 }}&sortare={{ sort }}">← Pagina anterioară</a>{% endif %}
-        <span>Pagina {{ page }}</span>
-        {% if has_next_page %}<a href="?pagina={{ page + 1 }}&sortare={{ sort }}">Pagina următoare →</a>{% endif %}
-      </nav>
-    {% endif %}
+          <form class="shop-filter-form" method="get" data-shop-filter-form>
+            <input type="hidden" name="sortare" value="{{ sort }}">
+            <input type="hidden" name="pe_pagina" value="{{ per_page }}">
+
+            <div class="shop-filter-heading" aria-hidden="true">
+              <span class="shop-filter-heading-icon">
+                <svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h2M10 17h10M14 4v6M6 14v6"></path></svg>
+              </span>
+              <span class="shop-filter-heading-copy">
+                <small>Rafinare</small>
+                <h2>Filtre</h2>
+              </span>
+            </div>
+
+            <div class="shop-filter-scroll" data-shop-filter-scroll>
+              <fieldset class="shop-filter-group shop-category-filter">
+                <legend>Categorii</legend>
+                <div class="shop-category-tree" data-shop-category-tree>
+                  <a class="shop-filter-option shop-filter-option-all{{ active_category_slugs is empty ? ' is-current' : '' }}" href="?{{ shop_category_reset_query }}"{% if active_category_slugs is empty %} aria-current="true"{% endif %}>
+                    <span class="shop-filter-check" aria-hidden="true">
+                      <svg viewBox="0 0 16 16"><path d="m3.4 8.2 2.7 2.7 6.4-6.2"></path></svg>
+                    </span>
+                    <span class="shop-filter-option-name">Toate produsele</span>
+                    <small>{{ all_product_total }}</small>
+                  </a>
+                  {{ _self.shop_category_nodes(filter_categories, active_category_slugs, expanded_category_ids, 0) }}
+                </div>
+              </fieldset>
+
+              <fieldset class="shop-filter-group shop-stock-filter">
+                <legend>Disponibilitate</legend>
+                <label class="shop-stock-option">
+                  <input type="checkbox" name="stoc" value="1" {{ filter_in_stock ? 'checked' }}>
+                  <span class="shop-stock-switch" aria-hidden="true"><i></i></span>
+                  <span>
+                    <strong>Doar în stoc</strong>
+                    <small>Produse gata de trimis</small>
+                  </span>
+                </label>
+              </fieldset>
+
+              <fieldset class="shop-filter-group shop-budget-filter">
+                <legend>Buget maxim</legend>
+                <div class="shop-budget-reading">
+                  <span>Până la</span>
+                  <output class="shop-budget-value" for="shop-budget-max">
+                    <strong data-shop-budget-value>{{ filter_price_value }}</strong><span> lei</span>
+                  </output>
+                </div>
+                <div class="shop-budget-control">
+                  <progress max="{{ filter_price_max - filter_price_min }}" value="{{ filter_price_value - filter_price_min }}" aria-hidden="true" data-shop-budget-progress></progress>
+                  <input id="shop-budget-max" type="range" name="pret_max" min="{{ filter_price_min }}" max="{{ filter_price_max }}" value="{{ filter_price_value }}" step="1" aria-label="Buget maxim în lei" data-shop-budget-range>
+                </div>
+                <div class="shop-budget-limits" aria-hidden="true">
+                  <span><i></i>{{ filter_price_min }} lei</span>
+                  <span>{{ filter_price_max }} lei<i></i></span>
+                </div>
+              </fieldset>
+            </div>
+
+            <div class="shop-filter-actions">
+              <button type="submit">
+                <span aria-live="polite">Arată <strong data-shop-filter-result-count>{{ product_total }}</strong> <span data-shop-filter-result-label>{{ product_total == 1 ? 'produs' : 'produse' }}</span></span>
+                <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m7 4 6 6-6 6"></path></svg>
+              </button>
+              <a href="?{{ shop_reset_query }}">
+                <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M15.2 6.1A6.2 6.2 0 1 0 16 13M15.2 6.1V2.8M15.2 6.1h-3.3"></path></svg>
+                Resetează filtrele
+              </a>
+            </div>
+          </form>
+        </details>
+      </aside>
+
+      <div class="shop-results">
+        <div class="shop-product-grid">
+          {% for product in products %}
+            <div class="shop-product-item">
+              {% include 'storefront/components/boutique-product-card.twig' with {product: product} %}
+            </div>
+          {% else %}
+            <div class="shop-filter-empty">
+              <span aria-hidden="true">♡</span>
+              <h2>Nu am găsit combinația potrivită</h2>
+              <p>Încearcă un buget mai mare sau resetează filtrele.</p>
+              <a href="?{{ shop_reset_query }}">Vezi toate produsele</a>
+            </div>
+          {% endfor %}
+        </div>
+
+        {% if product_total > 0 %}
+          <nav class="shop-pagination" aria-label="Paginile magazinului">
+            <form class="shop-pagination-size" method="get" data-shop-sort>
+              <input type="hidden" name="sortare" value="{{ sort }}">
+              {% for active_category_slug in active_category_slugs %}<input type="hidden" name="categorie[]" value="{{ active_category_slug }}">{% endfor %}
+              {% if filter_in_stock %}<input type="hidden" name="stoc" value="1">{% endif %}
+              {% if filter_price_active %}<input type="hidden" name="pret_max" value="{{ filter_price_value }}">{% endif %}
+              <label for="pe-pagina">Produse pe pagină</label>
+              <select id="pe-pagina" name="pe_pagina" aria-label="Număr de produse afișate pe pagină">
+                {% for option in per_page_options %}
+                  <option value="{{ option }}" {{ per_page == option ? 'selected' }}>{{ option }}</option>
+                {% endfor %}
+              </select>
+              <noscript><button type="submit">Aplică</button></noscript>
+            </form>
+
+            <div class="shop-pagination-pages">
+              {% if page > 1 %}
+                <a class="shop-pagination-arrow" href="?{{ shop_query }}&pagina={{ page - 1 }}" aria-label="Pagina anterioară">
+                  <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m12.5 4-6 6 6 6"></path></svg>
+                </a>
+              {% else %}
+                <span class="shop-pagination-arrow is-disabled" aria-hidden="true">
+                  <svg viewBox="0 0 20 20"><path d="m12.5 4-6 6 6 6"></path></svg>
+                </span>
+              {% endif %}
+
+              {% for item in pagination_items %}
+                {% if item == 'ellipsis' %}
+                  <span class="shop-pagination-ellipsis" aria-hidden="true">•••</span>
+                {% elseif item == page %}
+                  <span class="shop-pagination-number is-current" aria-current="page" aria-label="Pagina {{ item }}">{{ item }}</span>
+                {% else %}
+                  <a class="shop-pagination-number" href="?{{ shop_query }}&pagina={{ item }}" aria-label="Pagina {{ item }}">{{ item }}</a>
+                {% endif %}
+              {% endfor %}
+
+              {% if has_next_page %}
+                <a class="shop-pagination-arrow" href="?{{ shop_query }}&pagina={{ page + 1 }}" aria-label="Pagina următoare">
+                  <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m7.5 4 6 6-6 6"></path></svg>
+                </a>
+              {% else %}
+                <span class="shop-pagination-arrow is-disabled" aria-hidden="true">
+                  <svg viewBox="0 0 20 20"><path d="m7.5 4 6 6-6 6"></path></svg>
+                </span>
+              {% endif %}
+            </div>
+
+            <div class="shop-pagination-position">
+              <span>Pagina</span>
+              <strong>{{ page }}</strong>
+              <span>din {{ last_page }}</span>
+            </div>
+          </nav>
+        {% endif %}
+      </div>
+    </div>
   </div>
 {% endblock %}

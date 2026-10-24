@@ -158,7 +158,14 @@ final class CatalogRepository
     }
 
     /** @return list<array<string, mixed>> */
-    public function shopProducts(int $page = 1, int $perPage = 12, string $sort = 'new'): array
+    public function shopProducts(
+        int $page = 1,
+        int $perPage = 12,
+        string $sort = 'new',
+        int|array|null $categoryIds = [],
+        bool $inStock = false,
+        ?int $maxPriceBani = null
+    ): array
     {
         $sorts = [
             'new' => 'p.published_at DESC, p.id DESC',
@@ -167,10 +174,27 @@ final class CatalogRepository
             'name' => 'p.name ASC, p.id DESC',
         ];
         $order = $sorts[$sort] ?? $sorts['new'];
-        $limit = max(1, min(48, $perPage));
+        $limit = max(1, min(50, $perPage));
         $offset = max(0, ($page - 1) * $limit);
 
-        return $this->pdo->query("SELECT p.*, primary_category.name AS category_name,
+        [$cte, $categoryWhere, $categoryParams] = $this->shopCategoryScope($categoryIds);
+        $where = ["p.status = 'published'"];
+        $having = [];
+        $params = $categoryParams;
+        if ($categoryWhere !== null) {
+            $where[] = $categoryWhere;
+        }
+        if ($inStock) {
+            $having[] = 'COALESCE(SUM(i.physical_quantity - i.reserved_quantity), 0) > 0';
+        }
+        if ($maxPriceBani !== null) {
+            $having[] = 'MIN(v.price_bani) <= :max_price';
+            $params['max_price'] = max(0, $maxPriceBani);
+        }
+
+        $havingSql = $having === [] ? '' : ' HAVING ' . implode(' AND ', $having);
+
+        $statement = $this->pdo->prepare($cte . "SELECT p.*, primary_category.name AS category_name,
                 primary_category.slug AS category_slug,
                 MIN(v.price_bani) AS price_bani,
                 MIN(v.compare_price_bani) AS compare_price_bani,
@@ -197,18 +221,178 @@ final class CatalogRepository
             JOIN product_variants v ON v.product_id = p.id AND v.status = 'active'
             LEFT JOIN inventory i ON i.variant_id = v.id
             LEFT JOIN categories primary_category ON primary_category.id = p.primary_category_id
-            WHERE p.status = 'published'
-            GROUP BY p.id
+            WHERE " . implode(' AND ', $where) . "
+            GROUP BY p.id" . $havingSql . "
             ORDER BY {$order}
-            LIMIT {$limit} OFFSET {$offset}")->fetchAll();
+            LIMIT {$limit} OFFSET {$offset}");
+        foreach ($params as $name => $value) {
+            $statement->bindValue(':' . $name, $value, PDO::PARAM_INT);
+        }
+        $statement->execute();
+        return $statement->fetchAll();
     }
 
-    public function publishedProductCount(): int
+    public function publishedProductCount(
+        int|array|null $categoryIds = [],
+        bool $inStock = false,
+        ?int $maxPriceBani = null
+    ): int
     {
-        return (int) $this->pdo->query("SELECT COUNT(DISTINCT p.id)
+        [$cte, $categoryWhere, $categoryParams] = $this->shopCategoryScope($categoryIds);
+        $where = ["p.status = 'published'"];
+        $having = [];
+        $params = $categoryParams;
+        if ($categoryWhere !== null) {
+            $where[] = $categoryWhere;
+        }
+        if ($inStock) {
+            $having[] = 'COALESCE(SUM(i.physical_quantity - i.reserved_quantity), 0) > 0';
+        }
+        if ($maxPriceBani !== null) {
+            $having[] = 'MIN(v.price_bani) <= :max_price';
+            $params['max_price'] = max(0, $maxPriceBani);
+        }
+
+        $havingSql = $having === [] ? '' : ' HAVING ' . implode(' AND ', $having);
+        $statement = $this->pdo->prepare($cte . "SELECT COUNT(*) FROM (
+            SELECT p.id
             FROM products p
             JOIN product_variants v ON v.product_id = p.id AND v.status = 'active'
-            WHERE p.status = 'published'")->fetchColumn();
+            LEFT JOIN inventory i ON i.variant_id = v.id
+            WHERE " . implode(' AND ', $where) . "
+            GROUP BY p.id" . $havingSql . '
+        ) filtered_products');
+        foreach ($params as $name => $value) {
+            $statement->bindValue(':' . $name, $value, PDO::PARAM_INT);
+        }
+        $statement->execute();
+        return (int) $statement->fetchColumn();
+    }
+
+    /**
+     * @param int|list<int>|null $categoryIds
+     * @return array{0: string, 1: ?string, 2: array<string, int>}
+     */
+    private function shopCategoryScope(int|array|null $categoryIds): array
+    {
+        $categoryIds = is_int($categoryIds) ? [$categoryIds] : ($categoryIds ?? []);
+        $categoryIds = array_values(array_unique(array_filter(
+            array_map(static fn(mixed $categoryId): int => (int) $categoryId, $categoryIds),
+            static fn(int $categoryId): bool => $categoryId > 0
+        )));
+
+        if ($categoryIds === []) {
+            return ['', null, []];
+        }
+
+        $placeholders = [];
+        $params = [];
+        foreach ($categoryIds as $index => $categoryId) {
+            $parameter = 'category_id_' . $index;
+            $placeholders[] = ':' . $parameter;
+            $params[$parameter] = $categoryId;
+        }
+
+        $cte = "WITH RECURSIVE selected_categories(id) AS (
+                SELECT id FROM categories
+                WHERE id IN (" . implode(', ', $placeholders) . ")
+                  AND status = 'published' AND visibility = 'public'
+                UNION
+                SELECT child.id FROM categories child
+                JOIN selected_categories parent ON child.parent_id = parent.id
+                WHERE child.status = 'published' AND child.visibility = 'public'
+            ) ";
+        $where = 'EXISTS (
+                SELECT 1 FROM product_categories filter_category
+                JOIN selected_categories ON selected_categories.id = filter_category.category_id
+                WHERE filter_category.product_id = p.id
+            )';
+
+        return [$cte, $where, $params];
+    }
+
+    /** @return list<array<string, mixed>> */
+    public function shopFilterCategories(): array
+    {
+        $rows = $this->pdo->query("WITH RECURSIVE category_tree(ancestor_id, id) AS (
+                SELECT id, id FROM categories
+                WHERE status = 'published' AND visibility = 'public'
+                UNION ALL
+                SELECT category_tree.ancestor_id, child.id
+                FROM categories child
+                JOIN category_tree ON child.parent_id = category_tree.id
+                WHERE child.status = 'published' AND child.visibility = 'public'
+            )
+            SELECT category.id, category.parent_id, category.name, category.slug, category.position,
+                category_media.public_path AS image_path,
+                category_media.alt_text AS image_alt,
+                COUNT(DISTINCT CASE WHEN product.id IS NOT NULL AND variant.id IS NOT NULL THEN product.id END) AS product_count
+            FROM categories category
+            LEFT JOIN media category_media ON category_media.id = category.image_media_id
+            LEFT JOIN category_tree ON category_tree.ancestor_id = category.id
+            LEFT JOIN product_categories product_category ON product_category.category_id = category_tree.id
+            LEFT JOIN products product ON product.id = product_category.product_id AND product.status = 'published'
+            LEFT JOIN product_variants variant ON variant.product_id = product.id AND variant.status = 'active'
+            WHERE category.status = 'published'
+              AND category.visibility = 'public'
+            GROUP BY category.id, category.parent_id, category.name, category.slug, category.position,
+                category_media.public_path, category_media.alt_text
+            ORDER BY
+              CASE WHEN category.parent_id IS NULL THEN
+                CASE category.slug
+                  WHEN 'nou-nascuti' THEN 1
+                  WHEN 'fetite' THEN 2
+                  WHEN 'baieti' THEN 3
+                  WHEN 'costume-traditionale' THEN 4
+                  WHEN 'botez' THEN 5
+                  WHEN 'incaltaminte' THEN 6
+                  ELSE 99
+                END
+              ELSE 100 END,
+              category.parent_id, category.position, category.name, category.id")->fetchAll();
+
+        $byParent = [];
+        foreach ($rows as $row) {
+            $row['id'] = (int) $row['id'];
+            $row['parent_id'] = $row['parent_id'] === null ? null : (int) $row['parent_id'];
+            $row['position'] = (int) $row['position'];
+            $row['product_count'] = (int) $row['product_count'];
+            $parentKey = $row['parent_id'] === null ? 'root' : (string) $row['parent_id'];
+            $row['children'] = [];
+            $byParent[$parentKey][] = $row;
+        }
+
+        return $this->buildShopCategoryTree($byParent);
+    }
+
+    /**
+     * @param array<int|string, list<array<string, mixed>>> $byParent
+     * @return list<array<string, mixed>>
+     */
+    private function buildShopCategoryTree(array $byParent, ?int $parentId = null): array
+    {
+        $parentKey = $parentId === null ? 'root' : (string) $parentId;
+        $tree = [];
+        foreach ($byParent[$parentKey] ?? [] as $category) {
+            $category['children'] = $this->buildShopCategoryTree($byParent, (int) $category['id']);
+            $tree[] = $category;
+        }
+
+        return $tree;
+    }
+
+    /** @return array{min_bani: int, max_bani: int} */
+    public function shopPriceRange(): array
+    {
+        $row = $this->pdo->query("SELECT MIN(variant.price_bani) AS min_bani, MAX(variant.price_bani) AS max_bani
+            FROM product_variants variant
+            JOIN products product ON product.id = variant.product_id
+            WHERE product.status = 'published' AND variant.status = 'active'")->fetch();
+
+        return [
+            'min_bani' => max(0, (int) ($row['min_bani'] ?? 0)),
+            'max_bani' => max(0, (int) ($row['max_bani'] ?? 0)),
+        ];
     }
 
     /** @return array<string, mixed>|null */
