@@ -54,21 +54,21 @@ final class StorefrontController
         $resolved = $this->categoryPaths->resolve($requestedPath);
 
         if ($resolved === null) {
-            if (count($segments) !== 1) {
+            if ($segments === []) {
                 return $this->notFound();
             }
 
-            $redirect = $this->catalog->redirectFor('category', $segments[0]);
+            $redirect = $this->catalog->redirectFor('category', (string) end($segments));
             $redirectPath = $redirect === null
                 ? null
                 : $this->categoryPaths->pathForSlug((string) $redirect['new_slug']);
-            return $redirectPath === null
+            return $redirectPath === null || !$this->isRedirectableCategoryPath($segments, $redirectPath)
                 ? $this->notFound()
                 : $this->categoryRedirect($request, $redirectPath);
         }
 
         if ($requestedPath !== $resolved['path']) {
-            return count($segments) === 1
+            return $this->isRedirectableCategoryPath($segments, $resolved['path'])
                 ? $this->categoryRedirect($request, $resolved['path'])
                 : $this->notFound();
         }
@@ -528,6 +528,32 @@ final class StorefrontController
         }
 
         return $this->view->redirect($location, 301);
+    }
+
+    /** @param list<string> $requestedSegments */
+    private function isRedirectableCategoryPath(array $requestedSegments, string $canonicalPath): bool
+    {
+        if (count($requestedSegments) === 1) {
+            return true;
+        }
+
+        $canonicalSegments = explode('/', $canonicalPath);
+        if (count($requestedSegments) !== count($canonicalSegments)) {
+            return false;
+        }
+
+        foreach ($requestedSegments as $index => $segment) {
+            if ($segment === $canonicalSegments[$index]) {
+                continue;
+            }
+
+            $redirect = $this->catalog->redirectFor('category', $segment);
+            if ($redirect === null || $redirect['new_slug'] !== $canonicalSegments[$index]) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

@@ -51,6 +51,28 @@ final class CategoryRouteTest extends DatabaseTestCase
         self::assertSame(404, $response->getStatusCode());
     }
 
+    public function testFormerSlugInsideAValidHierarchyRedirectsToTheNewCanonicalPath(): void
+    {
+        $this->seed();
+        $now = gmdate('c');
+        $this->pdo->exec("UPDATE categories SET slug = 'rochite-eveniment' WHERE slug = 'rochite-ocazie'");
+        $statement = $this->pdo->prepare('INSERT INTO slug_redirects (entity_type, old_slug, new_slug, created_at) VALUES (:type, :old, :new, :created)');
+        $statement->execute([
+            'type' => 'category',
+            'old' => 'rochite-ocazie',
+            'new' => 'rochite-eveniment',
+            'created' => $now,
+        ]);
+
+        $response = $this->get('/categorie/fetite/rochite/rochite-ocazie/');
+
+        self::assertSame(301, $response->getStatusCode());
+        self::assertSame(
+            '/categorie/fetite/rochite/rochite-eveniment/',
+            $response->getHeaderLine('Location')
+        );
+    }
+
     public function testSitemapUsesHierarchicalCategoryUrls(): void
     {
         $this->seed();
