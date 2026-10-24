@@ -1816,6 +1816,10 @@ body .site-header .search-shell > .search-clear {
   transition: color .22s ease, background .22s ease, border-color .22s ease, box-shadow .22s ease, transform .3s cubic-bezier(.2, .8, .2, 1);
 }
 
+body .site-header .search-shell > .search-clear[hidden] {
+  display: none;
+}
+
 body .site-header .search-shell > .search-clear::before {
   content: "";
   position: absolute;
