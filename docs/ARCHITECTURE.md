@@ -24,7 +24,7 @@ Integrarea Stripe și SMTP se execută după commit, prin idempotency/outbox.
 
 ## Rute publice
 
-`/`, `/magazin/`, `/categorie/{slug}/`, `/colectie/{slug}/`, `/produs/{slug}/`, `/cautare/`,
+`/`, `/magazin/`, `/categorie/{categorie}/{subcategorie}/...`, `/colectie/{slug}/`, `/produs/{slug}/`, `/cautare/`,
 `/favorite/`, `/cos/`, `/finalizare-comanda/`, `/comanda/{token}/`, `/cont/`,
 `/pagina/{slug}/`, `/sitemap.xml`, `/robots.txt` și `/stripe/webhook`.
 
@@ -38,3 +38,6 @@ Acțiunile de comandă trec prin servicii de tranziție; nu există update arbit
 Schema versionată include categorii, produse/variante/atribute, media, inventar,
 coșuri, cupoane, comenzi, plăți, clienți, conținut, setări, redirecturi, outbox și audit.
 SQLite este adaptorul local de test. MySQL/MariaDB InnoDB + utf8mb4 este ținta de producție.
+
+URL-ul canonic al unei categorii conține toate slugurile din lanțul de părinți. Resolverul
+validează întregul lanț publicat, iar vechile URL-uri plate ale subcategoriilor răspund cu 301.

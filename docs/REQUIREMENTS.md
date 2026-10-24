@@ -71,12 +71,13 @@ că a fost deja implementată sau verificată.
 
 ## Pagini și SEO
 
-- Rute: `/`, `/magazin/`, `/categorie/{slug}/`, `/colectie/{slug}/`, `/produs/{slug}/`, `/cautare/`,
+- Rute: `/`, `/magazin/`, `/categorie/{categorie}/{subcategorie}/...`, `/colectie/{slug}/`, `/produs/{slug}/`, `/cautare/`,
   `/favorite/`, `/cos/`, `/finalizare-comanda/`, `/cont/`, `/admin/` și pagini CMS.
 - Fiecare entitate publicată/indexabilă are URL permanent, HTTP 200, H1 și conținut specific în
   HTML, canonical propriu, linkuri reale, breadcrumbs și sitemap. Subcategoria nu este doar filtru.
 - Publicarea din admin nu necesită cod. Părinții pot agrega descendenții deduplicat și eficient.
-- Sluguri fără diacritice; schimbarea produce 301 fără bucle. URL-urile respectă `APP_URL` și
+- Sluguri fără diacritice; categoria include în URL întregul lanț de părinți, iar schimbarea produce
+  301 fără bucle. URL-urile respectă `APP_URL` și
   `APP_BASE_PATH`. Un produs are un singur URL principal, indiferent de categorii.
 - Metadate, Open Graph, Product/BreadcrumbList din date reale; fără rating/review/ofertă inventată.
 - Sitemap cu `lastmod` real; separat pe tip la volum mare. Draftul este privat/404. Categoria fără

@@ -3,7 +3,7 @@
     <div class="submenu-content">
       {% for child in items %}
         <div class="submenu-item{{ child.children ? ' has-children' : '' }}">
-          <a href="{{ url('categorie/' ~ child.slug ~ '/') }}"{% if child.children %} class="has-children"{% endif %}>
+          <a href="{{ url('categorie/' ~ child.path ~ '/') }}"{% if child.children %} class="has-children"{% endif %}>
             {% if child.image_path %}<span class="submenu-thumbnail" aria-hidden="true"><img src="{{ url(child.image_path) }}" alt="" loading="lazy" decoding="async"></span>{% endif %}
             <span>{{ child.name }}</span>
           </a>
@@ -78,7 +78,7 @@
           </button>
           <nav id="search-quick-links" class="search-quick-links" data-search-quick-links aria-label="Căutări rapide">
             {% for category in navigation_tree %}
-              <a{% if category.image_path %} class="has-thumbnail"{% endif %} href="{{ url('categorie/' ~ category.slug ~ '/') }}">
+              <a{% if category.image_path %} class="has-thumbnail"{% endif %} href="{{ url('categorie/' ~ category.path ~ '/') }}">
                 {% if category.image_path %}
                   <span class="search-quick-icon search-quick-thumbnail" aria-hidden="true"><img src="{{ url(category.image_path) }}" alt="" loading="lazy" decoding="async"></span>
                 {% endif %}
@@ -234,7 +234,7 @@
         </div>
         {% for category in navigation_tree %}
           <div class="menu-group" data-desktop-menu-item>
-            <a class="category-link{% if category.children %} has-children{% endif %}{% if category.image_path %} has-thumbnail{% endif %}" href="{{ url('categorie/' ~ category.slug ~ '/') }}">
+            <a class="category-link{% if category.children %} has-children{% endif %}{% if category.image_path %} has-thumbnail{% endif %}" href="{{ url('categorie/' ~ category.path ~ '/') }}">
               {% if category.image_path %}
                 <span class="mobile-menu-icon mobile-menu-thumbnail" aria-hidden="true"><img src="{{ url(category.image_path) }}" alt="" loading="lazy" decoding="async"></span>
               {% endif %}
@@ -359,7 +359,7 @@
             <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="6" height="6" rx="1.5"></rect><rect x="14" y="4" width="6" height="6" rx="1.5"></rect><rect x="4" y="14" width="6" height="6" rx="1.5"></rect><rect x="14" y="14" width="6" height="6" rx="1.5"></rect></svg>
             <span>Toate produsele</span>
           </a>
-          {% for category in navigation_tree %}<a class="footer-category-link" data-footer-category href="{{ url('categorie/' ~ category.slug ~ '/') }}">{{ category.name }}</a>{% endfor %}
+          {% for category in navigation_tree %}<a class="footer-category-link" data-footer-category href="{{ url('categorie/' ~ category.path ~ '/') }}">{{ category.name }}</a>{% endfor %}
           <button class="footer-category-more" type="button" data-footer-category-more hidden aria-expanded="false">
             <span>… mai multe</span>
             <small data-footer-category-more-count></small>

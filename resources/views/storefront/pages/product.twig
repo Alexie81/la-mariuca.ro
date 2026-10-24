@@ -4,7 +4,7 @@
 <div class="container page-shell">
   <nav class="breadcrumbs">
     <a href="{{ url('') }}">Acasă</a>
-    {% if product.category_slug %}<span>/</span><a href="{{ url('categorie/' ~ product.category_slug ~ '/') }}">{{ product.category_name }}</a>{% endif %}
+    {% for category in product_category_trail %}<span>/</span><a href="{{ url('categorie/' ~ category.path ~ '/') }}">{{ category.name }}</a>{% endfor %}
     <span>/</span><span>{{ product.name }}</span>
   </nav>
   <div class="product-detail">

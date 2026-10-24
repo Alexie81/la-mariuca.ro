@@ -73,7 +73,7 @@
           <div class="shop-mobile-category-viewport" data-shop-category-viewport>
             <div class="shop-mobile-category-track" data-shop-category-track>
               {% for category in filter_categories %}
-                <a class="shop-mobile-category-card{{ category.image_path ? ' has-image' : '' }}" href="{{ url('categorie/' ~ category.slug ~ '/') }}" data-shop-category-item>
+                <a class="shop-mobile-category-card{{ category.image_path ? ' has-image' : '' }}" href="{{ url('categorie/' ~ category.path ~ '/') }}" data-shop-category-item>
                   {% if category.image_path %}
                     <img src="{{ url(category.image_path) }}" width="72" height="72" alt="" loading="eager" decoding="async">
                   {% endif %}

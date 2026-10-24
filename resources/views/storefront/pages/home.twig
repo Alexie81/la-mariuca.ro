@@ -116,7 +116,7 @@
     {% set collection_featured_count = collection_count == 8 ? 4 : 3 %}
     <div class="collections-grid" data-collection-count="{{ collection_count }}">
       {% for category in categories %}
-        <a class="collection-card {{ loop.index <= collection_featured_count ? 'is-featured' : 'is-compact' }} {{ category.image_path ? 'has-image' : 'is-graphic' }} collection-card--tone-{{ (loop.index0 % 4) + 1 }}" href="{{ url('categorie/' ~ category.slug ~ '/') }}" aria-label="Descoperă categoria {{ category.name }}">
+        <a class="collection-card {{ loop.index <= collection_featured_count ? 'is-featured' : 'is-compact' }} {{ category.image_path ? 'has-image' : 'is-graphic' }} collection-card--tone-{{ (loop.index0 % 4) + 1 }}" href="{{ url('categorie/' ~ category.path ~ '/') }}" aria-label="Descoperă categoria {{ category.name }}">
           <span class="collection-card-media" aria-hidden="true">
             {% if category.image_path %}
               <img src="{{ url(category.image_path) }}" alt="" loading="lazy" decoding="async">
