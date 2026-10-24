@@ -31,6 +31,20 @@ document.querySelectorAll('.menu-group > a').forEach((link) => {
   }
 });
 
+const shopSortLabelViewport = window.matchMedia('(max-width: 760px)');
+
+const syncShopSortLabels = () => {
+  document.querySelectorAll('[data-shop-sort-select] option').forEach((option) => {
+    option.dataset.desktopLabel ||= option.textContent.trim();
+    option.textContent = shopSortLabelViewport.matches
+      ? option.dataset.mobileLabel
+      : option.dataset.desktopLabel;
+  });
+};
+
+syncShopSortLabels();
+shopSortLabelViewport.addEventListener?.('change', syncShopSortLabels);
+
 document.querySelectorAll('[data-shop-sort]').forEach((form) => {
   form.querySelectorAll('select').forEach((select) => {
     select.addEventListener('change', () => form.requestSubmit());
@@ -166,6 +180,25 @@ document.querySelectorAll('[data-shop-filter-form]').forEach((form) => {
 document.querySelectorAll('[data-shop-category-tree]').forEach((tree) => {
   tree.classList.add('is-enhanced');
 
+  const allProducts = tree.querySelector('.shop-filter-option-all');
+  const categoryInputs = [...tree.querySelectorAll('input[name="categorie[]"]')];
+
+  const syncAllProductsState = () => {
+    if (!allProducts) return;
+
+    const hasSelectedCategory = categoryInputs.some((input) => input.checked);
+    allProducts.classList.toggle('is-current', !hasSelectedCategory);
+
+    if (hasSelectedCategory) {
+      allProducts.removeAttribute('aria-current');
+    } else {
+      allProducts.setAttribute('aria-current', 'true');
+    }
+  };
+
+  categoryInputs.forEach((input) => input.addEventListener('change', syncAllProductsState));
+  syncAllProductsState();
+
   tree.querySelectorAll('[data-shop-category-toggle]').forEach((toggle) => {
     const branch = document.getElementById(toggle.getAttribute('aria-controls'));
     if (!branch) return;
@@ -185,9 +218,137 @@ document.querySelectorAll('[data-shop-category-tree]').forEach((tree) => {
 
 const shopFilterViewport = window.matchMedia('(min-width: 1101px)');
 document.querySelectorAll('[data-shop-filters]').forEach((panel) => {
-  const syncFilterDisclosure = () => {
-    panel.open = shopFilterViewport.matches;
+  const summary = panel.querySelector(':scope > summary');
+  const drawer = panel.querySelector('[data-shop-filter-form]');
+  const closeButton = panel.querySelector('[data-shop-filter-close]');
+  const backdrop = panel.parentElement?.querySelector('[data-shop-filter-backdrop]');
+  let closeTimer;
+
+  if (!summary || !drawer || !closeButton || !backdrop) return;
+
+  const setDrawerSemantics = (enabled) => {
+    if (enabled) {
+      drawer.setAttribute('role', 'dialog');
+      drawer.setAttribute('aria-modal', 'true');
+      drawer.setAttribute('aria-labelledby', 'shop-filter-drawer-title');
+      summary.setAttribute('aria-expanded', String(panel.classList.contains('is-drawer-open')));
+      return;
+    }
+
+    drawer.removeAttribute('role');
+    drawer.removeAttribute('aria-modal');
+    drawer.removeAttribute('aria-labelledby');
+    summary.removeAttribute('aria-expanded');
   };
+
+  const finishDrawerClose = (restoreFocus = false) => {
+    window.clearTimeout(closeTimer);
+    panel.classList.remove('is-drawer-open', 'is-drawer-closing');
+    backdrop.classList.remove('is-visible');
+    backdrop.hidden = true;
+    document.documentElement.classList.remove('shop-filter-drawer-active');
+
+    if (!shopFilterViewport.matches) {
+      panel.open = false;
+      setDrawerSemantics(true);
+    } else {
+      setDrawerSemantics(false);
+    }
+
+    if (restoreFocus && !shopFilterViewport.matches) {
+      summary.focus({ preventScroll: true });
+    }
+  };
+
+  const closeDrawer = ({ immediate = false, restoreFocus = true } = {}) => {
+    if (shopFilterViewport.matches) return;
+
+    panel.classList.remove('is-drawer-open');
+    panel.classList.add('is-drawer-closing');
+    backdrop.classList.remove('is-visible');
+    summary.setAttribute('aria-expanded', 'false');
+    document.documentElement.classList.remove('shop-filter-drawer-active');
+
+    if (immediate || reducedMotion.matches) {
+      finishDrawerClose(restoreFocus);
+      return;
+    }
+
+    window.clearTimeout(closeTimer);
+    closeTimer = window.setTimeout(() => finishDrawerClose(restoreFocus), 440);
+  };
+
+  const openDrawer = () => {
+    if (shopFilterViewport.matches || panel.classList.contains('is-drawer-open')) return;
+
+    window.clearTimeout(closeTimer);
+    panel.classList.remove('is-drawer-closing');
+    panel.open = true;
+    backdrop.hidden = false;
+    setDrawerSemantics(true);
+    document.documentElement.classList.add('shop-filter-drawer-active');
+
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        panel.classList.add('is-drawer-open');
+        backdrop.classList.add('is-visible');
+        summary.setAttribute('aria-expanded', 'true');
+        closeButton.focus({ preventScroll: true });
+      });
+    });
+  };
+
+  const syncFilterDisclosure = () => {
+    window.clearTimeout(closeTimer);
+    panel.classList.remove('is-drawer-open', 'is-drawer-closing');
+    backdrop.classList.remove('is-visible');
+    backdrop.hidden = true;
+    document.documentElement.classList.remove('shop-filter-drawer-active');
+
+    if (shopFilterViewport.matches) {
+      document.documentElement.classList.remove('has-shop-filter-drawer');
+      panel.open = true;
+      setDrawerSemantics(false);
+      return;
+    }
+
+    document.documentElement.classList.add('has-shop-filter-drawer');
+    panel.open = false;
+    setDrawerSemantics(true);
+  };
+
+  summary.addEventListener('click', (event) => {
+    if (shopFilterViewport.matches) return;
+    event.preventDefault();
+    openDrawer();
+  });
+
+  closeButton.addEventListener('click', () => closeDrawer());
+  backdrop.addEventListener('click', () => closeDrawer());
+
+  drawer.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeDrawer();
+      return;
+    }
+
+    if (event.key !== 'Tab' || !panel.classList.contains('is-drawer-open')) return;
+
+    const focusable = [...drawer.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])')]
+      .filter((element) => element.getClientRects().length > 0);
+    if (focusable.length === 0) return;
+
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  });
 
   syncFilterDisclosure();
   shopFilterViewport.addEventListener?.('change', syncFilterDisclosure);

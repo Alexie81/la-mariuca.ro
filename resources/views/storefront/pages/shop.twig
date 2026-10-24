@@ -63,33 +63,37 @@
       </div>
     </header>
 
-    <div class="shop-toolbar">
-      <div class="shop-product-count" aria-live="polite">
-        <strong>{{ product_total }}</strong>
-        <span>{{ product_total == 1 ? 'produs' : 'produse' }}</span>
-      </div>
-      <form class="shop-sort" method="get" data-shop-sort>
-        {% for active_category_slug in active_category_slugs %}<input type="hidden" name="categorie[]" value="{{ active_category_slug }}">{% endfor %}
-        {% if filter_in_stock %}<input type="hidden" name="stoc" value="1">{% endif %}
-        {% if filter_price_active %}<input type="hidden" name="pret_max" value="{{ filter_price_value }}">{% endif %}
-        <input type="hidden" name="pe_pagina" value="{{ per_page }}">
-        <div class="shop-sort-control">
-          <label for="sortare">Sortează</label>
-          <select id="sortare" name="sortare">
-            <option value="new" {{ sort == 'new' ? 'selected' }}>Cele mai noi</option>
-            <option value="price-asc" {{ sort == 'price-asc' ? 'selected' }}>Preț crescător</option>
-            <option value="price-desc" {{ sort == 'price-desc' ? 'selected' }}>Preț descrescător</option>
-            <option value="name" {{ sort == 'name' ? 'selected' }}>Nume</option>
-          </select>
-        </div>
-        <noscript><button class="shop-sort-submit" type="submit">Aplică</button></noscript>
-      </form>
-    </div>
-
     <div class="shop-catalog-layout">
+      <div class="shop-toolbar">
+        <div class="shop-product-count" aria-live="polite">
+          <strong>{{ product_total }}</strong>
+          <span>{{ product_total == 1 ? 'produs' : 'produse' }}</span>
+        </div>
+        <form class="shop-sort" method="get" data-shop-sort>
+          {% for active_category_slug in active_category_slugs %}<input type="hidden" name="categorie[]" value="{{ active_category_slug }}">{% endfor %}
+          {% if filter_in_stock %}<input type="hidden" name="stoc" value="1">{% endif %}
+          {% if filter_price_active %}<input type="hidden" name="pret_max" value="{{ filter_price_value }}">{% endif %}
+          <input type="hidden" name="pe_pagina" value="{{ per_page }}">
+          <div class="shop-sort-control">
+            <span class="shop-sort-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M8 5v14M5 8l3-3 3 3M16 19V5M13 16l3 3 3-3"></path></svg>
+            </span>
+            <label for="sortare">Sortează</label>
+            <select id="sortare" name="sortare" data-shop-sort-select>
+              <option value="new" data-mobile-label="Noi" {{ sort == 'new' ? 'selected' }}>Cele mai noi</option>
+              <option value="price-asc" data-mobile-label="Crescător" {{ sort == 'price-asc' ? 'selected' }}>Preț crescător</option>
+              <option value="price-desc" data-mobile-label="Descrescător" {{ sort == 'price-desc' ? 'selected' }}>Preț descrescător</option>
+              <option value="name-asc" data-mobile-label="Nume A–Z" {{ sort == 'name-asc' ? 'selected' }}>Nume A–Z</option>
+              <option value="name-desc" data-mobile-label="Nume Z–A" {{ sort == 'name-desc' ? 'selected' }}>Nume Z–A</option>
+            </select>
+          </div>
+          <noscript><button class="shop-sort-submit" type="submit">Aplică</button></noscript>
+        </form>
+      </div>
+
       <aside class="shop-filter-column" aria-label="Filtre produse">
         <details class="shop-filter-panel{{ filters_active ? ' has-active-filters' : '' }}" data-shop-filters open>
-          <summary class="shop-filter-summary">
+          <summary class="shop-filter-summary" aria-controls="shop-filter-drawer">
             <span class="shop-filter-summary-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h2M10 17h10M14 4v6M6 14v6"></path></svg>
             </span>
@@ -98,12 +102,22 @@
               <strong>Filtre</strong>
             </span>
             {% if filters_active %}<span class="shop-filter-active-dot" aria-label="Există filtre active"></span>{% endif %}
-            <svg class="shop-filter-summary-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m7 9 5 5 5-5"></path></svg>
+            <svg class="shop-filter-summary-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m14.5 6.5-5.5 5.5 5.5 5.5"></path></svg>
           </summary>
 
-          <form class="shop-filter-form" method="get" data-shop-filter-form>
+          <form class="shop-filter-form" id="shop-filter-drawer" method="get" data-shop-filter-form>
             <input type="hidden" name="sortare" value="{{ sort }}">
             <input type="hidden" name="pe_pagina" value="{{ per_page }}">
+
+            <div class="shop-filter-drawer-header">
+              <span class="shop-filter-drawer-title">
+                <small>Rafinare</small>
+                <strong id="shop-filter-drawer-title">Filtre</strong>
+              </span>
+              <button class="shop-filter-drawer-close" type="button" aria-label="Închide filtrele" data-shop-filter-close>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6.5 6.5 11 11M17.5 6.5l-11 11"></path></svg>
+              </button>
+            </div>
 
             <div class="shop-filter-heading" aria-hidden="true">
               <span class="shop-filter-heading-icon">
@@ -173,6 +187,7 @@
             </div>
           </form>
         </details>
+        <button class="shop-filter-backdrop" type="button" aria-label="Închide filtrele" data-shop-filter-backdrop hidden></button>
       </aside>
 
       <div class="shop-results">
