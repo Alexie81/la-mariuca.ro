@@ -64,7 +64,7 @@ final class ExpandedCatalogSeeder
             $existingStatement = $this->pdo->prepare('SELECT p.id FROM products p LEFT JOIN product_variants pv ON pv.product_id = p.id WHERE p.slug = :slug OR pv.sku = :sku LIMIT 1');
             $productStatement = $this->pdo->prepare("INSERT INTO products (name,slug,short_description,description,status,primary_category_id,seo_title,meta_description,composition,care_instructions,size_guide,package_contents,excluded_accessories,featured,indexable,published_at,created_at,updated_at) VALUES (:name,:slug,:short,:description,'published',:category,:seo,:meta,:composition,:care,:size_guide,:package_contents,:excluded_accessories,:featured,1,:now,:now,:now)");
             $productCategoryStatement = $this->pdo->prepare('INSERT INTO product_categories (product_id,category_id) VALUES (:product,:category)');
-            $variantStatement = $this->pdo->prepare("INSERT INTO product_variants (product_id,sku,option_summary,options_json,options_key,price_bani,status,is_default,created_at,updated_at) VALUES (:product,:sku,'Mărime standard','{}',:options_key,:price,'active',1,:now,:now)");
+            $variantStatement = $this->pdo->prepare("INSERT INTO product_variants (product_id,sku,option_summary,options_json,options_key,price_bani,compare_price_bani,status,is_default,created_at,updated_at) VALUES (:product,:sku,'Mărime standard','{}',:options_key,:price,:compare_price,'active',1,:now,:now)");
             $inventoryStatement = $this->pdo->prepare('INSERT INTO inventory (variant_id,physical_quantity,reserved_quantity,updated_at) VALUES (:variant,:stock,0,:now)');
             $movementStatement = $this->pdo->prepare("INSERT INTO inventory_movements (variant_id,type,physical_delta,reserved_delta,reason,created_at) VALUES (:variant,'catalog_seed',:stock,0,'Colecție editorială demo 2026',:now)");
             $mediaLookupStatement = $this->pdo->prepare('SELECT id FROM media WHERE storage_path = :storage LIMIT 1');
@@ -112,6 +112,7 @@ final class ExpandedCatalogSeeder
                     'sku' => $product['sku'],
                     'options_key' => hash('sha256', '{}'),
                     'price' => $product['price'],
+                    'compare_price' => $product['compare_price'],
                     'now' => $now,
                 ]);
                 $variantId = (int) $this->pdo->lastInsertId();
@@ -231,7 +232,8 @@ final class ExpandedCatalogSeeder
                         'image' => 'cuburi-moi-poveste-03.webp',
                         'alt' => 'Cub senzorial bleu cu lună și stele, alături de cuburile moi din set',
                     ],
-                ]
+                ],
+                16900,
             ),
         ];
     }
@@ -256,8 +258,10 @@ final class ExpandedCatalogSeeder
         string $image,
         string $alt,
         array $gallery = [],
+        ?int $comparePrice = null,
     ): array {
         return compact('name', 'category', 'sku', 'price', 'stock', 'featured', 'short', 'description', 'composition', 'care', 'sizeGuide', 'packageContents', 'image', 'alt', 'gallery') + [
+            'compare_price' => $comparePrice,
             'size_guide' => $sizeGuide,
             'package_contents' => $packageContents,
         ];
