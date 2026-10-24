@@ -6,6 +6,7 @@ namespace Tests\Integration;
 
 use App\Modules\Catalog\CatalogAdminService;
 use App\Modules\Catalog\CatalogRepository;
+use App\Modules\Catalog\CatalogSearchService;
 use RuntimeException;
 use Tests\DatabaseTestCase;
 
@@ -76,6 +77,55 @@ final class CatalogTest extends DatabaseTestCase
             self::assertNotEmpty($secondPage);
             self::assertNotSame($firstPage[0]['id'], $secondPage[0]['id']);
         }
+    }
+
+    public function testSemanticSearchHandlesSkuGrammarDiacriticsAndSmallTypos(): void
+    {
+        $this->seed();
+        $search = new CatalogSearchService(new CatalogRepository($this->pdo));
+
+        $sku = $search->products('lm-b-001-2a');
+        self::assertTrue($sku['exact']);
+        self::assertSame(['Costumaș „Micul gentleman”'], array_column($sku['products'], 'name'));
+
+        $misspelledName = $search->products('costumas micul gentelman');
+        self::assertTrue($misspelledName['exact']);
+        self::assertSame(['Costumaș „Micul gentleman”'], array_column($misspelledName['products'], 'name'));
+
+        $grammaticalVariant = $search->products('rochii botez');
+        self::assertNotEmpty($grammaticalVariant['products']);
+        self::assertSame('Rochie de botez „Raisa”', $grammaticalVariant['products'][0]['name']);
+
+        $misspelledWords = $search->products('rocie botez');
+        self::assertNotEmpty($misspelledWords['products']);
+        self::assertSame('Rochie de botez „Raisa”', $misspelledWords['products'][0]['name']);
+    }
+
+    public function testSemanticSearchKeepsEveryResultRelevantToAllImportantTerms(): void
+    {
+        $this->seed();
+        $search = new CatalogSearchService(new CatalogRepository($this->pdo));
+
+        $costumes = $search->products('costume');
+        self::assertNotEmpty($costumes['products']);
+        foreach ($costumes['products'] as $product) {
+            self::assertStringContainsStringIgnoringCase('costum', $product['name']);
+        }
+
+        self::assertSame([], $search->products('rochie baieti')['products']);
+        self::assertSame([], $search->products('rochie astronaut')['products']);
+    }
+
+    public function testSemanticSearchDiscoversProductsChangedAfterDeployment(): void
+    {
+        $this->seed();
+        $this->pdo->exec("UPDATE products SET name = 'Salopetă pufoasă Aurora' WHERE slug = 'body-petrecut-liniste'");
+
+        $search = new CatalogSearchService(new CatalogRepository($this->pdo));
+        $result = $search->products('salopete pufoase aurora');
+
+        self::assertTrue($result['exact']);
+        self::assertSame(['body-petrecut-liniste'], array_column($result['products'], 'slug'));
     }
 
     public function testHomepageCollectionsContainOnlyPublishedMainCategories(): void

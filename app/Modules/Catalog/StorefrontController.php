@@ -17,6 +17,7 @@ final class StorefrontController
 {
     public function __construct(
         private readonly CatalogRepository $catalog,
+        private readonly CatalogSearchService $catalogSearch,
         private readonly CategoryPathRepository $categoryPaths,
         private readonly ContentRepository $content,
         private readonly RateLimiter $limiter,
@@ -479,10 +480,12 @@ final class StorefrontController
         }
 
         if (mb_strlen($query) >= 2) {
-            $productTotal = $this->catalog->searchCount($query);
+            $searchResult = $this->catalogSearch->products($query);
+            $rankedProducts = $searchResult['products'];
+            $productTotal = count($rankedProducts);
             $lastPage = max(1, (int) ceil($productTotal / $perPage));
             $page = min($page, $lastPage);
-            $products = $this->catalog->search($query, $perPage, ($page - 1) * $perPage);
+            $products = array_slice($rankedProducts, ($page - 1) * $perPage, $perPage);
         }
 
         $searchQuery = ['q' => $query];
@@ -518,20 +521,23 @@ final class StorefrontController
         if (!$this->limiter->allow('search-suggestions', $ip, 120, 60)) {
             $status = 429;
         } elseif (mb_strlen($query) >= 2) {
-            foreach ($this->catalog->searchCategories($query, 4) as $category) {
-                $categoryPath = $this->categoryPaths->pathForSlug((string) $category['slug']);
-                if ($categoryPath === null) {
-                    continue;
+            $searchResult = $this->catalogSearch->products($query);
+            if (!$searchResult['exact']) {
+                foreach ($this->catalogSearch->categories($query, 4) as $category) {
+                    $categoryPath = $this->categoryPaths->pathForSlug((string) $category['slug']);
+                    if ($categoryPath === null) {
+                        continue;
+                    }
+                    $categories[] = [
+                        'name' => (string) $category['name'],
+                        'slug' => (string) $category['slug'],
+                        'url' => $this->config->path('categorie/' . $categoryPath . '/'),
+                        'image_url' => empty($category['image_path']) ? null : $this->config->path((string) $category['image_path']),
+                        'image_alt' => (string) ($category['image_alt'] ?? ''),
+                    ];
                 }
-                $categories[] = [
-                    'name' => (string) $category['name'],
-                    'slug' => (string) $category['slug'],
-                    'url' => $this->config->path('categorie/' . $categoryPath . '/'),
-                    'image_url' => empty($category['image_path']) ? null : $this->config->path((string) $category['image_path']),
-                    'image_alt' => (string) ($category['image_alt'] ?? ''),
-                ];
             }
-            foreach ($this->catalog->search($query, 6) as $product) {
+            foreach (array_slice($searchResult['products'], 0, 6) as $product) {
                 $items[] = [
                     'name' => (string) $product['name'],
                     'category' => (string) ($product['category_name'] ?? ''),

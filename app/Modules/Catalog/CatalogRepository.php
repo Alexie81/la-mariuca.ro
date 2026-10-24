@@ -574,6 +574,85 @@ final class CatalogRepository
         return $statement->fetchAll();
     }
 
+    /**
+     * Build the complete public product index used by the shared search service.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function searchableProducts(): array
+    {
+        $statement = $this->pdo->query("SELECT p.*, primary_category.name AS category_name,
+                primary_category.slug AS category_slug,
+                MIN(v.price_bani) AS price_bani,
+                MIN(v.compare_price_bani) AS compare_price_bani,
+                COUNT(DISTINCT v.id) AS variant_count,
+                (SELECT COUNT(*) FROM personalization_options required_option
+                    WHERE required_option.product_id = p.id AND required_option.required = 1) AS required_personalization_count,
+                COALESCE(MIN(CASE WHEN v.is_default = 1 THEN v.id END), MIN(v.id)) AS default_variant_id,
+                COALESCE(SUM(i.physical_quantity - i.reserved_quantity), 0) AS available_quantity,
+                COALESCE(
+                    (SELECT product_media.public_path
+                        FROM product_images pi
+                        JOIN media product_media ON product_media.id = pi.media_id
+                        WHERE pi.product_id = p.id AND product_media.public_path IS NOT NULL
+                        ORDER BY pi.position, pi.media_id LIMIT 1),
+                    (SELECT category_media.public_path
+                        FROM product_categories image_pc
+                        JOIN categories image_category ON image_category.id = image_pc.category_id
+                        JOIN media category_media ON category_media.id = image_category.image_media_id
+                        WHERE image_pc.product_id = p.id AND category_media.public_path IS NOT NULL
+                        ORDER BY CASE WHEN image_category.parent_id IS NULL THEN 0 ELSE 1 END,
+                            image_category.position, image_category.id LIMIT 1)
+                ) AS image_path,
+                COALESCE(
+                    (SELECT product_media.alt_text
+                        FROM product_images pi
+                        JOIN media product_media ON product_media.id = pi.media_id
+                        WHERE pi.product_id = p.id AND product_media.public_path IS NOT NULL
+                        ORDER BY pi.position, pi.media_id LIMIT 1),
+                    (SELECT category_media.alt_text
+                        FROM product_categories image_pc
+                        JOIN categories image_category ON image_category.id = image_pc.category_id
+                        JOIN media category_media ON category_media.id = image_category.image_media_id
+                        WHERE image_pc.product_id = p.id AND category_media.public_path IS NOT NULL
+                        ORDER BY CASE WHEN image_category.parent_id IS NULL THEN 0 ELSE 1 END,
+                            image_category.position, image_category.id LIMIT 1)
+                ) AS image_alt,
+                (SELECT GROUP_CONCAT(DISTINCT search_variant.sku)
+                    FROM product_variants search_variant
+                    WHERE search_variant.product_id = p.id AND search_variant.status = 'active') AS search_skus,
+                (SELECT GROUP_CONCAT(DISTINCT search_category.name)
+                    FROM product_categories search_pc
+                    JOIN categories search_category ON search_category.id = search_pc.category_id
+                    WHERE search_pc.product_id = p.id AND search_category.status = 'published') AS search_categories
+            FROM products p
+            JOIN product_variants v ON v.product_id = p.id AND v.status = 'active'
+            LEFT JOIN inventory i ON i.variant_id = v.id
+            LEFT JOIN categories primary_category ON primary_category.id = p.primary_category_id
+            WHERE p.status = 'published'
+            GROUP BY p.id
+            ORDER BY p.name, p.id");
+        return $statement->fetchAll();
+    }
+
+    /** @return list<array<string, mixed>> */
+    public function searchableCategories(): array
+    {
+        $statement = $this->pdo->query("SELECT c.id, c.parent_id, c.name, c.slug, c.description, c.position,
+                category_media.public_path AS image_path,
+                category_media.alt_text AS image_alt
+            FROM categories c
+            LEFT JOIN media category_media ON category_media.id = c.image_media_id
+            WHERE c.status = 'published' AND c.visibility = 'public'
+              AND EXISTS (
+                SELECT 1 FROM product_categories pc
+                JOIN products p ON p.id = pc.product_id AND p.status = 'published'
+                WHERE pc.category_id = c.id
+              )
+            ORDER BY c.position, c.name, c.id");
+        return $statement->fetchAll();
+    }
+
     /** @return list<array<string, mixed>> */
     public function collectionProducts(string $slug): array
     {

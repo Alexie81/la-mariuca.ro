@@ -9,6 +9,7 @@ use App\Modules\Cart\CartController;
 use App\Modules\Cart\CartService;
 use App\Modules\Catalog\CatalogAdminService;
 use App\Modules\Catalog\CatalogRepository;
+use App\Modules\Catalog\CatalogSearchService;
 use App\Modules\Catalog\CategoryPathRepository;
 use App\Modules\Catalog\StorefrontController;
 use App\Modules\Checkout\CheckoutController;
@@ -52,6 +53,7 @@ final class AppFactory
         $csrf = new Csrf();
         $auth = new Auth($pdo);
         $catalog = new CatalogRepository($pdo);
+        $catalogSearch = new CatalogSearchService($catalog);
         $categoryPaths = new CategoryPathRepository($pdo);
         $cart = new CartService($pdo);
 
@@ -101,7 +103,7 @@ final class AppFactory
         $content = new ContentRepository($pdo);
         $orders = new OrderService($pdo);
 
-        $storefront = new StorefrontController($catalog, $categoryPaths, $content, $rateLimiter, $view, $config);
+        $storefront = new StorefrontController($catalog, $catalogSearch, $categoryPaths, $content, $rateLimiter, $view, $config);
         $cartController = new CartController($cart, $view, $config);
         $checkoutController = new CheckoutController(new CheckoutService($pdo, $cart, $config), $cart, $orders, new StripeCheckoutService($pdo, $config), $rateLimiter, $view, $config);
         $authController = new AuthController($pdo, $auth, $rateLimiter, $view, $config);

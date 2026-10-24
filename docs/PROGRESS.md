@@ -545,3 +545,11 @@ atribute și filtre fără schimbarea contractelor existente.
 
 - Butonul principal „Descoperă produsele” din hero deschide acum pagina `/magazin/` în locul ancorei interne către selecția de produse.
 - Verificări locale trecute: lint-ul proiectului și răspuns HTTP 200 pentru `/magazin/`.
+
+## 2026-10-24 — Căutare semantică unificată
+
+- Căutarea rapidă din navigație și pagina `/cautare/` folosesc același serviciu de normalizare și clasare, astfel încât ordinea și relevanța produselor sunt consecvente în ambele interfețe.
+- Diacriticele, singularul/pluralul, termenii echivalenți uzuali din catalog și greșelile mici de tastare sunt tolerate. Toți termenii importanți ai interogării trebuie însă să aibă o potrivire suficient de puternică în nume, categorii, descriere ori SKU, prevenind afișarea produselor fără legătură.
+- Un SKU complet este comparat fără diferență între litere mari și mici și returnează exclusiv produsul său. Un nume exact sau o potrivire unică foarte apropiată a numelui returnează tot un singur produs și nu amestecă sugestii de categorii.
+- Indexul este construit din toate produsele publicate, variantele active și categoriile existente în baza de date la fiecare cerere nouă; produsele adăugate ulterior intră automat în căutare, fără o listă manuală de produse. Lista manuală acoperă numai echivalențe lingvistice românești.
+- Verificarea live a confirmat potrivirea unică pentru `lm-b-001-2a` și `costumas micul gentelman`, rezultatul corect pentru `rochii botez`, căutarea semantică `crestinare` și lipsa rezultatelor pentru combinațiile incoerente `rochie baieti` și `rochie astronaut`. Lint-ul, compilarea celor 33 de template-uri Twig, PHPStan și PHPUnit cu 39 de teste / 217 aserțiuni trec.
