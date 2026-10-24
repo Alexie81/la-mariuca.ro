@@ -69,6 +69,20 @@
           <strong>{{ product_total }}</strong>
           <span>{{ product_total == 1 ? 'produs' : 'produse' }}</span>
         </div>
+        <nav class="shop-mobile-category-carousel" aria-label="Categorii principale" data-shop-category-carousel>
+          <div class="shop-mobile-category-viewport" data-shop-category-viewport>
+            <div class="shop-mobile-category-track" data-shop-category-track>
+              {% for category in filter_categories %}
+                <a class="shop-mobile-category-card{{ category.image_path ? ' has-image' : '' }}" href="{{ url('categorie/' ~ category.slug ~ '/') }}" data-shop-category-item>
+                  {% if category.image_path %}
+                    <img src="{{ url(category.image_path) }}" width="72" height="72" alt="" loading="eager" decoding="async">
+                  {% endif %}
+                  <span>{{ category.name }}</span>
+                </a>
+              {% endfor %}
+            </div>
+          </div>
+        </nav>
         <form class="shop-sort" method="get" data-shop-sort>
           {% for active_category_slug in active_category_slugs %}<input type="hidden" name="categorie[]" value="{{ active_category_slug }}">{% endfor %}
           {% if filter_in_stock %}<input type="hidden" name="stoc" value="1">{% endif %}
