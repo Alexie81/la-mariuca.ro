@@ -872,7 +872,7 @@ const renderSuggestions = (payload) => {
   close.className = 'search-panel-close';
   close.type = 'button';
   close.setAttribute('aria-label', 'Închide sugestiile');
-  close.textContent = '×';
+  close.innerHTML = '<span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m7.5 7.5 9 9"></path><path d="m16.5 7.5-9 9"></path></svg></span>';
   close.addEventListener('click', () => {
     closeSuggestions();
     search.blur();

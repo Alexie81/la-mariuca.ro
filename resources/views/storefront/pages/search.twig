@@ -1,24 +1,133 @@
 {% extends 'storefront/layouts/base.twig' %}
 {% block content %}
-  <div class="container page-shell">
-    <h1>Căutare</h1>
-    <form class="search-page-form" method="get" role="search">
-      <label for="q">Caută în magazin</label>
-      <div>
-        <input id="q" type="search" name="q" value="{{ query }}" placeholder="Caută hăinuțe, rochițe, trusouri..." data-search-placeholder data-placeholder-desktop="Caută hăinuțe, rochițe, trusouri..." data-placeholder-phone="Ce cauți pentru cel mic?" minlength="2" required>
-        <button class="button">Caută</button>
-      </div>
-    </form>
-    {% if error %}<p class="alert alert-error">{{ error }}</p>{% endif %}
-    {% if query %}
-      <h2>Rezultate pentru „{{ query }}”</h2>
-      <div class="product-grid">
-        {% for product in products %}
-          {% include 'storefront/components/product-card.twig' with {product: product} %}
-        {% else %}
-          <p class="empty">Nu am găsit produse pentru această căutare.</p>
-        {% endfor %}
-      </div>
+  <main class="container page-shell catalog-search-page">
+    {% if query and products %}
+      <section class="catalog-search-results catalog-search-results-first" aria-labelledby="catalog-search-results-title">
+        <header class="catalog-search-results-heading">
+          <div>
+            <span class="catalog-search-results-count">{{ products|length }} {{ products|length == 1 ? 'rezultat găsit' : 'rezultate găsite' }}</span>
+            <h2 id="catalog-search-results-title">Pentru „<em>{{ query }}</em>”</h2>
+          </div>
+          <a href="{{ url('magazin/') }}">Vezi tot magazinul <span aria-hidden="true">→</span></a>
+        </header>
+
+        <div class="catalog-search-product-grid">
+          {% for product in products %}
+            <div class="catalog-search-product-item">
+              {% include 'storefront/components/boutique-product-card.twig' with {product: product} %}
+            </div>
+          {% endfor %}
+        </div>
+      </section>
     {% endif %}
-  </div>
+
+    <section class="catalog-search-hero" aria-labelledby="catalog-search-title">
+      <span class="catalog-search-hero-orbit catalog-search-hero-orbit-one" aria-hidden="true"></span>
+      <span class="catalog-search-hero-orbit catalog-search-hero-orbit-two" aria-hidden="true"></span>
+
+      <div class="catalog-search-hero-copy">
+        <span class="catalog-search-eyebrow">
+          <span aria-hidden="true">✦</span>
+          Descoperă în boutique
+        </span>
+        <h1 id="catalog-search-title">Caută ceva <em>drag.</em></h1>
+        <p>Scrie ce ai în minte, iar noi căutăm printre toate micile comori din magazin.</p>
+
+        <form class="search-page-form" action="{{ url('cautare/') }}" method="get" role="search">
+          <label class="sr-only" for="catalog-search-input">Caută în magazin</label>
+          <span class="search-page-field-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"></circle><path d="m15.4 15.4 4.4 4.4"></path></svg>
+          </span>
+          <input id="catalog-search-input" type="search" name="q" value="{{ query }}" placeholder="Ce cauți pentru cel mic?" minlength="2" autocomplete="off" required>
+          <button type="submit">
+            <span>Caută</span>
+            <span class="search-page-submit-arrow" aria-hidden="true">
+              <svg viewBox="0 0 20 20"><path d="m7.5 4.8 5.2 5.2-5.2 5.2"></path></svg>
+            </span>
+          </button>
+        </form>
+
+        {% if navigation_tree %}
+          <div class="catalog-search-shortcuts">
+            <span class="catalog-search-shortcuts-label">Caută rapid:</span>
+            <nav class="catalog-search-shortcuts-list" aria-label="Categorii populare">
+              {% for category in navigation_tree|slice(0, 6) %}
+                <a href="{{ url('categorie/' ~ category.path ~ '/') }}">
+                  {% if category.image_path %}
+                    <span class="catalog-search-shortcut-image" aria-hidden="true"><img src="{{ url(category.image_path) }}" alt="" loading="lazy" decoding="async"></span>
+                  {% endif %}
+                  <span>{{ category.name }}</span>
+                </a>
+              {% endfor %}
+            </nav>
+          </div>
+        {% endif %}
+      </div>
+
+      <div class="catalog-search-hero-art" aria-hidden="true">
+        <span class="catalog-search-art-spark catalog-search-art-spark-one">✦</span>
+        <span class="catalog-search-art-spark catalog-search-art-spark-two">✦</span>
+        <span class="catalog-search-art-heart">♡</span>
+        <span class="catalog-search-art-glass">
+          <svg viewBox="0 0 180 180">
+            <circle cx="72" cy="70" r="45"></circle>
+            <path d="m105 103 42 42"></path>
+            <path class="catalog-search-art-smile" d="M53 73c8 9 23 9 32 0"></path>
+          </svg>
+        </span>
+      </div>
+    </section>
+
+    {% if error %}
+      <section class="catalog-search-message catalog-search-message-error" role="alert">
+        <span aria-hidden="true">!</span>
+        <div><strong>Căutarea a luat o mică pauză</strong><p>{{ error }}</p></div>
+      </section>
+    {% elseif not products %}
+      <section class="catalog-search-empty" aria-labelledby="catalog-search-empty-title">
+        <div class="catalog-search-empty-visual" aria-hidden="true">
+          <span class="catalog-search-empty-ring"></span>
+          <svg viewBox="0 0 150 150">
+            <circle cx="59" cy="58" r="35"></circle>
+            <path d="m85 84 37 37"></path>
+            <path d="M48 62c6 6 16 6 22 0"></path>
+          </svg>
+          <span class="catalog-search-empty-heart">♡</span>
+          <span class="catalog-search-empty-spark">✦</span>
+        </div>
+
+        <div class="catalog-search-empty-copy">
+          <span class="catalog-search-empty-eyebrow">{{ query ? 'Mai încercăm o dată' : 'De unde începem?' }}</span>
+          <h2 id="catalog-search-empty-title">
+            {% if query and query|length < 2 %}
+              Mai scrie puțin…
+            {% elseif query %}
+              Nu am găsit încă „{{ query }}”
+            {% else %}
+              Comoara potrivită e aproape
+            {% endif %}
+          </h2>
+          <p>
+            {% if query and query|length < 2 %}
+              Folosește cel puțin două litere pentru a porni căutarea.
+            {% elseif query %}
+              Încearcă un termen mai simplu sau alege una dintre categoriile de mai jos.
+            {% else %}
+              Caută după numele produsului, categorie ori un detaliu care îți place.
+            {% endif %}
+          </p>
+
+          <div class="catalog-search-empty-tips" aria-label="Sugestii pentru căutare">
+            <span><i aria-hidden="true">✓</i> Folosește mai puține cuvinte</span>
+            <span><i aria-hidden="true">✓</i> Verifică denumirea</span>
+          </div>
+
+          <a class="catalog-search-empty-cta" href="{{ url('magazin/') }}">
+            Descoperă toate produsele
+            <span aria-hidden="true">→</span>
+          </a>
+        </div>
+      </section>
+    {% endif %}
+  </main>
 {% endblock %}
