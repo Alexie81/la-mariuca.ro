@@ -517,3 +517,12 @@ atribute și filtre fără schimbarea contractelor existente.
 - Listarea folosește aceleași date bogate și aceleași acțiuni ca Magazinul, cu sortare după noutate, preț sau nume și opțiuni de 12, 24 ori 50 de produse pe pagină.
 - Verificarea vizuală în browser a fost făcută la 390, 800 și 1280 px, atât pentru categoria „Fetițe”, care are imagine, cât și pentru subcategoria „Rochițe de ocazie”, care nu are imagine. Au fost confirmate absența fallback-ului, grila 2/3/4 și lipsa overflow-ului orizontal.
 - Verificări locale trecute: lint PHP, compilarea tuturor celor 32 de template-uri Twig, PHPStan fără erori și PHPUnit cu 33 de teste / 168 de aserțiuni.
+
+## 2026-10-24 — Filtre dinamice în categorii
+
+- Magazinul și paginile de categorie/subcategorie folosesc aceeași componentă Twig pentru toolbar, filtre, rezultate și paginator, eliminând diferențele de structură și stil dintre ele.
+- Într-o categorie sunt propuse automat numai subcategoriile publice din ramura curentă, cu numărul de produse calculat inclusiv pentru descendenți. Parametrii pentru categorii din afara ramurii sunt ignorați server-side.
+- Disponibilitatea, numărul de rezultate și intervalul de preț sunt calculate în contextul categoriei sau subcategoriei curente. O subcategorie finală păstrează numai filtrele aplicabile, fără un grup gol de subcategorii.
+- Caruselul de categorii rămâne exclusiv în Magazin; paginile de categorie și subcategorie afișează contorul de produse pe mobil, urmat de sortare și butonul drawer-ului de filtre.
+- Verificarea vizuală reală a confirmat layout-ul cu două coloane la 390 px, trei la 800 px și patru plus filtrul lateral la 1280 px. Drawer-ul a fost verificat atât pentru „Fetițe”, cu subcategorii dinamice, cât și pentru „Rochițe de ocazie”, fără grup de subcategorii.
+- Verificări locale trecute: lint PHP, compilarea tuturor celor 33 de template-uri Twig, PHPStan fără erori și PHPUnit cu 35 de teste / 193 de aserțiuni.
