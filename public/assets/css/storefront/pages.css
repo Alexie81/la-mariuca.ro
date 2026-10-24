@@ -6107,6 +6107,20 @@
     font-size: 1.05rem;
   }
 
+  .boutique-product-price.is-discounted {
+    min-height: 2.65rem;
+    flex-direction: column-reverse;
+    align-items: flex-start;
+    justify-content: flex-end;
+    gap: .08rem;
+  }
+
+  .boutique-product-price.is-discounted strong,
+  .boutique-product-price.is-discounted del {
+    line-height: 1.15;
+    white-space: nowrap;
+  }
+
   .boutique-product-cart,
   .boutique-product-cart button {
     min-height: 3rem;

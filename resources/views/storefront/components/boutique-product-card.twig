@@ -40,7 +40,7 @@
 
   <div class="boutique-product-copy">
     <h3><a href="{{ url('produs/' ~ product.slug ~ '/') }}">{{ product.name }}</a></h3>
-    <div class="boutique-product-price">
+    <div class="boutique-product-price{{ product_has_discount ? ' is-discounted' : '' }}">
       <strong>{{ money(product.price_bani) }}</strong>
       {% if product_has_discount %}
         <del>{{ money(product.compare_price_bani) }}</del>
