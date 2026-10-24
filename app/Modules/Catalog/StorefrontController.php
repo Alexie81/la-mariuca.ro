@@ -107,7 +107,10 @@ final class StorefrontController
         $query = $request->getQueryParams();
         $page = max(1, (int) ($query['pagina'] ?? 1));
         $sort = (string) ($query['sortare'] ?? 'new');
-        if (!in_array($sort, ['new', 'price-asc', 'price-desc', 'name'], true)) {
+        if ($sort === 'name') {
+            $sort = 'name-asc';
+        }
+        if (!in_array($sort, ['new', 'price-asc', 'price-desc', 'name-asc', 'name-desc'], true)) {
             $sort = 'new';
         }
 

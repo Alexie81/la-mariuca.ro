@@ -112,6 +112,8 @@ final class CatalogRepository
             'price-asc' => 'price_bani ASC, p.id DESC',
             'price-desc' => 'price_bani DESC, p.id DESC',
             'name' => 'p.name ASC, p.id DESC',
+            'name-asc' => 'p.name ASC, p.id DESC',
+            'name-desc' => 'p.name DESC, p.id DESC',
         ];
         $order = $sorts[$sort] ?? $sorts['new'];
         $offset = max(0, ($page - 1) * $perPage);
@@ -172,6 +174,8 @@ final class CatalogRepository
             'price-asc' => 'price_bani ASC, p.id DESC',
             'price-desc' => 'price_bani DESC, p.id DESC',
             'name' => 'p.name ASC, p.id DESC',
+            'name-asc' => 'p.name ASC, p.id DESC',
+            'name-desc' => 'p.name DESC, p.id DESC',
         ];
         $order = $sorts[$sort] ?? $sorts['new'];
         $limit = max(1, min(50, $perPage));

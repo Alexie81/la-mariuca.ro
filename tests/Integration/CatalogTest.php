@@ -185,6 +185,13 @@ final class CatalogTest extends DatabaseTestCase
         sort($sortedPrices, SORT_NUMERIC);
         self::assertSame($sortedPrices, $prices);
 
+        $productsByNameAscending = $repository->shopProducts(1, 50, 'name-asc');
+        $productsByNameDescending = $repository->shopProducts(1, 50, 'name-desc');
+        self::assertSame(
+            array_reverse(array_column($productsByNameAscending, 'name')),
+            array_column($productsByNameDescending, 'name')
+        );
+
         $filterCategories = $repository->shopFilterCategories();
         self::assertNotEmpty($filterCategories);
         $girlsCategory = current(array_filter(
