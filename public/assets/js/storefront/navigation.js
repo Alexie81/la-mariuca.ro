@@ -842,6 +842,14 @@ const searchSectionTitle = (label) => {
   return title;
 };
 
+const searchSuggestionArrow = () => {
+  const arrow = document.createElement('span');
+  arrow.className = 'search-suggestion-arrow';
+  arrow.setAttribute('aria-hidden', 'true');
+  arrow.innerHTML = '<svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"></path></svg>';
+  return arrow;
+};
+
 const searchMedia = (url, className) => {
   if (!url) return null;
   const image = document.createElement('img');
@@ -917,10 +925,7 @@ const renderSuggestions = (payload) => {
       const name = document.createElement('strong');
       name.textContent = category.name;
 
-      const arrow = document.createElement('span');
-      arrow.className = 'search-suggestion-arrow';
-      arrow.setAttribute('aria-hidden', 'true');
-      arrow.textContent = '›';
+      const arrow = searchSuggestionArrow();
       link.append(name, arrow);
       categoryList.append(link);
     });
@@ -960,10 +965,7 @@ const renderSuggestions = (payload) => {
       price.textContent = `${priceFormatter.format((item.price_bani || 0) / 100)} Lei`;
       copy.append(title, price);
 
-      const arrow = document.createElement('span');
-      arrow.className = 'search-suggestion-arrow';
-      arrow.setAttribute('aria-hidden', 'true');
-      arrow.textContent = '›';
+      const arrow = searchSuggestionArrow();
       link.append(copy, arrow);
       productList.append(link);
     });
@@ -985,10 +987,7 @@ const renderSuggestions = (payload) => {
   allResults.innerHTML = '<span aria-hidden="true">⌕</span>';
   const allResultsLabel = document.createElement('strong');
   allResultsLabel.textContent = `Vezi toate rezultatele pentru „${query}”`;
-  const allResultsArrow = document.createElement('span');
-  allResultsArrow.className = 'search-suggestion-arrow';
-  allResultsArrow.setAttribute('aria-hidden', 'true');
-  allResultsArrow.textContent = '›';
+  const allResultsArrow = searchSuggestionArrow();
   allResults.append(allResultsLabel, allResultsArrow);
   suggestions.append(allResults);
 

@@ -1217,6 +1217,17 @@ td {
   object-fit: cover;
 }
 
+.search-suggestion-arrow svg {
+  width: 11px;
+  height: 11px;
+  display: block;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .search-category-suggestion:not(.has-image) {
   grid-template-columns: minmax(0, 1fr) 22px;
   padding-left: 12px;
