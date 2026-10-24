@@ -366,7 +366,7 @@ const updateFavoriteForms = (productId, state) => {
 
 const animateCartSuccess = (form, button) => {
   form.classList.add('is-cart-confirmed');
-  const cardText = button?.querySelector('.boutique-product-cart-text');
+  const cardText = button?.querySelector('.boutique-product-cart-text, [data-add-to-cart-label]');
   const originalText = cardText?.textContent || button?.textContent || '';
   if (cardText) cardText.textContent = 'Adăugat în coș';
   else if (button) button.textContent = 'Produs adăugat ✓';

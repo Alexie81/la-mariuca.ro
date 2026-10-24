@@ -1,79 +1,231 @@
 {% extends 'storefront/layouts/base.twig' %}
 {% block head %}<script type="application/ld+json">{{ structured_data|raw }}</script>{% endblock %}
 {% block content %}
-<div class="container page-shell">
-  <nav class="breadcrumbs">
-    <a href="{{ url('') }}">Acasă</a>
-    {% for category in product_category_trail %}<span>/</span><a href="{{ url('categorie/' ~ category.path ~ '/') }}">{{ category.name }}</a>{% endfor %}
-    <span>/</span><span>{{ product.name }}</span>
-  </nav>
-  <div class="product-detail">
-    {% if product.image_path %}
-      <div class="product-gallery-shell" data-product-gallery>
-        <figure class="product-gallery has-image">
-          <img src="{{ url(product.image_path) }}" alt="{{ product.image_alt ?: product.name }}" width="960" height="960" decoding="async" data-product-gallery-main>
-        </figure>
-        {% if product.images|length > 1 %}
-          <div class="product-gallery-thumbnails" aria-label="Galeria produsului">
-            {% for image in product.images %}
-              <button class="product-gallery-thumbnail{{ loop.first ? ' is-active' : '' }}" type="button" data-product-gallery-thumbnail data-gallery-src="{{ url(image.image_path) }}" data-gallery-alt="{{ image.image_alt ?: product.name }}" aria-label="Afișează imaginea {{ loop.index }} din {{ product.images|length }}" aria-pressed="{{ loop.first ? 'true' : 'false' }}">
-                <img src="{{ url(image.image_path) }}" alt="" width="120" height="120" loading="lazy" decoding="async">
+{% set gallery_count = product.images|length %}
+{% set default_variant = product.variants|first %}
+{% set product_is_favorite = is_favorite(product.id) %}
+<main class="product-page">
+  <div class="container product-page-shell">
+    <nav class="breadcrumbs product-breadcrumbs" aria-label="Navigare ierarhică">
+      <a href="{{ url('') }}">Acasă</a>
+      {% for category in product_category_trail %}<span aria-hidden="true">/</span><a href="{{ url('categorie/' ~ category.path ~ '/') }}">{{ category.name }}</a>{% endfor %}
+      <span aria-hidden="true">/</span><span aria-current="page">{{ product.name }}</span>
+    </nav>
+
+    <div class="product-detail">
+      {% if product.image_path %}
+        <section class="product-gallery-shell" data-product-gallery data-gallery-title="{{ product.name }}" aria-label="Galeria foto pentru {{ product.name }}">
+          <div class="product-gallery-layout{{ gallery_count > 1 ? '' : ' is-single' }}">
+            {% if gallery_count > 1 %}
+              <div class="product-gallery-rail" aria-label="Miniaturi galerie">
+                <button class="product-gallery-rail-control is-previous" type="button" data-gallery-rail-previous aria-label="Derulează miniaturile în sus">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 14 5-5 5 5"></path></svg>
+                </button>
+                <div class="product-gallery-thumbnails" data-gallery-thumbnails>
+                  {% for image in product.images %}
+                    <button class="product-gallery-thumbnail{{ loop.first ? ' is-active' : '' }}" type="button" data-product-gallery-thumbnail data-gallery-index="{{ loop.index0 }}" data-gallery-src="{{ url(image.image_path) }}" data-gallery-alt="{{ image.image_alt ?: product.name }}" aria-label="Afișează imaginea {{ loop.index }} din {{ gallery_count }}" aria-pressed="{{ loop.first ? 'true' : 'false' }}">
+                      <img src="{{ url(image.image_path) }}" alt="" width="140" height="140" loading="{{ loop.first ? 'eager' : 'lazy' }}" decoding="async">
+                    </button>
+                  {% endfor %}
+                </div>
+                <button class="product-gallery-rail-control is-next" type="button" data-gallery-rail-next aria-label="Derulează miniaturile în jos">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"></path></svg>
+                </button>
+              </div>
+            {% endif %}
+
+            <div class="product-gallery-stage" data-gallery-stage>
+              <figure class="product-gallery has-image">
+                <img src="{{ url(product.image_path) }}" alt="{{ product.image_alt ?: product.name }}" width="1100" height="1100" decoding="async" fetchpriority="high" data-product-gallery-main>
+              </figure>
+
+              <form class="product-gallery-favorite boutique-product-favorite{{ product_is_favorite ? ' is-selected' : '' }}" action="{{ url('favorite/') }}" method="post" data-storefront-favorite data-product-name="{{ product.name }}">
+                <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                <input type="hidden" name="product_id" value="{{ product.id }}">
+                <button type="submit" aria-label="{{ product_is_favorite ? 'Elimină ' ~ product.name ~ ' din favorite' : 'Adaugă ' ~ product.name ~ ' la favorite' }}" title="{{ product_is_favorite ? 'Elimină din favorite' : 'Adaugă la favorite' }}">
+                  <img class="boutique-product-favorite-icon icon-heart" src="{{ url('assets/images/icon-favorite-hearts.png') }}" width="160" height="128" alt="" aria-hidden="true">
+                </button>
+              </form>
+
+              {% if gallery_count > 1 %}
+                <button class="product-gallery-arrow is-previous" type="button" data-gallery-previous aria-label="Imaginea precedentă">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14.5 6.5-5.5 5.5 5.5 5.5"></path></svg>
+                </button>
+                <button class="product-gallery-arrow is-next" type="button" data-gallery-next aria-label="Imaginea următoare">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9.5 6.5 5.5 5.5-5.5 5.5"></path></svg>
+                </button>
+              {% endif %}
+
+              <button class="product-gallery-zoom" type="button" data-gallery-open aria-label="Mărește imaginea produsului">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.7" cy="10.7" r="6.2"></circle><path d="m15.2 15.2 4.2 4.2M10.7 7.9v5.6M7.9 10.7h5.6"></path></svg>
+                <span>Mărește</span>
               </button>
-            {% endfor %}
+
+              {% if default_variant %}
+                <span class="product-gallery-stock{{ default_variant.available_quantity > 0 ? ' is-available' : ' is-unavailable' }}" data-product-stock>
+                  <i aria-hidden="true"></i><span>{{ default_variant.available_quantity > 0 ? 'În stoc' : 'Stoc epuizat' }}</span>
+                </span>
+              {% endif %}
+
+              {% if gallery_count > 1 %}
+                <div class="product-gallery-pagination" aria-label="Poziția în galerie">
+                  {% for image in product.images %}
+                    <button class="product-gallery-dot{{ loop.first ? ' is-active' : '' }}" type="button" data-gallery-dot data-gallery-index="{{ loop.index0 }}" aria-label="Imaginea {{ loop.index }} din {{ gallery_count }}" aria-current="{{ loop.first ? 'true' : 'false' }}"></button>
+                  {% endfor %}
+                </div>
+              {% endif %}
+            </div>
+          </div>
+
+          <dialog class="product-gallery-lightbox" data-gallery-lightbox aria-label="Galerie mărită pentru {{ product.name }}">
+            <div class="product-gallery-lightbox-header">
+              <div>
+                <span>Galerie produs</span>
+                <strong>{{ product.name }}</strong>
+              </div>
+              <span class="product-gallery-lightbox-count"><b data-gallery-current>1</b> / {{ gallery_count }}</span>
+              <div class="product-gallery-lightbox-tools">
+                <button type="button" data-gallery-zoom-out aria-label="Micșorează imaginea">−</button>
+                <output data-gallery-zoom-level>100%</output>
+                <button type="button" data-gallery-zoom-in aria-label="Mărește imaginea">+</button>
+                <button class="is-close" type="button" data-gallery-close aria-label="Închide galeria">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"></path></svg>
+                </button>
+              </div>
+            </div>
+            <div class="product-gallery-lightbox-stage" data-gallery-lightbox-stage>
+              <img src="{{ url(product.image_path) }}" alt="{{ product.image_alt ?: product.name }}" width="1400" height="1400" data-gallery-lightbox-image>
+              {% if gallery_count > 1 %}
+                <button class="product-gallery-lightbox-arrow is-previous" type="button" data-gallery-lightbox-previous aria-label="Imaginea precedentă">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14.5 6.5-5.5 5.5 5.5 5.5"></path></svg>
+                </button>
+                <button class="product-gallery-lightbox-arrow is-next" type="button" data-gallery-lightbox-next aria-label="Imaginea următoare">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9.5 6.5 5.5 5.5-5.5 5.5"></path></svg>
+                </button>
+              {% endif %}
+            </div>
+            <p class="product-gallery-lightbox-hint">Glisează pentru galerie · folosește butoanele pentru zoom</p>
+          </dialog>
+        </section>
+      {% else %}
+        <div class="product-gallery placeholder">Galeria foto va fi completată ulterior.</div>
+      {% endif %}
+
+      <section class="product-info" aria-labelledby="product-title">
+        <div class="product-info-heading">
+          {% if product.category_name %}<a class="product-category-kicker" href="{{ product_category_trail ? url('categorie/' ~ (product_category_trail|last).path ~ '/') : url('magazin/') }}">{{ product.category_name }}</a>{% endif %}
+          <h1 id="product-title">{{ product.name }}</h1>
+          <p class="product-lead">{{ product.short_description }}</p>
+        </div>
+
+        {% if default_variant %}
+          <div class="product-purchase-summary">
+            <div class="product-price-wrap">
+              <span class="product-price-label">Preț</span>
+              <strong class="product-price" data-product-price>{{ money(default_variant.price_bani) }}</strong>
+              <del data-product-compare-price{% if not default_variant.compare_price_bani or default_variant.compare_price_bani <= default_variant.price_bani %} hidden{% endif %}>{{ default_variant.compare_price_bani and default_variant.compare_price_bani > default_variant.price_bani ? money(default_variant.compare_price_bani) : '' }}</del>
+            </div>
+            <div class="product-code-wrap">
+              <span>Cod produs</span>
+              <strong data-product-sku>{{ default_variant.sku }}</strong>
+            </div>
           </div>
         {% endif %}
-      </div>
-    {% else %}
-      <div class="product-gallery placeholder">Galeria foto va fi completată ulterior.</div>
-    {% endif %}
-    <div class="product-info">
-      <span class="eyebrow">{{ product.category_name }}</span>
-      <h1>{{ product.name }}</h1>
-      <p class="lead">{{ product.short_description }}</p>
-      {% if product.variants %}
-        <form action="{{ url('cos/adauga/') }}" method="post" data-cart-form data-storefront-cart data-product-name="{{ product.name }}" data-product-url="{{ url('produs/' ~ product.slug ~ '/') }}"{% if product.image_path %} data-product-image="{{ url(product.image_path) }}"{% endif %} data-cart-url="{{ url('cos/') }}">
-          <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-          <label for="variant">Variantă</label>
-          <select id="variant" name="variant_id" data-variant-select>
-            {% for variant in product.variants %}
-              <option value="{{ variant.id }}" data-price="{{ variant.price_bani }}" data-stock="{{ variant.available_quantity }}" {{ variant.is_default ? 'selected' }}>{{ variant.option_summary ?: 'Variantă standard' }} — {{ money(variant.price_bani) }} — {{ variant.available_quantity > 0 ? variant.available_quantity ~ ' disponibile' : 'stoc epuizat' }}</option>
-            {% endfor %}
-          </select>
-          {% for option in product.personalization_options %}
-            <label for="option_{{ option.id }}">{{ option.label }}{{ option.required ? ' *' }}</label>
-            {% if option.type == 'select' %}
-              <select id="option_{{ option.id }}" name="option_{{ option.id }}" {{ option.required ? 'required' }}>
-                <option value="">Alege</option>
-                {% for value in option.allowed_values_json|json_decode %}<option>{{ value }}</option>{% endfor %}
-              </select>
-            {% elseif option.type == 'checkbox' %}
-              <input id="option_{{ option.id }}" type="checkbox" name="option_{{ option.id }}" value="da">
+
+        {% if product.variants %}
+          <form class="product-buy-form" action="{{ url('cos/adauga/') }}" method="post" data-cart-form data-storefront-cart data-product-name="{{ product.name }}" data-product-url="{{ url('produs/' ~ product.slug ~ '/') }}"{% if product.image_path %} data-product-image="{{ url(product.image_path) }}"{% endif %} data-cart-url="{{ url('cos/') }}">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            {% if product.variants|length > 1 %}
+              <label class="product-field" for="variant">
+                <span>Variantă</span>
+                <span class="product-select-shell">
+                  <select id="variant" name="variant_id" data-variant-select>
+                    {% for variant in product.variants %}
+                      <option value="{{ variant.id }}" data-price="{{ variant.price_bani }}" data-compare-price="{{ variant.compare_price_bani ?: 0 }}" data-stock="{{ variant.available_quantity }}" data-sku="{{ variant.sku }}" {{ variant.is_default ? 'selected' }}>{{ variant.option_summary ?: 'Variantă standard' }} — {{ money(variant.price_bani) }}</option>
+                    {% endfor %}
+                  </select>
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"></path></svg>
+                </span>
+              </label>
             {% else %}
-              <input id="option_{{ option.id }}" name="option_{{ option.id }}" maxlength="{{ option.max_length ?: 120 }}" {{ option.required ? 'required' }}>
+              <input type="hidden" name="variant_id" value="{{ default_variant.id }}" data-variant-select data-price="{{ default_variant.price_bani }}" data-compare-price="{{ default_variant.compare_price_bani ?: 0 }}" data-stock="{{ default_variant.available_quantity }}" data-sku="{{ default_variant.sku }}">
             {% endif %}
-          {% endfor %}
-          <div class="quantity-row">
-            <label for="quantity">Cantitate</label>
-            <input id="quantity" name="quantity" type="number" min="1" max="20" value="1">
-            <button class="button" type="submit">Adaugă în coș</button>
-          </div>
-        </form>
-      {% endif %}
-      {% set product_is_favorite = is_favorite(product.id) %}
-      <form class="{{ product_is_favorite ? 'is-selected' : '' }}" action="{{ url('favorite/') }}" method="post" data-storefront-favorite data-product-name="{{ product.name }}">
-        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-        <input type="hidden" name="product_id" value="{{ product.id }}">
-        <button class="link-button" type="submit">{{ product_is_favorite ? 'Salvat la favorite' : 'Adaugă la favorite' }}</button>
-      </form>
+
+            {% for option in product.personalization_options %}
+              <label class="product-field" for="option_{{ option.id }}">
+                <span>{{ option.label }}{{ option.required ? ' *' }}</span>
+                {% if option.type == 'select' %}
+                  <span class="product-select-shell">
+                    <select id="option_{{ option.id }}" name="option_{{ option.id }}" {{ option.required ? 'required' }}>
+                      <option value="">Alege</option>
+                      {% for value in option.allowed_values_json|json_decode %}<option>{{ value }}</option>{% endfor %}
+                    </select>
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"></path></svg>
+                  </span>
+                {% elseif option.type == 'checkbox' %}
+                  <span class="product-checkbox"><input id="option_{{ option.id }}" type="checkbox" name="option_{{ option.id }}" value="da"><span>Da, doresc această opțiune</span></span>
+                {% else %}
+                  <input id="option_{{ option.id }}" name="option_{{ option.id }}" maxlength="{{ option.max_length ?: 120 }}" {{ option.required ? 'required' }}>
+                {% endif %}
+              </label>
+            {% endfor %}
+
+            <div class="product-buy-row">
+              <label class="product-quantity-label" for="quantity">Cantitate</label>
+              <div class="product-quantity" data-product-quantity>
+                <button type="button" data-quantity-decrease aria-label="Scade cantitatea">−</button>
+                <input id="quantity" name="quantity" type="number" min="1" max="20" value="1" inputmode="numeric">
+                <button type="button" data-quantity-increase aria-label="Crește cantitatea">+</button>
+              </div>
+              <button class="product-add-button" type="submit">
+                <span class="product-add-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3.5 5h2.1l1.2 9.2a2 2 0 0 0 2 1.7h7.6a2 2 0 0 0 1.9-1.4l1.4-5.8H6.2"></path><circle cx="9.2" cy="19" r="1.25"></circle><circle cx="17" cy="19" r="1.25"></circle></svg></span>
+                <span data-add-to-cart-label>{{ default_variant.available_quantity > 0 ? 'Adaugă în coș' : 'Stoc epuizat' }}</span>
+                <span class="product-add-arrow" aria-hidden="true"><svg viewBox="0 0 20 20"><path d="m7.5 5 5 5-5 5"></path></svg></span>
+              </button>
+            </div>
+          </form>
+        {% endif %}
+
+        <ul class="product-reassurance" aria-label="Avantaje">
+          <li><span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 7.5h10v9H4zM14 10h3.2l2.8 3v3.5h-6z"></path><circle cx="8" cy="18" r="1.5"></circle><circle cx="17.5" cy="18" r="1.5"></circle></svg></span><div><strong>Livrare în România</strong><small>Pregătită cu grijă</small></div></li>
+          <li><span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 20s7-3.7 7-10V5.5L12 3 5 5.5V10c0 6.3 7 10 7 10Z"></path><path d="m8.8 11.5 2.1 2.1 4.5-4.5"></path></svg></span><div><strong>Ales cu atenție</strong><small>Pentru cei mici</small></div></li>
+          <li><span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 11.5a8 8 0 1 1 2.3 5.7L4 20v-8.5Z"></path><path d="M8.5 11.5h7M12 8v7"></path></svg></span><div><strong>Ai nevoie de ajutor?</strong><small>Îți răspundem cu drag</small></div></li>
+        </ul>
+      </section>
     </div>
+
+    <section class="product-story" aria-labelledby="product-story-title">
+      <div class="product-story-heading">
+        <span class="eyebrow">Povestea produsului</span>
+        <h2 id="product-story-title">Detalii alese cu grijă</h2>
+        <p>Tot ce vrei să știi înainte ca acest produs să ajungă la cel mic.</p>
+      </div>
+      <div class="product-story-panels">
+        <details open>
+          <summary><span>Descriere</span><i aria-hidden="true"></i></summary>
+          <div class="product-story-copy"><p>{{ product.description|nl2br }}</p></div>
+        </details>
+        {% if product.package_contents %}
+          <details>
+            <summary><span>Ce conține pachetul</span><i aria-hidden="true"></i></summary>
+            <div class="product-story-copy"><p>{{ product.package_contents|nl2br }}</p>{% if product.excluded_accessories %}<p class="product-story-note"><strong>De reținut:</strong> {{ product.excluded_accessories }}</p>{% endif %}</div>
+          </details>
+        {% endif %}
+        {% if product.composition or product.care_instructions %}
+          <details>
+            <summary><span>Materiale și îngrijire</span><i aria-hidden="true"></i></summary>
+            <div class="product-story-copy">{% if product.composition %}<p><strong>Compoziție:</strong> {{ product.composition }}</p>{% endif %}{% if product.care_instructions %}<p><strong>Îngrijire:</strong> {{ product.care_instructions }}</p>{% endif %}</div>
+          </details>
+        {% endif %}
+        {% if product.size_guide %}
+          <details>
+            <summary><span>Dimensiuni</span><i aria-hidden="true"></i></summary>
+            <div class="product-story-copy"><p>{{ product.size_guide|nl2br }}</p></div>
+          </details>
+        {% endif %}
+      </div>
+    </section>
   </div>
-  <div class="product-description">
-    <h2>Descriere</h2>
-    <p>{{ product.description|nl2br }}</p>
-    {% if product.package_contents %}<h2>Ce conține pachetul</h2><p>{{ product.package_contents|nl2br }}</p>{% endif %}
-    {% if product.excluded_accessories %}<p><strong>Nu sunt incluse:</strong> {{ product.excluded_accessories }}</p>{% endif %}
-    {% if product.composition %}<h2>Compoziție și întreținere</h2><p>{{ product.composition }}</p><p>{{ product.care_instructions }}</p>{% endif %}
-  </div>
-</div>
-<script type="module" src="{{ url('assets/js/storefront/product-gallery.js') }}?v=20261024-gallery1"></script>
+</main>
+<script type="module" src="{{ url('assets/js/storefront/product-gallery.js') }}?v=20261024-gallery2"></script>
 {% endblock %}

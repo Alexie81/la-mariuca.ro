@@ -562,3 +562,13 @@ atribute și filtre fără schimbarea contractelor existente.
 - Pagina de produs încarcă toate imaginile asociate din `product_images` și afișează o galerie cu miniaturi accesibile, stare activă și tranziție discretă; în lipsa JavaScriptului rămân vizibile fotografia principală și miniaturile.
 - Seederul catalogului extins asociază toate cele trei imagini în ordine la instalările noi, iar baza locală a fost actualizată idempotent cu cele două fișiere media suplimentare.
 - Verificarea reală în browser a confirmat cele trei miniaturi și schimbarea corectă a imaginii principale pentru ambele fotografii noi. Lint-ul PHP/JavaScript, compilarea celor 33 de template-uri Twig, PHPStan și PHPUnit cu 39 de teste / 219 aserțiuni trec.
+
+## 2026-10-24 — Pagină de produs premium responsive
+
+- Pagina produsului folosește acum un layout editorial La Măriuca: galerie mare, panou de cumpărare separat, preț și SKU bine ierarhizate, selector de variantă, control cantitate și CTA de coș unitar cu restul magazinului.
+- Pe desktop, galeria are rail vertical cu miniaturi, navigare anterior/următor, stare de stoc, favorit și zoom. Pe telefon, fotografia ocupă aproape toată lățimea, cu colțuri moi, săgeți tactile și indicator tip capsulă; swipe-ul schimbă imaginile fără să blocheze derularea verticală.
+- Favoritul suprapus peste fotografie reutilizează exact assetul cu două inimi din navbar, inclusiv starea selectată și animațiile existente, în locul unei pictograme independente.
+- Lightbox-ul accesibil afișează imaginea mare, contorul curent, navigare din săgeți sau tastatură, swipe, zoom între 100% și 200% și închidere animată prin buton sau Escape.
+- Zona de detalii a devenit un grup de panouri semantice pentru descriere, conținutul pachetului, materiale, îngrijire și dimensiuni. Pagina rămâne funcțională fără JavaScript, iar tranzițiile respectă `prefers-reduced-motion`.
+- Prețul, SKU-ul, stocul și textul CTA-ului se actualizează la schimbarea variantei fără a distruge pictogramele butonului; confirmarea asincronă de adăugare în coș păstrează noua structură vizuală.
+- Verificarea vizuală reală a fost făcută la 390 și 1440 px. Au fost testate schimbarea tuturor imaginilor, lightbox-ul, zoom-ul la 125% și închiderea animată. Lint-ul PHP/JavaScript, compilarea celor 33 de template-uri Twig, PHPStan și PHPUnit cu 39 de teste / 219 aserțiuni trec.
