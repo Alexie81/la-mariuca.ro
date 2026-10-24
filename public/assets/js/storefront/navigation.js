@@ -1039,6 +1039,23 @@ searchClear?.addEventListener('click', () => {
 });
 syncSearchClear();
 
+const catalogSearchInput = document.querySelector('#catalog-search-input');
+const catalogSearchClear = document.querySelector('[data-search-page-clear]');
+
+const syncCatalogSearchClear = () => {
+  if (!catalogSearchClear || !catalogSearchInput) return;
+  catalogSearchClear.hidden = catalogSearchInput.value.trim() === '';
+};
+
+catalogSearchInput?.addEventListener('input', syncCatalogSearchClear);
+catalogSearchClear?.addEventListener('click', () => {
+  if (!catalogSearchInput) return;
+  catalogSearchInput.value = '';
+  syncCatalogSearchClear();
+  catalogSearchInput.focus();
+});
+syncCatalogSearchClear();
+
 document.addEventListener('click', (event) => {
   if (suggestions && search && !event.target.closest('.search-form')) closeSuggestions();
   if (!event.target.closest('[data-utility-panel-toggle]') && !event.target.closest('[data-utility-panel]')) closeUtilityPanels();
