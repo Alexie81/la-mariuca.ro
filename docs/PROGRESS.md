@@ -491,6 +491,7 @@ atribute și filtre fără schimbarea contractelor existente.
 - Categoriile și subcategoriile din filtrul Magazin folosesc checkboxuri cu selecție multiplă; interogarea reunește ramurile selectate împreună cu descendenții lor, elimină duplicatele și păstrează selecțiile în sortare și paginare.
 - Cardurile din ambele carusele ale paginii principale rămân interactive inclusiv în copiile temporare folosite pentru bucla infinită: hoverul și linkurile nu mai sunt blocate, iar un click pe suprafața liberă a cardului deschide produsul fără să interfereze cu gesturile, favoritele sau coșul.
 - Pe desktop, coloana filtrului lateral din Magazin a fost lărgită discret de la maximum 250 px la 272 px, astfel încât denumirile lungi ale categoriilor să nu mai fie fragmentate excesiv, păstrând grila cu patru produse.
+- Pagina de căutare folosește acum un hero editorial responsive, sugestii rapide de categorii, o stare fără rezultate utilă și cardurile moderne ale catalogului; căutările reușite afișează produsele înaintea zonei de descoperire, în patru coloane pe desktop și două pe telefon. Controalele de ștergere și închidere ale căutării au fost redesenate și centrate, cu stări clare pentru hover, focus și atingere.
 
 ## 2026-10-24 — Controale și grilă responsive în Magazin
 
