@@ -2813,6 +2813,7 @@
 .boutique-product-media {
   aspect-ratio: 1;
   position: relative;
+  isolation: isolate;
   display: block;
   overflow: hidden;
   border-radius: clamp(1rem, 1.6vw, 1.35rem);
@@ -2820,26 +2821,66 @@
   text-decoration: none;
 }
 
+.boutique-product-media::before {
+  content: "";
+  width: 46%;
+  height: 155%;
+  position: absolute;
+  top: -28%;
+  left: -72%;
+  z-index: 2;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, .24), transparent);
+  opacity: 0;
+  pointer-events: none;
+  transform: rotate(9deg);
+  transition: left .8s cubic-bezier(.22, 1, .36, 1), opacity .28s ease;
+}
+
 .boutique-product-media::after {
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, transparent 63%, rgba(62, 37, 32, .12));
+  z-index: 1;
+  background:
+    radial-gradient(circle at 22% 16%, rgba(255, 255, 255, .08), transparent 34%),
+    linear-gradient(180deg, transparent 60%, rgba(62, 37, 32, .13));
+  opacity: .92;
   pointer-events: none;
+  transition: opacity .42s ease, background-color .42s ease;
 }
 
 .boutique-product-media img {
   width: 100%;
   height: 100%;
+  position: relative;
+  z-index: 0;
   display: block;
   object-fit: cover;
-  transition: transform .24s cubic-bezier(.2, .8, .2, 1), filter .24s ease;
+  transform: scale(1.002);
+  transform-origin: 50% 44%;
+  transition: transform .62s cubic-bezier(.22, 1, .36, 1), filter .46s ease;
+  will-change: transform;
 }
 
-.boutique-product-card:hover .boutique-product-media img,
 .boutique-product-card:focus-within .boutique-product-media img {
-  filter: saturate(1.035) contrast(1.01);
-  transform: scale(1.03);
+  filter: saturate(1.055) contrast(1.02) brightness(1.015);
+  transform: scale(1.045);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .boutique-product-card:hover .boutique-product-media img {
+    filter: saturate(1.085) contrast(1.035) brightness(1.025);
+    transform: scale(1.09);
+  }
+
+  .boutique-product-card:hover .boutique-product-media::before {
+    left: 128%;
+    opacity: 1;
+  }
+
+  .boutique-product-card:hover .boutique-product-media::after {
+    opacity: 1;
+  }
 }
 
 .boutique-product-placeholder {
@@ -2865,7 +2906,7 @@
   position: absolute;
   left: .8rem;
   bottom: .8rem;
-  z-index: 1;
+  z-index: 3;
   padding: .35rem .65rem;
   border: 1px solid rgba(255, 255, 255, .46);
   border-radius: 999px;
@@ -4944,6 +4985,8 @@
 @media (prefers-reduced-motion: reduce) {
   .boutique-product-card,
   .boutique-product-media img,
+  .boutique-product-media::before,
+  .boutique-product-media::after,
   .boutique-carousel-progress span,
   .boutique-carousel-button,
   .boutique-product-cart.is-sold-out,
