@@ -526,3 +526,13 @@ atribute și filtre fără schimbarea contractelor existente.
 - Caruselul de categorii rămâne exclusiv în Magazin; paginile de categorie și subcategorie afișează contorul de produse pe mobil, urmat de sortare și butonul drawer-ului de filtre.
 - Verificarea vizuală reală a confirmat layout-ul cu două coloane la 390 px, trei la 800 px și patru plus filtrul lateral la 1280 px. Drawer-ul a fost verificat atât pentru „Fetițe”, cu subcategorii dinamice, cât și pentru „Rochițe de ocazie”, fără grup de subcategorii.
 - Verificări locale trecute: lint PHP, compilarea tuturor celor 33 de template-uri Twig, PHPStan fără erori și PHPUnit cu 35 de teste / 193 de aserțiuni.
+
+## 2026-10-24 — Căutare mobilă editorială
+
+- Panoul de sugestii folosește acum un antet compact și carduri separate pentru categorii și produse, cu un CTA persistent către toate rezultatele. Pe telefon, categoriile rapide formează un singur rând glisabil; pe desktop, categoriile și produsele sugerate sunt așezate în două coloane aerisite.
+- Sugestiile folosesc fotografiile reale din catalog. O categorie sau un produs fără imagine disponibilă nu mai primește emoji, inițială, miniatură generică ori spațiu rezervat; textul ocupă direct lățimea cardului.
+- Săgețile acțiunilor sunt chevroane SVG centrate geometric în cercurile lor, fără abaterea de bază produsă de vechiul caracter tipografic `›`.
+- Fundalul panoului este complet opac, scrollbarul intern este ascuns, iar rândul glisabil are o estompare discretă la margine pentru a comunica gestul fără ca ultimul element tăiat să pară o eroare. La 320 px este blocat overflow-ul orizontal al paginii.
+- Când căutarea este deschisă pe telefon, headerul este fixat în viewport, pagina din spate este blocată și estompată, iar WhatsApp este ascuns temporar; panoul rămâne utilizabil inclusiv dacă interogarea pornește de la mijlocul sau finalul paginii.
+- Verificarea reală în browser a fost făcută la 390 și 320 px, inclusiv după derularea paginii, și la 1280 px cu interogarea „cost”: URL-urile ierarhice, imaginile reale, lipsa miniaturilor false, cardurile desktop, închiderea panoului și CTA-ul persistent au fost confirmate vizual.
+- Verificări locale trecute: lint PHP/JavaScript, răspunsul JSON live pentru imagini și PHPUnit cu 35 de teste / 198 de aserțiuni. Runtime-ul CLI a necesitat încărcarea explicită a extensiilor instalate, deoarece nu folosește implicit un `php.ini`.
