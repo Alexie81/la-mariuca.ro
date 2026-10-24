@@ -589,26 +589,17 @@ final class StorefrontController
     private function favoriteProductCard(array $product): array
     {
         $variants = array_values(array_filter((array) ($product['variants'] ?? []), 'is_array'));
-        $prices = [];
-        $comparePrices = [];
         $availableQuantity = 0;
-        $defaultVariantId = null;
+        $displayVariant = null;
 
         foreach ($variants as $variant) {
-            $prices[] = (int) ($variant['price_bani'] ?? 0);
-            $comparePrice = (int) ($variant['compare_price_bani'] ?? 0);
-            if ($comparePrice > 0) {
-                $comparePrices[] = $comparePrice;
-            }
             $availableQuantity += (int) ($variant['available_quantity'] ?? 0);
             if ((int) ($variant['is_default'] ?? 0) === 1) {
-                $defaultVariantId = (int) ($variant['id'] ?? 0);
+                $displayVariant = $variant;
             }
         }
 
-        if ($defaultVariantId === null && isset($variants[0]['id'])) {
-            $defaultVariantId = (int) $variants[0]['id'];
-        }
+        $displayVariant ??= $variants[0] ?? null;
 
         $requiredPersonalizationCount = 0;
         foreach ((array) ($product['personalization_options'] ?? []) as $option) {
@@ -617,11 +608,12 @@ final class StorefrontController
             }
         }
 
-        $product['price_bani'] = $prices === [] ? 0 : min($prices);
-        $product['compare_price_bani'] = $comparePrices === [] ? null : min($comparePrices);
+        $product['price_bani'] = (int) ($displayVariant['price_bani'] ?? 0);
+        $displayComparePrice = (int) ($displayVariant['compare_price_bani'] ?? 0);
+        $product['compare_price_bani'] = $displayComparePrice > 0 ? $displayComparePrice : null;
         $product['available_quantity'] = $availableQuantity;
         $product['variant_count'] = count($variants);
-        $product['default_variant_id'] = $defaultVariantId;
+        $product['default_variant_id'] = isset($displayVariant['id']) ? (int) $displayVariant['id'] : null;
         $product['required_personalization_count'] = $requiredPersonalizationCount;
 
         return $product;

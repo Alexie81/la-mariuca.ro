@@ -21,7 +21,8 @@ final class ExpandedCatalogSeederTest extends DatabaseTestCase
         self::assertSame(32, (int) $this->pdo->query("SELECT COUNT(*) FROM product_images pi JOIN products p ON p.id = pi.product_id WHERE EXISTS (SELECT 1 FROM product_variants pv WHERE pv.product_id = p.id AND pv.sku LIKE 'LM-26-%')")->fetchColumn());
         self::assertSame(8, (int) $this->pdo->query("SELECT COUNT(DISTINCT c.id) FROM categories c JOIN product_categories pc ON pc.category_id = c.id JOIN product_variants pv ON pv.product_id = pc.product_id WHERE c.parent_id IS NULL AND c.status = 'published' AND c.visibility = 'public' AND pv.sku LIKE 'LM-26-%'")->fetchColumn());
 
-        $product = (new CatalogRepository($this->pdo))->productBySlug('cuburi-moi-poveste');
+        $repository = new CatalogRepository($this->pdo);
+        $product = $repository->productBySlug('cuburi-moi-poveste');
         self::assertSame('assets/images/products/collection-2026/cuburi-moi-poveste.webp', $product['image_path']);
         self::assertSame('Cuburi senzoriale moi în roz, bleu, ivoire și bej', $product['image_alt']);
         self::assertCount(3, $product['images']);
@@ -42,6 +43,27 @@ final class ExpandedCatalogSeederTest extends DatabaseTestCase
         self::assertSame(14900, $pricesByCombination['0-6 luni|Negru']);
         self::assertSame(15500, $pricesByCombination['0-9 luni|Galben']);
         self::assertSame(17100, $pricesByCombination['0-2 luni|Bej']);
+
+        $shopProduct = current(array_filter(
+            $repository->shopProducts(1, 50),
+            static fn(array $item): bool => $item['slug'] === 'cuburi-moi-poveste'
+        ));
+        self::assertIsArray($shopProduct);
+        self::assertSame(15900, (int) $shopProduct['price_bani']);
+        self::assertSame(18900, (int) $shopProduct['compare_price_bani']);
+        self::assertSame(16, (int) round(
+            ((int) $shopProduct['compare_price_bani'] - (int) $shopProduct['price_bani'])
+            * 100
+            / (int) $shopProduct['compare_price_bani']
+        ));
+
+        $searchProduct = current(array_filter(
+            $repository->searchableProducts(),
+            static fn(array $item): bool => $item['slug'] === 'cuburi-moi-poveste'
+        ));
+        self::assertIsArray($searchProduct);
+        self::assertSame(15900, (int) $searchProduct['price_bani']);
+        self::assertSame(18900, (int) $searchProduct['compare_price_bani']);
         self::assertSame(
             [
                 'assets/images/products/collection-2026/cuburi-moi-poveste.webp',

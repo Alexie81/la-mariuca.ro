@@ -107,6 +107,8 @@ final class CatalogRepository
     /** @return list<array<string, mixed>> */
     public function productsForCategory(int $categoryId, int $page = 1, int $perPage = 12, string $sort = 'new'): array
     {
+        $displayPriceSql = $this->displayVariantValueSql('price_bani');
+        $displayComparePriceSql = $this->displayVariantValueSql('compare_price_bani');
         $sorts = [
             'new' => 'p.published_at DESC, p.id DESC',
             'price-asc' => 'price_bani ASC, p.id DESC',
@@ -122,8 +124,8 @@ final class CatalogRepository
                     SELECT id FROM categories WHERE id = :category_id
                     UNION ALL SELECT c.id FROM categories c JOIN descendants d ON c.parent_id = d.id WHERE c.status = 'published'
                 )
-                SELECT p.*, MIN(v.price_bani) AS price_bani,
-                       MIN(v.compare_price_bani) AS compare_price_bani,
+                SELECT p.*, {$displayPriceSql} AS price_bani,
+                       {$displayComparePriceSql} AS compare_price_bani,
                        COALESCE(SUM(i.physical_quantity - i.reserved_quantity), 0) AS available_quantity
                 FROM products p
                 JOIN product_categories pc ON pc.product_id = p.id
@@ -169,6 +171,9 @@ final class CatalogRepository
         ?int $maxPriceBani = null
     ): array
     {
+        $displayPriceSql = $this->displayVariantValueSql('price_bani');
+        $displayComparePriceSql = $this->displayVariantValueSql('compare_price_bani');
+        $displayVariantIdSql = $this->displayVariantValueSql('id');
         $sorts = [
             'new' => 'p.published_at DESC, p.id DESC',
             'price-asc' => 'price_bani ASC, p.id DESC',
@@ -192,7 +197,7 @@ final class CatalogRepository
             $having[] = 'COALESCE(SUM(i.physical_quantity - i.reserved_quantity), 0) > 0';
         }
         if ($maxPriceBani !== null) {
-            $having[] = 'MIN(v.price_bani) <= :max_price';
+            $having[] = $displayPriceSql . ' <= :max_price';
             $params['max_price'] = max(0, $maxPriceBani);
         }
 
@@ -200,12 +205,12 @@ final class CatalogRepository
 
         $statement = $this->pdo->prepare($cte . "SELECT p.*, primary_category.name AS category_name,
                 primary_category.slug AS category_slug,
-                MIN(v.price_bani) AS price_bani,
-                MIN(v.compare_price_bani) AS compare_price_bani,
+                {$displayPriceSql} AS price_bani,
+                {$displayComparePriceSql} AS compare_price_bani,
                 COUNT(DISTINCT v.id) AS variant_count,
                 (SELECT COUNT(*) FROM personalization_options required_option
                     WHERE required_option.product_id = p.id AND required_option.required = 1) AS required_personalization_count,
-                COALESCE(MIN(CASE WHEN v.is_default = 1 THEN v.id END), MIN(v.id)) AS default_variant_id,
+                {$displayVariantIdSql} AS default_variant_id,
                 COALESCE(SUM(i.physical_quantity - i.reserved_quantity), 0) AS available_quantity,
                 COALESCE(
                     (SELECT product_media.public_path
@@ -256,6 +261,7 @@ final class CatalogRepository
         ?int $maxPriceBani = null
     ): int
     {
+        $displayPriceSql = $this->displayVariantValueSql('price_bani');
         [$cte, $categoryWhere, $categoryParams] = $this->shopCategoryScope($categoryIds);
         $where = ["p.status = 'published'"];
         $having = [];
@@ -267,7 +273,7 @@ final class CatalogRepository
             $having[] = 'COALESCE(SUM(i.physical_quantity - i.reserved_quantity), 0) > 0';
         }
         if ($maxPriceBani !== null) {
-            $having[] = 'MIN(v.price_bani) <= :max_price';
+            $having[] = $displayPriceSql . ' <= :max_price';
             $params['max_price'] = max(0, $maxPriceBani);
         }
 
@@ -436,8 +442,14 @@ final class CatalogRepository
 
         $statement = $this->pdo->prepare($cte . "SELECT MIN(variant.price_bani) AS min_bani,
                 MAX(variant.price_bani) AS max_bani
-            FROM product_variants variant
-            JOIN products p ON p.id = variant.product_id
+            FROM products p
+            JOIN product_variants variant ON variant.id = (
+                SELECT display_variant.id
+                FROM product_variants display_variant
+                WHERE display_variant.product_id = p.id AND display_variant.status = 'active'
+                ORDER BY display_variant.is_default DESC, display_variant.id
+                LIMIT 1
+            )
             WHERE " . implode(' AND ', $where));
         foreach ($categoryParams as $name => $value) {
             $statement->bindValue(':' . $name, $value, PDO::PARAM_INT);
@@ -540,10 +552,13 @@ final class CatalogRepository
     /** @return list<array<string, mixed>> */
     public function search(string $query, int $limit = 24, int $offset = 0): array
     {
+        $displayPriceSql = $this->displayVariantValueSql('price_bani');
+        $displayComparePriceSql = $this->displayVariantValueSql('compare_price_bani');
         $limit = max(1, min(50, $limit));
         $offset = max(0, $offset);
         $statement = $this->pdo->prepare("SELECT p.*, primary_category.name AS category_name,
-                primary_category.slug AS category_slug, MIN(v.price_bani) AS price_bani,
+                primary_category.slug AS category_slug, {$displayPriceSql} AS price_bani,
+                {$displayComparePriceSql} AS compare_price_bani,
                 COALESCE(SUM(i.physical_quantity - i.reserved_quantity), 0) AS available_quantity,
                 COALESCE(
                     (SELECT product_media.public_path
@@ -629,14 +644,17 @@ final class CatalogRepository
      */
     public function searchableProducts(): array
     {
+        $displayPriceSql = $this->displayVariantValueSql('price_bani');
+        $displayComparePriceSql = $this->displayVariantValueSql('compare_price_bani');
+        $displayVariantIdSql = $this->displayVariantValueSql('id');
         $statement = $this->pdo->query("SELECT p.*, primary_category.name AS category_name,
                 primary_category.slug AS category_slug,
-                MIN(v.price_bani) AS price_bani,
-                MIN(v.compare_price_bani) AS compare_price_bani,
+                {$displayPriceSql} AS price_bani,
+                {$displayComparePriceSql} AS compare_price_bani,
                 COUNT(DISTINCT v.id) AS variant_count,
                 (SELECT COUNT(*) FROM personalization_options required_option
                     WHERE required_option.product_id = p.id AND required_option.required = 1) AS required_personalization_count,
-                COALESCE(MIN(CASE WHEN v.is_default = 1 THEN v.id END), MIN(v.id)) AS default_variant_id,
+                {$displayVariantIdSql} AS default_variant_id,
                 COALESCE(SUM(i.physical_quantity - i.reserved_quantity), 0) AS available_quantity,
                 COALESCE(
                     (SELECT product_media.public_path
@@ -704,7 +722,10 @@ final class CatalogRepository
     /** @return list<array<string, mixed>> */
     public function collectionProducts(string $slug): array
     {
-        $statement = $this->pdo->prepare("SELECT p.*, MIN(v.price_bani) AS price_bani,
+        $displayPriceSql = $this->displayVariantValueSql('price_bani');
+        $displayComparePriceSql = $this->displayVariantValueSql('compare_price_bani');
+        $statement = $this->pdo->prepare("SELECT p.*, {$displayPriceSql} AS price_bani,
+                {$displayComparePriceSql} AS compare_price_bani,
                 COALESCE(SUM(i.physical_quantity - i.reserved_quantity), 0) AS available_quantity
             FROM collections col
             JOIN collection_products cp ON cp.collection_id = col.id
@@ -790,6 +811,9 @@ final class CatalogRepository
     /** @param list<int> $excludeIds @return list<array<string, mixed>> */
     private function homepageProductCards(int $limit, bool $featuredOnly, array $excludeIds = []): array
     {
+        $displayPriceSql = $this->displayVariantValueSql('price_bani');
+        $displayComparePriceSql = $this->displayVariantValueSql('compare_price_bani');
+        $displayVariantIdSql = $this->displayVariantValueSql('id');
         $featuredFilter = $featuredOnly ? ' AND p.featured = 1' : '';
         $excludeIds = array_values(array_unique(array_filter(array_map('intval', $excludeIds), static fn(int $id): bool => $id > 0)));
         $params = [];
@@ -806,12 +830,12 @@ final class CatalogRepository
 
         $statement = $this->pdo->prepare("SELECT p.*, primary_category.name AS category_name,
                 primary_category.slug AS category_slug,
-                MIN(v.price_bani) AS price_bani,
-                MIN(v.compare_price_bani) AS compare_price_bani,
+                {$displayPriceSql} AS price_bani,
+                {$displayComparePriceSql} AS compare_price_bani,
                 COUNT(DISTINCT v.id) AS variant_count,
                 (SELECT COUNT(*) FROM personalization_options required_option
                     WHERE required_option.product_id = p.id AND required_option.required = 1) AS required_personalization_count,
-                COALESCE(MIN(CASE WHEN v.is_default = 1 THEN v.id END), MIN(v.id)) AS default_variant_id,
+                {$displayVariantIdSql} AS default_variant_id,
                 COALESCE(SUM(i.physical_quantity - i.reserved_quantity), 0) AS available_quantity,
                 COALESCE(
                     (SELECT product_media.public_path
@@ -837,5 +861,18 @@ final class CatalogRepository
             LIMIT {$limit}");
         $statement->execute($params);
         return $statement->fetchAll();
+    }
+
+    private function displayVariantValueSql(string $column): string
+    {
+        if (!in_array($column, ['id', 'price_bani', 'compare_price_bani'], true)) {
+            throw new \InvalidArgumentException('Unsupported storefront variant column.');
+        }
+
+        return "(SELECT display_variant.{$column}
+            FROM product_variants display_variant
+            WHERE display_variant.product_id = p.id AND display_variant.status = 'active'
+            ORDER BY display_variant.is_default DESC, display_variant.id
+            LIMIT 1)";
     }
 }

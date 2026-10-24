@@ -1,6 +1,6 @@
 {% set product_is_favorite = is_favorite(product.id) %}
 {% set product_has_discount = product.compare_price_bani and product.compare_price_bani > product.price_bani %}
-{% set product_discount_percent = product_has_discount ? (((product.compare_price_bani - product.price_bani) * 100 / product.compare_price_bani)|round) : 0 %}
+{% set product_discount_percent = product_has_discount ? (((product.compare_price_bani - product.price_bani) * 100 / product.compare_price_bani)|round(0, 'common')) : 0 %}
 <article class="boutique-product-card" data-product-url="{{ url('produs/' ~ product.slug ~ '/') }}">
   <a class="boutique-product-media{{ product.image_path ? '' : ' is-placeholder' }}" href="{{ url('produs/' ~ product.slug ~ '/') }}">
     {% if product.image_path %}
