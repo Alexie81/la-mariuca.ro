@@ -489,6 +489,7 @@ atribute și filtre fără schimbarea contractelor existente.
 - Curățarea pe datele reale ale calculatorului și execuția optimizării RAM nu au fost lansate în timpul testului. Executabilul local este autonom, dar nu este semnat digital.
 - Filtrul ierarhic de categorii din Magazin a fost simplificat vizual: miniaturile apar numai când există o imagine reală, fără inițiale sau casete goale, denumirile lungi se împart sigur pe rânduri, iar selectorul, numărul și controlul de extindere ocupă coloane separate fără suprapuneri.
 - Categoriile și subcategoriile din filtrul Magazin folosesc checkboxuri cu selecție multiplă; interogarea reunește ramurile selectate împreună cu descendenții lor, elimină duplicatele și păstrează selecțiile în sortare și paginare.
+- Cardurile din ambele carusele ale paginii principale rămân interactive inclusiv în copiile temporare folosite pentru bucla infinită: hoverul și linkurile nu mai sunt blocate, iar un click pe suprafața liberă a cardului deschide produsul fără să interfereze cu gesturile, favoritele sau coșul.
 
 ## 2026-10-24 — Controale și grilă responsive în Magazin
 
