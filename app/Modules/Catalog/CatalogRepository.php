@@ -316,7 +316,7 @@ final class CatalogRepository
     }
 
     /** @return list<array<string, mixed>> */
-    public function shopFilterCategories(): array
+    public function shopFilterCategories(?int $scopeCategoryId = null): array
     {
         $rows = $this->pdo->query("WITH RECURSIVE category_tree(ancestor_id, id) AS (
                 SELECT id, id FROM categories
@@ -366,7 +366,33 @@ final class CatalogRepository
             $byParent[$parentKey][] = $row;
         }
 
-        return $this->buildShopCategoryTree($byParent);
+        $tree = $this->buildShopCategoryTree($byParent);
+        if ($scopeCategoryId === null) {
+            return $tree;
+        }
+
+        $scope = $this->findShopCategory($tree, $scopeCategoryId);
+        return $scope === null ? [] : (array) ($scope['children'] ?? []);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $categories
+     * @return array<string, mixed>|null
+     */
+    private function findShopCategory(array $categories, int $categoryId): ?array
+    {
+        foreach ($categories as $category) {
+            if ((int) $category['id'] === $categoryId) {
+                return $category;
+            }
+
+            $match = $this->findShopCategory((array) ($category['children'] ?? []), $categoryId);
+            if ($match !== null) {
+                return $match;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -386,12 +412,24 @@ final class CatalogRepository
     }
 
     /** @return array{min_bani: int, max_bani: int} */
-    public function shopPriceRange(): array
+    public function shopPriceRange(int|array|null $categoryIds = []): array
     {
-        $row = $this->pdo->query("SELECT MIN(variant.price_bani) AS min_bani, MAX(variant.price_bani) AS max_bani
+        [$cte, $categoryWhere, $categoryParams] = $this->shopCategoryScope($categoryIds);
+        $where = ["p.status = 'published'", "variant.status = 'active'"];
+        if ($categoryWhere !== null) {
+            $where[] = $categoryWhere;
+        }
+
+        $statement = $this->pdo->prepare($cte . "SELECT MIN(variant.price_bani) AS min_bani,
+                MAX(variant.price_bani) AS max_bani
             FROM product_variants variant
-            JOIN products product ON product.id = variant.product_id
-            WHERE product.status = 'published' AND variant.status = 'active'")->fetch();
+            JOIN products p ON p.id = variant.product_id
+            WHERE " . implode(' AND ', $where));
+        foreach ($categoryParams as $name => $value) {
+            $statement->bindValue(':' . $name, $value, PDO::PARAM_INT);
+        }
+        $statement->execute();
+        $row = $statement->fetch();
 
         return [
             'min_bani' => max(0, (int) ($row['min_bani'] ?? 0)),

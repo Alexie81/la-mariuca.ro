@@ -104,6 +104,43 @@ final class CategoryRouteTest extends DatabaseTestCase
         self::assertStringNotContainsString('la-mariuca-hero-v3-cat-head-bow.png', $subcategoryBody);
     }
 
+    public function testCategoryCatalogUsesSharedControlsAndOnlyRelevantDynamicFilters(): void
+    {
+        $this->seed();
+
+        $categoryBody = (string) $this->get('/categorie/fetite/')->getBody();
+        $leafBody = (string) $this->get('/categorie/fetite/rochite/rochite-ocazie/')->getBody();
+
+        self::assertStringContainsString('class="shop-catalog-layout has-mobile-product-count"', $categoryBody);
+        self::assertStringContainsString('class="shop-toolbar"', $categoryBody);
+        self::assertStringContainsString('data-shop-filters', $categoryBody);
+        self::assertStringContainsString('class="shop-pagination"', $categoryBody);
+        self::assertStringContainsString('<legend>Subcategorii</legend>', $categoryBody);
+        self::assertStringContainsString('Toate din Fetițe', $categoryBody);
+        self::assertStringContainsString('value="rochite"', $categoryBody);
+        self::assertStringNotContainsString('value="baieti"', $categoryBody);
+        self::assertStringNotContainsString('data-shop-category-carousel', $categoryBody);
+
+        self::assertStringContainsString('data-shop-filters', $leafBody);
+        self::assertStringNotContainsString('shop-category-filter', $leafBody);
+        self::assertStringNotContainsString('data-shop-category-carousel', $leafBody);
+    }
+
+    public function testCategoryFilterPreviewStaysInsideItsOwnBranch(): void
+    {
+        $this->seed();
+
+        $validPreview = $this->get('/categorie/fetite/?preview=1&categorie%5B%5D=rochite-ocazie');
+        $foreignPreview = $this->get('/categorie/fetite/?preview=1&categorie%5B%5D=baieti');
+
+        self::assertStringStartsWith('application/json', $validPreview->getHeaderLine('Content-Type'));
+        self::assertMatchesRegularExpression('/^\{"count":\d+\}$/', (string) $validPreview->getBody());
+        self::assertSame(
+            (string) $this->get('/categorie/fetite/?preview=1')->getBody(),
+            (string) $foreignPreview->getBody()
+        );
+    }
+
     private function get(string $path): ResponseInterface
     {
         $request = (new ServerRequestFactory())->createServerRequest('GET', 'http://localhost' . $path);

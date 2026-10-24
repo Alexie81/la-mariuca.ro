@@ -213,6 +213,12 @@ final class CatalogTest extends DatabaseTestCase
             ))
         );
 
+        $girlsScopedCategories = $repository->shopFilterCategories((int) $girlsCategory['id']);
+        self::assertContains('rochite', array_column($girlsScopedCategories, 'slug'));
+        self::assertNotContains('fetite', array_column($girlsScopedCategories, 'slug'));
+        self::assertNotContains('baieti', array_column($girlsScopedCategories, 'slug'));
+        self::assertSame([], $repository->shopFilterCategories((int) $dressesCategory['children'][1]['id']));
+
         $category = current(array_filter(
             $filterCategories,
             static fn(array $item): bool => (int) $item['product_count'] > 0
@@ -259,6 +265,10 @@ final class CatalogTest extends DatabaseTestCase
 
         $range = $repository->shopPriceRange();
         self::assertLessThanOrEqual($range['max_bani'], $range['min_bani']);
+        $girlsRange = $repository->shopPriceRange([(int) $girlsCategory['id']]);
+        self::assertLessThanOrEqual($girlsRange['max_bani'], $girlsRange['min_bani']);
+        self::assertGreaterThanOrEqual($range['min_bani'], $girlsRange['min_bani']);
+        self::assertLessThanOrEqual($range['max_bani'], $girlsRange['max_bani']);
         $budgetProducts = $repository->shopProducts(1, 50, 'new', null, false, $range['min_bani']);
         self::assertNotEmpty($budgetProducts);
         foreach ($budgetProducts as $budgetProduct) {

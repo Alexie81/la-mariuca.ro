@@ -2568,40 +2568,6 @@
   transform-origin: center;
 }
 
-.category-catalog {
-  display: grid;
-  gap: clamp(1rem, 1.6vw, 1.4rem);
-}
-
-.category-toolbar {
-  margin: 0;
-}
-
-.category-results {
-  min-width: 0;
-}
-
-.category-empty-state {
-  min-height: 300px;
-}
-
-@media (max-width: 1100px) {
-  .shop-toolbar.category-toolbar {
-    display: flex;
-  }
-
-  .shop-product-count.category-product-count {
-    display: flex;
-  }
-
-  .shop-sort.category-sort {
-    width: auto;
-    min-width: 210px;
-    grid-column: auto;
-    grid-row: auto;
-  }
-}
-
 @media (max-width: 760px) {
   .category-breadcrumbs {
     margin-bottom: .7rem;
@@ -2646,22 +2612,6 @@
     border-radius: 22px 7px 22px 7px;
   }
 
-  .shop-toolbar.category-toolbar {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(150px, 1fr);
-    gap: .6rem;
-    padding: .45rem;
-  }
-
-  .shop-product-count.category-product-count {
-    min-height: 48px;
-    padding-inline: .75rem;
-  }
-
-  .shop-sort.category-sort {
-    width: 100%;
-    min-width: 0;
-  }
 }
 
 @media (max-width: 420px) {
@@ -2672,15 +2622,6 @@
     -webkit-line-clamp: 2;
   }
 
-  .category-product-count {
-    gap: .28rem;
-    padding-inline: .55rem;
-  }
-
-  .category-product-count span {
-    font-size: .58rem;
-    letter-spacing: .09em;
-  }
 }
 
 @media (max-width: 340px) {
@@ -2700,9 +2641,6 @@
     font-size: 2.05rem;
   }
 
-  .shop-toolbar.category-toolbar {
-    grid-template-columns: minmax(88px, .72fr) minmax(132px, 1.28fr);
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -7773,6 +7711,19 @@ a.shop-pagination-arrow:hover {
     display: none;
   }
 
+  .shop-catalog-layout.has-mobile-product-count .shop-product-count {
+    min-height: 48px;
+    grid-column: 1;
+    grid-row: 1;
+    display: flex;
+    align-items: center;
+    padding: .65rem 1rem;
+    border: 1px solid #ead4cd;
+    border-radius: 14px;
+    background: #fffdfb;
+    box-shadow: 0 7px 20px rgba(82, 48, 42, .055);
+  }
+
   .shop-mobile-category-carousel {
     grid-column: 1;
     grid-row: 1;
@@ -8143,6 +8094,12 @@ a.shop-pagination-arrow:hover {
 
   .shop-product-count {
     display: none;
+  }
+
+  .shop-catalog-layout.has-mobile-product-count .shop-product-count {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    display: flex;
   }
 
   .shop-mobile-category-carousel {
