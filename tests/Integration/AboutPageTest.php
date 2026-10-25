@@ -24,6 +24,8 @@ final class AboutPageTest extends DatabaseTestCase
         self::assertStringContainsString('Povestea <em>La Măriuca</em> Boutique', $body);
         self::assertStringContainsString('Totul începe cu un nume drag: <em>Maria</em>', $body);
         self::assertStringContainsString('Dintr-un proiect de familie, <em>o pasiune comună</em>', $body);
+        self::assertStringContainsString('assets/images/editorial/maria-poveste-la-mariuca-2026.webp', $body);
+        self::assertStringContainsString('alt="Maria purtând un costum popular românesc"', $body);
         self::assertStringContainsString('copiilor de la naștere până la 8 ani', $body);
         self::assertStringContainsString('mai mult decât haine, povești pentru copii.', $body);
         self::assertStringContainsString('href="/magazin/"', $body);

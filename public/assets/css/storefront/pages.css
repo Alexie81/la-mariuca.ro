@@ -3222,6 +3222,7 @@
 
 .about-family {
   position: relative;
+  scroll-margin-top: 10rem;
   background:
     radial-gradient(circle at 96% 8%, rgba(224, 181, 111, .1), transparent 26rem),
     linear-gradient(180deg, #fcf4f0, #fff9f6);
@@ -3754,6 +3755,10 @@
 
 @media (max-width: 600px) {
   .about-name {
+    scroll-margin-top: 7.5rem;
+  }
+
+  .about-family {
     scroll-margin-top: 7.5rem;
   }
 
