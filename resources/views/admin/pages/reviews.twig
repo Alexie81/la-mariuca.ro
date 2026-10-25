@@ -1,0 +1,32 @@
+{% extends 'admin/layouts/base.twig' %}
+{% block title %}Recenzii{% endblock %}
+{% block content %}
+  <div class="admin-title">
+    <div><h1>Recenzii produse</h1><p>Verifică mesajele clienților înainte ca acestea să devină publice.</p></div>
+  </div>
+  <div class="panel table-wrap">
+    <table>
+      <thead><tr><th>Produs</th><th>Autor</th><th>Recenzie</th><th>Stare</th><th>Acțiuni</th></tr></thead>
+      <tbody>
+        {% for review in reviews %}
+          <tr>
+            <td><a href="{{ url('produs/' ~ review.product_slug ~ '/#recenzii-produs') }}">{{ review.product_name }}</a><br><small>{{ review.created_at|date('d.m.Y H:i') }}</small></td>
+            <td>{{ review.author_name }}<br><small>{{ review.author_email }}</small>{% if review.is_verified_purchase %}<br><small>Achiziție verificată</small>{% endif %}</td>
+            <td><strong>{{ review.rating }}/5 · {{ review.title ?: 'Fără titlu' }}</strong><br>{{ review.body }}{% if review.is_demo %}<br><small>Recenzie demonstrativă locală</small>{% endif %}</td>
+            <td>{{ review.status }}</td>
+            <td>
+              <form class="inline-form" action="{{ url('admin/recenzii/' ~ review.id ~ '/actiune/') }}" method="post">
+                <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                <button name="action" value="approve">Aprobă</button>
+                <button name="action" value="reject">Respinge</button>
+                <button name="action" value="pending">În așteptare</button>
+              </form>
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="5">Nu există recenzii.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endblock %}

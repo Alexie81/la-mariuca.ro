@@ -277,16 +277,128 @@
             <span class="eyebrow">Păreri sincere</span>
             <h2>Recenzii</h2>
           </header>
-          <div class="product-reviews-empty">
-            <span class="product-reviews-heart" aria-hidden="true">
-              <img src="{{ url('assets/images/icon-favorite-hearts.png') }}" width="160" height="128" alt="">
-            </span>
-            <div>
-              <strong>Primele impresii se scriu aici</strong>
-              <p>Acest produs nu are încă recenzii. Când vor exista, vor apărea în această secțiune.</p>
+
+          {% set review_count = review_summary.count|default(0) %}
+          {% set review_average = review_summary.average|default(0) %}
+          <div class="product-review-overview">
+            <div class="product-review-score">
+              <span class="product-review-score-kicker">Nota comunității</span>
+              <div class="product-review-score-value">{{ review_count ? review_average|number_format(1, ',', '.') : '—' }}</div>
+              <div class="product-review-stars" aria-label="{{ review_count ? review_average|number_format(1, ',', '.') ~ ' din 5 stele' : 'Nicio notă încă' }}">
+                {% for star in 1..5 %}<span class="{{ star <= review_average ? 'is-filled' : '' }}" aria-hidden="true">★</span>{% endfor %}
+              </div>
+              <p>{{ review_count }} {{ review_count == 1 ? 'recenzie afișată' : 'recenzii afișate' }}{% if review_summary.demo_count|default(0) %}<small>Include un exemplu DEMO local</small>{% endif %}</p>
             </div>
+            <div class="product-review-distribution" aria-label="Distribuția notelor">
+              {% for star in [5, 4, 3, 2, 1] %}
+                <div class="product-review-distribution-row">
+                  <span>{{ star }} <i aria-hidden="true">★</i></span>
+                  <progress value="{{ review_summary.distribution[star]|default(0) }}" max="{{ review_count > 0 ? review_count : 1 }}">{{ review_summary.distribution[star]|default(0) }}</progress>
+                  <small>{{ review_summary.distribution[star]|default(0) }}</small>
+                </div>
+              {% endfor %}
+            </div>
+            <a class="product-review-write-link" href="#formular-recenzie">
+              <span aria-hidden="true">✦</span>
+              Scrie o recenzie
+              <i aria-hidden="true">→</i>
+            </a>
+          </div>
+
+          <div class="product-review-layout">
+            <div class="product-review-list" aria-label="Recenziile produsului">
+              {% for review in product_reviews %}
+                <article class="product-review-card{{ review.is_demo ? ' is-demo' : '' }}">
+                  <header>
+                    <span class="product-review-avatar" aria-hidden="true">{{ review.author_name|slice(0, 1)|upper }}</span>
+                    <div class="product-review-author">
+                      <strong>{{ review.author_name }}</strong>
+                      <div class="product-review-stars product-review-stars--small" aria-label="{{ review.rating }} din 5 stele">
+                        {% for star in 1..5 %}<span class="{{ star <= review.rating ? 'is-filled' : '' }}" aria-hidden="true">★</span>{% endfor %}
+                      </div>
+                    </div>
+                    <time datetime="{{ review.created_at }}">{{ review.created_at|date('d.m.Y') }}</time>
+                  </header>
+                  <div class="product-review-badges">
+                    {% if review.is_verified_purchase %}<span class="is-verified">✓ Achiziție verificată</span>{% endif %}
+                    {% if review.is_demo %}<span class="is-demo">DEMO · exemplu de afișare</span>{% endif %}
+                  </div>
+                  {% if review.title %}<h3>{{ review.title }}</h3>{% endif %}
+                  <p>{{ review.body|nl2br }}</p>
+                </article>
+              {% else %}
+                <div class="product-reviews-empty">
+                  <span class="product-reviews-heart" aria-hidden="true"><img src="{{ url('assets/images/icon-favorite-hearts.png') }}" width="160" height="128" alt=""></span>
+                  <div><strong>Primele impresii se scriu aici</strong><p>Fii primul care povestește cum a fost experiența cu acest produs.</p></div>
+                </div>
+              {% endfor %}
+            </div>
+
+            <form class="product-review-form" id="formular-recenzie" action="{{ url('produs/' ~ product.slug ~ '/recenzie/') }}" method="post">
+              <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+              <label class="product-review-honeypot" aria-hidden="true">Website<input name="website" tabindex="-1" autocomplete="off"></label>
+              <div class="product-review-form-heading">
+                <span class="eyebrow">Părerea ta contează</span>
+                <h3>Cum ți s-a părut?</h3>
+                <p>Spune-le și altor părinți ce ți-a plăcut. Emailul nu va fi afișat.</p>
+              </div>
+              <fieldset class="product-review-rating">
+                <legend>Nota ta <span>*</span></legend>
+                <div class="product-review-rating-stars">
+                  {% for star in [5, 4, 3, 2, 1] %}
+                    <input id="review-rating-{{ star }}" type="radio" name="rating" value="{{ star }}" required>
+                    <label for="review-rating-{{ star }}" title="{{ star }} {{ star == 1 ? 'stea' : 'stele' }}"><span aria-hidden="true">★</span><span class="sr-only">{{ star }} {{ star == 1 ? 'stea' : 'stele' }}</span></label>
+                  {% endfor %}
+                </div>
+              </fieldset>
+              <div class="product-review-form-grid">
+                <label>Numele afișat <span>*</span><input name="author_name" maxlength="100" autocomplete="name" value="{{ review_form_user ? (review_form_user.first_name ~ ' ' ~ review_form_user.last_name) : '' }}" required></label>
+                <label>Email <span>*</span><input type="email" name="author_email" maxlength="254" autocomplete="email" value="{{ review_form_user.email|default('') }}" required></label>
+                <label class="full">Titlu scurt <small>opțional</small><input name="title" minlength="3" maxlength="140" placeholder="De exemplu: Moale și atent lucrat"></label>
+                <label class="full">Recenzia ta <span>*</span><textarea name="body" rows="5" minlength="20" maxlength="1500" placeholder="Povestește-ne despre material, culori și experiența celui mic..." required></textarea></label>
+              </div>
+              <label class="product-review-consent"><input type="checkbox" name="review_consent" value="1" required><span aria-hidden="true">✓</span><small>Sunt de acord ca recenzia și numele afișat să fie publicate după verificare.</small></label>
+              <button class="product-review-submit" type="submit"><span>Trimite recenzia</span><i aria-hidden="true">→</i></button>
+              <p class="product-review-moderation-note"><span aria-hidden="true">♡</span> Recenziile sunt verificate înainte de publicare pentru a păstra conversația utilă și sinceră.</p>
+            </form>
           </div>
         </article>
+
+        {% if similar_products %}
+          <section class="product-similar-section" aria-labelledby="produse-similare-title">
+            <header class="product-similar-heading">
+              <div>
+                <span class="eyebrow">Descoperite pentru tine</span>
+                <h2 id="produse-similare-title">S-ar potrivi <em>minunat împreună</em></h2>
+              </div>
+              <p>O selecție creată din aceeași poveste: categorie, stil, utilizare și apropierea de preț.</p>
+            </header>
+            <div class="boutique-carousel product-similar-carousel" data-product-carousel data-autoplay-ms="2800" role="region" aria-roledescription="carusel" aria-label="Produse similare cu {{ product.name }}">
+              <div class="boutique-carousel-toolbar">
+                <span class="boutique-carousel-progress" aria-hidden="true"><span data-carousel-progress></span></span>
+                <div class="boutique-carousel-controls">
+                  <button class="boutique-carousel-button" type="button" data-carousel-prev aria-label="Produs similar anterior">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14.5 6.5-5.5 5.5 5.5 5.5"></path></svg>
+                  </button>
+                  <span class="boutique-carousel-position" data-carousel-position aria-live="polite">01 / {{ '%02d'|format(similar_products|length) }}</span>
+                  <button class="boutique-carousel-button" type="button" data-carousel-next aria-label="Următorul produs similar">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9.5 6.5 5.5 5.5-5.5 5.5"></path></svg>
+                  </button>
+                </div>
+              </div>
+              <div class="boutique-carousel-viewport" data-carousel-viewport tabindex="0">
+                <div class="boutique-carousel-track" data-carousel-track>
+                  {% for similar_product in similar_products %}
+                    <div class="boutique-carousel-slide" data-carousel-slide role="group" aria-roledescription="slide" aria-label="{{ loop.index }} din {{ similar_products|length }}">
+                      {% include 'storefront/components/boutique-product-card.twig' with {product: similar_product} %}
+                    </div>
+                  {% endfor %}
+                </div>
+              </div>
+              <p class="sr-only" data-carousel-announcement aria-live="polite"></p>
+            </div>
+          </section>
+        {% endif %}
       </div>
     </section>
   </div>

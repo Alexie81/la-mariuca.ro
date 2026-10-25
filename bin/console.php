@@ -7,6 +7,7 @@ use App\Shared\Database\ConnectionFactory;
 use App\Shared\Database\Migrator;
 use Database\Seeders\DemoSeeder;
 use Database\Seeders\ExpandedCatalogSeeder;
+use App\Modules\Reviews\ProductReviewRepository;
 use Symfony\Component\Mailer\Mailer;
 use Symfony\Component\Mailer\Transport;
 use Symfony\Component\Mime\Email;
@@ -30,6 +31,11 @@ try {
         case 'seed:catalog':
             $inserted = (new ExpandedCatalogSeeder($pdo))->run();
             fwrite(STDOUT, "Colecția extinsă a fost verificată; produse noi adăugate: {$inserted}.\n");
+            break;
+        case 'review:demo':
+            $slug = trim((string) ($argv[2] ?? 'cuburi-moi-poveste'));
+            $reviewId = (new ProductReviewRepository($pdo))->ensureDemoForProductSlug($slug);
+            fwrite(STDOUT, "Recenzia demonstrativă este disponibilă pentru {$slug} (ID {$reviewId}).\n");
             break;
         case 'admin:create':
             $email = mb_strtolower(trim((string) (getenv('ADMIN_EMAIL') ?: prompt('Email administrator: '))));
@@ -150,7 +156,7 @@ try {
             break;
         case 'help':
         default:
-            fwrite(STDOUT, "Comenzi: migrate, seed:demo, seed:catalog, admin:create, outbox:process, reservations:expire, csv:export [fișier], csv:import <fișier> --dry-run\n");
+            fwrite(STDOUT, "Comenzi: migrate, seed:demo, seed:catalog, review:demo [slug], admin:create, outbox:process, reservations:expire, csv:export [fișier], csv:import <fișier> --dry-run\n");
     }
 } catch (Throwable $exception) {
     if ($pdo->inTransaction()) {

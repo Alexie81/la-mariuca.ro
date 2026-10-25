@@ -600,3 +600,13 @@ atribute și filtre fără schimbarea contractelor existente.
 - Pe telefon, cardurile editoriale Descriere, Informații produs și Recenzii folosesc întreaga lățime a paginii, eliminând retragerea laterală a containerului fără a reduce spațiul interior al conținutului.
 - Pe desktop, avantajele produsului au revenit la prezentarea aerisită cu iconițe și separator simplu; panoul compact, full-width și cele trei carduri rămân neschimbate pe tabletă și telefon.
 - Verificarea vizuală reală a fost făcută la 390, 1024 și 1440 px. Au fost testate schimbarea tuturor imaginilor, lightbox-ul, zoom-ul la 125%, închiderea animată, toggle-ul coșului, calculul prețului pentru combinații de variante și navigația editorială a produsului. Lint-ul PHP/JavaScript, compilarea celor 33 de template-uri Twig, PHPStan și PHPUnit cu 41 de teste / 285 de aserțiuni trec.
+
+## 2026-10-25 — Recenzii moderate și produse similare
+
+- Pagina de produs afișează acum nota medie, distribuția pe stele și recenziile aprobate într-o compoziție editorială responsive. Recenzia demonstrativă locală pentru „Cuburi moi «Poveste»” este marcată vizibil drept exemplu și nu este creată automat în producție.
+- Formularul public de recenzie include CSRF, honeypot, limitare la 5 trimiteri pe oră, validare server-side, acord explicit pentru publicare și starea inițială `pending`; emailul nu este afișat public, iar achiziția verificată se calculează din comenzile livrate.
+- Selectorul notei folosește cinci stele tactile care se colorează progresiv și au animații discrete de ridicare, „pop” și sclipire la selectare, cu focus vizibil din tastatură și dezactivarea animațiilor prin `prefers-reduced-motion`.
+- Administrația are o pagină dedicată pentru aprobarea, respingerea sau readucerea în așteptare a recenziilor. Comanda explicită `review:demo [slug]` poate instala idempotent exemplul local pentru demonstrații.
+- După recenzii apare un carusel cu până la 15 produse recomandate dinamic după categoria principală, termeni comuni, context, apropierea de preț și disponibilitate. Produsul curent este exclus, iar selecția funcționează automat și pentru produsele viitoare.
+- Caruselul este adaptat pentru telefon, tabletă și desktop, acceptă gesturi și drag, are navigare cu butoane, contor, progres și autoderulare care se reia după interacțiune; cardurile păstrează toate acțiunile existente de produs.
+- Verificarea vizuală locală pe telefon a confirmat recenzia demonstrativă, distribuția notelor, formularul, animația stelelor și afișarea simultană a două carduri în carusel. Verificări locale trecute: lint PHP/JavaScript, compilarea tuturor celor 34 de template-uri Twig, PHPStan fără erori și PHPUnit cu 45 de teste / 307 aserțiuni.

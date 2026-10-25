@@ -155,6 +155,10 @@ final class CategoryRouteTest extends DatabaseTestCase
         self::assertStringContainsString('<dt>Mărime</dt><dd>2 ani · 4 ani</dd>', $body);
         self::assertStringContainsString('data-product-description-toggle', $body);
         self::assertStringContainsString('product-editorial.js', $body);
+        self::assertStringContainsString('id="formular-recenzie"', $body);
+        self::assertStringContainsString('name="rating"', $body);
+        self::assertStringContainsString('product-similar-carousel', $body);
+        self::assertStringContainsString('data-product-carousel', $body);
     }
 
     private function get(string $path): ResponseInterface

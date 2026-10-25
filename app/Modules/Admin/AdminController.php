@@ -8,6 +8,7 @@ use App\Modules\Catalog\CatalogAdminService;
 use App\Modules\Catalog\CatalogRepository;
 use App\Modules\Media\MediaService;
 use App\Modules\Orders\OrderService;
+use App\Modules\Reviews\ProductReviewService;
 use App\Modules\Content\ContentAdminService;
 use App\Shared\Config\Config;
 use App\Shared\Http\View;
@@ -20,7 +21,7 @@ use Psr\Http\Message\ServerRequestInterface;
 
 final class AdminController
 {
-    public function __construct(private readonly PDO $pdo, private readonly CatalogRepository $catalog, private readonly CatalogAdminService $catalogAdmin, private readonly OrderService $orders, private readonly MediaService $media, private readonly ContentAdminService $contentAdmin, private readonly Auth $auth, private readonly View $view, private readonly Config $config)
+    public function __construct(private readonly PDO $pdo, private readonly CatalogRepository $catalog, private readonly CatalogAdminService $catalogAdmin, private readonly OrderService $orders, private readonly ProductReviewService $reviews, private readonly MediaService $media, private readonly ContentAdminService $contentAdmin, private readonly Auth $auth, private readonly View $view, private readonly Config $config)
     {
     }
 
@@ -97,6 +98,24 @@ final class AdminController
             Flash::set('error', $exception->getMessage());
         }
         return $this->view->redirect($this->config->path('admin/comenzi/'));
+    }
+
+    public function reviews(): ResponseInterface
+    {
+        return $this->view->render('admin/pages/reviews.twig', ['reviews' => $this->reviews->forModeration()]);
+    }
+
+    public function moderateReview(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $data = (array) ($request->getParsedBody() ?? []);
+        $user = $this->auth->user();
+        try {
+            $this->reviews->moderate((int) $args['id'], (string) ($data['action'] ?? ''), (int) ($user['id'] ?? 0));
+            Flash::set('success', 'Starea recenziei a fost actualizată.');
+        } catch (\Throwable $exception) {
+            Flash::set('error', $exception->getMessage());
+        }
+        return $this->view->redirect($this->config->path('admin/recenzii/'));
     }
 
     public function content(): ResponseInterface

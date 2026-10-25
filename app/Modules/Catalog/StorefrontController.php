@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace App\Modules\Catalog;
 
 use App\Modules\Content\ContentRepository;
+use App\Modules\Reviews\ProductReviewService;
 use App\Shared\Config\Config;
 use App\Shared\Http\RateLimiter;
 use App\Shared\Http\View;
+use App\Shared\Security\Auth;
 use App\Shared\Support\Flash;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -19,8 +21,11 @@ final class StorefrontController
         private readonly CatalogRepository $catalog,
         private readonly CatalogSearchService $catalogSearch,
         private readonly CategoryPathRepository $categoryPaths,
+        private readonly ProductRecommendationService $recommendations,
         private readonly ContentRepository $content,
+        private readonly ProductReviewService $reviews,
         private readonly RateLimiter $limiter,
+        private readonly Auth $auth,
         private readonly View $view,
         private readonly Config $config,
     ) {
@@ -258,9 +263,39 @@ final class StorefrontController
         return $this->view->render('storefront/pages/product.twig', [
             'product' => $product,
             'product_category_trail' => $categoryTrail,
+            'similar_products' => $this->recommendations->similarTo($product, 15),
+            'product_reviews' => $this->reviews->approvedForProduct((int) $product['id']),
+            'review_summary' => $this->reviews->summaryForProduct((int) $product['id']),
+            'review_form_user' => $this->auth->user(),
             'structured_data' => json_encode($structured, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
             'meta' => $this->meta($product['seo_title'] ?: $product['name'], $product['meta_description'] ?: $product['short_description'], '/produs/' . $product['slug'] . '/', (int) $product['indexable'] !== 1),
         ]);
+    }
+
+    public function submitReview(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $slug = (string) ($args['slug'] ?? '');
+        $product = $this->catalog->productBySlug($slug);
+        if ($product === null) {
+            return $this->notFound();
+        }
+
+        $data = (array) ($request->getParsedBody() ?? []);
+        $server = $request->getServerParams();
+        $identity = (string) ($server['REMOTE_ADDR'] ?? 'unknown') . '|' . mb_strtolower(trim((string) ($data['author_email'] ?? '')));
+        if (!$this->limiter->allow('product-review-' . (int) $product['id'], $identity, 5, 3600)) {
+            Flash::set('error', 'Ai trimis mai multe recenzii într-un timp scurt. Încearcă din nou puțin mai târziu.');
+            return $this->view->redirect($this->config->path('produs/' . $slug . '/#formular-recenzie'));
+        }
+
+        try {
+            $this->reviews->submit((int) $product['id'], $data, $this->auth->user());
+            Flash::set('success', 'Mulțumim! Recenzia a fost trimisă și va apărea după verificare.');
+        } catch (\Throwable $exception) {
+            Flash::set('error', $exception->getMessage());
+        }
+
+        return $this->view->redirect($this->config->path('produs/' . $slug . '/#formular-recenzie'));
     }
 
     public function collection(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface

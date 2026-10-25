@@ -11,6 +11,7 @@ use App\Modules\Catalog\CatalogAdminService;
 use App\Modules\Catalog\CatalogRepository;
 use App\Modules\Catalog\CatalogSearchService;
 use App\Modules\Catalog\CategoryPathRepository;
+use App\Modules\Catalog\ProductRecommendationService;
 use App\Modules\Catalog\StorefrontController;
 use App\Modules\Checkout\CheckoutController;
 use App\Modules\Checkout\CheckoutService;
@@ -22,6 +23,8 @@ use App\Modules\Media\MediaService;
 use App\Modules\Orders\OrderService;
 use App\Modules\Payments\StripeWebhookController;
 use App\Modules\Payments\StripeCheckoutService;
+use App\Modules\Reviews\ProductReviewRepository;
+use App\Modules\Reviews\ProductReviewService;
 use App\Shared\Config\Config;
 use App\Shared\Database\ConnectionFactory;
 use App\Shared\Http\AdminMiddleware;
@@ -55,6 +58,7 @@ final class AppFactory
         $catalog = new CatalogRepository($pdo);
         $catalogSearch = new CatalogSearchService($catalog);
         $categoryPaths = new CategoryPathRepository($pdo);
+        $reviews = new ProductReviewService(new ProductReviewRepository($pdo));
         $cart = new CartService($pdo);
 
         $twig = new Environment(new FilesystemLoader($root . '/resources/views'), [
@@ -103,12 +107,12 @@ final class AppFactory
         $content = new ContentRepository($pdo);
         $orders = new OrderService($pdo);
 
-        $storefront = new StorefrontController($catalog, $catalogSearch, $categoryPaths, $content, $rateLimiter, $view, $config);
+        $storefront = new StorefrontController($catalog, $catalogSearch, $categoryPaths, new ProductRecommendationService($catalog), $content, $reviews, $rateLimiter, $auth, $view, $config);
         $cartController = new CartController($cart, $view, $config);
         $checkoutController = new CheckoutController(new CheckoutService($pdo, $cart, $config), $cart, $orders, new StripeCheckoutService($pdo, $config), $rateLimiter, $view, $config);
         $authController = new AuthController($pdo, $auth, $rateLimiter, $view, $config);
         $twoFactorController = new TwoFactorController($pdo, $auth, new TotpService($config), $rateLimiter, $view, $config);
-        $adminController = new AdminController($pdo, $catalog, new CatalogAdminService($pdo), $orders, new MediaService($pdo, $root), new ContentAdminService($pdo), $auth, $view, $config);
+        $adminController = new AdminController($pdo, $catalog, new CatalogAdminService($pdo), $orders, $reviews, new MediaService($pdo, $root), new ContentAdminService($pdo), $auth, $view, $config);
 
         $app = SlimAppFactory::create();
         $basePath = '/' . trim($config->get('APP_BASE_PATH'), '/');
@@ -120,6 +124,7 @@ final class AppFactory
         $app->get('/categorie/{path:.+}/', [$storefront, 'category']);
         $app->get('/colectie/{slug}/', [$storefront, 'collection']);
         $app->get('/produs/{slug}/', [$storefront, 'product']);
+        $app->post('/produs/{slug}/recenzie/', [$storefront, 'submitReview']);
         $app->get('/magazin/', [$storefront, 'shop']);
         $app->get('/cautare/', [$storefront, 'search']);
         $app->get('/cautare/sugestii/', [$storefront, 'searchSuggestions']);
@@ -160,6 +165,8 @@ final class AppFactory
             $group->post('/produse/{id:[0-9]+}/editare/', [$adminController, 'saveProduct']);
             $group->get('/comenzi/', [$adminController, 'orders']);
             $group->post('/comenzi/{id:[0-9]+}/actiune/', [$adminController, 'transitionOrder']);
+            $group->get('/recenzii/', [$adminController, 'reviews']);
+            $group->post('/recenzii/{id:[0-9]+}/actiune/', [$adminController, 'moderateReview']);
             $group->get('/continut/', [$adminController, 'content']);
             $group->post('/continut/sectiuni/{id:[0-9]+}/actiune/', [$adminController, 'sectionAction']);
             $group->get('/pagini/noua/', [$adminController, 'pageForm']);
