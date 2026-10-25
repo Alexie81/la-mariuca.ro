@@ -625,3 +625,4 @@ atribute și filtre fără schimbarea contractelor existente.
 ## 2026-10-25 — Destinația Noutăți
 
 - Linkurile „Noutăți” din meniul principal, footer și secțiunea dedicată de pe homepage trimit uniform la Magazin cu `sortare=new`, astfel încât selectorul să fie deja setat pe „Cele mai noi”; vechea destinație din pagina de căutare nu mai este folosită.
+- Magazinul acceptă și sortarea `discount`, disponibilă în selector ca „Reduceri: mari–mici”. Procentul este calculat server-side din prețul curent și prețul comparativ al variantei implicite autoritative; produsele reduse sunt ordonate de la cel mai mare procent la cel mai mic, iar produsele fără reducere continuă lista în ordinea noutății. Linkurile „Reduceri” din meniu și footer deschid direct această sortare în Magazin.

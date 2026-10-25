@@ -281,6 +281,38 @@ final class CatalogTest extends DatabaseTestCase
         sort($sortedPrices, SORT_NUMERIC);
         self::assertSame($sortedPrices, $prices);
 
+        $discountVariants = $this->pdo->query(
+            "SELECT id, price_bani FROM product_variants
+             WHERE status = 'active' AND is_default = 1
+             ORDER BY product_id LIMIT 2"
+        )->fetchAll();
+        self::assertCount(2, $discountVariants);
+        $setComparePrice = $this->pdo->prepare(
+            'UPDATE product_variants SET compare_price_bani = :compare_price WHERE id = :id'
+        );
+        $setComparePrice->execute([
+            'compare_price' => (int) $discountVariants[0]['price_bani'] * 2,
+            'id' => (int) $discountVariants[0]['id'],
+        ]);
+        $setComparePrice->execute([
+            'compare_price' => (int) round((int) $discountVariants[1]['price_bani'] * 1.25),
+            'id' => (int) $discountVariants[1]['id'],
+        ]);
+
+        $productsByDiscount = $repository->shopProducts(1, 50, 'discount');
+        $discountScores = array_map(static function (array $product): int {
+            $price = (int) $product['price_bani'];
+            $comparePrice = (int) ($product['compare_price_bani'] ?? 0);
+            return $comparePrice > $price && $comparePrice > 0
+                ? intdiv(($comparePrice - $price) * 1_000_000, $comparePrice)
+                : 0;
+        }, $productsByDiscount);
+        $sortedDiscountScores = $discountScores;
+        rsort($sortedDiscountScores, SORT_NUMERIC);
+        self::assertSame($sortedDiscountScores, $discountScores);
+        self::assertGreaterThan(0, $discountScores[0]);
+        self::assertSame(0, $discountScores[array_key_last($discountScores)]);
+
         $productsByNameAscending = $repository->shopProducts(1, 50, 'name-asc');
         $productsByNameDescending = $repository->shopProducts(1, 50, 'name-desc');
         self::assertSame(

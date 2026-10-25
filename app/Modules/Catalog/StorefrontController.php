@@ -88,7 +88,7 @@ final class StorefrontController
         if ($sort === 'name') {
             $sort = 'name-asc';
         }
-        if (!in_array($sort, ['new', 'price-asc', 'price-desc', 'name-asc', 'name-desc'], true)) {
+        if (!in_array($sort, ['new', 'discount', 'price-asc', 'price-desc', 'name-asc', 'name-desc'], true)) {
             $sort = 'new';
         }
 
@@ -343,7 +343,7 @@ final class StorefrontController
         if ($sort === 'name') {
             $sort = 'name-asc';
         }
-        if (!in_array($sort, ['new', 'price-asc', 'price-desc', 'name-asc', 'name-desc'], true)) {
+        if (!in_array($sort, ['new', 'discount', 'price-asc', 'price-desc', 'name-asc', 'name-desc'], true)) {
             $sort = 'new';
         }
 

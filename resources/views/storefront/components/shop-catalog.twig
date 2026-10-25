@@ -87,6 +87,7 @@
         <label for="sortare">Sortează</label>
         <select id="sortare" name="sortare" data-shop-sort-select>
           <option value="new" data-mobile-label="Noi" {{ sort == 'new' ? 'selected' }}>Cele mai noi</option>
+          <option value="discount" data-mobile-label="Reduceri" {{ sort == 'discount' ? 'selected' }}>Reduceri: mari–mici</option>
           <option value="price-asc" data-mobile-label="Crescător" {{ sort == 'price-asc' ? 'selected' }}>Preț crescător</option>
           <option value="price-desc" data-mobile-label="Descrescător" {{ sort == 'price-desc' ? 'selected' }}>Preț descrescător</option>
           <option value="name-asc" data-mobile-label="Nume A–Z" {{ sort == 'name-asc' ? 'selected' }}>Nume A–Z</option>

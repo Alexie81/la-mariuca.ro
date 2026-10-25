@@ -111,6 +111,11 @@ final class CatalogRepository
         $displayComparePriceSql = $this->displayVariantValueSql('compare_price_bani');
         $sorts = [
             'new' => 'p.published_at DESC, p.id DESC',
+            'discount' => 'CASE
+                WHEN compare_price_bani > price_bani AND compare_price_bani > 0
+                THEN (compare_price_bani - price_bani) * 1.0 / compare_price_bani
+                ELSE 0
+            END DESC, p.published_at DESC, p.id DESC',
             'price-asc' => 'price_bani ASC, p.id DESC',
             'price-desc' => 'price_bani DESC, p.id DESC',
             'name' => 'p.name ASC, p.id DESC',
@@ -176,6 +181,11 @@ final class CatalogRepository
         $displayVariantIdSql = $this->displayVariantValueSql('id');
         $sorts = [
             'new' => 'p.published_at DESC, p.id DESC',
+            'discount' => 'CASE
+                WHEN compare_price_bani > price_bani AND compare_price_bani > 0
+                THEN (compare_price_bani - price_bani) * 1.0 / compare_price_bani
+                ELSE 0
+            END DESC, p.published_at DESC, p.id DESC',
             'price-asc' => 'price_bani ASC, p.id DESC',
             'price-desc' => 'price_bani DESC, p.id DESC',
             'name' => 'p.name ASC, p.id DESC',
