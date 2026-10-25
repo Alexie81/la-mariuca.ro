@@ -37,6 +37,11 @@ try {
             $reviewId = (new ProductReviewRepository($pdo))->ensureDemoForProductSlug($slug);
             fwrite(STDOUT, "Recenzia demonstrativă este disponibilă pentru {$slug} (ID {$reviewId}).\n");
             break;
+        case 'review:demo-pack':
+            $slug = trim((string) ($argv[2] ?? 'cuburi-moi-poveste'));
+            $reviewIds = (new ProductReviewRepository($pdo))->ensureDemoPackForProductSlug($slug);
+            fwrite(STDOUT, 'Setul demonstrativ este disponibil pentru ' . $slug . ' (' . count($reviewIds) . " recenzii).\n");
+            break;
         case 'admin:create':
             $email = mb_strtolower(trim((string) (getenv('ADMIN_EMAIL') ?: prompt('Email administrator: '))));
             $firstName = trim((string) (getenv('ADMIN_FIRST_NAME') ?: prompt('Prenume: ')));
@@ -156,7 +161,7 @@ try {
             break;
         case 'help':
         default:
-            fwrite(STDOUT, "Comenzi: migrate, seed:demo, seed:catalog, review:demo [slug], admin:create, outbox:process, reservations:expire, csv:export [fișier], csv:import <fișier> --dry-run\n");
+            fwrite(STDOUT, "Comenzi: migrate, seed:demo, seed:catalog, review:demo [slug], review:demo-pack [slug], admin:create, outbox:process, reservations:expire, csv:export [fișier], csv:import <fișier> --dry-run\n");
     }
 } catch (Throwable $exception) {
     if ($pdo->inTransaction()) {

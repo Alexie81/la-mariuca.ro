@@ -141,7 +141,11 @@ final class ProductReviewRepository
             throw new RuntimeException('Produsul pentru recenzia demo nu există sau nu este publicat.');
         }
 
-        $existing = $this->pdo->prepare('SELECT id FROM product_reviews WHERE product_id = :product AND is_demo = 1 LIMIT 1');
+        $existing = $this->pdo->prepare("SELECT id FROM product_reviews
+            WHERE product_id = :product
+              AND is_demo = 1
+              AND author_email = 'recenzie-demo@localhost.invalid'
+            LIMIT 1");
         $existing->execute(['product' => $productId]);
         $existingId = $existing->fetchColumn();
         if ($existingId !== false) {
@@ -163,5 +167,59 @@ final class ProductReviewRepository
             'created_at' => $now,
             'updated_at' => $now,
         ]);
+    }
+
+    /** @return list<int> */
+    public function ensureDemoPackForProductSlug(string $slug): array
+    {
+        $productStatement = $this->pdo->prepare("SELECT id FROM products WHERE slug = :slug AND status = 'published' LIMIT 1");
+        $productStatement->execute(['slug' => $slug]);
+        $productId = $productStatement->fetchColumn();
+        if ($productId === false) {
+            throw new RuntimeException('Produsul pentru recenziile demo nu există sau nu este publicat.');
+        }
+
+        $reviewIds = [$this->ensureDemoForProductSlug($slug)];
+        $reviews = [
+            ['Andreea P.', 5, 'Culori liniștite și texturi plăcute', 'Culorile sunt foarte delicate, iar fiecare cub are o textură diferită. Cel mic le explorează cu multă curiozitate.'],
+            ['Elena D.', 5, 'Un cadou tare reușit', 'Le-am ales pentru un cadou și au fost foarte apreciate. Arată frumos împreună și sunt moi, potrivite pentru joacă liniștită.'],
+            ['Mara S.', 4, 'Frumoase și ușor de prins', 'Cuburile sunt ușoare și potrivite pentru mânuțe mici. Mi-ar fi plăcut o cutie de depozitare, însă produsul este foarte frumos.'],
+            ['Raluca T.', 5, 'Preferatele noastre pentru joaca de seară', 'Texturile și formele cusute îi țin atenția, iar nuanțele se potrivesc foarte bine în camera copilului. Suntem încântați.'],
+            ['Cristina A.', 5, 'Detalii foarte atent lucrate', 'Cusăturile sunt îngrijite, materialele sunt plăcute la atingere și combinația dintre culori este exact ca în fotografii.'],
+            ['Alina C.', 4, 'Un set delicat și interesant', 'Setul este plăcut și oferă multe elemente de explorat. Inelele laterale sunt cele care au atras primele atenția.'],
+            ['Denisa R.', 5, 'Joacă senzorială reușită', 'Fiecare cub aduce altă senzație la atingere și alt detaliu de descoperit. Este un set potrivit pentru momente calme de joacă.'],
+            ['Bianca N.', 5, 'Exact ca în imagini', 'Nuanțele sunt calde, materialele sunt moi, iar dimensiunea cuburilor este potrivită. Produsul a ajuns să fie folosit zilnic.'],
+            ['Sorina V.', 5, 'Foarte plăcute la atingere', 'Ne place varietatea materialelor și faptul că piesele sunt ușoare. Cubul cu luna a devenit imediat preferatul nostru.'],
+            ['Maria G.', 5, 'O alegere inspirată pentru cei mici', 'Un set vesel, delicat și bine finisat. Formele aplicate și culorile îl fac interesant fără să fie prea încărcat vizual.'],
+        ];
+
+        $findExisting = $this->pdo->prepare('SELECT id FROM product_reviews WHERE product_id = :product AND author_email = :email LIMIT 1');
+        foreach ($reviews as $index => [$author, $rating, $title, $body]) {
+            $email = sprintf('recenzie-demo-%02d@localhost.invalid', $index + 2);
+            $findExisting->execute(['product' => $productId, 'email' => $email]);
+            $existingId = $findExisting->fetchColumn();
+            if ($existingId !== false) {
+                $reviewIds[] = (int) $existingId;
+                continue;
+            }
+
+            $createdAt = gmdate('c', time() - (($index + 1) * 86400));
+            $reviewIds[] = $this->create([
+                'product_id' => (int) $productId,
+                'customer_id' => null,
+                'author_name' => $author,
+                'author_email' => $email,
+                'rating' => $rating,
+                'title' => $title,
+                'body' => $body,
+                'status' => 'approved',
+                'is_verified_purchase' => false,
+                'is_demo' => true,
+                'created_at' => $createdAt,
+                'updated_at' => $createdAt,
+            ]);
+        }
+
+        return $reviewIds;
     }
 }

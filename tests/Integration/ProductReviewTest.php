@@ -109,6 +109,21 @@ final class ProductReviewTest extends DatabaseTestCase
         self::assertSame('approved', $this->pdo->query("SELECT status FROM product_reviews WHERE id = {$reviewId}")->fetchColumn());
     }
 
+    public function testDemoReviewPackAddsTenAdditionalReviewsIdempotently(): void
+    {
+        $this->seed();
+        $repository = new ProductReviewRepository($this->pdo);
+
+        $firstRun = $repository->ensureDemoPackForProductSlug('costumas-micul-gentleman');
+        $secondRun = $repository->ensureDemoPackForProductSlug('costumas-micul-gentleman');
+
+        self::assertCount(11, $firstRun);
+        self::assertSame($firstRun, $secondRun);
+        self::assertSame(11, (int) $this->pdo->query("SELECT COUNT(*) FROM product_reviews WHERE is_demo = 1")->fetchColumn());
+        self::assertSame(9, (int) $this->pdo->query("SELECT COUNT(*) FROM product_reviews WHERE is_demo = 1 AND rating = 5")->fetchColumn());
+        self::assertSame(2, (int) $this->pdo->query("SELECT COUNT(*) FROM product_reviews WHERE is_demo = 1 AND rating = 4")->fetchColumn());
+    }
+
     public function testSimilarProductsExcludeCurrentProductAndAreLimited(): void
     {
         $this->seed();
