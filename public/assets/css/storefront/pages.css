@@ -7863,7 +7863,9 @@
   }
 
   .product-editorial-sections {
+    width: calc(100% + 24px);
     gap: 1rem;
+    margin-inline: -12px;
     padding-top: 1rem;
   }
 
