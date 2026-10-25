@@ -280,7 +280,7 @@
 
           {% set review_count = review_summary.count|default(0) %}
           {% set review_average = review_summary.average|default(0) %}
-          <div class="product-review-overview">
+          {% if review_count > 0 %}<div class="product-review-overview">
             <div class="product-review-score">
               <span class="product-review-score-kicker">Nota comunității</span>
               <div
@@ -320,7 +320,7 @@
               <strong>Scrie o recenzie</strong>
               <i aria-hidden="true">→</i>
             </a>
-          </div>
+          </div>{% endif %}
 
           <div class="product-review-layout">
             {% if product_reviews %}
@@ -383,7 +383,12 @@
             {% else %}
               <div class="product-reviews-empty">
                 <span class="product-reviews-heart" aria-hidden="true"><img src="{{ url('assets/images/icon-favorite-hearts.png') }}" width="160" height="128" alt=""></span>
-                <div><strong>Primele impresii se scriu aici</strong><p>Fii primul care povestește cum a fost experiența cu acest produs.</p></div>
+                <div class="product-reviews-empty-copy"><strong>Primele impresii se scriu aici</strong><p>Fii primul care povestește cum a fost experiența cu acest produs.</p></div>
+                <a class="product-reviews-empty-action" href="#formular-recenzie" data-review-open>
+                  <span aria-hidden="true">★</span>
+                  <strong>Scrie prima recenzie</strong>
+                  <i aria-hidden="true">→</i>
+                </a>
               </div>
             {% endif %}
 

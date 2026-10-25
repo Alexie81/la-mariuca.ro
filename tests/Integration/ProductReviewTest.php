@@ -15,6 +15,19 @@ use Tests\DatabaseTestCase;
 
 final class ProductReviewTest extends DatabaseTestCase
 {
+    public function testEmptyReviewStateDoesNotRenderRatingOverview(): void
+    {
+        $this->seed();
+
+        $body = (string) $this->get('/produs/costumas-micul-gentleman/')->getBody();
+
+        self::assertStringNotContainsString('product-review-overview', $body);
+        self::assertStringNotContainsString('0 recenzii afișate', $body);
+        self::assertStringContainsString('Primele impresii se scriu aici', $body);
+        self::assertStringContainsString('Scrie prima recenzie', $body);
+        self::assertStringContainsString('product-reviews-empty-action', $body);
+    }
+
     public function testApprovedReviewAndReviewFormAreRenderedOnProductPage(): void
     {
         $this->seed();
