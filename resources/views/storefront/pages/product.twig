@@ -1,4 +1,5 @@
 {% extends 'storefront/layouts/base.twig' %}
+{% block body_class %}product-page-body{% endblock %}
 {% block head %}<script type="application/ld+json">{{ structured_data|raw }}</script>{% endblock %}
 {% block content %}
 {% set gallery_count = product.images|length %}

@@ -36,12 +36,12 @@
   <link rel="stylesheet" href="{{ url('assets/css/storefront/typography.css') }}">
   <link rel="stylesheet" href="{{ url('assets/css/storefront/layout.css') }}?v=20261024-search-panel6">
   <link rel="stylesheet" href="{{ url('assets/css/storefront/components.css') }}">
-  <link rel="stylesheet" href="{{ url('assets/css/storefront/pages.css') }}?v=20261025-product-reviews12">
+  <link rel="stylesheet" href="{{ url('assets/css/storefront/pages.css') }}?v=20261025-product-reviews13">
   <link rel="stylesheet" href="{{ url('assets/css/storefront/empty-states.css') }}">
   <link rel="stylesheet" href="{{ url('assets/css/storefront/interactions.css') }}?v=20261024-carttoggle3">
   {% block head %}{% endblock %}
 </head>
-<body>
+<body class="{% block body_class %}{% endblock %}">
   <a class="skip-link" href="#continut">Sari la conținut</a>
   <div class="mobile-delivery">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h11v10H3zM14 10h4l3 3v3h-7z"></path><circle cx="7" cy="18" r="2"></circle><circle cx="18" cy="18" r="2"></circle></svg>

@@ -9446,6 +9446,10 @@ html.has-review-dialog {
 }
 
 @media (max-width: 700px) {
+  .product-page-body .site-header .header-row {
+    padding-bottom: 0;
+  }
+
   .product-editorial {
     margin-top: 0;
   }
