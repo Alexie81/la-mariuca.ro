@@ -1,0 +1,180 @@
+{% extends 'storefront/layouts/base.twig' %}
+
+{% block body_class %}contact-page-body{% endblock %}
+
+{% block content %}
+  <div class="contact-page">
+    <section class="contact-hero" aria-labelledby="contact-title">
+      <span class="contact-orbit contact-orbit--one" aria-hidden="true"></span>
+      <span class="contact-orbit contact-orbit--two" aria-hidden="true"></span>
+      <div class="container contact-hero__layout">
+        <div class="contact-hero__copy">
+          <span class="contact-eyebrow">
+            <span class="contact-eyebrow__heart" aria-hidden="true"><img src="{{ url('assets/images/icon-favorite-hearts.png') }}" width="160" height="128" alt=""></span>
+            <span>Suntem aproape</span>
+          </span>
+          <h1 id="contact-title"><span class="contact-title-line">Hai să</span><span class="contact-title-line">vorbim despre</span><em class="contact-title-line">ceva drag</em></h1>
+          <p>Ai nevoie de ajutor cu o mărime, o comandă sau alegerea unui cadou? Scrie-ne câteva rânduri, iar noi pregătim conversația direct în WhatsApp.</p>
+          {% if contact_has_direct_number %}
+            <nav class="contact-quick-actions" aria-label="Contact rapid">
+              <a class="contact-quick-action contact-quick-action--call" href="{{ contact_phone_url }}">
+                <span class="contact-quick-action__icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24"><path d="M7 3h3l1.3 4-2 1.6a14 14 0 0 0 6 6l1.7-2 4 1.4v3c0 2-1.6 3.7-3.7 3.5C10.1 19.7 4.3 14 3.5 6.7 3.3 4.7 5 3 7 3Z"></path></svg>
+                </span>
+                <span><small>Apel rapid</small><strong>{{ contact_phone_display }}</strong></span>
+                <i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"></path></svg></i>
+              </a>
+              <a class="contact-quick-action contact-quick-action--whatsapp" href="{{ contact_whatsapp_url }}" target="_blank" rel="noopener external">
+                <span class="contact-quick-action__icon" aria-hidden="true">
+                  <svg class="contact-whatsapp-logo" viewBox="0 0 32 32"><path class="contact-whatsapp-logo__bubble" d="M16 3.6A12.2 12.2 0 0 0 5.6 22.2L3.8 28.6l6.6-1.7A12.2 12.2 0 1 0 16 3.6Z"></path><path class="contact-whatsapp-logo__phone" d="M11 9.3c.3-.7.7-.8 1.2-.8h.5c.3 0 .5.1.7.6l1.1 2.8c.1.4.1.7-.1 1l-.9 1.1c-.2.2-.3.5-.1.9.7 1.4 1.8 2.6 3.2 3.3.4.2.7.2.9-.1l1.1-1.3c.2-.3.6-.4.9-.2l2.9 1.4c.4.2.5.5.5.8 0 .4-.2 1.9-1.3 2.8-.9.8-2 1.1-3.3.9-1.5-.3-3.3-1-5.4-2.8-1.6-1.4-3-3.2-3.7-5.1-.8-2 .2-4.3.8-5.3Z"></path></svg>
+                </span>
+                <span><small>Fără mesaj pregătit</small><strong>Scrie pe WhatsApp</strong></span>
+                <i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"></path></svg></i>
+              </a>
+            </nav>
+            <p class="contact-quick-email">
+              <span aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3"></rect><path d="m4.5 7 7.5 6 7.5-6"></path></svg></span>
+              <small>Email</small>
+              <strong>{{ contact_email }}</strong>
+            </p>
+          {% endif %}
+        </div>
+
+        <div class="contact-hero__chat" aria-hidden="true">
+          <span class="contact-chat__spark contact-chat__spark--one">✦</span>
+          <span class="contact-chat__spark contact-chat__spark--two">✦</span>
+          <div class="contact-chat__phone">
+            <div class="contact-chat__head">
+              <span class="contact-chat__avatar"><img src="{{ url('assets/images/apple-touch-icon-lm.png') }}" width="180" height="180" alt=""></span>
+              <span><strong>La Măriuca Boutique</strong><small>aproape de familii</small></span>
+              <i></i>
+            </div>
+            <div class="contact-chat__body">
+              <p class="contact-chat__bubble contact-chat__bubble--brand">Bună! Cu ce te putem ajuta astăzi? <span>♡</span></p>
+              <p class="contact-chat__bubble contact-chat__bubble--guest">Caut ceva potrivit pentru cel mic…</p>
+              <span class="contact-chat__typing"><i></i><i></i><i></i></span>
+            </div>
+            <div class="contact-chat__composer"><span>Scrie un mesaj</span><i>➜</i></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="contact-main" aria-labelledby="formular-contact-title">
+      <div class="container contact-main__layout">
+        <form id="formular-contact" class="contact-form" action="{{ url('contact/whatsapp/') }}" method="post">
+          <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+          <label class="contact-trap" aria-hidden="true">Nu completa acest câmp<input type="text" name="website" tabindex="-1" autocomplete="off"></label>
+
+          <header class="contact-form__head">
+            <span class="contact-section-label">Mesajul tău</span>
+            <h2 id="formular-contact-title">Cu ce te putem ajuta?</h2>
+            <p>Completează formularul, iar mesajul va fi așezat frumos pentru conversația din WhatsApp.</p>
+          </header>
+
+          {% if contact_errors %}
+            <div class="contact-form__summary" role="alert">
+              <span aria-hidden="true">!</span>
+              <p><strong>Mai avem nevoie de câteva detalii.</strong> Verifică rubricile marcate mai jos.</p>
+            </div>
+          {% endif %}
+
+          <div class="contact-form__grid">
+            <label class="contact-field{{ contact_errors.name|default('') ? ' is-invalid' : '' }}">
+              <span>Numele tău <b>*</b></span>
+              <span class="contact-control">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"></circle><path d="M5.5 19c.7-4 3-6 6.5-6s5.8 2 6.5 6"></path></svg>
+                <input type="text" name="name" value="{{ contact_values.name|default('') }}" minlength="2" maxlength="80" autocomplete="name" placeholder="Cum te numești?" required{% if contact_errors.name|default('') %} aria-invalid="true" aria-describedby="contact-error-name"{% endif %}>
+              </span>
+              {% if contact_errors.name|default('') %}<small id="contact-error-name" class="contact-field__error">{{ contact_errors.name }}</small>{% endif %}
+            </label>
+
+            <label class="contact-field{{ contact_errors.email|default('') ? ' is-invalid' : '' }}">
+              <span>Email <em>opțional</em></span>
+              <span class="contact-control">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"></rect><path d="m4.5 7 7.5 6 7.5-6"></path></svg>
+                <input type="email" name="email" value="{{ contact_values.email|default('') }}" maxlength="254" autocomplete="email" placeholder="nume@exemplu.ro"{% if contact_errors.email|default('') %} aria-invalid="true" aria-describedby="contact-error-email"{% endif %}>
+              </span>
+              {% if contact_errors.email|default('') %}<small id="contact-error-email" class="contact-field__error">{{ contact_errors.email }}</small>{% endif %}
+            </label>
+
+            <label class="contact-field{{ contact_errors.phone|default('') ? ' is-invalid' : '' }}">
+              <span>Telefon <em>opțional</em></span>
+              <span class="contact-control">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h3l1.3 4-2 1.6a14 14 0 0 0 6 6l1.7-2 4 1.4v3c0 2-1.6 3.7-3.7 3.5C10.1 19.7 4.3 14 3.5 6.7 3.3 4.7 5 3 7 3Z"></path></svg>
+                <input type="tel" name="phone" value="{{ contact_values.phone|default('') }}" maxlength="30" autocomplete="tel" placeholder="07xx xxx xxx"{% if contact_errors.phone|default('') %} aria-invalid="true" aria-describedby="contact-error-phone"{% endif %}>
+              </span>
+              {% if contact_errors.phone|default('') %}<small id="contact-error-phone" class="contact-field__error">{{ contact_errors.phone }}</small>{% endif %}
+            </label>
+
+            <label class="contact-field{{ contact_errors.subject|default('') ? ' is-invalid' : '' }}">
+              <span>Subiect <b>*</b></span>
+              <span class="contact-control contact-control--select">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6.5h16v11H4z"></path><path d="m5 8 7 5 7-5"></path></svg>
+                <select name="subject" required{% if contact_errors.subject|default('') %} aria-invalid="true" aria-describedby="contact-error-subject"{% endif %}>
+                  <option value="">Alege subiectul</option>
+                  {% for value, label in contact_subjects %}
+                    <option value="{{ value }}"{{ contact_values.subject|default('') == value ? ' selected' : '' }}>{{ label }}</option>
+                  {% endfor %}
+                </select>
+              </span>
+              {% if contact_errors.subject|default('') %}<small id="contact-error-subject" class="contact-field__error">{{ contact_errors.subject }}</small>{% endif %}
+            </label>
+
+            <label class="contact-field contact-field--full{{ contact_errors.message|default('') ? ' is-invalid' : '' }}">
+              <span>Mesajul tău <b>*</b></span>
+              <span class="contact-control contact-control--textarea">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5h16v11H9l-5 3v-14Z"></path><path d="M8 9.5h8M8 12.5h5"></path></svg>
+                <textarea name="message" rows="6" minlength="10" maxlength="1200" placeholder="Povestește-ne pe scurt ce cauți sau cu ce te putem ajuta…" required{% if contact_errors.message|default('') %} aria-invalid="true" aria-describedby="contact-error-message"{% endif %}>{{ contact_values.message|default('') }}</textarea>
+              </span>
+              {% if contact_errors.message|default('') %}<small id="contact-error-message" class="contact-field__error">{{ contact_errors.message }}</small>{% endif %}
+            </label>
+          </div>
+
+          <label class="contact-consent{{ contact_errors.consent|default('') ? ' is-invalid' : '' }}">
+            <input type="checkbox" name="consent" value="1"{{ contact_values.consent|default('') == '1' ? ' checked' : '' }} required{% if contact_errors.consent|default('') %} aria-invalid="true" aria-describedby="contact-error-consent"{% endif %}>
+            <span class="contact-consent__box" aria-hidden="true"><i></i></span>
+            <span class="contact-consent__copy">Sunt de acord ca datele introduse să fie deschise în WhatsApp pentru a putea primi un răspuns.</span>
+          </label>
+          {% if contact_errors.consent|default('') %}<small id="contact-error-consent" class="contact-field__error contact-field__error--consent">{{ contact_errors.consent }}</small>{% endif %}
+
+          <button class="contact-submit" type="submit">
+            <span class="contact-submit__whatsapp" aria-hidden="true">
+              <svg viewBox="0 0 32 32"><path d="M16 4.2A11.6 11.6 0 0 0 6.1 21.8L4.5 27.6l6-1.6A11.6 11.6 0 1 0 16 4.2Z"></path><path d="M11.1 9.8c.3-.7.7-.7 1.1-.7h.5c.2 0 .5.1.6.5l1.1 2.7c.1.3.1.6-.1.9l-.8 1c-.2.2-.3.5-.1.8.7 1.3 1.7 2.4 3 3.1.3.2.6.2.8-.1l1-1.2c.2-.3.5-.4.8-.2l2.7 1.3c.3.2.5.4.5.7 0 .4-.2 1.8-1.2 2.6-.8.7-1.9 1.1-3.1.8-1.4-.3-3.1-.9-5-2.6-1.5-1.3-2.8-3-3.5-4.8-.7-1.8.2-4 .7-4.8Z"></path></svg>
+            </span>
+            <span>Continuă conversația pe WhatsApp</span>
+            <span class="contact-submit__arrow" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"></path></svg></span>
+          </button>
+          <p class="contact-form__note">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-8-4.5-8-11a4.5 4.5 0 0 1 8-2.8A4.5 4.5 0 0 1 20 10c0 6.5-8 11-8 11Z"></path></svg>
+            {% if contact_has_direct_number %}Se va deschide conversația cu echipa La Măriuca.{% else %}Se va deschide WhatsApp și vei putea alege conversația.{% endif %} Mesajul nu este trimis automat.
+          </p>
+        </form>
+
+        <aside class="contact-aside" aria-label="Informații de contact">
+          <div class="contact-aside__card contact-aside__card--primary">
+            <span class="contact-aside__brand-heart" aria-hidden="true"><img src="{{ url('assets/images/icon-favorite-hearts.png') }}" width="160" height="128" alt=""></span>
+            <span class="contact-section-label">Cu grijă, pentru tine</span>
+            <h2>Un răspuns omenesc, de la familia noastră</h2>
+            <p>Citind mesajul tău putem înțelege mai bine ce cauți și îți putem răspunde cu recomandări potrivite.</p>
+            <ul>
+              <li><span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m5 12 4 4 10-10"></path></svg></span><div><strong>Ajutor la alegere</strong><small>Mărimi, ținute și idei de cadou</small></div></li>
+              <li><span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m5 12 4 4 10-10"></path></svg></span><div><strong>Detalii despre comandă</strong><small>Întrebări clare, într-un singur mesaj</small></div></li>
+              <li><span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m5 12 4 4 10-10"></path></svg></span><div><strong>Conversație directă</strong><small>În aplicația pe care o folosești deja</small></div></li>
+            </ul>
+          </div>
+
+          <div class="contact-aside__card contact-aside__card--soft">
+            <span class="contact-aside__icon" aria-hidden="true"><img src="{{ url('assets/images/icon-favorite-hearts.png') }}" width="160" height="128" alt=""></span>
+            <div><small>Îți răspundem</small><strong>Cât de curând putem</strong><p>Mesajele sunt citite cu atenție, nu de un robot.</p></div>
+          </div>
+
+          <a class="contact-aside__shop" href="{{ url('magazin/') }}">
+            <span><small>Până îți răspundem</small><strong>Descoperă boutique-ul</strong></span>
+            <i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"></path></svg></i>
+          </a>
+        </aside>
+      </div>
+    </section>
+  </div>
+{% endblock %}

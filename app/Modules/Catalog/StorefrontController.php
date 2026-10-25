@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Catalog;
 
 use App\Modules\Content\ContentRepository;
+use App\Modules\Content\ContactWhatsAppService;
 use App\Modules\Reviews\ProductReviewService;
 use App\Modules\Reviews\ProductReviewValidationException;
 use App\Shared\Config\Config;
@@ -24,6 +25,7 @@ final class StorefrontController
         private readonly CategoryPathRepository $categoryPaths,
         private readonly ProductRecommendationService $recommendations,
         private readonly ContentRepository $content,
+        private readonly ContactWhatsAppService $contactWhatsApp,
         private readonly ProductReviewService $reviews,
         private readonly RateLimiter $limiter,
         private readonly Auth $auth,
@@ -732,11 +734,45 @@ final class StorefrontController
         if ($page === null) {
             return $this->notFound();
         }
-        $template = (string) $page['slug'] === 'despre-noi'
-            ? 'storefront/pages/about.twig'
-            : 'storefront/pages/content.twig';
+        $template = match ((string) $page['slug']) {
+            'despre-noi' => 'storefront/pages/about.twig',
+            'contact' => 'storefront/pages/contact.twig',
+            default => 'storefront/pages/content.twig',
+        };
+        $data = [
+            'page' => $page,
+            'meta' => $this->meta($page['seo_title'] ?: $page['title'], $page['meta_description'], '/pagina/' . $page['slug'] . '/', (int) $page['indexable'] !== 1),
+        ];
+        if ((string) $page['slug'] === 'contact') {
+            $state = $_SESSION['_contact_form'] ?? [];
+            unset($_SESSION['_contact_form']);
+            $data['contact_subjects'] = $this->contactWhatsApp->subjects();
+            $data['contact_values'] = is_array($state) && is_array($state['values'] ?? null) ? $state['values'] : [];
+            $data['contact_errors'] = is_array($state) && is_array($state['errors'] ?? null) ? $state['errors'] : [];
+            $data['contact_has_direct_number'] = $this->contactWhatsApp->hasDirectNumber();
+            $data['contact_whatsapp_url'] = $this->contactWhatsApp->directUrl();
+            $data['contact_phone_url'] = $this->contactWhatsApp->phoneUrl();
+            $data['contact_phone_display'] = $this->contactWhatsApp->phoneDisplay();
+            $data['contact_email'] = $this->contactWhatsApp->contactEmail();
+        }
 
-        return $this->view->render($template, ['page' => $page, 'meta' => $this->meta($page['seo_title'] ?: $page['title'], $page['meta_description'], '/pagina/' . $page['slug'] . '/', (int) $page['indexable'] !== 1)]);
+        return $this->view->render($template, $data);
+    }
+
+    public function contactWhatsApp(ServerRequestInterface $request): ResponseInterface
+    {
+        $input = (array) ($request->getParsedBody() ?? []);
+        if (trim((string) ($input['website'] ?? '')) !== '') {
+            return $this->view->redirect($this->config->path('pagina/contact/'));
+        }
+
+        $result = $this->contactWhatsApp->validate($input);
+        if ($result['errors'] !== []) {
+            $_SESSION['_contact_form'] = $result;
+            return $this->view->redirect($this->config->path('pagina/contact/#formular-contact'));
+        }
+
+        return $this->view->redirect($this->contactWhatsApp->url($result['values']));
     }
 
     public function robots(): ResponseInterface

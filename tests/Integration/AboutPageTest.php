@@ -35,7 +35,7 @@ final class AboutPageTest extends DatabaseTestCase
     {
         $this->seed();
 
-        $body = (string) $this->get('/pagina/contact/')->getBody();
+        $body = (string) $this->get('/pagina/livrare-si-retur/')->getBody();
 
         self::assertStringContainsString('class="container page-shell prose"', $body);
         self::assertStringNotContainsString('class="about-hero"', $body);

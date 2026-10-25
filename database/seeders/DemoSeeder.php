@@ -202,7 +202,7 @@ final class DemoSeeder
 HTML;
             $pages = [
                 ['Povestea La Măriuca Boutique','despre-noi',$aboutPageBody,0],
-                ['Contact','contact','<p>Datele de contact ale comerciantului se configurează înainte de lansare.</p>',0],
+                ['Contact','contact','<p>Scrie-ne despre produsul, mărimea, comanda sau cadoul pentru care ai nevoie de ajutor. Formularul pregătește mesajul și deschide conversația WhatsApp cu La Măriuca Boutique.</p>',0],
                 ['Livrare și retur','livrare-si-retur','<p>Draft: metodele, costurile și termenele se verifică împreună cu operatorul comercial și curierul.</p>',1],
                 ['Termeni și condiții','termeni-si-conditii','<p>Draft juridic de completat și verificat înainte de lansare.</p>',1],
                 ['Confidențialitate','confidentialitate','<p>Draft privind protecția datelor, de completat și verificat înainte de lansare.</p>',1],
@@ -210,9 +210,11 @@ HTML;
                 ['Ghid de mărimi','ghid-marimi','<p>Valorile ghidului de mărimi se completează pentru fiecare gamă de produse.</p>',0],
             ];
             foreach ($pages as [$title, $slug, $body, $legal]) {
-                $metaDescription = $slug === 'despre-noi'
-                    ? 'Descoperă povestea La Măriuca Boutique, afacerea de familie inspirată de Maria și dedicată copiilor de la naștere până la 8 ani.'
-                    : '';
+                $metaDescription = match ($slug) {
+                    'despre-noi' => 'Descoperă povestea La Măriuca Boutique, afacerea de familie inspirată de Maria și dedicată copiilor de la naștere până la 8 ani.',
+                    'contact' => 'Contactează La Măriuca Boutique direct pe WhatsApp pentru ajutor cu produse, mărimi, comenzi, botezuri sau cadouri.',
+                    default => '',
+                };
                 $this->pdo->prepare("INSERT INTO content_pages (title,slug,body_html,status,legal_review_required,seo_title,meta_description,indexable,published_at,updated_at) VALUES (:title,:slug,:body,'published',:legal,:title,:meta,1,:now,:now)")->execute(['title' => $title, 'slug' => $slug, 'body' => $body, 'legal' => $legal, 'meta' => $metaDescription, 'now' => $now]);
             }
             $this->pdo->prepare("INSERT INTO homepage_sections (type,title,content_json,enabled,position,updated_at) VALUES ('hero','Începuturi frumoase','{}',1,0,:now),('categories','Categorii','{}',1,1,:now),('products','Produse recomandate','{}',1,2,:now),('editorial','Despre colecții','{}',1,3,:now)")->execute(['now' => $now]);

@@ -16,6 +16,7 @@ use App\Modules\Catalog\StorefrontController;
 use App\Modules\Checkout\CheckoutController;
 use App\Modules\Checkout\CheckoutService;
 use App\Modules\Content\ContentRepository;
+use App\Modules\Content\ContactWhatsAppService;
 use App\Modules\Content\ContentAdminService;
 use App\Modules\Customers\AuthController;
 use App\Modules\Customers\TwoFactorController;
@@ -107,7 +108,7 @@ final class AppFactory
         $content = new ContentRepository($pdo);
         $orders = new OrderService($pdo);
 
-        $storefront = new StorefrontController($catalog, $catalogSearch, $categoryPaths, new ProductRecommendationService($catalog), $content, $reviews, $rateLimiter, $auth, $view, $config);
+        $storefront = new StorefrontController($catalog, $catalogSearch, $categoryPaths, new ProductRecommendationService($catalog), $content, new ContactWhatsAppService($config), $reviews, $rateLimiter, $auth, $view, $config);
         $cartController = new CartController($cart, $view, $config);
         $checkoutController = new CheckoutController(new CheckoutService($pdo, $cart, $config), $cart, $orders, new StripeCheckoutService($pdo, $config), $rateLimiter, $view, $config);
         $authController = new AuthController($pdo, $auth, $rateLimiter, $view, $config);
@@ -137,6 +138,7 @@ final class AppFactory
         $app->get('/finalizare-comanda/', [$checkoutController, 'show']);
         $app->post('/finalizare-comanda/', [$checkoutController, 'place']);
         $app->get('/comanda/{token}/', [$checkoutController, 'confirmation']);
+        $app->post('/contact/whatsapp/', [$storefront, 'contactWhatsApp']);
         $app->get('/pagina/{slug}/', [$storefront, 'page']);
         $app->get('/robots.txt', [$storefront, 'robots']);
         $app->get('/sitemap.xml', [$storefront, 'sitemap']);
