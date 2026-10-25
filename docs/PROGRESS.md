@@ -637,3 +637,13 @@ atribute și filtre fără schimbarea contractelor existente.
 - Migrarea `011_about_page_story.sql` actualizează titlul, conținutul, descrierea SEO și starea paginii existente atât pentru SQLite, cât și pentru MySQL; seederul păstrează aceeași poveste și aceleași metadate pentru instalările noi.
 - Verificarea vizuală reală a fost făcută la 390, 800 și 1440 px: pagina nu produce overflow orizontal, hero-ul, cartușul Maria și galeriile se reașază coerent, iar imaginile vizibile se încarcă fără erori de consolă.
 - Verificări locale trecute: lint PHP, compilarea tuturor celor 36 de template-uri Twig, PHPStan fără erori și PHPUnit cu 50 de teste / 356 de aserțiuni.
+
+## 2026-10-25 — Pagina Contact și conversația WhatsApp
+
+- Ruta `/pagina/contact/` folosește acum un template editorial dedicat, responsive, cu hero în trei rânduri, simulare de conversație, monograma circulară LM și formular complet în identitatea La Măriuca.
+- Numărul public de contact este configurat central ca `0763 715 974` (`40763715974` pentru WhatsApp). Butonul WhatsApp global de pe toate paginile, formularul și acțiunile rapide folosesc aceeași sursă de configurare.
+- Hero-ul oferă două acțiuni rapide: apel direct și deschiderea conversației WhatsApp fără text precompletat. Sub ele, o capsulă informativă neinteractivă afișează adresa `contact@la-mariuca.ro`. Formularul separat construiește un mesaj ordonat după nume, subiect, datele opționale de contact și mesajul vizitatorului.
+- Formularul este trimis local prin POST cu CSRF, validează server-side toate câmpurile, păstrează valorile sigure când există erori și cere acord explicit înainte de a deschide WhatsApp. Emailul și telefonul sunt opționale; când sunt completate sunt validate și incluse în mesaj.
+- WhatsApp nu trimite automat nimic: vizitatorul ajunge în conversație cu textul pregătit și îl poate verifica înainte de trimitere. Site-ul nu persistă datele formularului și nu le expune în URL-ul paginii Contact.
+- Migrarea `012_contact_whatsapp_page.sql` actualizează conținutul și metadatele SEO atât pentru SQLite, cât și pentru MySQL; seederul păstrează aceeași configurație pentru instalările noi.
+- Verificări locale trecute după finisarea interfeței: lint PHP, compilarea tuturor celor 37 de template-uri Twig, PHPStan fără erori și PHPUnit cu 54 de teste / 391 de aserțiuni.
