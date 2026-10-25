@@ -62,6 +62,127 @@ if (reviewDialog instanceof HTMLDialogElement) {
   }
 }
 
+const reviewForms = [...document.querySelectorAll('[data-review-form]')];
+
+const reviewFieldControls = (field) => [...field.querySelectorAll('input, textarea, select')]
+  .filter((control) => control instanceof HTMLInputElement || control instanceof HTMLTextAreaElement || control instanceof HTMLSelectElement);
+
+const reviewFieldIsValid = (field) => {
+  const controls = reviewFieldControls(field);
+  if (controls.length === 0) return true;
+  const radios = controls.filter((control) => control instanceof HTMLInputElement && control.type === 'radio');
+  if (radios.length > 0) return radios.some((control) => control.checked);
+  return controls.every((control) => control.checkValidity());
+};
+
+const clearReviewFieldError = (field) => {
+  field.classList.remove('has-review-error');
+  field.querySelectorAll('[aria-invalid="true"]').forEach((control) => control.removeAttribute('aria-invalid'));
+  const error = field.querySelector('[data-review-error]');
+  if (error instanceof HTMLElement) error.hidden = true;
+};
+
+const showReviewFieldError = (field, message = '') => {
+  field.classList.add('has-review-error');
+  reviewFieldControls(field).forEach((control) => control.setAttribute('aria-invalid', 'true'));
+  const error = field.querySelector('[data-review-error]');
+  if (error instanceof HTMLElement) {
+    error.textContent = message || field.dataset.reviewErrorMessage || 'Completează acest câmp.';
+    error.hidden = false;
+  }
+};
+
+reviewForms.forEach((form) => {
+  if (!(form instanceof HTMLFormElement)) return;
+  form.noValidate = true;
+  const fields = [...form.querySelectorAll('[data-review-field]')];
+  const summary = form.querySelector('[data-review-validation-summary]');
+  const submit = form.querySelector('.product-review-submit');
+  const submitLabel = submit?.querySelector('span');
+  const defaultSubmitLabel = submitLabel?.textContent || 'Trimite recenzia';
+
+  const setSummary = (message = '') => {
+    if (!(summary instanceof HTMLElement)) return;
+    const copy = summary.querySelector('p');
+    if (copy && message) copy.textContent = message;
+    summary.hidden = false;
+  };
+
+  fields.forEach((field) => {
+    reviewFieldControls(field).forEach((control) => {
+      const clearWhenValid = () => {
+        if (!reviewFieldIsValid(field)) return;
+        clearReviewFieldError(field);
+        if (summary instanceof HTMLElement && !form.querySelector('.has-review-error')) summary.hidden = true;
+      };
+      control.addEventListener('input', clearWhenValid);
+      control.addEventListener('change', clearWhenValid);
+    });
+  });
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    let firstInvalid = null;
+    fields.forEach((field) => {
+      if (reviewFieldIsValid(field)) {
+        clearReviewFieldError(field);
+        return;
+      }
+      showReviewFieldError(field);
+      firstInvalid ||= reviewFieldControls(field)[0] || null;
+    });
+
+    if (firstInvalid instanceof HTMLElement) {
+      setSummary('Completează zonele marcate cu roșu înainte de trimitere.');
+      firstInvalid.focus({ preventScroll: true });
+      firstInvalid.closest('[data-review-field]')?.scrollIntoView({ behavior: reducedMotion.matches ? 'auto' : 'smooth', block: 'center' });
+      return;
+    }
+
+    if (submit instanceof HTMLButtonElement) submit.disabled = true;
+    form.classList.add('is-submitting');
+    if (submitLabel) submitLabel.textContent = 'Se trimite…';
+
+    try {
+      const response = await fetch(form.action, {
+        method: 'POST',
+        body: new FormData(form),
+        headers: {
+          Accept: 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+      });
+      const payload = await response.json();
+
+      if (response.ok && payload.ok) {
+        window.location.assign(payload.redirect || `${window.location.pathname}${window.location.search}#recenzii-produs`);
+        return;
+      }
+
+      if (payload.field) {
+        const target = form.elements.namedItem(payload.field);
+        const control = target instanceof RadioNodeList ? target[0] : target;
+        const field = control instanceof HTMLElement ? control.closest('[data-review-field]') : null;
+        if (field instanceof HTMLElement) {
+          showReviewFieldError(field, payload.message || 'Verifică acest câmp.');
+          setSummary(payload.message || 'Verifică zona marcată cu roșu.');
+          control.focus({ preventScroll: true });
+          field.scrollIntoView({ behavior: reducedMotion.matches ? 'auto' : 'smooth', block: 'center' });
+          return;
+        }
+      }
+
+      setSummary(payload.message || 'Recenzia nu a putut fi trimisă. Verifică datele și încearcă din nou.');
+    } catch (error) {
+      setSummary('Conexiunea a fost întreruptă. Datele au rămas completate; încearcă din nou.');
+    } finally {
+      if (submit instanceof HTMLButtonElement) submit.disabled = false;
+      form.classList.remove('is-submitting');
+      if (submitLabel) submitLabel.textContent = defaultSubmitLabel;
+    }
+  });
+});
+
 const reviewBodies = [...document.querySelectorAll('[data-review-body]')];
 const detailDialog = document.querySelector('[data-review-detail-dialog]');
 let excerptResizeTimer = null;
@@ -73,33 +194,20 @@ const fitReviewExcerpt = (body) => {
   if (!(excerpt instanceof HTMLElement) || !(moreButton instanceof HTMLButtonElement)) return;
 
   const fullText = (moreButton.dataset.reviewFull || excerpt.textContent || '').trim().replace(/\s+/g, ' ');
-  excerpt.textContent = fullText;
-  moreButton.hidden = true;
-  body.classList.remove('is-truncated');
-
-  const lineHeight = Number.parseFloat(window.getComputedStyle(body).lineHeight);
-  const maxHeight = (Number.isFinite(lineHeight) ? lineHeight : 24) * 3 + 1;
-  if (body.scrollHeight <= maxHeight || fullText === '') return;
-
-  moreButton.hidden = false;
-  body.classList.add('is-truncated');
-  const words = fullText.split(' ');
-  let minimum = 1;
-  let maximum = words.length;
-  let fitted = 1;
-
-  while (minimum <= maximum) {
-    const middle = Math.floor((minimum + maximum) / 2);
-    excerpt.textContent = `${words.slice(0, middle).join(' ')}… `;
-    if (body.scrollHeight <= maxHeight) {
-      fitted = middle;
-      minimum = middle + 1;
-    } else {
-      maximum = middle - 1;
-    }
+  const characterLimit = window.matchMedia('(max-width: 640px)').matches ? 118 : 178;
+  if (fullText.length <= characterLimit) {
+    excerpt.textContent = fullText;
+    moreButton.hidden = true;
+    body.classList.remove('is-truncated');
+    return;
   }
 
-  excerpt.textContent = `${words.slice(0, fitted).join(' ')}… `;
+  const candidate = fullText.slice(0, characterLimit + 1);
+  const lastSpace = candidate.lastIndexOf(' ');
+  const safeEnd = lastSpace > Math.floor(characterLimit * .7) ? lastSpace : characterLimit;
+  excerpt.textContent = `${fullText.slice(0, safeEnd).trimEnd()}… `;
+  moreButton.hidden = false;
+  body.classList.add('is-truncated');
 };
 
 if (reviewBodies.length > 0) {

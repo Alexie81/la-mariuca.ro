@@ -283,11 +283,28 @@
           <div class="product-review-overview">
             <div class="product-review-score">
               <span class="product-review-score-kicker">Nota comunității</span>
-              <div class="product-review-score-value">{{ review_count ? review_average|number_format(1, ',', '.') : '—' }}</div>
-              <div class="product-review-stars" aria-label="{{ review_count ? review_average|number_format(1, ',', '.') ~ ' din 5 stele' : 'Nicio notă încă' }}">
-                {% for star in 1..5 %}<span class="{{ star <= review_average ? 'is-filled' : '' }}" aria-hidden="true">★</span>{% endfor %}
+              <div
+                class="product-review-score-value"
+                {% if review_count %}data-review-score data-review-score-value="{{ review_average|number_format(1, '.', '') }}" aria-label="{{ review_average|number_format(1, ',', '.') }} din 5"{% endif %}
+              >{{ review_count ? review_average|number_format(1, ',', '.') : '—' }}</div>
+              <div class="product-review-stars product-review-stars--average" aria-label="{{ review_count ? review_average|number_format(1, ',', '.') ~ ' din 5 stele' : 'Nicio notă încă' }}">
+                {% for star in 1..5 %}
+                  {% set star_fill = 0 %}
+                  {% if review_average >= star %}
+                    {% set star_fill = 100 %}
+                  {% elseif review_average > star - 1 %}
+                    {% set star_fill = (review_average - star + 1) * 100 %}
+                  {% endif %}
+                  {% set star_fill_step = ((star_fill / 10)|round) * 10 %}
+                  <span class="{{ star_fill >= 100 ? 'is-filled' : (star_fill > 0 ? 'is-partial is-fill-' ~ star_fill_step : '') }}" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" focusable="false">
+                      <path class="product-review-star-base" d="m12 2.7 2.83 5.73 6.33.92-4.58 4.46 1.08 6.3L12 17.13l-5.66 2.98 1.08-6.3-4.58-4.46 6.33-.92L12 2.7Z"></path>
+                      <path class="product-review-star-fill" d="m12 2.7 2.83 5.73 6.33.92-4.58 4.46 1.08 6.3L12 17.13l-5.66 2.98 1.08-6.3-4.58-4.46 6.33-.92L12 2.7Z"></path>
+                    </svg>
+                  </span>
+                {% endfor %}
               </div>
-              <p>{{ review_count }} {{ review_count == 1 ? 'recenzie afișată' : 'recenzii afișate' }}{% if review_summary.demo_count|default(0) %}<small>{{ review_summary.demo_count == 1 ? 'Include un exemplu DEMO local' : 'Include ' ~ review_summary.demo_count ~ ' exemple DEMO locale' }}</small>{% endif %}</p>
+              <p>{{ review_count }} {{ review_count == 1 ? 'recenzie afișată' : 'recenzii afișate' }}</p>
             </div>
             <div class="product-review-distribution" aria-label="Distribuția notelor">
               {% for star in [5, 4, 3, 2, 1] %}
@@ -299,8 +316,8 @@
               {% endfor %}
             </div>
             <a class="product-review-write-link" href="#formular-recenzie" data-review-open>
-              <span aria-hidden="true">✦</span>
-              Scrie o recenzie
+              <span class="product-review-write-star" aria-hidden="true">★</span>
+              <strong>Scrie o recenzie</strong>
               <i aria-hidden="true">→</i>
             </a>
           </div>
@@ -309,7 +326,7 @@
             {% if product_reviews %}
               <div class="boutique-carousel product-review-carousel" data-product-carousel data-review-carousel data-item-label="Recenzia" data-autoplay-ms="6500" role="region" aria-roledescription="carusel" aria-label="Recenziile produsului {{ product.name }}">
                 <div class="boutique-carousel-toolbar">
-                  <span class="product-review-carousel-label"><i aria-hidden="true">♡</i> Povești de la comunitate</span>
+                  <span class="product-review-carousel-label"><i aria-hidden="true"><img class="product-review-carousel-heart" src="{{ url('assets/images/icon-favorite-hearts.png') }}" width="160" height="128" alt=""></i> Povești de la comunitate</span>
                   <span class="boutique-carousel-progress" aria-hidden="true"><span data-carousel-progress></span></span>
                   <div class="boutique-carousel-controls">
                     <button class="boutique-carousel-button" type="button" data-carousel-prev aria-label="Recenzia precedentă">
@@ -336,10 +353,7 @@
                             </div>
                             <time datetime="{{ review.created_at }}">{{ review.created_at|date('d.m.Y') }}</time>
                           </header>
-                          <div class="product-review-badges">
-                            {% if review.is_verified_purchase %}<span class="is-verified">✓ Achiziție verificată</span>{% endif %}
-                            {% if review.is_demo %}<span class="is-demo">DEMO · exemplu de afișare</span>{% endif %}
-                          </div>
+                          {% if review.is_verified_purchase %}<div class="product-review-badges"><span class="is-verified">✓ Achiziție verificată</span></div>{% endif %}
                           {% if review.title %}<h3>{{ review.title }}</h3>{% endif %}
                           <p class="product-review-body" data-review-body>
                             <span data-review-excerpt>{{ review.body }}</span>
@@ -406,7 +420,6 @@
                     </header>
                     <div class="product-review-badges" data-review-detail-badges>
                       <span class="is-verified" data-review-detail-verified hidden>✓ Achiziție verificată</span>
-                      <span class="is-demo" data-review-detail-demo hidden>DEMO · exemplu de afișare</span>
                     </div>
                     <h3 data-review-detail-title></h3>
                     <p data-review-detail-body></p>
@@ -457,6 +470,6 @@
   </div>
 </main>
 <script type="module" src="{{ url('assets/js/storefront/product-gallery.js') }}?v=20261025-gallery5"></script>
-<script type="module" src="{{ url('assets/js/storefront/product-editorial.js') }}?v=20261025-editorial4"></script>
-<script type="module" src="{{ url('assets/js/storefront/product-reviews.js') }}?v=20261025-review-modal2"></script>
+<script type="module" src="{{ url('assets/js/storefront/product-editorial.js') }}?v=20261025-editorial5"></script>
+<script type="module" src="{{ url('assets/js/storefront/product-reviews.js') }}?v=20261025-review-modal4"></script>
 {% endblock %}

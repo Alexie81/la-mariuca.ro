@@ -11,7 +11,7 @@
         {% for review in reviews %}
           <tr>
             <td><a href="{{ url('produs/' ~ review.product_slug ~ '/#recenzii-produs') }}">{{ review.product_name }}</a><br><small>{{ review.created_at|date('d.m.Y H:i') }}</small></td>
-            <td>{{ review.author_name }}<br><small>{{ review.author_email }}</small>{% if review.is_verified_purchase %}<br><small>Achiziție verificată</small>{% endif %}</td>
+            <td>{{ review.author_name }}<br><small>{{ review.author_email }}</small>{% if review.order_number %}<br><small>Comanda {{ review.order_number }}</small>{% endif %}{% if review.is_verified_purchase %}<br><small>Achiziție verificată</small>{% endif %}</td>
             <td><strong>{{ review.rating }}/5 · {{ review.title ?: 'Fără titlu' }}</strong><br>{{ review.body }}{% if review.is_demo %}<br><small>Recenzie demonstrativă locală</small>{% endif %}</td>
             <td>{{ review.status }}</td>
             <td>

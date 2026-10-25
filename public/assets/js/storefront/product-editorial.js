@@ -8,6 +8,7 @@ if (editorial) {
   const description = editorial.querySelector('[data-product-description-body]');
   const descriptionToggle = editorial.querySelector('[data-product-description-toggle]');
   const descriptionToggleLabel = editorial.querySelector('[data-description-toggle-label]');
+  const reviewScore = editorial.querySelector('[data-review-score]');
   let scrollFrame = 0;
   let activeLinkLocked = false;
 
@@ -79,6 +80,53 @@ if (editorial) {
     descriptionToggle.hidden = false;
   };
 
+  const prepareReviewScore = () => {
+    if (!reviewScore) return;
+
+    const target = Number.parseFloat(reviewScore.dataset.reviewScoreValue || '');
+    if (!Number.isFinite(target)) return;
+
+    const formatScore = (value) => value.toLocaleString('ro-RO', {
+      minimumFractionDigits: 1,
+      maximumFractionDigits: 1,
+    });
+    const showFinalScore = () => {
+      reviewScore.textContent = formatScore(target);
+    };
+
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches || !('IntersectionObserver' in window)) {
+      showFinalScore();
+      return;
+    }
+
+    reviewScore.textContent = formatScore(0);
+    const observer = new IntersectionObserver((entries) => {
+      if (!entries.some((entry) => entry.isIntersecting)) return;
+
+      observer.disconnect();
+      reviewScore.classList.add('is-counting');
+      const duration = 1050;
+      const startedAt = performance.now();
+      const update = (now) => {
+        const progress = Math.min((now - startedAt) / duration, 1);
+        const eased = 1 - Math.pow(1 - progress, 3);
+        reviewScore.textContent = formatScore(target * eased);
+        if (progress < 1) {
+          window.requestAnimationFrame(update);
+          return;
+        }
+
+        showFinalScore();
+        reviewScore.classList.remove('is-counting');
+        reviewScore.classList.add('is-counted');
+      };
+
+      window.requestAnimationFrame(update);
+    }, { threshold: .55 });
+
+    observer.observe(reviewScore);
+  };
+
   links.forEach((link) => {
     link.addEventListener('click', () => lockActiveLink(link.dataset.editorialLink));
   });
@@ -101,6 +149,7 @@ if (editorial) {
 
   setHeaderOffset();
   prepareDescription();
+  prepareReviewScore();
   const initialHash = window.location.hash.slice(1);
   if (sections.some((section) => section.id === initialHash)) {
     lockActiveLink(initialHash);

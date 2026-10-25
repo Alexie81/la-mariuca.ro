@@ -24,7 +24,7 @@ final class ProductReviewService
 
         $name = $this->plainText((string) ($data['author_name'] ?? ''), 100);
         $email = mb_strtolower(trim((string) ($data['author_email'] ?? '')));
-        $title = $this->plainText((string) ($data['title'] ?? ''), 140);
+        $orderNumber = mb_strtoupper($this->plainText((string) ($data['order_number'] ?? ''), 40));
         $body = trim(str_replace(["\r\n", "\r"], "\n", strip_tags((string) ($data['body'] ?? ''))));
         $rating = filter_var($data['rating'] ?? null, FILTER_VALIDATE_INT);
 
@@ -37,8 +37,12 @@ final class ProductReviewService
         if ($rating === false || $rating < 1 || $rating > 5) {
             throw new RuntimeException('Alege un calificativ între 1 și 5 stele.');
         }
-        if ($title !== '' && mb_strlen($title) < 3) {
-            throw new RuntimeException('Titlul recenziei trebuie să aibă cel puțin 3 caractere.');
+        if (!preg_match('/^[A-Z0-9][A-Z0-9-]{3,39}$/', $orderNumber)) {
+            throw new ProductReviewValidationException('order_number', 'Completează un număr de comandă valid.');
+        }
+        $customerId = isset($customer['id']) ? (int) $customer['id'] : null;
+        if (!$this->reviews->orderExistsForProduct($productId, $customerId, $email, $orderNumber)) {
+            throw new ProductReviewValidationException('order_number', 'Nu am putut găsi numărul comenzii.');
         }
         if (mb_strlen($body) < 20 || mb_strlen($body) > 1500) {
             throw new RuntimeException('Recenzia trebuie să aibă între 20 și 1.500 de caractere.');
@@ -47,7 +51,6 @@ final class ProductReviewService
             throw new RuntimeException('Confirmă acordul pentru publicarea recenziei.');
         }
 
-        $customerId = isset($customer['id']) ? (int) $customer['id'] : null;
         $now = gmdate('c');
 
         return $this->reviews->create([
@@ -55,11 +58,12 @@ final class ProductReviewService
             'customer_id' => $customerId,
             'author_name' => $name,
             'author_email' => $email,
+            'order_number' => $orderNumber,
             'rating' => $rating,
-            'title' => $title,
+            'title' => '',
             'body' => $body,
             'status' => 'pending',
-            'is_verified_purchase' => $this->reviews->hasVerifiedPurchase($productId, $customerId, $email),
+            'is_verified_purchase' => $this->reviews->hasVerifiedPurchase($productId, $customerId, $email, $orderNumber),
             'is_demo' => false,
             'created_at' => $now,
             'updated_at' => $now,

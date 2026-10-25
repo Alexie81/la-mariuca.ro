@@ -6,6 +6,7 @@ namespace App\Modules\Catalog;
 
 use App\Modules\Content\ContentRepository;
 use App\Modules\Reviews\ProductReviewService;
+use App\Modules\Reviews\ProductReviewValidationException;
 use App\Shared\Config\Config;
 use App\Shared\Http\RateLimiter;
 use App\Shared\Http\View;
@@ -281,17 +282,40 @@ final class StorefrontController
         }
 
         $data = (array) ($request->getParsedBody() ?? []);
+        $wantsJson = str_contains(strtolower($request->getHeaderLine('Accept')), 'application/json');
         $server = $request->getServerParams();
         $identity = (string) ($server['REMOTE_ADDR'] ?? 'unknown') . '|' . mb_strtolower(trim((string) ($data['author_email'] ?? '')));
         if (!$this->limiter->allow('product-review-' . (int) $product['id'], $identity, 5, 3600)) {
-            Flash::set('error', 'Ai trimis mai multe recenzii într-un timp scurt. Încearcă din nou puțin mai târziu.');
+            $message = 'Ai trimis mai multe recenzii într-un timp scurt. Încearcă din nou puțin mai târziu.';
+            if ($wantsJson) {
+                return $this->json(['ok' => false, 'message' => $message], 429);
+            }
+            Flash::set('error', $message);
             return $this->view->redirect($this->config->path('produs/' . $slug . '/#formular-recenzie'));
         }
 
         try {
             $this->reviews->submit((int) $product['id'], $data, $this->auth->user());
             Flash::set('success', 'Mulțumim! Recenzia a fost trimisă și va apărea după verificare.');
+            if ($wantsJson) {
+                return $this->json([
+                    'ok' => true,
+                    'redirect' => $this->config->path('produs/' . $slug . '/#recenzii-produs'),
+                ], 201);
+            }
+        } catch (ProductReviewValidationException $exception) {
+            if ($wantsJson) {
+                return $this->json([
+                    'ok' => false,
+                    'field' => $exception->field,
+                    'message' => $exception->getMessage(),
+                ], 422);
+            }
+            Flash::set('error', $exception->getMessage());
         } catch (\Throwable $exception) {
+            if ($wantsJson) {
+                return $this->json(['ok' => false, 'message' => $exception->getMessage()], 422);
+            }
             Flash::set('error', $exception->getMessage());
         }
 

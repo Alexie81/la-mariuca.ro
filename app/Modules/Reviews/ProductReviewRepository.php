@@ -59,15 +59,16 @@ final class ProductReviewRepository
     public function create(array $review): int
     {
         $statement = $this->pdo->prepare("INSERT INTO product_reviews
-            (product_id, customer_id, author_name, author_email, rating, title, body, status,
+            (product_id, customer_id, author_name, author_email, order_number, rating, title, body, status,
              is_verified_purchase, is_demo, created_at, updated_at)
-            VALUES (:product, :customer, :name, :email, :rating, :title, :body, :status,
+            VALUES (:product, :customer, :name, :email, :order_number, :rating, :title, :body, :status,
                     :verified, :demo, :created, :updated)");
         $statement->execute([
             'product' => $review['product_id'],
             'customer' => $review['customer_id'],
             'name' => $review['author_name'],
             'email' => $review['author_email'],
+            'order_number' => $review['order_number'] ?? '',
             'rating' => $review['rating'],
             'title' => $review['title'],
             'body' => $review['body'],
@@ -81,10 +82,10 @@ final class ProductReviewRepository
         return (int) $this->pdo->lastInsertId();
     }
 
-    public function hasVerifiedPurchase(int $productId, ?int $customerId, string $email): bool
+    public function hasVerifiedPurchase(int $productId, ?int $customerId, string $email, string $orderNumber): bool
     {
         $conditions = ['LOWER(o.email) = LOWER(:email)'];
-        $params = ['product' => $productId, 'email' => $email];
+        $params = ['product' => $productId, 'email' => $email, 'order_number' => $orderNumber];
         if ($customerId !== null) {
             $conditions[] = 'o.user_id = :customer';
             $params['customer'] = $customerId;
@@ -95,6 +96,28 @@ final class ProductReviewRepository
             JOIN order_items item ON item.order_id = o.id
             WHERE item.product_id = :product
               AND o.status = 'delivered'
+              AND UPPER(o.order_number) = UPPER(:order_number)
+              AND (" . implode(' OR ', $conditions) . ")
+            LIMIT 1");
+        $statement->execute($params);
+
+        return $statement->fetchColumn() !== false;
+    }
+
+    public function orderExistsForProduct(int $productId, ?int $customerId, string $email, string $orderNumber): bool
+    {
+        $conditions = ['LOWER(o.email) = LOWER(:email)'];
+        $params = ['product' => $productId, 'email' => $email, 'order_number' => $orderNumber];
+        if ($customerId !== null) {
+            $conditions[] = 'o.user_id = :customer';
+            $params['customer'] = $customerId;
+        }
+
+        $statement = $this->pdo->prepare("SELECT 1
+            FROM orders o
+            JOIN order_items item ON item.order_id = o.id
+            WHERE item.product_id = :product
+              AND UPPER(o.order_number) = UPPER(:order_number)
               AND (" . implode(' OR ', $conditions) . ")
             LIMIT 1");
         $statement->execute($params);

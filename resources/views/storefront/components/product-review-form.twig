@@ -1,12 +1,19 @@
-<form class="product-review-form" action="{{ url('produs/' ~ product.slug ~ '/recenzie/') }}" method="post">
+<form class="product-review-form" action="{{ url('produs/' ~ product.slug ~ '/recenzie/') }}" method="post" data-review-form>
   <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
   <label class="product-review-honeypot" aria-hidden="true">Website<input name="website" tabindex="-1" autocomplete="off"></label>
   <div class="product-review-form-heading">
-    <span class="eyebrow">Părerea ta contează</span>
-    <h3>Cum ți s-a părut?</h3>
-    <p>Spune-le și altor părinți ce ți-a plăcut. Emailul nu va fi afișat.</p>
+    <span class="product-review-form-heading-icon" aria-hidden="true">★</span>
+    <div>
+      <span class="eyebrow">Părerea ta contează</span>
+      <h3>Cum ți s-a părut?</h3>
+      <p>Spune-le și altor părinți ce ți-a plăcut. Emailul nu va fi afișat.</p>
+    </div>
   </div>
-  <fieldset class="product-review-rating">
+  <div class="product-review-validation-summary" data-review-validation-summary role="alert" hidden>
+    <span aria-hidden="true">!</span>
+    <div><strong>Mai avem nevoie de câteva detalii</strong><p>Completează zonele marcate cu roșu înainte de trimitere.</p></div>
+  </div>
+  <fieldset class="product-review-rating" data-review-field data-review-error-message="Alege o notă pentru produs.">
     <legend>Nota ta <span>*</span></legend>
     <div class="product-review-rating-stars">
       {% for star in [5, 4, 3, 2, 1] %}
@@ -14,14 +21,20 @@
         <label for="{{ review_form_prefix|default('review') }}-rating-{{ star }}" title="{{ star }} {{ star == 1 ? 'stea' : 'stele' }}"><span aria-hidden="true">★</span><span class="sr-only">{{ star }} {{ star == 1 ? 'stea' : 'stele' }}</span></label>
       {% endfor %}
     </div>
+    <small class="product-review-field-error" data-review-error hidden>Alege o notă pentru produs.</small>
   </fieldset>
   <div class="product-review-form-grid">
-    <label>Numele afișat <span>*</span><input name="author_name" maxlength="100" autocomplete="name" value="{{ review_form_user ? (review_form_user.first_name ~ ' ' ~ review_form_user.last_name) : '' }}" required></label>
-    <label>Email <span>*</span><input type="email" name="author_email" maxlength="254" autocomplete="email" value="{{ review_form_user.email|default('') }}" required></label>
-    <label class="full">Titlu scurt <small>opțional</small><input name="title" minlength="3" maxlength="140" placeholder="De exemplu: Moale și atent lucrat"></label>
-    <label class="full">Recenzia ta <span>*</span><textarea name="body" rows="5" minlength="20" maxlength="1500" placeholder="Povestește-ne despre material, culori și experiența celui mic..." required></textarea></label>
+    <label data-review-field data-review-error-message="Completează numele afișat."><span class="product-review-label">Numele afișat <b>*</b></span><input name="author_name" maxlength="100" autocomplete="name" value="{{ review_form_user ? (review_form_user.first_name ~ ' ' ~ review_form_user.last_name) : '' }}" required><small class="product-review-field-error" data-review-error hidden>Completează numele afișat.</small></label>
+    <label data-review-field data-review-error-message="Introdu o adresă de email validă."><span class="product-review-label">Email <b>*</b></span><input type="email" name="author_email" maxlength="254" autocomplete="email" value="{{ review_form_user.email|default('') }}" required><small class="product-review-field-error" data-review-error hidden>Introdu o adresă de email validă.</small></label>
+    <label class="full" data-review-field data-review-error-message="Completează numărul comenzii."><span class="product-review-label">Numărul comenzii <b>*</b></span><small>Îl găsești în confirmarea comenzii</small><input name="order_number" minlength="4" maxlength="40" autocomplete="off" placeholder="De exemplu: LM-2026-000123" required><small class="product-review-field-error" data-review-error hidden>Completează numărul comenzii.</small></label>
+    <label class="full" data-review-field data-review-error-message="Scrie o recenzie de cel puțin 20 de caractere."><span class="product-review-label">Recenzia ta <b>*</b></span><textarea name="body" rows="5" minlength="20" maxlength="1500" placeholder="Povestește-ne despre material, culori și experiența celui mic..." required></textarea><small class="product-review-field-error" data-review-error hidden>Scrie o recenzie de cel puțin 20 de caractere.</small></label>
   </div>
-  <label class="product-review-consent"><input type="checkbox" name="review_consent" value="1" required><span aria-hidden="true">✓</span><small>Sunt de acord ca recenzia și numele afișat să fie publicate după verificare.</small></label>
+  <label class="product-review-consent" data-review-field data-review-error-message="Activează acordul pentru publicarea recenziei.">
+    <input type="checkbox" name="review_consent" value="1" required>
+    <span class="product-review-consent-switch" aria-hidden="true"><i></i></span>
+    <span class="product-review-consent-copy"><strong>Acord pentru publicare</strong><small>Sunt de acord ca recenzia și numele afișat să fie publicate după verificare.</small></span>
+    <small class="product-review-field-error" data-review-error hidden>Activează acordul pentru publicarea recenziei.</small>
+  </label>
   <button class="product-review-submit" type="submit"><span>Trimite recenzia</span><i aria-hidden="true">→</i></button>
   <p class="product-review-moderation-note"><span aria-hidden="true">♡</span> Recenziile sunt verificate înainte de publicare pentru a păstra conversația utilă și sinceră.</p>
 </form>
