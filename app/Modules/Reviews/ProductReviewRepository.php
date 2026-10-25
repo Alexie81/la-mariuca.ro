@@ -160,7 +160,7 @@ final class ProductReviewRepository
             'author_email' => 'recenzie-demo@localhost.invalid',
             'rating' => 5,
             'title' => 'Joacă liniștită și plină de descoperiri',
-            'body' => 'Cuburile sunt foarte plăcute la atingere, iar combinația de texturi și culori a atras imediat atenția. Ne plac mult pentru momentele de joacă liniștită.',
+            'body' => 'Cuburile sunt foarte plăcute la atingere, iar combinația de texturi și culori a atras imediat atenția. Ne plac mult pentru momentele de joacă liniștită. Cel mic revine la ele în fiecare seară și descoperă mereu altă formă, alt material sau un detaliu cusut. Sunt ușoare, simplu de prins și arată minunat în camera lui. Am observat că încearcă să potrivească fețele cu luna, steaua și frunza, apoi le așază unele peste altele și râde când turnul se răstoarnă. Inelele laterale sunt ușor de apucat, iar materialele diferite îl fac să rămână curios mai mult timp decât la alte jucării. Culorile sunt liniștite și se potrivesc foarte bine cu restul camerei, fără să pară prea încărcate. După mai multe zile de joacă, cusăturile arată la fel de îngrijit, iar cuburile și-au păstrat forma. Pentru noi au devenit o alegere foarte reușită atât pentru joaca de zi cu zi, cât și pentru momentele calme de dinainte de somn.',
             'status' => 'approved',
             'is_verified_purchase' => false,
             'is_demo' => true,

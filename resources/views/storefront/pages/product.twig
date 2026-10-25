@@ -287,7 +287,7 @@
               <div class="product-review-stars" aria-label="{{ review_count ? review_average|number_format(1, ',', '.') ~ ' din 5 stele' : 'Nicio notă încă' }}">
                 {% for star in 1..5 %}<span class="{{ star <= review_average ? 'is-filled' : '' }}" aria-hidden="true">★</span>{% endfor %}
               </div>
-              <p>{{ review_count }} {{ review_count == 1 ? 'recenzie afișată' : 'recenzii afișate' }}{% if review_summary.demo_count|default(0) %}<small>Include un exemplu DEMO local</small>{% endif %}</p>
+              <p>{{ review_count }} {{ review_count == 1 ? 'recenzie afișată' : 'recenzii afișate' }}{% if review_summary.demo_count|default(0) %}<small>{{ review_summary.demo_count == 1 ? 'Include un exemplu DEMO local' : 'Include ' ~ review_summary.demo_count ~ ' exemple DEMO locale' }}</small>{% endif %}</p>
             </div>
             <div class="product-review-distribution" aria-label="Distribuția notelor">
               {% for star in [5, 4, 3, 2, 1] %}
@@ -298,7 +298,7 @@
                 </div>
               {% endfor %}
             </div>
-            <a class="product-review-write-link" href="#formular-recenzie">
+            <a class="product-review-write-link" href="#formular-recenzie" data-review-open>
               <span aria-hidden="true">✦</span>
               Scrie o recenzie
               <i aria-hidden="true">→</i>
@@ -306,61 +306,114 @@
           </div>
 
           <div class="product-review-layout">
-            <div class="product-review-list" aria-label="Recenziile produsului">
-              {% for review in product_reviews %}
-                <article class="product-review-card{{ review.is_demo ? ' is-demo' : '' }}">
-                  <header>
-                    <span class="product-review-avatar" aria-hidden="true">{{ review.author_name|slice(0, 1)|upper }}</span>
-                    <div class="product-review-author">
-                      <strong>{{ review.author_name }}</strong>
-                      <div class="product-review-stars product-review-stars--small" aria-label="{{ review.rating }} din 5 stele">
-                        {% for star in 1..5 %}<span class="{{ star <= review.rating ? 'is-filled' : '' }}" aria-hidden="true">★</span>{% endfor %}
-                      </div>
-                    </div>
-                    <time datetime="{{ review.created_at }}">{{ review.created_at|date('d.m.Y') }}</time>
-                  </header>
-                  <div class="product-review-badges">
-                    {% if review.is_verified_purchase %}<span class="is-verified">✓ Achiziție verificată</span>{% endif %}
-                    {% if review.is_demo %}<span class="is-demo">DEMO · exemplu de afișare</span>{% endif %}
+            {% if product_reviews %}
+              <div class="boutique-carousel product-review-carousel" data-product-carousel data-review-carousel data-item-label="Recenzia" data-autoplay-ms="6500" role="region" aria-roledescription="carusel" aria-label="Recenziile produsului {{ product.name }}">
+                <div class="boutique-carousel-toolbar">
+                  <span class="product-review-carousel-label"><i aria-hidden="true">♡</i> Povești de la comunitate</span>
+                  <span class="boutique-carousel-progress" aria-hidden="true"><span data-carousel-progress></span></span>
+                  <div class="boutique-carousel-controls">
+                    <button class="boutique-carousel-button" type="button" data-carousel-prev aria-label="Recenzia precedentă">
+                      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14.5 6.5-5.5 5.5 5.5 5.5"></path></svg>
+                    </button>
+                    <span class="boutique-carousel-position" data-carousel-position aria-live="polite">01 / {{ '%02d'|format(product_reviews|length) }}</span>
+                    <button class="boutique-carousel-button" type="button" data-carousel-next aria-label="Recenzia următoare">
+                      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9.5 6.5 5.5 5.5-5.5 5.5"></path></svg>
+                    </button>
                   </div>
-                  {% if review.title %}<h3>{{ review.title }}</h3>{% endif %}
-                  <p>{{ review.body|nl2br }}</p>
-                </article>
-              {% else %}
-                <div class="product-reviews-empty">
-                  <span class="product-reviews-heart" aria-hidden="true"><img src="{{ url('assets/images/icon-favorite-hearts.png') }}" width="160" height="128" alt=""></span>
-                  <div><strong>Primele impresii se scriu aici</strong><p>Fii primul care povestește cum a fost experiența cu acest produs.</p></div>
                 </div>
-              {% endfor %}
-            </div>
+                <div class="boutique-carousel-viewport" data-carousel-viewport tabindex="0">
+                  <div class="boutique-carousel-track" data-carousel-track>
+                    {% for review in product_reviews %}
+                      <div class="boutique-carousel-slide" data-carousel-slide role="group" aria-roledescription="slide" aria-label="{{ loop.index }} din {{ product_reviews|length }}">
+                        <article class="product-review-card{{ review.is_demo ? ' is-demo' : '' }}">
+                          <header>
+                            <span class="product-review-avatar" aria-hidden="true">{{ review.author_name|slice(0, 1)|upper }}</span>
+                            <div class="product-review-author">
+                              <strong>{{ review.author_name }}</strong>
+                              <div class="product-review-stars product-review-stars--small" aria-label="{{ review.rating }} din 5 stele">
+                                {% for star in 1..5 %}<span class="{{ star <= review.rating ? 'is-filled' : '' }}" aria-hidden="true">★</span>{% endfor %}
+                              </div>
+                            </div>
+                            <time datetime="{{ review.created_at }}">{{ review.created_at|date('d.m.Y') }}</time>
+                          </header>
+                          <div class="product-review-badges">
+                            {% if review.is_verified_purchase %}<span class="is-verified">✓ Achiziție verificată</span>{% endif %}
+                            {% if review.is_demo %}<span class="is-demo">DEMO · exemplu de afișare</span>{% endif %}
+                          </div>
+                          {% if review.title %}<h3>{{ review.title }}</h3>{% endif %}
+                          <p class="product-review-body" data-review-body>
+                            <span data-review-excerpt>{{ review.body }}</span>
+                            <button
+                              class="product-review-more"
+                              type="button"
+                              data-review-expand
+                              data-review-full="{{ review.body|e('html_attr') }}"
+                              data-review-author="{{ review.author_name|e('html_attr') }}"
+                              data-review-title="{{ review.title|default('')|e('html_attr') }}"
+                              data-review-date="{{ review.created_at|e('html_attr') }}"
+                              data-review-date-label="{{ review.created_at|date('d.m.Y') }}"
+                              data-review-rating="{{ review.rating }}"
+                              data-review-demo="{{ review.is_demo ? '1' : '0' }}"
+                              data-review-verified="{{ review.is_verified_purchase ? '1' : '0' }}"
+                              aria-label="Citește recenzia completă scrisă de {{ review.author_name }}"
+                              hidden
+                            >Vezi tot <span aria-hidden="true">→</span></button>
+                          </p>
+                        </article>
+                      </div>
+                    {% endfor %}
+                  </div>
+                </div>
+                <p class="sr-only" data-carousel-announcement aria-live="polite"></p>
+              </div>
+            {% else %}
+              <div class="product-reviews-empty">
+                <span class="product-reviews-heart" aria-hidden="true"><img src="{{ url('assets/images/icon-favorite-hearts.png') }}" width="160" height="128" alt=""></span>
+                <div><strong>Primele impresii se scriu aici</strong><p>Fii primul care povestește cum a fost experiența cu acest produs.</p></div>
+              </div>
+            {% endif %}
 
-            <form class="product-review-form" id="formular-recenzie" action="{{ url('produs/' ~ product.slug ~ '/recenzie/') }}" method="post">
-              <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-              <label class="product-review-honeypot" aria-hidden="true">Website<input name="website" tabindex="-1" autocomplete="off"></label>
-              <div class="product-review-form-heading">
-                <span class="eyebrow">Părerea ta contează</span>
-                <h3>Cum ți s-a părut?</h3>
-                <p>Spune-le și altor părinți ce ți-a plăcut. Emailul nu va fi afișat.</p>
-              </div>
-              <fieldset class="product-review-rating">
-                <legend>Nota ta <span>*</span></legend>
-                <div class="product-review-rating-stars">
-                  {% for star in [5, 4, 3, 2, 1] %}
-                    <input id="review-rating-{{ star }}" type="radio" name="rating" value="{{ star }}" required>
-                    <label for="review-rating-{{ star }}" title="{{ star }} {{ star == 1 ? 'stea' : 'stele' }}"><span aria-hidden="true">★</span><span class="sr-only">{{ star }} {{ star == 1 ? 'stea' : 'stele' }}</span></label>
-                  {% endfor %}
+            <div class="product-review-modal-slot" id="formular-recenzie">
+              <dialog class="product-review-dialog" data-review-dialog aria-labelledby="review-dialog-title" hidden>
+                <div class="product-review-dialog-shell">
+                  <header class="product-review-dialog-header">
+                    <div><span class="eyebrow">Părerea ta contează</span><strong id="review-dialog-title">Scrie o recenzie</strong></div>
+                    <button type="button" data-review-close aria-label="Închide formularul de recenzie">
+                      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"></path></svg>
+                    </button>
+                  </header>
+                  {% include 'storefront/components/product-review-form.twig' with {review_form_prefix: 'review-modal'} %}
                 </div>
-              </fieldset>
-              <div class="product-review-form-grid">
-                <label>Numele afișat <span>*</span><input name="author_name" maxlength="100" autocomplete="name" value="{{ review_form_user ? (review_form_user.first_name ~ ' ' ~ review_form_user.last_name) : '' }}" required></label>
-                <label>Email <span>*</span><input type="email" name="author_email" maxlength="254" autocomplete="email" value="{{ review_form_user.email|default('') }}" required></label>
-                <label class="full">Titlu scurt <small>opțional</small><input name="title" minlength="3" maxlength="140" placeholder="De exemplu: Moale și atent lucrat"></label>
-                <label class="full">Recenzia ta <span>*</span><textarea name="body" rows="5" minlength="20" maxlength="1500" placeholder="Povestește-ne despre material, culori și experiența celui mic..." required></textarea></label>
-              </div>
-              <label class="product-review-consent"><input type="checkbox" name="review_consent" value="1" required><span aria-hidden="true">✓</span><small>Sunt de acord ca recenzia și numele afișat să fie publicate după verificare.</small></label>
-              <button class="product-review-submit" type="submit"><span>Trimite recenzia</span><i aria-hidden="true">→</i></button>
-              <p class="product-review-moderation-note"><span aria-hidden="true">♡</span> Recenziile sunt verificate înainte de publicare pentru a păstra conversația utilă și sinceră.</p>
-            </form>
+              </dialog>
+              <noscript><div class="product-review-form-fallback">{% include 'storefront/components/product-review-form.twig' with {review_form_prefix: 'review-fallback'} %}</div></noscript>
+
+              <dialog class="product-review-dialog product-review-detail-dialog" data-review-detail-dialog aria-labelledby="review-detail-dialog-title" hidden>
+                <div class="product-review-dialog-shell">
+                  <header class="product-review-dialog-header">
+                    <div><span class="eyebrow">Poveste din comunitate</span><strong id="review-detail-dialog-title">Recenzia completă</strong></div>
+                    <button type="button" data-review-detail-close aria-label="Închide recenzia completă">
+                      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"></path></svg>
+                    </button>
+                  </header>
+                  <article class="product-review-detail-content">
+                    <header class="product-review-detail-person">
+                      <span class="product-review-avatar" data-review-detail-avatar aria-hidden="true"></span>
+                      <div>
+                        <strong data-review-detail-author></strong>
+                        <div class="product-review-stars product-review-stars--small" data-review-detail-stars aria-label=""></div>
+                      </div>
+                      <time data-review-detail-date></time>
+                    </header>
+                    <div class="product-review-badges" data-review-detail-badges>
+                      <span class="is-verified" data-review-detail-verified hidden>✓ Achiziție verificată</span>
+                      <span class="is-demo" data-review-detail-demo hidden>DEMO · exemplu de afișare</span>
+                    </div>
+                    <h3 data-review-detail-title></h3>
+                    <p data-review-detail-body></p>
+                  </article>
+                </div>
+              </dialog>
+            </div>
           </div>
         </article>
 
@@ -405,4 +458,5 @@
 </main>
 <script type="module" src="{{ url('assets/js/storefront/product-gallery.js') }}?v=20261025-gallery5"></script>
 <script type="module" src="{{ url('assets/js/storefront/product-editorial.js') }}?v=20261025-editorial4"></script>
+<script type="module" src="{{ url('assets/js/storefront/product-reviews.js') }}?v=20261025-review-modal2"></script>
 {% endblock %}

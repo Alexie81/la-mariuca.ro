@@ -13,6 +13,7 @@ carousels.forEach((carousel) => {
   const announcement = carousel.querySelector('[data-carousel-announcement]');
   const originals = [...track?.querySelectorAll(':scope > [data-carousel-slide]') || []];
   const total = originals.length;
+  const itemLabel = carousel.dataset.itemLabel || 'Produsul';
 
   if (!viewport || !track || total < 2) {
     previousButton?.setAttribute('disabled', '');
@@ -49,7 +50,7 @@ carousels.forEach((carousel) => {
     const visibleIndex = currentIndex + 1;
     if (position) position.textContent = `${padded(visibleIndex)} / ${padded(total)}`;
     if (progress) progress.style.setProperty('--carousel-progress', String(visibleIndex / total));
-    if (announce && announcement) announcement.textContent = `Produsul ${visibleIndex} din ${total}`;
+    if (announce && announcement) announcement.textContent = `${itemLabel} ${visibleIndex} din ${total}`;
   };
 
   const jumpTo = (slide) => {

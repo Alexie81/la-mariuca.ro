@@ -42,6 +42,12 @@ final class ProductReviewTest extends DatabaseTestCase
         self::assertStringContainsString('DEMO · exemplu de afișare', $body);
         self::assertStringContainsString('action="/produs/costumas-micul-gentleman/recenzie/"', $body);
         self::assertStringContainsString('name="review_consent"', $body);
+        self::assertStringContainsString('data-review-carousel', $body);
+        self::assertStringContainsString('data-review-open', $body);
+        self::assertStringContainsString('data-review-dialog', $body);
+        self::assertStringContainsString('data-review-expand', $body);
+        self::assertStringContainsString('data-review-detail-dialog', $body);
+        self::assertStringContainsString('aria-label="Recenzia precedentă"', $body);
     }
 
     public function testValidReviewSubmissionIsStoredPendingForModeration(): void
@@ -122,6 +128,7 @@ final class ProductReviewTest extends DatabaseTestCase
         self::assertSame(11, (int) $this->pdo->query("SELECT COUNT(*) FROM product_reviews WHERE is_demo = 1")->fetchColumn());
         self::assertSame(9, (int) $this->pdo->query("SELECT COUNT(*) FROM product_reviews WHERE is_demo = 1 AND rating = 5")->fetchColumn());
         self::assertSame(2, (int) $this->pdo->query("SELECT COUNT(*) FROM product_reviews WHERE is_demo = 1 AND rating = 4")->fetchColumn());
+        self::assertGreaterThan(600, mb_strlen((string) $this->pdo->query("SELECT body FROM product_reviews WHERE author_email = 'recenzie-demo@localhost.invalid'")->fetchColumn()));
     }
 
     public function testSimilarProductsExcludeCurrentProductAndAreLimited(): void

@@ -1,0 +1,27 @@
+<form class="product-review-form" action="{{ url('produs/' ~ product.slug ~ '/recenzie/') }}" method="post">
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  <label class="product-review-honeypot" aria-hidden="true">Website<input name="website" tabindex="-1" autocomplete="off"></label>
+  <div class="product-review-form-heading">
+    <span class="eyebrow">Părerea ta contează</span>
+    <h3>Cum ți s-a părut?</h3>
+    <p>Spune-le și altor părinți ce ți-a plăcut. Emailul nu va fi afișat.</p>
+  </div>
+  <fieldset class="product-review-rating">
+    <legend>Nota ta <span>*</span></legend>
+    <div class="product-review-rating-stars">
+      {% for star in [5, 4, 3, 2, 1] %}
+        <input id="{{ review_form_prefix|default('review') }}-rating-{{ star }}" type="radio" name="rating" value="{{ star }}" required>
+        <label for="{{ review_form_prefix|default('review') }}-rating-{{ star }}" title="{{ star }} {{ star == 1 ? 'stea' : 'stele' }}"><span aria-hidden="true">★</span><span class="sr-only">{{ star }} {{ star == 1 ? 'stea' : 'stele' }}</span></label>
+      {% endfor %}
+    </div>
+  </fieldset>
+  <div class="product-review-form-grid">
+    <label>Numele afișat <span>*</span><input name="author_name" maxlength="100" autocomplete="name" value="{{ review_form_user ? (review_form_user.first_name ~ ' ' ~ review_form_user.last_name) : '' }}" required></label>
+    <label>Email <span>*</span><input type="email" name="author_email" maxlength="254" autocomplete="email" value="{{ review_form_user.email|default('') }}" required></label>
+    <label class="full">Titlu scurt <small>opțional</small><input name="title" minlength="3" maxlength="140" placeholder="De exemplu: Moale și atent lucrat"></label>
+    <label class="full">Recenzia ta <span>*</span><textarea name="body" rows="5" minlength="20" maxlength="1500" placeholder="Povestește-ne despre material, culori și experiența celui mic..." required></textarea></label>
+  </div>
+  <label class="product-review-consent"><input type="checkbox" name="review_consent" value="1" required><span aria-hidden="true">✓</span><small>Sunt de acord ca recenzia și numele afișat să fie publicate după verificare.</small></label>
+  <button class="product-review-submit" type="submit"><span>Trimite recenzia</span><i aria-hidden="true">→</i></button>
+  <p class="product-review-moderation-note"><span aria-hidden="true">♡</span> Recenziile sunt verificate înainte de publicare pentru a păstra conversația utilă și sinceră.</p>
+</form>
