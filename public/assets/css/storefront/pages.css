@@ -9450,6 +9450,12 @@ html.has-review-dialog {
     padding-bottom: 0;
   }
 
+  .product-page-body .product-editorial-nav-shell {
+    top: calc(var(--product-tabs-offset) - 2px);
+    margin-top: -2px;
+    border-top: 0;
+  }
+
   .product-editorial {
     margin-top: 0;
   }
