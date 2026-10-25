@@ -621,3 +621,7 @@ atribute și filtre fără schimbarea contractelor existente.
 - După recenzii apare un carusel cu până la 15 produse recomandate dinamic după categoria principală, termeni comuni, context, apropierea de preț și disponibilitate. Produsul curent este exclus, iar selecția funcționează automat și pentru produsele viitoare.
 - Caruselul este adaptat pentru telefon, tabletă și desktop, acceptă gesturi și drag, are navigare cu butoane, contor, progres și autoderulare care se reia după interacțiune; cardurile păstrează toate acțiunile existente de produs.
 - Verificarea vizuală locală a confirmat caruselul cu 11 recenzii, autoderularea, deschiderea și închiderea animată a celor două dialoguri, afișarea acțiunii „Vezi tot →” pentru recenzia de 912 caractere, noul formular cu număr de comandă și starea compactă a produselor fără recenzii. Pachetul complet păstrează media 4,8 și nu creează duplicate după rulări consecutive. Verificări locale trecute: lint PHP/JavaScript, compilarea tuturor celor 35 de template-uri Twig, PHPStan fără erori și PHPUnit cu 48 de teste / 339 de aserțiuni.
+
+## 2026-10-25 — Destinația Noutăți
+
+- Linkurile „Noutăți” din meniul principal, footer și secțiunea dedicată de pe homepage trimit uniform la Magazin cu `sortare=new`, astfel încât selectorul să fie deja setat pe „Cele mai noi”; vechea destinație din pagina de căutare nu mai este folosită.
