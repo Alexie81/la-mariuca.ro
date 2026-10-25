@@ -646,4 +646,5 @@ atribute și filtre fără schimbarea contractelor existente.
 - Formularul este trimis local prin POST cu CSRF, validează server-side toate câmpurile, păstrează valorile sigure când există erori și cere acord explicit înainte de a deschide WhatsApp. Emailul și telefonul sunt opționale; când sunt completate sunt validate și incluse în mesaj.
 - WhatsApp nu trimite automat nimic: vizitatorul ajunge în conversație cu textul pregătit și îl poate verifica înainte de trimitere. Site-ul nu persistă datele formularului și nu le expune în URL-ul paginii Contact.
 - Migrarea `012_contact_whatsapp_page.sql` actualizează conținutul și metadatele SEO atât pentru SQLite, cât și pentru MySQL; seederul păstrează aceeași configurație pentru instalările noi.
-- Verificări locale trecute după finisarea interfeței: lint PHP, compilarea tuturor celor 37 de template-uri Twig, PHPStan fără erori și PHPUnit cu 54 de teste / 391 de aserțiuni.
+- Verificări locale trecute după finisarea interfeței: lint PHP, compilarea tuturor celor 37 de template-uri Twig, PHPStan fără erori și PHPUnit cu 54 de teste / 395 de aserțiuni.
+- Footerul afișează în coloana „Informații” telefonul și adresa de email configurate central; ambele sunt acționabile (`tel:` / `mailto:`) și apar uniform pe toate paginile storefrontului.

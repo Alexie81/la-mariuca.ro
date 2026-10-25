@@ -61,6 +61,7 @@ final class AppFactory
         $categoryPaths = new CategoryPathRepository($pdo);
         $reviews = new ProductReviewService(new ProductReviewRepository($pdo));
         $cart = new CartService($pdo);
+        $contactWhatsApp = new ContactWhatsAppService($config);
 
         $twig = new Environment(new FilesystemLoader($root . '/resources/views'), [
             'cache' => false,
@@ -75,6 +76,9 @@ final class AppFactory
             $message = $config->get('WHATSAPP_MESSAGE', 'Bună! Aș dori mai multe informații despre produsele La Măriuca Boutique.');
             return 'https://wa.me/' . $number . '?text=' . rawurlencode($message);
         }));
+        $twig->addFunction(new TwigFunction('contact_phone_url', static fn(): string => $contactWhatsApp->phoneUrl()));
+        $twig->addFunction(new TwigFunction('contact_phone_display', static fn(): string => $contactWhatsApp->phoneDisplay()));
+        $twig->addFunction(new TwigFunction('contact_email', static fn(): string => $contactWhatsApp->contactEmail()));
         $twig->addFunction(new TwigFunction('money', static fn(int|string|null $bani): string => Money::format((int) $bani)));
         $twig->addFunction(new TwigFunction('percent_basis_points', static function (int|string|null $basisPoints): string {
             $value = (int) $basisPoints;
@@ -108,7 +112,7 @@ final class AppFactory
         $content = new ContentRepository($pdo);
         $orders = new OrderService($pdo);
 
-        $storefront = new StorefrontController($catalog, $catalogSearch, $categoryPaths, new ProductRecommendationService($catalog), $content, new ContactWhatsAppService($config), $reviews, $rateLimiter, $auth, $view, $config);
+        $storefront = new StorefrontController($catalog, $catalogSearch, $categoryPaths, new ProductRecommendationService($catalog), $content, $contactWhatsApp, $reviews, $rateLimiter, $auth, $view, $config);
         $cartController = new CartController($cart, $view, $config);
         $checkoutController = new CheckoutController(new CheckoutService($pdo, $cart, $config), $cart, $orders, new StripeCheckoutService($pdo, $config), $rateLimiter, $view, $config);
         $authController = new AuthController($pdo, $auth, $rateLimiter, $view, $config);
