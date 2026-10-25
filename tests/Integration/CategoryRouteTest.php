@@ -141,6 +141,22 @@ final class CategoryRouteTest extends DatabaseTestCase
         );
     }
 
+    public function testProductPageRendersDynamicEditorialNavigationAndSpecifications(): void
+    {
+        $this->seed();
+
+        $body = (string) $this->get('/produs/costumas-micul-gentleman/')->getBody();
+
+        self::assertStringContainsString('data-product-editorial', $body);
+        self::assertStringContainsString('href="#descriere-produs"', $body);
+        self::assertStringContainsString('href="#informatii-produs"', $body);
+        self::assertStringContainsString('>Informații produs</a>', $body);
+        self::assertStringContainsString('href="#recenzii-produs"', $body);
+        self::assertStringContainsString('<dt>Mărime</dt><dd>2 ani · 4 ani</dd>', $body);
+        self::assertStringContainsString('data-product-description-toggle', $body);
+        self::assertStringContainsString('product-editorial.js', $body);
+    }
+
     private function get(string $path): ResponseInterface
     {
         $request = (new ServerRequestFactory())->createServerRequest('GET', 'http://localhost' . $path);

@@ -226,38 +226,71 @@
       </section>
     </div>
 
-    <section class="product-story" aria-labelledby="product-story-title">
-      <div class="product-story-heading">
-        <span class="eyebrow">Povestea produsului</span>
-        <h2 id="product-story-title">Detalii alese cu grijă</h2>
-        <p>Tot ce vrei să știi înainte ca acest produs să ajungă la cel mic.</p>
+    <section class="product-editorial" data-product-editorial aria-label="Informații despre produs">
+      <div class="product-editorial-nav-shell" data-editorial-nav-shell>
+        <nav class="product-editorial-nav" aria-label="Secțiunile produsului">
+          <a class="is-active" href="#descriere-produs" data-editorial-link="descriere-produs" aria-current="location">Descriere</a>
+          <a href="#informatii-produs" data-editorial-link="informatii-produs">Informații produs</a>
+          <a href="#recenzii-produs" data-editorial-link="recenzii-produs">Recenzii</a>
+        </nav>
       </div>
-      <div class="product-story-panels">
-        <details open>
-          <summary><span>Descriere</span><i aria-hidden="true"></i></summary>
-          <div class="product-story-copy"><p>{{ product.description|nl2br }}</p></div>
-        </details>
-        {% if product.package_contents %}
-          <details>
-            <summary><span>Ce conține pachetul</span><i aria-hidden="true"></i></summary>
-            <div class="product-story-copy"><p>{{ product.package_contents|nl2br }}</p>{% if product.excluded_accessories %}<p class="product-story-note"><strong>De reținut:</strong> {{ product.excluded_accessories }}</p>{% endif %}</div>
-          </details>
-        {% endif %}
-        {% if product.composition or product.care_instructions %}
-          <details>
-            <summary><span>Materiale și îngrijire</span><i aria-hidden="true"></i></summary>
-            <div class="product-story-copy">{% if product.composition %}<p><strong>Compoziție:</strong> {{ product.composition }}</p>{% endif %}{% if product.care_instructions %}<p><strong>Îngrijire:</strong> {{ product.care_instructions }}</p>{% endif %}</div>
-          </details>
-        {% endif %}
-        {% if product.size_guide %}
-          <details>
-            <summary><span>Dimensiuni</span><i aria-hidden="true"></i></summary>
-            <div class="product-story-copy"><p>{{ product.size_guide|nl2br }}</p></div>
-          </details>
-        {% endif %}
+
+      <div class="product-editorial-sections">
+        <article class="product-editorial-section product-description-section" id="descriere-produs" data-editorial-section>
+          <header class="product-editorial-heading">
+            <span class="eyebrow">Povestea produsului</span>
+            <h2>Descriere</h2>
+          </header>
+          <div class="product-description-body" data-product-description-body>
+            <p>{{ (product.description ?: product.short_description)|nl2br }}</p>
+            {% if product.package_contents %}
+              <h3>Ce conține pachetul</h3>
+              <p>{{ product.package_contents|nl2br }}</p>
+            {% endif %}
+            {% if product.excluded_accessories %}
+              <p class="product-editorial-note"><strong>De reținut:</strong> {{ product.excluded_accessories }}</p>
+            {% endif %}
+          </div>
+          <button class="product-description-toggle" type="button" data-product-description-toggle aria-expanded="false" hidden>
+            <span data-description-toggle-label>Vezi mai mult</span>
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5.5 7.5 4.5 4.5 4.5-4.5"></path></svg>
+          </button>
+        </article>
+
+        <article class="product-editorial-section product-specifications-section" id="informatii-produs" data-editorial-section>
+          <header class="product-editorial-heading">
+            <span class="eyebrow">Detalii utile</span>
+            <h2>Informații produs</h2>
+          </header>
+          <dl class="product-specifications">
+            {% if default_variant %}<div><dt>Cod produs</dt><dd data-product-spec-sku>{{ default_variant.sku }}</dd></div>{% endif %}
+            {% if product.category_name %}<div><dt>Categorie</dt><dd>{{ product.category_name }}</dd></div>{% endif %}
+            {% for group in product.variant_groups|default([]) %}<div><dt>{{ group.name }}</dt><dd>{{ group.values|join(' · ') }}</dd></div>{% endfor %}
+            {% if product.composition %}<div><dt>Compoziție</dt><dd>{{ product.composition }}</dd></div>{% endif %}
+            {% if product.care_instructions %}<div><dt>Îngrijire</dt><dd>{{ product.care_instructions }}</dd></div>{% endif %}
+            {% if product.size_guide %}<div><dt>Dimensiuni</dt><dd>{{ product.size_guide|nl2br }}</dd></div>{% endif %}
+          </dl>
+        </article>
+
+        <article class="product-editorial-section product-reviews-section" id="recenzii-produs" data-editorial-section>
+          <header class="product-editorial-heading">
+            <span class="eyebrow">Păreri sincere</span>
+            <h2>Recenzii</h2>
+          </header>
+          <div class="product-reviews-empty">
+            <span class="product-reviews-heart" aria-hidden="true">
+              <img src="{{ url('assets/images/icon-favorite-hearts.png') }}" width="160" height="128" alt="">
+            </span>
+            <div>
+              <strong>Primele impresii se scriu aici</strong>
+              <p>Acest produs nu are încă recenzii. Când vor exista, vor apărea în această secțiune.</p>
+            </div>
+          </div>
+        </article>
       </div>
     </section>
   </div>
 </main>
 <script type="module" src="{{ url('assets/js/storefront/product-gallery.js') }}?v=20261025-gallery5"></script>
+<script type="module" src="{{ url('assets/js/storefront/product-editorial.js') }}?v=20261025-editorial4"></script>
 {% endblock %}
