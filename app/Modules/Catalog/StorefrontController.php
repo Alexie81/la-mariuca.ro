@@ -732,7 +732,11 @@ final class StorefrontController
         if ($page === null) {
             return $this->notFound();
         }
-        return $this->view->render('storefront/pages/content.twig', ['page' => $page, 'meta' => $this->meta($page['seo_title'] ?: $page['title'], $page['meta_description'], '/pagina/' . $page['slug'] . '/', (int) $page['indexable'] !== 1)]);
+        $template = (string) $page['slug'] === 'despre-noi'
+            ? 'storefront/pages/about.twig'
+            : 'storefront/pages/content.twig';
+
+        return $this->view->render($template, ['page' => $page, 'meta' => $this->meta($page['seo_title'] ?: $page['title'], $page['meta_description'], '/pagina/' . $page['slug'] . '/', (int) $page['indexable'] !== 1)]);
     }
 
     public function robots(): ResponseInterface

@@ -626,3 +626,13 @@ atribute și filtre fără schimbarea contractelor existente.
 
 - Linkurile „Noutăți” din meniul principal, footer și secțiunea dedicată de pe homepage trimit uniform la Magazin cu `sortare=new`, astfel încât selectorul să fie deja setat pe „Cele mai noi”; vechea destinație din pagina de căutare nu mai este folosită.
 - Magazinul acceptă și sortarea `discount`, disponibilă în selector ca „Reduceri: mari–mici”. Procentul este calculat server-side din prețul curent și prețul comparativ al variantei implicite autoritative; produsele reduse sunt ordonate de la cel mai mare procent la cel mai mic, iar produsele fără reducere continuă lista în ordinea noutății. Linkurile „Reduceri” din meniu și footer deschid direct această sortare în Magazin.
+
+## 2026-10-25 — Pagina editorială „Despre noi”
+
+- Ruta `/pagina/despre-noi/` folosește acum un template editorial dedicat, fără să schimbe randarea generică a paginilor Contact, Livrare, Legal sau a celorlalte pagini administrabile.
+- Textul integral al poveștii La Măriuca Boutique este structurat într-un hero cald, povestea numelui Maria, secțiunea despre proiectul de familie, parcursul de la primele zile la aventurile copilăriei și un final cu acces direct la Magazin.
+- Compoziția reutilizează exclusiv imaginile și simbolurile deja aprobate ale boutique-ului. Imaginile editoriale au texte alternative descriptive și nu sunt prezentate ca fotografii ale Mariei.
+- Cartușul „Maria” a fost redesenat ca o piesă editorială stratificată, cu monograma completă, inimioara standard a brandului, ornament auriu și eticheta „Din familia noastră”. Animația a fost mutată de pe medalion pe simbolul interior, astfel încât cercul inimioarei rămâne centrat geometric în orice cadru al animației.
+- Migrarea `011_about_page_story.sql` actualizează titlul, conținutul, descrierea SEO și starea paginii existente atât pentru SQLite, cât și pentru MySQL; seederul păstrează aceeași poveste și aceleași metadate pentru instalările noi.
+- Verificarea vizuală reală a fost făcută la 390, 800 și 1440 px: pagina nu produce overflow orizontal, hero-ul, cartușul Maria și galeriile se reașază coerent, iar imaginile vizibile se încarcă fără erori de consolă.
+- Verificări locale trecute: lint PHP, compilarea tuturor celor 36 de template-uri Twig, PHPStan fără erori și PHPUnit cu 50 de teste / 354 de aserțiuni.
