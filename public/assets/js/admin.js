@@ -112,11 +112,11 @@
   if (clock) {
     const updateClock = () => {
       clock.textContent = new Intl.DateTimeFormat('ro-RO', {
-        timeZone: 'Europe/Bucharest', hour: '2-digit', minute: '2-digit'
+        timeZone: 'Europe/Bucharest', hour: '2-digit', minute: '2-digit', second: '2-digit'
       }).format(new Date());
     };
     updateClock();
-    window.setInterval(updateClock, 30000);
+    window.setInterval(updateClock, 1000);
   }
 
   const numberFormatter = new Intl.NumberFormat('ro-RO');
