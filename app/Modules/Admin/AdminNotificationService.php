@@ -25,6 +25,11 @@ final class AdminNotificationService
         $preferences = $this->preferences($adminUserId);
         $events = $this->events($preferences);
         $read = $this->readMap($adminUserId);
+        $dismissed = $this->dismissedMap($adminUserId);
+        $events = array_values(array_filter(
+            $events,
+            static fn (array $event): bool => !isset($dismissed[(string) $event['key']])
+        ));
         $counts = ['toate' => 0, 'comenzi' => 0, 'plati' => 0, 'stoc' => 0, 'recenzii' => 0];
         $unreadTotal = 0;
 
@@ -97,13 +102,14 @@ final class AdminNotificationService
     {
         $preferences = $this->preferences($adminUserId);
         $read = $this->readMap($adminUserId);
+        $dismissed = $this->dismissedMap($adminUserId);
         $marked = 0;
         $this->pdo->beginTransaction();
         try {
             $statement = $this->pdo->prepare('INSERT INTO admin_notification_reads (admin_user_id,notification_key,read_at) VALUES (:user,:notification,:read_at)');
             foreach ($this->events($preferences) as $event) {
                 $key = (string) $event['key'];
-                if (isset($read[$key])) {
+                if (isset($read[$key]) || isset($dismissed[$key])) {
                     continue;
                 }
                 $statement->execute(['user' => $adminUserId, 'notification' => $key, 'read_at' => $this->now()]);
@@ -118,6 +124,61 @@ final class AdminNotificationService
         }
 
         return $marked;
+    }
+
+    public function dismiss(int $adminUserId, string $notificationKey): bool
+    {
+        $notificationKey = trim($notificationKey);
+        if ($notificationKey === '' || mb_strlen($notificationKey) > 190) {
+            return false;
+        }
+
+        $validKeys = array_column($this->events($this->preferences($adminUserId)), 'key');
+        if (!in_array($notificationKey, $validKeys, true)) {
+            return false;
+        }
+
+        return $this->storeDismissal($adminUserId, $notificationKey);
+    }
+
+    public function dismissAll(int $adminUserId, string $type = 'toate'): int
+    {
+        $type = in_array($type, ['toate', 'comenzi', 'plati', 'stoc', 'recenzii'], true) ? $type : 'toate';
+        $dismissed = $this->dismissedMap($adminUserId);
+        $keys = [];
+        foreach ($this->events($this->preferences($adminUserId)) as $event) {
+            $key = (string) $event['key'];
+            if (($type === 'toate' || (string) $event['type'] === $type) && !isset($dismissed[$key])) {
+                $keys[] = $key;
+            }
+        }
+
+        if ($keys === []) {
+            return 0;
+        }
+
+        $insert = $this->pdo->prepare(
+            'INSERT INTO admin_notification_dismissals (admin_user_id,notification_key,dismissed_at) '
+            . 'VALUES (:user,:notification,:dismissed_at)'
+        );
+        $this->pdo->beginTransaction();
+        try {
+            foreach ($keys as $key) {
+                $insert->execute([
+                    'user' => $adminUserId,
+                    'notification' => $key,
+                    'dismissed_at' => $this->now(),
+                ]);
+            }
+            $this->pdo->commit();
+        } catch (\Throwable $exception) {
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+            throw $exception;
+        }
+
+        return count($keys);
     }
 
     /** @return array<string,bool> */
@@ -268,6 +329,42 @@ final class AdminNotificationService
         }
 
         return $map;
+    }
+
+    /** @return array<string,true> */
+    private function dismissedMap(int $adminUserId): array
+    {
+        $statement = $this->pdo->prepare('SELECT notification_key FROM admin_notification_dismissals WHERE admin_user_id=:user');
+        $statement->execute(['user' => $adminUserId]);
+        $map = [];
+        foreach ($statement->fetchAll(PDO::FETCH_COLUMN) as $key) {
+            $map[(string) $key] = true;
+        }
+
+        return $map;
+    }
+
+    private function storeDismissal(int $adminUserId, string $notificationKey): bool
+    {
+        $existing = $this->pdo->prepare(
+            'SELECT 1 FROM admin_notification_dismissals WHERE admin_user_id=:user AND notification_key=:notification'
+        );
+        $existing->execute(['user' => $adminUserId, 'notification' => $notificationKey]);
+        if ($existing->fetchColumn() !== false) {
+            return false;
+        }
+
+        $statement = $this->pdo->prepare(
+            'INSERT INTO admin_notification_dismissals (admin_user_id,notification_key,dismissed_at) '
+            . 'VALUES (:user,:notification,:dismissed_at)'
+        );
+        $statement->execute([
+            'user' => $adminUserId,
+            'notification' => $notificationKey,
+            'dismissed_at' => $this->now(),
+        ]);
+
+        return true;
     }
 
     private function paymentTitle(string $status): string

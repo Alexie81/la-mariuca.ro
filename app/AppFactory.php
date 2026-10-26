@@ -7,6 +7,8 @@ namespace App;
 use App\Modules\Admin\AdminController;
 use App\Modules\Admin\AdminDashboardService;
 use App\Modules\Admin\AdminNotificationService;
+use App\Modules\Admin\AdminPushController;
+use App\Modules\Admin\AdminPushService;
 use App\Modules\Cart\CartController;
 use App\Modules\Cart\CartService;
 use App\Modules\Catalog\CatalogAdminService;
@@ -68,7 +70,8 @@ final class AppFactory
         $catalog = new CatalogRepository($pdo);
         $catalogSearch = new CatalogSearchService($catalog);
         $categoryPaths = new CategoryPathRepository($pdo);
-        $reviews = new ProductReviewService(new ProductReviewRepository($pdo));
+        $push = new AdminPushService($pdo, $config);
+        $reviews = new ProductReviewService(new ProductReviewRepository($pdo), $push);
         $cart = new CartService($pdo);
         $contactWhatsApp = new ContactWhatsAppService($config);
 
@@ -125,10 +128,11 @@ final class AppFactory
         $cartController = new CartController($cart, $view, $config);
         $romanianLocations = RomanianLocations::fromProjectRoot($root);
         $customerAccount = new CustomerAccountService(new CustomerAccountRepository($pdo), $romanianLocations);
-        $checkoutController = new CheckoutController(new CheckoutService($pdo, $cart, $config, $romanianLocations), $cart, $orders, new StripeCheckoutService($pdo, $config), $auth, $customerAccount, $rateLimiter, $view, $config);
+        $checkoutController = new CheckoutController(new CheckoutService($pdo, $cart, $config, $romanianLocations, $push), $cart, $orders, new StripeCheckoutService($pdo, $config), $auth, $customerAccount, $rateLimiter, $view, $config);
         $authController = new AuthController($pdo, $auth, new GoogleOAuthService($pdo, $config), $customerAccount, $rateLimiter, $view, $config);
         $twoFactorController = new TwoFactorController($pdo, $auth, new TotpService($config), $adminRememberMe, $rateLimiter, $view, $config);
-        $adminController = new AdminController($pdo, new AdminDashboardService($pdo), new AdminNotificationService($pdo), $catalog, new CatalogAdminService($pdo), $orders, $reviews, new MediaService($pdo, $root), new ContentAdminService($pdo), $auth, $adminRememberMe, $rateLimiter, $view, $config);
+        $adminController = new AdminController($pdo, new AdminDashboardService($pdo), new AdminNotificationService($pdo), $push, $catalog, new CatalogAdminService($pdo), $orders, $reviews, new MediaService($pdo, $root), new ContentAdminService($pdo), $auth, $adminRememberMe, $rateLimiter, $view, $config);
+        $adminPushController = new AdminPushController($push, $auth, $view, $config);
 
         $app = SlimAppFactory::create();
         $basePath = '/' . trim($config->get('APP_BASE_PATH'), '/');
@@ -157,7 +161,8 @@ final class AppFactory
         $app->get('/pagina/{slug}/', [$storefront, 'page']);
         $app->get('/robots.txt', [$storefront, 'robots']);
         $app->get('/sitemap.xml', [$storefront, 'sitemap']);
-        $app->post('/stripe/webhook', new StripeWebhookController($pdo, $config));
+        $app->post('/stripe/webhook', new StripeWebhookController($pdo, $config, $push));
+        $app->get('/admin-manifest.webmanifest', [$adminPushController, 'manifest']);
 
         $app->get('/cont/autentificare/', [$authController, 'loginForm']);
         $app->post('/cont/autentificare/', [$authController, 'login']);
@@ -180,7 +185,7 @@ final class AppFactory
         $app->post('/admin/', [$adminController, 'login']);
         $app->post('/admin/deconectare/', [$adminController, 'logout']);
 
-        $app->group('/admin', function (RouteCollectorProxy $group) use ($adminController, $twoFactorController): void {
+        $app->group('/admin', function (RouteCollectorProxy $group) use ($adminController, $adminPushController, $twoFactorController): void {
             $group->get('/categorii/', [$adminController, 'categories']);
             $group->get('/categorii/noua/', [$adminController, 'categoryForm']);
             $group->post('/categorii/noua/', [$adminController, 'saveCategory']);
@@ -196,7 +201,12 @@ final class AppFactory
             $group->post('/comenzi/{id:[0-9]+}/actiune/', [$adminController, 'transitionOrder']);
             $group->get('/notificari/', [$adminController, 'notifications']);
             $group->post('/notificari/citeste/', [$adminController, 'readNotification']);
+            $group->post('/notificari/sterge/', [$adminController, 'deleteNotification']);
             $group->post('/notificari/preferinte/', [$adminController, 'notificationPreferences']);
+            $group->post('/notificari/push/abonare/', [$adminPushController, 'subscribe']);
+            $group->post('/notificari/push/dezabonare/', [$adminPushController, 'unsubscribe']);
+            $group->post('/notificari/push/test/', [$adminPushController, 'test']);
+            $group->post('/notificari/push/dispozitive/{id:[0-9]+}/sterge/', [$adminPushController, 'removeDevice']);
             $group->get('/recenzii/', [$adminController, 'reviews']);
             $group->post('/recenzii/{id:[0-9]+}/actiune/', [$adminController, 'moderateReview']);
             $group->get('/continut/', [$adminController, 'content']);

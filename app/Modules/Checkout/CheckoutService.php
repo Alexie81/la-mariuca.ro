@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Checkout;
 
+use App\Modules\Admin\AdminPushService;
 use App\Modules\Cart\CartService;
 use App\Shared\Config\Config;
 use App\Shared\Support\RomanianLocations;
@@ -14,7 +15,7 @@ final class CheckoutService
 {
     private readonly RomanianLocations $locations;
 
-    public function __construct(private readonly PDO $pdo, private readonly CartService $cart, private readonly Config $config, ?RomanianLocations $locations = null)
+    public function __construct(private readonly PDO $pdo, private readonly CartService $cart, private readonly Config $config, ?RomanianLocations $locations = null, private readonly ?AdminPushService $push = null)
     {
         $this->locations = $locations ?? RomanianLocations::fromProjectRoot();
     }
@@ -148,7 +149,14 @@ final class CheckoutService
                 'recipient' => $data['email'], 'payload' => json_encode(['order_id' => $orderId], JSON_THROW_ON_ERROR), 'now' => $now,
             ]);
             $this->pdo->prepare("UPDATE carts SET status = 'converted', updated_at = :now WHERE id = :id AND status = 'active'")->execute(['now' => $now, 'id' => $this->cart->cartId()]);
+            $this->push?->queueOrder($orderId);
+            $this->push?->queueLowStockForOrder($orderId);
             $this->pdo->commit();
+            try {
+                $this->push?->processPending(20);
+            } catch (\Throwable) {
+                // Comanda rămâne validă chiar dacă serviciul push este temporar indisponibil.
+            }
             unset($_SESSION['cart_token']);
             return ['order_number' => $orderNumber, 'token' => $token, 'id' => $orderId, 'payment_method' => $method, 'idempotency_key' => $idempotencyKey];
         } catch (\Throwable $exception) {

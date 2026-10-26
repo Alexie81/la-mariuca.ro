@@ -10,8 +10,8 @@
       <p>Comenzile, plățile și lucrurile care cer atenție, așezate clar într-un singur loc.</p>
     </div>
     <div class="admin-inbox-hero__stats" aria-label="Rezumat notificări">
-      <article><span>Necitite</span><strong data-count-up="{{ notification_feed.unread_total }}">{{ notification_feed.unread_total }}</strong></article>
-      <article><span>În inbox</span><strong data-count-up="{{ notification_feed.counts.toate }}">{{ notification_feed.counts.toate }}</strong></article>
+      <article><span>Necitite</span><strong data-count-up="{{ notification_feed.unread_total }}" data-inbox-unread-count>{{ notification_feed.unread_total }}</strong></article>
+      <article><span>În inbox</span><strong data-count-up="{{ notification_feed.counts.toate }}" data-inbox-total-count>{{ notification_feed.counts.toate }}</strong></article>
     </div>
     <span class="admin-inbox-hero__bell" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 7h18s-3 0-3-7"/><path d="M10 20h4"/></svg></span>
   </section>
@@ -22,7 +22,7 @@
         {% set filter_url = 'admin/notificari/?' ~ (key != 'toate' ? 'filtru=' ~ key ~ (unread_only ? '&necitite=1' : '') : (unread_only ? 'necitite=1' : '')) %}
         <a href="{{ url(filter_url) }}" class="{{ selected_notification_filter == key ? 'is-active' : '' }}"{% if selected_notification_filter == key %} aria-current="page"{% endif %}>
           {{ label }}
-          <span>{{ notification_feed.counts[key] }}</span>
+          <span data-inbox-filter-count="{{ key }}">{{ notification_feed.counts[key] }}</span>
         </a>
       {% endfor %}
     </nav>
@@ -31,20 +31,40 @@
       <a class="admin-inbox-unread-toggle{{ unread_only ? ' is-active' : '' }}" href="{{ url('admin/notificari/' ~ unread_toggle_query) }}">
         <span aria-hidden="true"></span>{{ unread_only ? 'Vezi toate' : 'Doar necitite' }}
       </a>
-      <button class="admin-inbox-browser" type="button" data-admin-browser-notifications>
+      <button class="admin-inbox-browser" type="button" data-admin-browser-notifications
+        data-push-configured="{{ push_configured ? '1' : '0' }}"
+        data-push-public-key="{{ push_public_key }}"
+        data-push-service-worker="{{ url('admin-service-worker.js') }}"
+        data-push-scope="{{ url('') }}"
+        data-push-subscribe-url="{{ url('admin/notificari/push/abonare/') }}"
+        data-push-unsubscribe-url="{{ url('admin/notificari/push/dezabonare/') }}"
+        data-push-test-url="{{ url('admin/notificari/push/test/') }}"
+        data-push-csrf="{{ csrf_token() }}"{{ not push_configured ? ' disabled' : '' }}>
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 7h18s-3 0-3-7"/><path d="M10 20h4"/></svg>
-        <span>Activează alertele</span>
+        <span>{{ push_configured ? 'Activează notificările' : 'Configurare necesară' }}</span>
       </button>
-      <form action="{{ url('admin/notificari/citeste/') }}" method="post">
-        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-        <input type="hidden" name="all" value="1">
-        <input type="hidden" name="filtru" value="{{ selected_notification_filter }}">
-        <input type="hidden" name="necitite" value="{{ unread_only ? '1' : '' }}">
-        <button class="admin-inbox-read-all" type="submit"{{ notification_feed.unread_total == 0 ? ' disabled' : '' }}>
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 12 4 4L18 6"/><path d="m10 15 2 2 8-9"/></svg>
-          Marchează toate citite
-        </button>
-      </form>
+      <div class="admin-inbox-toolbar__bulk">
+        <form action="{{ url('admin/notificari/citeste/') }}" method="post">
+          <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+          <input type="hidden" name="all" value="1">
+          <input type="hidden" name="filtru" value="{{ selected_notification_filter }}">
+          <input type="hidden" name="necitite" value="{{ unread_only ? '1' : '' }}">
+          <button class="admin-inbox-read-all" type="submit"{{ notification_feed.unread_total == 0 ? ' disabled' : '' }}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 12 4 4L18 6"/><path d="m10 15 2 2 8-9"/></svg>
+            Marchează citite
+          </button>
+        </form>
+        <form action="{{ url('admin/notificari/sterge/') }}" method="post" data-admin-notification-delete-all>
+          <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+          <input type="hidden" name="all" value="1">
+          <input type="hidden" name="filtru" value="{{ selected_notification_filter }}">
+          <input type="hidden" name="necitite" value="{{ unread_only ? '1' : '' }}">
+          <button class="admin-inbox-delete-all" type="submit"{{ notification_feed.total == 0 ? ' disabled' : '' }} data-default-label="Șterge toate">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M9 7V4.5h6V7"/><path d="m7.5 7 .8 12h7.4l.8-12M10 10v6M14 10v6"/></svg>
+            <span>Șterge toate</span>
+          </button>
+        </form>
+      </div>
     </div>
   </section>
 
@@ -52,7 +72,7 @@
     <section class="admin-inbox-panel" aria-labelledby="admin-inbox-feed-title" data-admin-reveal>
       <header class="admin-inbox-panel__head">
         <div><span class="admin-eyebrow">Flux live</span><h2 id="admin-inbox-feed-title">{{ unread_only ? 'Notificări necitite' : notification_filters[selected_notification_filter] }}</h2></div>
-        <p>{{ notification_feed.total }} {{ notification_feed.total == 1 ? 'eveniment' : 'evenimente' }}</p>
+        <p data-inbox-visible-count>{{ notification_feed.total }} {{ notification_feed.total == 1 ? 'eveniment' : 'evenimente' }}</p>
       </header>
 
       {% if notifications %}
@@ -94,6 +114,13 @@
                 {% else %}
                   <span class="admin-inbox-item__read-label"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>Citită</span>
                 {% endif %}
+                <form action="{{ url('admin/notificari/sterge/') }}" method="post" data-admin-notification-delete>
+                  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                  <input type="hidden" name="notification_key" value="{{ notification.key }}">
+                  <input type="hidden" name="filtru" value="{{ selected_notification_filter }}">
+                  <input type="hidden" name="necitite" value="{{ unread_only ? '1' : '' }}">
+                  <button class="admin-inbox-item__delete" type="submit" aria-label="Șterge notificarea" title="Șterge din inbox"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M9 7V4.5h6V7"/><path d="m7.5 7 .8 12h7.4l.8-12M10 10v6M14 10v6"/></svg></button>
+                </form>
                 <a href="{{ url(notification.target_path) }}" aria-label="Deschide {{ notification.title }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a>
               </div>
             </article>
@@ -157,6 +184,38 @@
         <span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 5 6v5c0 4.6 2.8 8.2 7 10 4.2-1.8 7-5.4 7-10V6l-7-3Z"/><path d="m9 12 2 2 4-4"/></svg></span>
         <p><strong>Doar pentru echipă</strong><small>Preferințele și starea de citire sunt păstrate separat pentru contul tău.</small></p>
       </div>
+      <section class="admin-push-devices" aria-labelledby="admin-push-devices-title">
+        <div class="admin-push-devices__head">
+          <div><span class="admin-eyebrow">Web Push</span><h3 id="admin-push-devices-title">Dispozitive conectate</h3></div>
+          {% if push_devices %}<button type="button" data-admin-push-test>Testează</button>{% endif %}
+        </div>
+        {% if push_devices %}
+          <div class="admin-push-devices__list">
+            {% for device in push_devices %}
+              <article class="{{ device.status != 'active' ? 'is-inactive' : '' }}" data-push-device-id="{{ device.id }}">
+                <span aria-hidden="true" data-push-device-icon>
+                  {% if device.device_kind == 'mobile' %}
+                    <svg viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="3"/><path d="M10 18h4"/></svg>
+                  {% else %}
+                    <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+                  {% endif %}
+                </span>
+                <div><strong>{{ device.device_label }}</strong><small>{{ device.status == 'active' ? 'Activ · notificări în fundal' : 'Abonament expirat' }}</small></div>
+                <form action="{{ url('admin/notificari/push/dispozitive/' ~ device.id ~ '/sterge/') }}" method="post">
+                  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                  <button type="submit" aria-label="Elimină {{ device.device_label }}" title="Elimină dispozitivul"><svg viewBox="0 0 24 24"><path d="M5 7h14M9 7V4.5h6V7"/><path d="m7.5 7 .8 12h7.4l.8-12M10 10v6M14 10v6"/></svg></button>
+                </form>
+              </article>
+            {% endfor %}
+          </div>
+          <p class="admin-push-devices__hint">Fiecare telefon sau calculator se conectează separat. Pe iPhone, instalează întâi panoul pe ecranul principal.</p>
+        {% else %}
+          <div class="admin-push-devices__empty">
+            <span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 7h18s-3 0-3-7"/><path d="M10 20h4"/></svg></span>
+            <p><strong>Niciun dispozitiv conectat</strong><small>Apasă „Activează notificările” pe fiecare dispozitiv pe care vrei să primești alerte.</small></p>
+          </div>
+        {% endif %}
+      </section>
     </aside>
   </div>
 </div>

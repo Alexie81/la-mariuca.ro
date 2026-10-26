@@ -23,7 +23,7 @@ use Psr\Http\Message\ServerRequestInterface;
 
 final class AdminController
 {
-    public function __construct(private readonly PDO $pdo, private readonly AdminDashboardService $dashboardService, private readonly AdminNotificationService $notificationService, private readonly CatalogRepository $catalog, private readonly CatalogAdminService $catalogAdmin, private readonly OrderService $orders, private readonly ProductReviewService $reviews, private readonly MediaService $media, private readonly ContentAdminService $contentAdmin, private readonly Auth $auth, private readonly AdminRememberMe $rememberMe, private readonly RateLimiter $limiter, private readonly View $view, private readonly Config $config)
+    public function __construct(private readonly PDO $pdo, private readonly AdminDashboardService $dashboardService, private readonly AdminNotificationService $notificationService, private readonly AdminPushService $push, private readonly CatalogRepository $catalog, private readonly CatalogAdminService $catalogAdmin, private readonly OrderService $orders, private readonly ProductReviewService $reviews, private readonly MediaService $media, private readonly ContentAdminService $contentAdmin, private readonly Auth $auth, private readonly AdminRememberMe $rememberMe, private readonly RateLimiter $limiter, private readonly View $view, private readonly Config $config)
     {
     }
 
@@ -274,6 +274,9 @@ final class AdminController
             'admin_context' => 'Notificări',
             'admin_unread_count' => $feed['unread_total'],
             'admin_user' => $user,
+            'push_configured' => $this->push->isConfigured(),
+            'push_public_key' => $this->push->publicKey(),
+            'push_devices' => $this->push->devices($adminUserId),
         ]);
     }
 
@@ -298,6 +301,51 @@ final class AdminController
         Flash::set('success', 'Preferințele pentru notificări au fost salvate.');
 
         return $this->view->redirect($this->config->path('admin/notificari/'));
+    }
+
+    public function deleteNotification(ServerRequestInterface $request): ResponseInterface
+    {
+        $data = (array) ($request->getParsedBody() ?? []);
+        $adminUserId = (int) ($this->auth->user()['id'] ?? 0);
+        $filter = in_array((string) ($data['filtru'] ?? ''), ['comenzi', 'plati', 'stoc', 'recenzii'], true)
+            ? (string) $data['filtru']
+            : 'toate';
+        $bulk = (string) ($data['all'] ?? '') === '1';
+        $removed = $bulk
+            ? $this->notificationService->dismissAll($adminUserId, $filter)
+            : ($this->notificationService->dismiss($adminUserId, (string) ($data['notification_key'] ?? '')) ? 1 : 0);
+        $redirect = $this->notificationRedirect($data);
+
+        if (str_contains(strtolower($request->getHeaderLine('Accept')), 'application/json')) {
+            $feed = $this->notificationService->feed(
+                $adminUserId,
+                1,
+                15,
+                $filter,
+                (string) ($data['necitite'] ?? '') === '1'
+            );
+            $response = new \Slim\Psr7\Response();
+            $response->getBody()->write(json_encode([
+                'ok' => true,
+                'removed' => $removed,
+                'bulk' => $bulk,
+                'total' => $feed['total'],
+                'unread_total' => $feed['unread_total'],
+                'counts' => $feed['counts'],
+                'redirect' => $redirect,
+            ], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
+
+            return $response->withHeader('Content-Type', 'application/json; charset=utf-8')->withHeader('Cache-Control', 'no-store');
+        }
+
+        Flash::set(
+            'success',
+            $removed > 0
+                ? ($bulk ? 'Notificările din filtrul ales au fost șterse.' : 'Notificarea a fost ștearsă din inbox.')
+                : 'Notificarea nu mai există în inbox.'
+        );
+
+        return $this->view->redirect($redirect);
     }
 
     public function transitionOrder(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface

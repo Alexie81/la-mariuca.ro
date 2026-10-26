@@ -9,6 +9,7 @@ use Database\Seeders\DemoSeeder;
 use Database\Seeders\AdminOrderDemoSeeder;
 use Database\Seeders\ExpandedCatalogSeeder;
 use App\Modules\Reviews\ProductReviewRepository;
+use App\Modules\Admin\AdminPushService;
 use Symfony\Component\Mailer\Mailer;
 use Symfony\Component\Mailer\Transport;
 use Symfony\Component\Mime\Email;
@@ -99,6 +100,11 @@ try {
             }
             fwrite(STDOUT, 'Procesate: ' . count($messages) . " mesaje.\n");
             break;
+        case 'push:process':
+            $limit = max(1, min(200, (int) ($argv[2] ?? 50)));
+            $result = (new AdminPushService($pdo, $config))->processPending($limit);
+            fwrite(STDOUT, sprintf("Web Push: %d procesate, %d trimise, %d eșuate, %d abonamente expirate.\n", $result['processed'], $result['sent'], $result['failed'], $result['expired']));
+            break;
         case 'reservations:expire':
             $pdo->beginTransaction();
             $statement = $pdo->prepare("SELECT r.* FROM inventory_reservations r JOIN orders o ON o.id=r.order_id WHERE r.status='active' AND r.expires_at IS NOT NULL AND r.expires_at<:now AND o.payment_status='pending'");
@@ -167,7 +173,7 @@ try {
             break;
         case 'help':
         default:
-            fwrite(STDOUT, "Comenzi: migrate, seed:demo, seed:catalog, seed:orders-demo [număr], review:demo [slug], review:demo-pack [slug], admin:create, outbox:process, reservations:expire, csv:export [fișier], csv:import <fișier> --dry-run\n");
+            fwrite(STDOUT, "Comenzi: migrate, seed:demo, seed:catalog, seed:orders-demo [număr], review:demo [slug], review:demo-pack [slug], admin:create, outbox:process, push:process [limită], reservations:expire, csv:export [fișier], csv:import <fișier> --dry-run\n");
     }
 } catch (Throwable $exception) {
     if ($pdo->inTransaction()) {

@@ -43,6 +43,9 @@ final class Config
             'CONTACT_EMAIL' => 'contact@la-mariuca.ro',
             'GOOGLE_OAUTH_ENABLED' => 'false',
             'GOOGLE_CREDENTIALS_FILE' => '',
+            'WEB_PUSH_ENABLED' => 'false',
+            'WEB_PUSH_VAPID_FILE' => 'storage/private/web-push-vapid.json',
+            'WEB_PUSH_VAPID_SUBJECT' => 'mailto:contact@la-mariuca.ro',
         ];
 
         $values = [];
@@ -51,7 +54,7 @@ final class Config
             $values[$key] = is_string($value) && $value !== '' ? $value : $default;
         }
 
-        foreach (['APP_KEY', 'TRUSTED_HOSTS', 'TRUSTED_PROXIES', 'DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER', 'DB_PASSWORD', 'MAILER_DSN', 'MAIL_FROM_ADDRESS', 'MAIL_FROM_NAME', 'STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET', 'STRIPE_CURRENCY', 'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET'] as $key) {
+        foreach (['APP_KEY', 'TRUSTED_HOSTS', 'TRUSTED_PROXIES', 'DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER', 'DB_PASSWORD', 'MAILER_DSN', 'MAIL_FROM_ADDRESS', 'MAIL_FROM_NAME', 'STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET', 'STRIPE_CURRENCY', 'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'WEB_PUSH_VAPID_PUBLIC_KEY', 'WEB_PUSH_VAPID_PRIVATE_KEY'] as $key) {
             $value = $_ENV[$key] ?? $_SERVER[$key] ?? getenv($key);
             if (is_string($value)) {
                 $values[$key] = $value;
@@ -75,6 +78,22 @@ final class Config
                 }
                 if (($values['GOOGLE_CLIENT_SECRET'] ?? '') === '' && is_string($oauthClient['client_secret'] ?? null)) {
                     $values['GOOGLE_CLIENT_SECRET'] = $oauthClient['client_secret'];
+                }
+            }
+        }
+
+        $vapidFile = trim($values['WEB_PUSH_VAPID_FILE'] ?? '');
+        if ($vapidFile !== '' && (($values['WEB_PUSH_VAPID_PUBLIC_KEY'] ?? '') === '' || ($values['WEB_PUSH_VAPID_PRIVATE_KEY'] ?? '') === '')) {
+            $isAbsolute = str_starts_with($vapidFile, '/') || preg_match('/^[A-Za-z]:[\\\\\/]/', $vapidFile) === 1;
+            $vapidPath = $isAbsolute ? $vapidFile : $root . '/' . ltrim($vapidFile, '/\\');
+            $vapidJson = is_file($vapidPath) ? file_get_contents($vapidPath) : false;
+            $vapid = is_string($vapidJson) ? json_decode($vapidJson, true) : null;
+            if (is_array($vapid)) {
+                if (($values['WEB_PUSH_VAPID_PUBLIC_KEY'] ?? '') === '' && is_string($vapid['publicKey'] ?? null)) {
+                    $values['WEB_PUSH_VAPID_PUBLIC_KEY'] = $vapid['publicKey'];
+                }
+                if (($values['WEB_PUSH_VAPID_PRIVATE_KEY'] ?? '') === '' && is_string($vapid['privateKey'] ?? null)) {
+                    $values['WEB_PUSH_VAPID_PRIVATE_KEY'] = $vapid['privateKey'];
                 }
             }
         }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Payments;
 
+use App\Modules\Admin\AdminPushService;
 use App\Shared\Config\Config;
 use PDO;
 use Psr\Http\Message\ResponseInterface;
@@ -13,7 +14,7 @@ use Stripe\Webhook;
 
 final class StripeWebhookController
 {
-    public function __construct(private readonly PDO $pdo, private readonly Config $config)
+    public function __construct(private readonly PDO $pdo, private readonly Config $config, private readonly ?AdminPushService $push = null)
     {
     }
 
@@ -56,7 +57,13 @@ final class StripeWebhookController
                 $this->pdo->prepare("UPDATE payments SET provider_payment_id=:provider_id,status='paid',updated_at=:now WHERE order_id=:order_id AND provider='stripe' AND status<>'paid'")->execute(['provider_id' => (string) ($objectData['payment_intent'] ?? ''), 'now' => $now, 'order_id' => $orderId]);
                 $this->pdo->prepare("UPDATE orders SET payment_status='paid',status=CASE WHEN status='new' THEN 'confirmed' ELSE status END,updated_at=:now WHERE id=:id AND payment_status<>'paid'")->execute(['now' => $now, 'id' => $orderId]);
                 $this->pdo->prepare("UPDATE payment_events SET status='processed',processed_at=:now WHERE provider_event_id=:id")->execute(['now' => $now, 'id' => $event->id]);
+                $this->push?->queuePayment($orderId, 'paid');
                 $this->pdo->commit();
+                try {
+                    $this->push?->processPending(20);
+                } catch (\Throwable) {
+                    // Confirmarea Stripe nu este anulată de o indisponibilitate Web Push.
+                }
             } catch (\Throwable $exception) {
                 if ($this->pdo->inTransaction()) {
                     $this->pdo->rollBack();

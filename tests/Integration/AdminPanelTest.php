@@ -169,7 +169,9 @@ final class AdminPanelTest extends DatabaseTestCase
         self::assertStringContainsString('Comandă nouă LM-TEST-002', $page);
         self::assertStringContainsString('Plată confirmată · LM-TEST-002', $page);
         self::assertStringContainsString('href="/admin/notificari/" aria-current="page"', $page);
-        self::assertStringContainsString('Marchează toate citite', $page);
+        self::assertStringContainsString('Marchează citite', $page);
+        self::assertStringContainsString('Șterge toate', $page);
+        self::assertStringContainsString('aria-label="Șterge notificarea"', $page);
         self::assertStringContainsString('name="comenzi"', $page);
 
         $adminId = (int) $this->pdo->query("SELECT id FROM users WHERE email = 'admin.panel@example.test'")->fetchColumn();
@@ -187,6 +189,31 @@ final class AdminPanelTest extends DatabaseTestCase
             'SELECT COUNT(*) FROM admin_notification_reads WHERE admin_user_id = ' . $adminId
         )->fetchColumn();
         self::assertSame(1, (int) $readCount);
+
+        $deleted = $this->post('/admin/notificari/sterge/', [
+            '_csrf' => $_SESSION['_csrf'],
+            'notification_key' => 'order:' . $orderId . ':created',
+            'filtru' => 'comenzi',
+        ], '127.0.0.85');
+        self::assertSame(303, $deleted->getStatusCode());
+        self::assertSame('/admin/notificari/?filtru=comenzi', $deleted->getHeaderLine('Location'));
+        $dismissedCount = $this->pdo->query(
+            'SELECT COUNT(*) FROM admin_notification_dismissals WHERE admin_user_id = ' . $adminId
+        )->fetchColumn();
+        self::assertSame(1, (int) $dismissedCount);
+        $ordersAfterDelete = (string) $this->get('/admin/notificari/?filtru=comenzi')->getBody();
+        self::assertStringNotContainsString('Comandă nouă LM-TEST-002', $ordersAfterDelete);
+
+        $deletePayments = $this->post('/admin/notificari/sterge/', [
+            '_csrf' => $_SESSION['_csrf'],
+            'all' => '1',
+            'filtru' => 'plati',
+        ], '127.0.0.85');
+        self::assertSame(303, $deletePayments->getStatusCode());
+        self::assertSame('/admin/notificari/?filtru=plati', $deletePayments->getHeaderLine('Location'));
+        $paymentsAfterDelete = (string) $this->get('/admin/notificari/?filtru=plati')->getBody();
+        self::assertStringNotContainsString('Plată confirmată · LM-TEST-002', $paymentsAfterDelete);
+        self::assertStringContainsString('Totul este la zi', $paymentsAfterDelete);
 
         $preferences = $this->post('/admin/notificari/preferinte/', [
             '_csrf' => $_SESSION['_csrf'],

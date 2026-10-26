@@ -28,5 +28,18 @@ if ($caBundle) {
     $extensionArgs += @('-d', "curl.cainfo=$caBundle", '-d', "openssl.cafile=$caBundle")
 }
 
+$opensslConfigCandidates = @(
+    $env:OPENSSL_CONF,
+    (Join-Path $phpDir 'extras\ssl\openssl.cnf'),
+    'C:\Program Files\Git\mingw64\etc\ssl\openssl.cnf',
+    'C:\Program Files\Git\usr\ssl\openssl.cnf'
+)
+$opensslConfig = $opensslConfigCandidates |
+    Where-Object { $_ -is [string] -and $_ -ne '' -and (Test-Path -LiteralPath $_) } |
+    Select-Object -First 1
+if ($opensslConfig) {
+    $env:OPENSSL_CONF = $opensslConfig
+}
+
 & $phpExe -d "extension_dir=$extensionDir" @extensionArgs @PhpArgs
 exit $LASTEXITCODE

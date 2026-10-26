@@ -4,11 +4,12 @@ declare(strict_types=1);
 
 namespace App\Modules\Reviews;
 
+use App\Modules\Admin\AdminPushService;
 use RuntimeException;
 
 final class ProductReviewService
 {
-    public function __construct(private readonly ProductReviewRepository $reviews)
+    public function __construct(private readonly ProductReviewRepository $reviews, private readonly ?AdminPushService $push = null)
     {
     }
 
@@ -53,7 +54,7 @@ final class ProductReviewService
 
         $now = gmdate('c');
 
-        return $this->reviews->create([
+        $reviewId = $this->reviews->create([
             'product_id' => $productId,
             'customer_id' => $customerId,
             'author_name' => $name,
@@ -68,6 +69,13 @@ final class ProductReviewService
             'created_at' => $now,
             'updated_at' => $now,
         ]);
+        try {
+            $this->push?->queueReview($reviewId);
+            $this->push?->processPending(10);
+        } catch (\Throwable) {
+            // O indisponibilitate Web Push nu trebuie să blocheze recenzia clientului.
+        }
+        return $reviewId;
     }
 
     /** @return list<array<string, mixed>> */
