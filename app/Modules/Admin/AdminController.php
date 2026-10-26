@@ -35,10 +35,13 @@ final class AdminController
         $admin = $this->auth->user();
         $overview = $this->dashboardService->overview($request->getQueryParams());
         $bucharestNow = new \DateTimeImmutable('now', new \DateTimeZone('Europe/Bucharest'));
+        $hour = (int) $bucharestNow->format('G');
+        $greeting = $hour < 12 ? 'Bună dimineața' : ($hour < 18 ? 'Bună ziua' : 'Bună seara');
 
         return $this->view->render('admin/pages/dashboard.twig', [
             ...$overview,
             'admin_user' => $admin,
+            'greeting' => $greeting,
             'today' => $bucharestNow->format('d.m.Y'),
         ]);
     }

@@ -737,3 +737,5 @@ atribute și filtre fără schimbarea contractelor existente.
 - Tipografia funcțională a Dashboardului mobil a fost mărită separat de titluri: filtrele, etichetele KPI, descrierile, notificările, datele și detaliile comenzilor rămân acum lizibile fără a pierde structura compactă.
 - Explicațiile redundante de sub cei patru indicatori principali au fost eliminate, lăsând eticheta și valoarea să comunice informația direct; cardurile mobile au fost compactate corespunzător.
 - Meniul administrativ mobil nu mai este un modal centrat: funcționează ca drawer lateral autentic, ancorat de marginea stângă, cu intrare și ieșire lină în direcția butonului hamburger.
+- Headerul editorial cu salutul dinamic al Paulei a fost readus deasupra raportului analitic. Salutul folosește ora Europe/Bucharest și alternează între „Bună dimineața”, „Bună ziua” și „Bună seara”, iar compoziția rămâne compactă pe toate dimensiunile.
+- Tipografia funcțională a Dashboardului a fost mărită și pe desktop: filtrele de perioadă, data și ora, etichetele KPI, notificările, axele graficului și tabelul comenzilor sunt lizibile fără să schimbe proporțiile titlurilor editoriale.
