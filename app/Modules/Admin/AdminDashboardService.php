@@ -262,7 +262,8 @@ final class AdminDashboardService
             $points[] = [
                 'label' => $bucket['label'],
                 'value' => (int) $bucket['value'],
-                'percent' => $max > 0 ? max(3, (int) round(((int) $bucket['value'] / $max) * 100)) : 2,
+                'percent' => $max > 0 ? (int) round(((int) $bucket['value'] / $max) * 100) : 0,
+                'scale' => $max > 0 ? min(1.0, (int) $bucket['value'] / $max) : 0.0,
             ];
         }
 

@@ -112,9 +112,9 @@
         <div class="admin-sales-chart" data-admin-chart-scroll tabindex="0" aria-label="Grafic vânzări pentru {{ period.display }}">
           <div class="admin-sales-chart__plot" style="--chart-columns:{{ chart.points|length }}">
             {% for point in chart.points %}
-              <div class="admin-sales-chart__point" style="--bar-height:{{ point.percent }}%" title="{{ point.label }} · {{ money(point.value) }}">
+              <div class="admin-sales-chart__point" style="--bar-height:{{ point.percent }}%;--bar-scale:{{ point.scale }}" title="{{ point.label }} · {{ money(point.value) }}">
                 <span class="admin-sales-chart__value">{{ point.value > 0 ? money(point.value) : '0 lei' }}</span>
-                <i data-chart-bar></i>
+                <i data-chart-bar{% if point.value <= 0 %} class="is-zero"{% endif %}></i>
                 <small>{{ point.label }}</small>
               </div>
             {% endfor %}

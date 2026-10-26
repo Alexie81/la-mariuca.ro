@@ -82,6 +82,8 @@ final class AdminPanelTest extends DatabaseTestCase
         self::assertStringContainsString('data-count-up=', $body);
         self::assertStringContainsString('data-money-count-up=', $body);
         self::assertStringContainsString('data-chart-bar', $body);
+        self::assertStringContainsString('--bar-scale:0', $body);
+        self::assertStringContainsString('data-chart-bar class="is-zero"', $body);
         self::assertStringContainsString('aria-current="page"', $body);
         self::assertStringContainsString('Produse și clienți', $body);
         self::assertStringContainsString('href="/admin/produse/"', $body);
