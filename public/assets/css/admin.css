@@ -43,7 +43,7 @@ svg{display:block;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:
 .admin-sidebar__brand-mark{display:none;width:44px;height:44px;border:1px solid rgba(198,144,62,.32);border-radius:50%;object-fit:cover;box-shadow:0 7px 18px rgba(112,63,52,.10)}
 .admin-sidebar__collapse{position:absolute;top:0;right:0;display:grid;place-items:center;width:34px;height:34px;padding:0;border:1px solid var(--admin-line);border-radius:12px;background:#fffaf7;color:var(--admin-copy);box-shadow:0 5px 15px rgba(99,58,50,.07);cursor:pointer;transition:transform .22s ease,border-color .22s ease,color .22s ease,background .22s ease}
 .admin-sidebar__collapse:hover{transform:translateY(-1px);border-color:#dfa7a0;background:#fff;color:var(--admin-rose)}
-.admin-sidebar__collapse svg{width:19px;height:19px}.admin-sidebar__close-icon{display:none}
+.admin-sidebar__collapse svg{width:19px;height:19px;transition:transform .28s cubic-bezier(.22,.8,.2,1)}.admin-sidebar__expand-icon,.admin-sidebar__close-icon{display:none}
 .admin-sidebar__caption{margin:0 4px;padding:9px 5px 13px;border-bottom:1px solid var(--admin-line);color:var(--admin-muted);font-size:8px;font-weight:850;letter-spacing:.19em;text-align:center;text-transform:uppercase;white-space:nowrap}
 .admin-heart-mark,.admin-standard-heart{display:grid;place-items:center;border:1px solid var(--admin-line);background:var(--admin-paper);color:var(--admin-rose);box-shadow:0 7px 20px rgba(102,56,48,.07)}
 .admin-heart-mark{width:42px;height:42px;border-radius:50%}.admin-heart-mark svg{width:23px;height:23px;stroke-width:1.8}
@@ -68,10 +68,10 @@ svg{display:block;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:
 .admin-sidebar-collapsed .admin-app-shell{grid-template-columns:calc(var(--admin-sidebar-narrow) + 24px) minmax(0,1fr)}
 .admin-sidebar-collapsed .admin-sidebar{width:var(--admin-sidebar-narrow);padding-right:10px;padding-left:10px}
 .admin-sidebar-collapsed .admin-sidebar__brand-row{min-height:58px;padding:0}
-.admin-sidebar-collapsed .admin-sidebar__brand{width:46px}
-.admin-sidebar-collapsed .admin-sidebar__brand-full,.admin-sidebar-collapsed .admin-sidebar__caption,.admin-sidebar-collapsed .admin-nav__label,.admin-sidebar-collapsed .admin-nav__item>span:nth-child(2),.admin-sidebar-collapsed .admin-security-note div,.admin-sidebar-collapsed .admin-sidebar__profile>span:nth-child(2),.admin-sidebar-collapsed .admin-sidebar__profile form,.admin-sidebar-collapsed .admin-sidebar__collapse{display:none}
-.admin-sidebar-collapsed .admin-sidebar__brand-mark{display:block}
-.admin-sidebar-collapsed .admin-menu-toggle{display:grid}
+.admin-sidebar-collapsed .admin-sidebar__brand,.admin-sidebar-collapsed .admin-sidebar__caption,.admin-sidebar-collapsed .admin-nav__label,.admin-sidebar-collapsed .admin-nav__item>span:nth-child(2),.admin-sidebar-collapsed .admin-security-note div,.admin-sidebar-collapsed .admin-sidebar__profile>span:nth-child(2),.admin-sidebar-collapsed .admin-sidebar__profile form{display:none}
+.admin-sidebar-collapsed .admin-sidebar__brand-mark,.admin-sidebar-collapsed .admin-menu-toggle{display:none}
+.admin-sidebar-collapsed .admin-sidebar__collapse{position:static;display:grid;width:44px;height:44px;margin:0 auto;border-radius:14px}
+.admin-sidebar-collapsed .admin-sidebar__collapse-icon{display:none}.admin-sidebar-collapsed .admin-sidebar__expand-icon{display:block}
 .admin-sidebar-collapsed .admin-nav{justify-items:center;padding-top:18px}
 .admin-sidebar-collapsed .admin-nav__item{display:grid;grid-template-columns:1fr;place-items:center;width:52px;min-height:52px;padding:7px}
 .admin-sidebar-collapsed .admin-nav__item:hover{transform:translateY(-2px)}
