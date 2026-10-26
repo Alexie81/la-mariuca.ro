@@ -32,11 +32,13 @@ use App\Modules\Reviews\ProductReviewService;
 use App\Shared\Config\Config;
 use App\Shared\Database\ConnectionFactory;
 use App\Shared\Http\AdminMiddleware;
+use App\Shared\Http\AdminRememberMiddleware;
 use App\Shared\Http\CsrfMiddleware;
 use App\Shared\Http\RateLimiter;
 use App\Shared\Http\SecurityHeadersMiddleware;
 use App\Shared\Http\SessionMiddleware;
 use App\Shared\Http\View;
+use App\Shared\Security\AdminRememberMe;
 use App\Shared\Security\Auth;
 use App\Shared\Security\Csrf;
 use App\Shared\Security\TotpService;
@@ -60,6 +62,7 @@ final class AppFactory
         $pdo = ConnectionFactory::create($config, $root);
         $csrf = new Csrf();
         $auth = new Auth($pdo);
+        $adminRememberMe = new AdminRememberMe($pdo, $config);
         $catalog = new CatalogRepository($pdo);
         $catalogSearch = new CatalogSearchService($catalog);
         $categoryPaths = new CategoryPathRepository($pdo);
@@ -122,8 +125,8 @@ final class AppFactory
         $customerAccount = new CustomerAccountService(new CustomerAccountRepository($pdo), $romanianLocations);
         $checkoutController = new CheckoutController(new CheckoutService($pdo, $cart, $config, $romanianLocations), $cart, $orders, new StripeCheckoutService($pdo, $config), $auth, $customerAccount, $rateLimiter, $view, $config);
         $authController = new AuthController($pdo, $auth, new GoogleOAuthService($pdo, $config), $customerAccount, $rateLimiter, $view, $config);
-        $twoFactorController = new TwoFactorController($pdo, $auth, new TotpService($config), $rateLimiter, $view, $config);
-        $adminController = new AdminController($pdo, $catalog, new CatalogAdminService($pdo), $orders, $reviews, new MediaService($pdo, $root), new ContentAdminService($pdo), $auth, $view, $config);
+        $twoFactorController = new TwoFactorController($pdo, $auth, new TotpService($config), $adminRememberMe, $rateLimiter, $view, $config);
+        $adminController = new AdminController($pdo, $catalog, new CatalogAdminService($pdo), $orders, $reviews, new MediaService($pdo, $root), new ContentAdminService($pdo), $auth, $adminRememberMe, $rateLimiter, $view, $config);
 
         $app = SlimAppFactory::create();
         $basePath = '/' . trim($config->get('APP_BASE_PATH'), '/');
@@ -169,8 +172,13 @@ final class AppFactory
         $app->post('/cont/adrese/{id:[0-9]+}/sterge/', [$authController, 'deleteAddress']);
         $app->post('/cont/deconectare/', [$authController, 'logout']);
 
+        $app->get('/admin', [$adminController, 'dashboard']);
+        $app->get('/admin/', [$adminController, 'dashboard']);
+        $app->post('/admin', [$adminController, 'login']);
+        $app->post('/admin/', [$adminController, 'login']);
+        $app->post('/admin/deconectare/', [$adminController, 'logout']);
+
         $app->group('/admin', function (RouteCollectorProxy $group) use ($adminController, $twoFactorController): void {
-            $group->get('/', [$adminController, 'dashboard']);
             $group->get('/categorii/', [$adminController, 'categories']);
             $group->get('/categorii/noua/', [$adminController, 'categoryForm']);
             $group->post('/categorii/noua/', [$adminController, 'saveCategory']);
@@ -202,6 +210,7 @@ final class AppFactory
         $app->add(new CsrfMiddleware($csrf));
         $app->addBodyParsingMiddleware();
         $app->addRoutingMiddleware();
+        $app->add(new AdminRememberMiddleware($auth, $adminRememberMe));
         $app->add(new SessionMiddleware($config));
         $app->add(new SecurityHeadersMiddleware($config));
         $app->addErrorMiddleware($config->bool('APP_DEBUG'), true, true);

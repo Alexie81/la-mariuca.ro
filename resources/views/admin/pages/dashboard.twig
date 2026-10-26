@@ -1,1 +1,153 @@
-{% extends 'admin/layouts/base.twig' %}{% block title %}Dashboard{% endblock %}{% block content %}<div class="admin-title"><div><h1>Dashboard</h1><p>Date operaționale reale din baza curentă.</p></div></div>{% if not totp_enabled %}<div class="alert error">Protecția TOTP nu este activă pentru acest cont. <a href="{{ url('admin/securitate/totp/') }}">Configurează verificarea în doi pași</a> înainte de producție.</div>{% endif %}<div class="stats"><article><span>Produse publicate</span><strong>{{ stats.products }}</strong></article><article><span>Comenzi totale</span><strong>{{ stats.orders }}</strong></article><article><span>Comenzi deschise</span><strong>{{ stats.open_orders }}</strong></article><article><span>Unități rezervate</span><strong>{{ stats.reserved_units }}</strong></article></div><div class="panel"><h2>Următorii pași</h2><p>Adaugă sau editează categoriile și produsele, apoi testează fluxul ramburs din storefront. Aceste valori nu sunt prezentate drept profit sau încasări.</p></div>{% endblock %}
+{% extends 'admin/layouts/base.twig' %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+  <section class="admin-dashboard-hero" aria-labelledby="dashboard-title">
+    <div class="admin-dashboard-hero__copy">
+      <span class="admin-eyebrow"><i aria-hidden="true"></i> Centrul boutique-ului</span>
+      <h1 id="dashboard-title">{{ greeting }}, <em>{{ admin_user.first_name|default('dragă') }}</em>.</h1>
+      <p>Aici vezi pulsul magazinului tău — simplu, limpede și mereu la îndemână.</p>
+      <div class="admin-hero-meta">
+        <span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg> Actualizat {{ generated_at }}</span>
+        <span><i aria-hidden="true"></i> Date live</span>
+      </div>
+    </div>
+    <div class="admin-dashboard-hero__art" aria-hidden="true">
+      <span class="admin-orbit admin-orbit--one"></span>
+      <span class="admin-orbit admin-orbit--two"></span>
+      <span class="admin-hero-heart"><svg viewBox="0 0 24 24"><path d="M20.8 4.8a5.6 5.6 0 0 0-7.9 0L12 5.7l-.9-.9a5.6 5.6 0 0 0-7.9 7.9l.9.9L12 21l7.9-7.4.9-.9a5.6 5.6 0 0 0 0-7.9Z"/></svg></span>
+      <span class="admin-hero-spark admin-hero-spark--one">✦</span>
+      <span class="admin-hero-spark admin-hero-spark--two">✦</span>
+      <span class="admin-hero-script">cu drag</span>
+    </div>
+  </section>
+
+  {% if not totp_enabled %}
+    <aside class="admin-attention" role="status">
+      <span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 5 6v5c0 4.6 2.8 8.2 7 10 4.2-1.8 7-5.4 7-10V6l-7-3Z"/><path d="M12 8v5M12 16.5v.1"/></svg></span>
+      <div><strong>Mai este un pas pentru un cont foarte bine protejat</strong><p>Activează verificarea în doi pași înainte ca magazinul să intre în producție.</p></div>
+      <a href="{{ url('admin/securitate/totp/') }}">Configurează <span aria-hidden="true">›</span></a>
+    </aside>
+  {% endif %}
+
+  <section class="admin-section" aria-labelledby="overview-title">
+    <div class="admin-section-heading">
+      <div><span class="admin-eyebrow">Astăzi, dintr-o privire</span><h2 id="overview-title">Ce se întâmplă în magazin</h2></div>
+      <span class="admin-section-heading__note">Valorile vin direct din magazin</span>
+    </div>
+    <div class="admin-metrics">
+      <article class="admin-metric admin-metric--rose">
+        <span class="admin-metric__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8h12l-1 12H7L6 8Z"/><path d="M9 9V7a3 3 0 0 1 6 0v2"/></svg></span>
+        <div><small>Produse publicate</small><strong data-count-up="{{ stats.products }}">{{ stats.products }}</strong><p>vizibile în boutique</p></div>
+        <i class="admin-metric__glow" aria-hidden="true"></i>
+      </article>
+      <article class="admin-metric admin-metric--gold">
+        <span class="admin-metric__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14v13H5V7Z"/><path d="M8 7a4 4 0 0 1 8 0M8 12h8"/></svg></span>
+        <div><small>Comenzi totale</small><strong data-count-up="{{ stats.orders }}">{{ stats.orders }}</strong><p>înregistrate până acum</p></div>
+        <i class="admin-metric__glow" aria-hidden="true"></i>
+      </article>
+      <article class="admin-metric admin-metric--berry">
+        <span class="admin-metric__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg></span>
+        <div><small>Comenzi deschise</small><strong data-count-up="{{ stats.open_orders }}">{{ stats.open_orders }}</strong><p>care au nevoie de atenție</p></div>
+        <i class="admin-metric__glow" aria-hidden="true"></i>
+      </article>
+      <article class="admin-metric admin-metric--sage">
+        <span class="admin-metric__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h16v11H4V8Z"/><path d="m8 8 1-4h6l1 4M8 12h8"/></svg></span>
+        <div><small>Unități rezervate</small><strong data-count-up="{{ stats.reserved_units }}">{{ stats.reserved_units }}</strong><p>păstrate pentru comenzi</p></div>
+        <i class="admin-metric__glow" aria-hidden="true"></i>
+      </article>
+    </div>
+  </section>
+
+  <div class="admin-dashboard-grid">
+    <section class="admin-card admin-card--flow" aria-labelledby="order-flow-title">
+      <div class="admin-card__heading">
+        <div><span class="admin-eyebrow">Fluxul comenzilor</span><h2 id="order-flow-title">De la nouă la livrată</h2></div>
+        <span class="admin-card__mark"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14v12H5V7Z"/><path d="M8 7a4 4 0 0 1 8 0"/></svg></span>
+      </div>
+      <div class="admin-order-flow">
+        {% for item in order_flow %}
+          <div class="admin-flow-row">
+            <div class="admin-flow-row__label"><span><i class="admin-status-dot admin-status-dot--{{ item.status }}"></i>{{ item.label }}</span><strong>{{ item.count }}</strong></div>
+            <div class="admin-flow-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ item.percent }}" aria-label="{{ item.label }}: {{ item.percent }}%">
+              <span style="--progress:{{ item.percent }}%" data-progress-bar></span>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+      {% if stats.orders == 0 %}<p class="admin-inline-empty">Prima comandă va transforma această zonă într-o poveste în mișcare.</p>{% endif %}
+    </section>
+
+    <section class="admin-card admin-card--health" aria-labelledby="health-title">
+      <div class="admin-card__heading">
+        <div><span class="admin-eyebrow">Grija de zi cu zi</span><h2 id="health-title">Starea magazinului</h2></div>
+        <span class="admin-health-score" aria-label="Sistem activ"><i></i> Activ</span>
+      </div>
+      <div class="admin-health-list">
+        <article>
+          <span class="admin-health-list__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v16H5V4Z"/><path d="M8 8h8M8 12h5"/></svg></span>
+          <div><strong>Produse în lucru</strong><small>Ciorne încă nepublicate</small></div>
+          <b data-count-up="{{ health.draft_products }}">{{ health.draft_products }}</b>
+        </article>
+        <article>
+          <span class="admin-health-list__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h16v11H4V8Z"/><path d="m8 8 1-4h6l1 4M12 11v4M12 17v.1"/></svg></span>
+          <div><strong>Stocuri mici</strong><small>Cel mult 3 bucăți disponibile</small></div>
+          <b class="{{ health.low_stock > 0 ? 'is-warning' : '' }}" data-count-up="{{ health.low_stock }}">{{ health.low_stock }}</b>
+        </article>
+        <article>
+          <span class="admin-health-list__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14v11H9l-4 4V5Z"/><path d="m9 10 2 2 4-4"/></svg></span>
+          <div><strong>Recenzii în așteptare</strong><small>De verificat înainte de publicare</small></div>
+          <b data-count-up="{{ health.pending_reviews }}">{{ health.pending_reviews }}</b>
+        </article>
+      </div>
+      <div class="admin-health-footer"><span class="admin-standard-heart"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 4.8a5.6 5.6 0 0 0-7.9 0L12 5.7l-.9-.9a5.6 5.6 0 0 0-7.9 7.9l.9.9L12 21l7.9-7.4.9-.9a5.6 5.6 0 0 0 0-7.9Z"/></svg></span><p><strong>Totul, cu grijă.</strong><small>Datele nu sunt estimate, ci citite din magazin.</small></p></div>
+    </section>
+  </div>
+
+  <div class="admin-dashboard-grid admin-dashboard-grid--bottom">
+    <section class="admin-card admin-card--orders" aria-labelledby="recent-orders-title">
+      <div class="admin-card__heading">
+        <div><span class="admin-eyebrow">Ultimele sosite</span><h2 id="recent-orders-title">Comenzi recente</h2></div>
+        <span class="admin-card__counter">{{ recent_orders|length }} afișate</span>
+      </div>
+      {% if recent_orders %}
+        <div class="admin-recent-orders">
+          {% for order in recent_orders %}
+            <article class="admin-order-row">
+              <span class="admin-order-row__avatar">{{ order.first_name|slice(0, 1)|upper }}{{ order.last_name|slice(0, 1)|upper }}</span>
+              <div class="admin-order-row__identity"><strong>{{ order.first_name }} {{ order.last_name }}</strong><small>{{ order.order_number }} · {{ order.created_at|date('d.m.Y H:i') }}</small></div>
+              <span class="admin-order-status admin-order-status--{{ order.status }}">{{ order.status == 'new' ? 'Nouă' : (order.status == 'confirmed' ? 'Confirmată' : (order.status == 'preparing' ? 'În pregătire' : (order.status == 'shipped' ? 'Expediată' : (order.status == 'delivered' ? 'Livrată' : order.status|replace({'_':' '}))))) }}</span>
+              <strong class="admin-order-row__total">{{ money(order.total_bani) }}</strong>
+            </article>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="admin-empty-state"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14v13H5V7Z"/><path d="M8 7a4 4 0 0 1 8 0M9 12h6"/></svg></span><h3>Loc pentru prima comandă</h3><p>Când apare, o vei vedea aici imediat.</p></div>
+      {% endif %}
+    </section>
+
+    <section class="admin-card admin-card--stock" aria-labelledby="stock-title">
+      <div class="admin-card__heading">
+        <div><span class="admin-eyebrow">De urmărit</span><h2 id="stock-title">Stocuri delicate</h2></div>
+        <span class="admin-card__mark admin-card__mark--gold">!</span>
+      </div>
+      {% if low_stock %}
+        <div class="admin-stock-list">
+          {% for product in low_stock %}
+            <article>
+              <span class="admin-stock-list__number">{{ loop.index < 10 ? '0' ~ loop.index : loop.index }}</span>
+              <div><strong>{{ product.name }}</strong><small>{{ product.sku }}</small></div>
+              <span class="admin-stock-pill {{ product.available <= 0 ? 'is-empty' : '' }}">{{ product.available <= 0 ? 'Epuizat' : product.available ~ ' buc.' }}</span>
+            </article>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="admin-empty-state admin-empty-state--compact"><span>✓</span><h3>Stocurile arată bine</h3><p>Nicio variantă activă nu este sub prag.</p></div>
+      {% endif %}
+    </section>
+  </div>
+
+  <footer class="admin-dashboard-footer">
+    <span class="admin-standard-heart"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 4.8a5.6 5.6 0 0 0-7.9 0L12 5.7l-.9-.9a5.6 5.6 0 0 0-7.9 7.9l.9.9L12 21l7.9-7.4.9-.9a5.6 5.6 0 0 0 0-7.9Z"/></svg></span>
+    <p><strong>La Măriuca Boutique</strong><small>Administrat cu atenție, pentru lucruri alese cu drag.</small></p>
+  </footer>
+{% endblock %}

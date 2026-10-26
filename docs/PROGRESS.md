@@ -1,8 +1,23 @@
 # Progres
 
-Actualizat: 2026-10-21
+Actualizat: 2026-10-26
 
 ## VERIFIED
+
+- Fundația noului panou de administrare este disponibilă direct la `/admin`: vizitatorii neautentificați
+  primesc o pagină de login dedicată, iar conturile active cu rol `administrator` sau `operator` ajung într-un
+  Dashboard responsive cu statistici, fluxul comenzilor, starea catalogului, comenzile recente și stocurile
+  care necesită atenție. Navigația expune momentan exclusiv Dashboardul, conform etapei curente, deși rutele
+  administrative existente rămân protejate server-side. Interfața are drawer tactil pe telefon, numărători și
+  bare animate cu fallback fără JavaScript și suport `prefers-reduced-motion`.
+- Loginul admin are CSRF, limitare la 6 încercări în 15 minute, mesaj generic la eșec și verificare strictă de
+  rol. Opțiunea „Ține-mă minte” folosește token selector/validator aleator, păstrează numai hash-uri în baza de
+  date, este legată de user-agent, rotită la fiecare restaurare, revocată la logout și expiră în 30 de zile prin
+  cookie `HttpOnly; SameSite=Strict` (`Secure` în HTTPS). Migrarea `015_admin_remember_tokens` există pentru
+  SQLite și MySQL, iar fluxul rămâne compatibil cu verificarea TOTP.
+- Verificări pentru această etapă: 40 șabloane Twig compilate, lint PHP fără erori, JavaScript valid,
+  PHPStan fără erori și PHPUnit 73 teste / 527 aserțiuni, inclusiv login admin, respingerea clienților,
+  restaurarea și rotirea sesiunii persistente și revocarea tokenului la deconectare.
 
 - Repository-ul inițial a fost inspectat; logo-urile sursă au rămas neatinse.
 - PHP CLI 8.4.25 și extensiile locale necesare au fost identificate; wrapperul activează DLL-urile

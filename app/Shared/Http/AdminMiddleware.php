@@ -21,7 +21,7 @@ final class AdminMiddleware implements MiddlewareInterface
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
         if (!$this->auth->hasRole(['administrator', 'operator'])) {
-            return (new Response(303))->withHeader('Location', $this->config->path('cont/autentificare/'));
+            return (new Response(303))->withHeader('Location', $this->config->path('admin'));
         }
         return $handler->handle($request);
     }

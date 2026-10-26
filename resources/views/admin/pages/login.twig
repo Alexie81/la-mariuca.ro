@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="ro">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <meta name="theme-color" content="#fffaf7">
+  <title>Autentificare administrare · La Măriuca</title>
+  <link rel="stylesheet" href="{{ url('assets/css/admin.css') }}">
+</head>
+<body class="admin-login-body">
+  <main class="admin-login-shell">
+    <section class="admin-login-story" aria-label="La Măriuca Boutique">
+      <div class="admin-login-story__top">
+        <img src="{{ url('assets/images/logo-la-mariuca-transparent.png') }}" width="1000" height="337" alt="La Măriuca Boutique">
+        <span>Administrare</span>
+      </div>
+      <div class="admin-login-story__copy">
+        <span class="admin-eyebrow admin-eyebrow--light"><i aria-hidden="true"></i> Spațiul din culise</span>
+        <h1>Magazinul tău,<br><em>mereu aproape.</em></h1>
+        <p>Comenzi, produse și toate detaliile boutique-ului — într-un loc calm, clar și sigur.</p>
+      </div>
+      <div class="admin-login-preview" aria-hidden="true">
+        <div class="admin-login-preview__bar"><i></i><span></span><b></b></div>
+        <div class="admin-login-preview__body">
+          <aside><i></i><i></i><i></i><i></i></aside>
+          <div><span></span><strong></strong><section><i></i><i></i><i></i></section><p></p><p></p></div>
+        </div>
+      </div>
+      <footer><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 5 6v5c0 4.6 2.8 8.2 7 10 4.2-1.8 7-5.4 7-10V6l-7-3Z"/><path d="m9 12 2 2 4-4"/></svg></span> Acces protejat pentru echipa La Măriuca</footer>
+      <span class="admin-login-orbit admin-login-orbit--one" aria-hidden="true"></span>
+      <span class="admin-login-orbit admin-login-orbit--two" aria-hidden="true"></span>
+      <span class="admin-login-spark admin-login-spark--one" aria-hidden="true">✦</span>
+      <span class="admin-login-spark admin-login-spark--two" aria-hidden="true">✦</span>
+    </section>
+
+    <section class="admin-login-form-panel">
+      <div class="admin-login-form-wrap">
+        <div class="admin-login-mobile-brand">
+          <img src="{{ url('assets/images/logo-la-mariuca-transparent.png') }}" width="1000" height="337" alt="La Măriuca Boutique">
+          <span>Administrare</span>
+        </div>
+        <div class="admin-login-heading">
+          <span class="admin-heart-mark admin-heart-mark--large" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20.8 4.8a5.6 5.6 0 0 0-7.9 0L12 5.7l-.9-.9a5.6 5.6 0 0 0-7.9 7.9l.9.9L12 21l7.9-7.4.9-.9a5.6 5.6 0 0 0 0-7.9Z"/></svg></span>
+          <span class="admin-eyebrow">Bine ai revenit</span>
+          <h2>Intră în <em>boutique</em></h2>
+          <p>Folosește datele contului tău de administrator.</p>
+        </div>
+
+        {% set messages = flash_messages() %}
+        {% if messages %}
+          <div class="admin-login-alerts" aria-live="polite">
+            {% for item in messages %}<div class="admin-login-alert admin-login-alert--{{ item.type }}"><span>{{ item.type == 'error' ? '!' : '✓' }}</span><p>{{ item.message }}</p></div>{% endfor %}
+          </div>
+        {% endif %}
+
+        <form class="admin-login-form" action="{{ url('admin') }}" method="post" data-admin-login-form>
+          <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+          <label class="admin-field">
+            <span>Adresa de email</span>
+            <span class="admin-input-shell">
+              <i><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="6" width="16" height="12" rx="2"/><path d="m5 8 7 5 7-5"/></svg></i>
+              <input type="email" name="email" autocomplete="username" inputmode="email" placeholder="admin@la-mariuca.ro" required autofocus>
+            </span>
+          </label>
+          <label class="admin-field">
+            <span>Parola</span>
+            <span class="admin-input-shell">
+              <i><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V8a4 4 0 0 1 8 0v2M12 14v2"/></svg></i>
+              <input type="password" name="password" autocomplete="current-password" placeholder="Parola contului tău" required data-admin-password>
+              <button type="button" class="admin-password-toggle" aria-label="Arată parola" aria-pressed="false" data-admin-password-toggle>
+                <svg class="admin-eye-open" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12s3.5-5 9-5 9 5 9 5-3.5 5-9 5-9-5-9-5Z"/><circle cx="12" cy="12" r="2"/></svg>
+                <svg class="admin-eye-closed" viewBox="0 0 24 24" aria-hidden="true"><path d="m4 4 16 16M10 7.2A9 9 0 0 1 12 7c5.5 0 9 5 9 5a15 15 0 0 1-2.2 2.6M6.2 6.2C4.2 7.7 3 12 3 12s3.5 5 9 5c1 0 2-.2 2.8-.5"/></svg>
+              </button>
+            </span>
+          </label>
+
+          <label class="admin-remember">
+            <input type="checkbox" name="remember" value="1">
+            <span class="admin-remember__box"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 12 4 4 8-9"/></svg></span>
+            <span><strong>Ține-mă minte</strong><small>Rămâi conectat în siguranță timp de 30 de zile pe acest dispozitiv.</small></span>
+          </label>
+
+          <button class="admin-login-submit" type="submit" data-admin-login-submit>
+            <span>Intră în dashboard</span>
+            <i><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12M14 7l5 5-5 5"/></svg></i>
+          </button>
+        </form>
+
+        <div class="admin-login-trust"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 5 6v5c0 4.6 2.8 8.2 7 10 4.2-1.8 7-5.4 7-10V6l-7-3Z"/><path d="m9 12 2 2 4-4"/></svg></span><p><strong>Conexiune protejată</strong><small>Datele de autentificare nu sunt stocate în browser.</small></p></div>
+        <a class="admin-back-store" href="{{ url('') }}"><span aria-hidden="true">‹</span> Înapoi la magazin</a>
+      </div>
+    </section>
+  </main>
+  <script src="{{ url('assets/js/admin.js') }}" defer></script>
+</body>
+</html>

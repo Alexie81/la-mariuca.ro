@@ -11,7 +11,9 @@ use App\Modules\Orders\OrderService;
 use App\Modules\Reviews\ProductReviewService;
 use App\Modules\Content\ContentAdminService;
 use App\Shared\Config\Config;
+use App\Shared\Http\RateLimiter;
 use App\Shared\Http\View;
+use App\Shared\Security\AdminRememberMe;
 use App\Shared\Security\Auth;
 use App\Shared\Support\Flash;
 use App\Shared\Support\Money;
@@ -21,19 +23,114 @@ use Psr\Http\Message\ServerRequestInterface;
 
 final class AdminController
 {
-    public function __construct(private readonly PDO $pdo, private readonly CatalogRepository $catalog, private readonly CatalogAdminService $catalogAdmin, private readonly OrderService $orders, private readonly ProductReviewService $reviews, private readonly MediaService $media, private readonly ContentAdminService $contentAdmin, private readonly Auth $auth, private readonly View $view, private readonly Config $config)
+    public function __construct(private readonly PDO $pdo, private readonly CatalogRepository $catalog, private readonly CatalogAdminService $catalogAdmin, private readonly OrderService $orders, private readonly ProductReviewService $reviews, private readonly MediaService $media, private readonly ContentAdminService $contentAdmin, private readonly Auth $auth, private readonly AdminRememberMe $rememberMe, private readonly RateLimiter $limiter, private readonly View $view, private readonly Config $config)
     {
     }
 
     public function dashboard(): ResponseInterface
     {
+        if (!$this->auth->hasRole(['administrator', 'operator'])) {
+            return $this->view->render('admin/pages/login.twig');
+        }
+        $admin = $this->auth->user();
         $stats = [
             'products' => (int) $this->pdo->query("SELECT COUNT(*) FROM products WHERE status='published'")->fetchColumn(),
             'orders' => (int) $this->pdo->query('SELECT COUNT(*) FROM orders')->fetchColumn(),
-            'open_orders' => (int) $this->pdo->query("SELECT COUNT(*) FROM orders WHERE status IN ('new','confirmed','preparing')")->fetchColumn(),
+            'open_orders' => (int) $this->pdo->query("SELECT COUNT(*) FROM orders WHERE status IN ('new','confirmed','preparing','manual_review')")->fetchColumn(),
             'reserved_units' => (int) $this->pdo->query('SELECT COALESCE(SUM(reserved_quantity),0) FROM inventory')->fetchColumn(),
         ];
-        return $this->view->render('admin/pages/dashboard.twig', ['stats' => $stats, 'totp_enabled' => (int) ($this->auth->user()['totp_enabled'] ?? 0) === 1]);
+        $health = [
+            'draft_products' => (int) $this->pdo->query("SELECT COUNT(*) FROM products WHERE status='draft'")->fetchColumn(),
+            'low_stock' => (int) $this->pdo->query("SELECT COUNT(*) FROM inventory i JOIN product_variants v ON v.id=i.variant_id WHERE v.status='active' AND (i.physical_quantity-i.reserved_quantity)<=3")->fetchColumn(),
+            'pending_reviews' => (int) $this->pdo->query("SELECT COUNT(*) FROM product_reviews WHERE status='pending'")->fetchColumn(),
+        ];
+        $recentOrders = $this->pdo->query('SELECT id,order_number,first_name,last_name,total_bani,status,payment_status,created_at FROM orders ORDER BY id DESC LIMIT 6')->fetchAll();
+        $statusCounts = [];
+        foreach ($this->pdo->query('SELECT status,COUNT(*) AS total FROM orders GROUP BY status')->fetchAll() as $row) {
+            $statusCounts[(string) $row['status']] = (int) $row['total'];
+        }
+        $statusLabels = [
+            'new' => 'Comenzi noi',
+            'confirmed' => 'Confirmate',
+            'preparing' => 'În pregătire',
+            'shipped' => 'Expediate',
+            'delivered' => 'Livrate',
+        ];
+        $orderFlow = [];
+        foreach ($statusLabels as $status => $label) {
+            $count = $statusCounts[$status] ?? 0;
+            $orderFlow[] = [
+                'status' => $status,
+                'label' => $label,
+                'count' => $count,
+                'percent' => $stats['orders'] > 0 ? (int) round(($count / $stats['orders']) * 100) : 0,
+            ];
+        }
+        $lowStock = $this->pdo->query("SELECT p.name,v.sku,(i.physical_quantity-i.reserved_quantity) AS available FROM inventory i JOIN product_variants v ON v.id=i.variant_id JOIN products p ON p.id=v.product_id WHERE v.status='active' AND (i.physical_quantity-i.reserved_quantity)<=3 ORDER BY available ASC,p.name ASC LIMIT 5")->fetchAll();
+        $hour = (int) date('G');
+        $greeting = $hour < 12 ? 'Bună dimineața' : ($hour < 18 ? 'Bună ziua' : 'Bună seara');
+
+        return $this->view->render('admin/pages/dashboard.twig', [
+            'stats' => $stats,
+            'health' => $health,
+            'recent_orders' => $recentOrders,
+            'order_flow' => $orderFlow,
+            'low_stock' => $lowStock,
+            'admin_user' => $admin,
+            'greeting' => $greeting,
+            'generated_at' => date('d.m.Y H:i'),
+            'totp_enabled' => (int) ($admin['totp_enabled'] ?? 0) === 1,
+        ]);
+    }
+
+    public function login(ServerRequestInterface $request): ResponseInterface
+    {
+        if ($this->auth->hasRole(['administrator', 'operator'])) {
+            return $this->view->redirect($this->config->path('admin'));
+        }
+        $data = (array) ($request->getParsedBody() ?? []);
+        $email = mb_strtolower(trim((string) ($data['email'] ?? '')));
+        $identity = (string) ($request->getServerParams()['REMOTE_ADDR'] ?? 'unknown') . '|' . $email;
+        if (!$this->limiter->allow('admin-login', $identity, 6, 900)) {
+            Flash::set('error', 'Datele nu sunt valide sau încercările sunt temporar limitate.');
+            return $this->view->redirect($this->config->path('admin'));
+        }
+        $result = $this->auth->attemptAdmin($email, (string) ($data['password'] ?? ''));
+        if ($result === 'invalid') {
+            Flash::set('error', 'Datele nu sunt valide sau contul nu are acces administrativ.');
+            return $this->view->redirect($this->config->path('admin'));
+        }
+        $remember = isset($data['remember']) && in_array((string) $data['remember'], ['1', 'on'], true);
+        if ($result === 'totp') {
+            $_SESSION['admin_remember_after_2fa'] = $remember;
+            return $this->view->redirect($this->config->path('cont/totp/'));
+        }
+
+        unset($_SESSION['admin_remember_after_2fa']);
+        Flash::set('success', 'Bine ai revenit în panoul de administrare.');
+        $response = $this->view->redirect($this->config->path('admin'));
+        $user = $this->auth->user();
+        if ($remember && $user !== null) {
+            return $this->rememberMe->withCookie($response, $this->rememberMe->issue((int) $user['id'], $request->getHeaderLine('User-Agent')));
+        }
+        $oldCookie = (string) ($request->getCookieParams()[AdminRememberMe::COOKIE_NAME] ?? '');
+        if ($oldCookie !== '') {
+            $this->rememberMe->revoke($oldCookie);
+            return $this->rememberMe->withoutCookie($response);
+        }
+
+        return $response;
+    }
+
+    public function logout(ServerRequestInterface $request): ResponseInterface
+    {
+        $cookie = (string) ($request->getCookieParams()[AdminRememberMe::COOKIE_NAME] ?? '');
+        if ($cookie !== '') {
+            $this->rememberMe->revoke($cookie);
+        }
+        $this->auth->logout();
+        Flash::set('success', 'Te-ai deconectat în siguranță.');
+        return $this->rememberMe->withoutCookie($this->view->redirect($this->config->path('admin')));
     }
 
     public function categories(): ResponseInterface

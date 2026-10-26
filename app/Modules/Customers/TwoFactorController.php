@@ -7,6 +7,7 @@ namespace App\Modules\Customers;
 use App\Shared\Config\Config;
 use App\Shared\Http\RateLimiter;
 use App\Shared\Http\View;
+use App\Shared\Security\AdminRememberMe;
 use App\Shared\Security\Auth;
 use App\Shared\Security\TotpService;
 use App\Shared\Support\Flash;
@@ -17,14 +18,14 @@ use RuntimeException;
 
 final class TwoFactorController
 {
-    public function __construct(private readonly PDO $pdo, private readonly Auth $auth, private readonly TotpService $totp, private readonly RateLimiter $limiter, private readonly View $view, private readonly Config $config)
+    public function __construct(private readonly PDO $pdo, private readonly Auth $auth, private readonly TotpService $totp, private readonly AdminRememberMe $rememberMe, private readonly RateLimiter $limiter, private readonly View $view, private readonly Config $config)
     {
     }
 
     public function challengeForm(): ResponseInterface
     {
         if ($this->auth->pendingTwoFactorUser() === null) {
-            return $this->view->redirect($this->config->path('cont/autentificare/'));
+            return $this->view->redirect($this->config->path('admin'));
         }
         return $this->view->render('storefront/pages/totp-challenge.twig', ['meta' => ['title' => 'Verificare în doi pași', 'noindex' => true]]);
     }
@@ -38,8 +39,15 @@ final class TwoFactorController
             Flash::set('error', 'Codul este invalid, expirat sau a fost deja folosit.');
             return $this->view->redirect($this->config->path('cont/totp/'));
         }
+        $remember = (bool) ($_SESSION['admin_remember_after_2fa'] ?? false);
+        unset($_SESSION['admin_remember_after_2fa']);
         Flash::set('success', 'Autentificare completă.');
-        return $this->view->redirect($this->config->path('admin/'));
+        $response = $this->view->redirect($this->config->path('admin'));
+        $authenticated = $this->auth->user();
+        if ($remember && $authenticated !== null) {
+            return $this->rememberMe->withCookie($response, $this->rememberMe->issue((int) $authenticated['id'], $request->getHeaderLine('User-Agent')));
+        }
+        return $response;
     }
 
     public function setupForm(): ResponseInterface
