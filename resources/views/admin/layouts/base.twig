@@ -81,7 +81,9 @@
             <div class="admin-toast admin-toast--{{ item.type }}" data-admin-toast>
               <span class="admin-toast__icon" aria-hidden="true">{{ item.type == 'error' ? '!' : '✓' }}</span>
               <p>{{ item.message }}</p>
-              <button type="button" aria-label="Închide notificarea" data-admin-toast-close>×</button>
+              <button class="admin-toast__close" type="button" aria-label="Închide notificarea" data-admin-toast-close>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 8 8 8M16 8l-8 8"/></svg>
+              </button>
             </div>
           {% endfor %}
         </div>
