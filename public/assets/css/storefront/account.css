@@ -468,13 +468,16 @@
 
 @media (max-width: 760px) {
   .account-page { width: calc(100% - 16px); padding: 12px 0 55px; }
-  .account-hero { display: block; min-height: 0; padding: 28px 22px 105px; border-radius: 28px; }
-  .account-hero h1 { margin-top: 15px; font-size: clamp(2.65rem, 14vw, 4rem); }
-  .account-hero-copy > p { font-size: .85rem; line-height: 1.6; }
-  .account-kicker { font-size: .6rem; }
-  .account-hero-profile { display: none; }
-  .account-hero-meta { display: grid; gap: 7px; }.account-hero-meta > span { width: fit-content; max-width: 100%; overflow: hidden; font-size: .66rem; text-overflow: ellipsis; white-space: nowrap; }
-  .account-stats { right: 12px; bottom: 12px; left: 12px; width: auto; }.account-stats a { min-width: 0; min-height: 62px; padding: 8px 4px; }.account-stats span { font-size: 1.35rem; }.account-stats small { font-size: .54rem; text-align: center; }
+  .account-hero { display: block; min-height: 408px; padding: 25px 19px 100px; border-radius: 30px; background: radial-gradient(circle at 86% 18%, rgba(255, 255, 255, .92) 0 9%, transparent 9.5%), radial-gradient(circle at 14% 82%, rgba(255, 255, 255, .7) 0 8%, transparent 8.5%), linear-gradient(145deg, #fff 0%, #fff8f6 42%, #fbe5df 100%); box-shadow: 0 18px 45px rgba(105, 59, 52, .1); }
+  .account-hero::after { right: -102px; bottom: -52px; width: 280px; height: 280px; border-color: rgba(207, 89, 97, .15); }
+  .account-hero-orbit--one { right: -18px; bottom: -52px; width: 210px; height: 210px; }.account-hero-orbit--two { top: -116px; left: 31%; width: 205px; height: 205px; }
+  .account-hero-copy { max-width: none; }
+  .account-hero h1 { max-width: 100%; margin: 38px 0 13px; font-size: clamp(2.25rem, 11vw, 3rem); letter-spacing: -.045em; line-height: .94; }.account-hero h1 br { display: none; }.account-hero h1 em { display: block; margin-top: 4px; font-size: 1.13em; line-height: .9; }
+  .account-hero-copy > p { max-width: 290px; font-size: .78rem; line-height: 1.58; }
+  .account-kicker { max-width: calc(100% - 68px); gap: 7px; font-size: .54rem; letter-spacing: .16em; }.account-kicker img { width: 27px; height: 27px; }
+  .account-hero-profile { position: absolute; z-index: 4; top: 18px; right: 17px; display: block; }.account-hero-profile > small, .account-hero-profile > strong { display: none; }.account-avatar { width: 57px; height: 57px; margin: 0; border-width: 4px; font-size: 1.22rem; box-shadow: 0 11px 24px rgba(168, 69, 75, .19), 0 0 0 1px #edc6c0; }.account-avatar img { right: -5px; bottom: -3px; width: 23px; height: 23px; padding: 4px; }
+  .account-hero-meta { display: flex; max-width: 100%; flex-wrap: nowrap; gap: 7px; margin-top: 18px; }.account-hero-meta > span { min-width: 0; min-height: 35px; overflow: hidden; padding: 6px 10px; font-size: .57rem; text-overflow: ellipsis; white-space: nowrap; }.account-hero-meta > span:first-child { flex: 1 1 auto; }.account-hero-meta > span:last-child { flex: 0 0 auto; }.account-hero-meta i { width: 6px; height: 6px; }.account-hero-meta svg { width: 15px; height: 15px; }
+  .account-stats { right: 10px; bottom: 10px; left: 10px; width: auto; border-radius: 20px; box-shadow: 0 10px 24px rgba(87, 53, 46, .09); }.account-stats a { min-width: 0; min-height: 67px; padding: 8px 4px; }.account-stats span { font-size: 1.42rem; }.account-stats small { max-width: 82px; font-size: .52rem; line-height: 1.2; text-align: center; }
   .account-layout { gap: 14px; margin-top: 14px; }
   .account-sidebar { top: 112px; margin-inline: -1px; border-radius: 19px; }
   .account-nav a { grid-template-columns: 20px auto; padding: 6px 10px; font-size: .66rem; }.account-nav a b { display: none; }.account-nav svg { width: 17px; height: 17px; }
