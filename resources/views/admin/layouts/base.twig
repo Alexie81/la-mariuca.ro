@@ -40,15 +40,20 @@
 
   <div class="admin-app-shell">
     <aside class="admin-sidebar" id="admin-sidebar" aria-label="Navigare administrare" data-admin-sidebar>
-      <div class="admin-sidebar__intro">
-        <span class="admin-heart-mark" aria-hidden="true">
-          <svg viewBox="0 0 24 24"><path d="M20.8 4.8a5.6 5.6 0 0 0-7.9 0L12 5.7l-.9-.9a5.6 5.6 0 0 0-7.9 7.9l.9.9L12 21l7.9-7.4.9-.9a5.6 5.6 0 0 0 0-7.9Z"/></svg>
-        </span>
-        <div><small>La Măriuca</small><strong>Un singur loc pentru tot</strong></div>
+      <div class="admin-sidebar__brand-row">
+        <a class="admin-sidebar__brand" href="{{ url('admin') }}" aria-label="Dashboard La Măriuca">
+          <img class="admin-sidebar__brand-full" src="{{ url('assets/images/logo-la-mariuca-transparent.png') }}" width="1000" height="337" alt="La Măriuca Boutique">
+          <img class="admin-sidebar__brand-mark" src="{{ url('assets/images/favicon-lm-192.png') }}" width="192" height="192" alt="" aria-hidden="true">
+        </a>
+        <button class="admin-sidebar__collapse" type="button" aria-label="Restrânge bara laterală" aria-controls="admin-sidebar" aria-expanded="true" data-admin-sidebar-collapse>
+          <svg class="admin-sidebar__collapse-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M10 8v8M15 9l-3 3 3 3"/></svg>
+          <svg class="admin-sidebar__close-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"/></svg>
+        </button>
       </div>
+      <div class="admin-sidebar__caption">Administrare magazin</div>
 
       <nav class="admin-nav" aria-label="Secțiuni">
-        <span class="admin-nav__label">Spațiul de lucru</span>
+        <span class="admin-nav__label">Activitate zilnică</span>
         <a class="admin-nav__item is-active" href="{{ url('admin') }}" aria-current="page">
           <span class="admin-nav__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/></svg></span>
           <span><strong>Dashboard</strong><small>Privire de ansamblu</small></span>

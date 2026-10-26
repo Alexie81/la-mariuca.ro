@@ -715,3 +715,10 @@ atribute și filtre fără schimbarea contractelor existente.
 - Selectoarele de județ și localitate se închid acum la click pe fundalul mobil estompat, pe orice zonă exterioară panoului sau prin tasta Escape; interacțiunile din căutare și lista de opțiuni păstrează panoul deschis până la alegere.
 - Pe desktop, panoul selectorului măsoară spațiul disponibil și alege automat deschiderea în sus sau în jos, fără să intre sub headerul sticky. Editorul de adresă deschis primește propriul strat vizual deasupra secțiunilor următoare, astfel încât formularul și selectorul nu mai sunt acoperite de cardul „Securitate”.
 - Zona „Securitate” a contului folosește carduri responsive distincte pentru email, metoda de acces și sesiunea curentă, cu stări vizuale explicite și un panou de confidențialitate. Conturile Google afișează simbolul oficial multicolor în locul literei generice „G”, iar conturile clasice păstrează o iconiță dedicată parolei.
+
+## 2026-10-26 — Navigarea panoului de administrare
+
+- Bara laterală a administrației a fost reconstruită ca un panou boutique compact, cu sigla La Măriuca, etichete editoriale, stare activă clară și profilul Paulei integrat discret. Până la introducerea modulelor următoare, navigarea păstrează exclusiv Dashboardul.
+- Pe desktop, bara poate fi restrânsă într-o coloană cu monograma LM și iconița Dashboard; preferința este memorată local, iar conținutul și topbarul se reașază prin aceeași tranziție lină. Pe telefon, meniul devine un panou flotant centrat, cu fundal estompat și închidere din X, din fundal sau cu Escape.
+- Hero-ul Dashboardului are acum o compoziție mai compactă pe desktop și telefon: titlu recalibrat, ornament redus, spațiere verticală mai mică și metadate discrete, fără a schimba datele afișate.
+- Verificarea vizuală locală a confirmat stările extinsă/restrânsă la 1526 px și deschiderea/închiderea panoului la 390 px. JavaScriptul trece verificarea de sintaxă, toate cele 40 de template-uri Twig se compilează, PHPStan nu raportează erori, iar PHPUnit trece cu 73 de teste și 527 de aserțiuni.
