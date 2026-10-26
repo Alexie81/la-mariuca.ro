@@ -42,6 +42,7 @@ final class Config
             'WHATSAPP_MESSAGE' => 'Bună! Aș dori mai multe informații despre produsele La Măriuca Boutique.',
             'CONTACT_EMAIL' => 'contact@la-mariuca.ro',
             'GOOGLE_OAUTH_ENABLED' => 'false',
+            'GOOGLE_CREDENTIALS_FILE' => '',
         ];
 
         $values = [];
@@ -54,6 +55,23 @@ final class Config
             $value = $_ENV[$key] ?? $_SERVER[$key] ?? getenv($key);
             if (is_string($value)) {
                 $values[$key] = $value;
+            }
+        }
+
+        $credentialsFile = trim($values['GOOGLE_CREDENTIALS_FILE'] ?? '');
+        if ($credentialsFile !== '' && (($values['GOOGLE_CLIENT_ID'] ?? '') === '' || ($values['GOOGLE_CLIENT_SECRET'] ?? '') === '')) {
+            $isAbsolute = str_starts_with($credentialsFile, '/') || preg_match('/^[A-Za-z]:[\\\\\/]/', $credentialsFile) === 1;
+            $credentialsPath = $isAbsolute ? $credentialsFile : $root . '/' . ltrim($credentialsFile, '/\\');
+            $credentialsJson = is_file($credentialsPath) ? file_get_contents($credentialsPath) : false;
+            $credentials = is_string($credentialsJson) ? json_decode($credentialsJson, true) : null;
+            $oauthClient = is_array($credentials) ? ($credentials['web'] ?? $credentials['installed'] ?? null) : null;
+            if (is_array($oauthClient)) {
+                if (($values['GOOGLE_CLIENT_ID'] ?? '') === '' && is_string($oauthClient['client_id'] ?? null)) {
+                    $values['GOOGLE_CLIENT_ID'] = $oauthClient['client_id'];
+                }
+                if (($values['GOOGLE_CLIENT_SECRET'] ?? '') === '' && is_string($oauthClient['client_secret'] ?? null)) {
+                    $values['GOOGLE_CLIENT_SECRET'] = $oauthClient['client_secret'];
+                }
             }
         }
 
