@@ -47,3 +47,11 @@
 - Add migrations; do not edit a deployed migration in place.
 - Update `docs/PROGRESS.md` with real checks and remaining external blockers.
 - Never claim Apache, MySQL concurrency, Stripe, SMTP or hosting verified unless actually run.
+
+## Google OAuth deployment memory
+- Before any production upload or domain cutover, read and execute `docs/GOOGLE_OAUTH_CHECKLIST.md`.
+- Never commit, print, log or place the Google client JSON, client secret or production `.env` under `public/`; the standard private location is `storage/private/google-oauth-client.json`.
+- Production must use `APP_URL=https://la-mariuca.ro`, `APP_ENV=production`, `SESSION_SECURE=true`, `GOOGLE_OAUTH_ENABLED=true` and the exact callback `https://la-mariuca.ro/cont/google/retur/`.
+- Apply migrations `013_google_oauth_identities.sql` and `014_user_phone.sql` before testing login.
+- Verify the Google Audience/test-user configuration, finalized public legal pages, the real callback and a complete login/logout/login cycle on the live HTTPS domain.
+- Do not claim Google OAuth production-verified until the live-domain checklist has actually passed; local redirect tests are not production verification.

@@ -111,6 +111,9 @@ rambursărilor parțiale este încă de implementat.
 
 ## Autentificare Google în producție
 
+Checklistul operațional complet și persistent este în
+[`docs/GOOGLE_OAUTH_CHECKLIST.md`](GOOGLE_OAUTH_CHECKLIST.md) și trebuie parcurs înainte de activare.
+
 Același client Web Google deservește localhost și producția; callback-ul este construit exclusiv
 din `APP_URL`, deci nu există URL de producție hardcodat în cod. Pentru hosting:
 
