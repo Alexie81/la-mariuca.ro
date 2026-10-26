@@ -23,7 +23,7 @@ use Psr\Http\Message\ServerRequestInterface;
 
 final class AdminController
 {
-    public function __construct(private readonly PDO $pdo, private readonly AdminDashboardService $dashboardService, private readonly CatalogRepository $catalog, private readonly CatalogAdminService $catalogAdmin, private readonly OrderService $orders, private readonly ProductReviewService $reviews, private readonly MediaService $media, private readonly ContentAdminService $contentAdmin, private readonly Auth $auth, private readonly AdminRememberMe $rememberMe, private readonly RateLimiter $limiter, private readonly View $view, private readonly Config $config)
+    public function __construct(private readonly PDO $pdo, private readonly AdminDashboardService $dashboardService, private readonly AdminNotificationService $notificationService, private readonly CatalogRepository $catalog, private readonly CatalogAdminService $catalogAdmin, private readonly OrderService $orders, private readonly ProductReviewService $reviews, private readonly MediaService $media, private readonly ContentAdminService $contentAdmin, private readonly Auth $auth, private readonly AdminRememberMe $rememberMe, private readonly RateLimiter $limiter, private readonly View $view, private readonly Config $config)
     {
     }
 
@@ -41,6 +41,7 @@ final class AdminController
         return $this->view->render('admin/pages/dashboard.twig', [
             ...$overview,
             'admin_user' => $admin,
+            'admin_unread_count' => $this->notificationService->unreadCount((int) ($admin['id'] ?? 0)),
             'greeting' => $greeting,
             'today' => $bucharestNow->format('d.m.Y'),
         ]);
@@ -192,6 +193,7 @@ final class AdminController
             'has_filters' => $filterQuery !== [],
             'admin_section' => 'orders',
             'admin_context' => 'Comenzi',
+            'admin_unread_count' => $this->notificationService->unreadCount((int) ($this->auth->user()['id'] ?? 0)),
         ]);
     }
 
@@ -221,7 +223,81 @@ final class AdminController
             'order' => $order,
             'admin_section' => 'orders',
             'admin_context' => 'Comenzi',
+            'admin_unread_count' => $this->notificationService->unreadCount((int) ($this->auth->user()['id'] ?? 0)),
         ]);
+    }
+
+    public function notifications(ServerRequestInterface $request): ResponseInterface
+    {
+        $user = $this->auth->user();
+        $adminUserId = (int) ($user['id'] ?? 0);
+        $query = $request->getQueryParams();
+        $filters = [
+            'toate' => 'Toate',
+            'comenzi' => 'Comenzi',
+            'plati' => 'Plăți',
+            'stoc' => 'Stoc',
+            'recenzii' => 'Recenzii',
+        ];
+        $filter = array_key_exists((string) ($query['filtru'] ?? ''), $filters) ? (string) $query['filtru'] : 'toate';
+        $unreadOnly = (string) ($query['necitite'] ?? '') === '1';
+        $feed = $this->notificationService->feed($adminUserId, max(1, (int) ($query['pagina'] ?? 1)), 15, $filter, $unreadOnly);
+        $bucharest = new \DateTimeZone('Europe/Bucharest');
+        $today = new \DateTimeImmutable('today', $bucharest);
+        foreach ($feed['items'] as &$notification) {
+            $occurredAt = new \DateTimeImmutable((string) $notification['occurred_at'], new \DateTimeZone('UTC'));
+            $local = $occurredAt->setTimezone($bucharest);
+            $day = $local->setTime(0, 0);
+            $notification['display_time'] = $local->format('H:i');
+            $notification['display_date'] = $day == $today
+                ? 'Astăzi'
+                : ($day == $today->modify('-1 day') ? 'Ieri' : $local->format('d.m.Y'));
+        }
+        unset($notification);
+
+        $firstPage = max(1, $feed['page'] - 2);
+        $lastPage = min($feed['total_pages'], $feed['page'] + 2);
+        $feed['page_numbers'] = range($firstPage, $lastPage);
+        $filterQuery = http_build_query(array_filter([
+            'filtru' => $filter !== 'toate' ? $filter : '',
+            'necitite' => $unreadOnly ? '1' : '',
+        ], static fn (string $value): bool => $value !== ''));
+
+        return $this->view->render('admin/pages/notifications.twig', [
+            'notifications' => $feed['items'],
+            'notification_feed' => $feed,
+            'notification_filters' => $filters,
+            'selected_notification_filter' => $filter,
+            'unread_only' => $unreadOnly,
+            'notification_filter_query' => $filterQuery,
+            'admin_section' => 'notifications',
+            'admin_context' => 'Notificări',
+            'admin_unread_count' => $feed['unread_total'],
+            'admin_user' => $user,
+        ]);
+    }
+
+    public function readNotification(ServerRequestInterface $request): ResponseInterface
+    {
+        $data = (array) ($request->getParsedBody() ?? []);
+        $adminUserId = (int) ($this->auth->user()['id'] ?? 0);
+        if ((string) ($data['all'] ?? '') === '1') {
+            $marked = $this->notificationService->markAllRead($adminUserId);
+            Flash::set('success', $marked > 0 ? 'Toate notificările au fost marcate drept citite.' : 'Nu există notificări noi de marcat.');
+        } else {
+            $this->notificationService->markRead($adminUserId, (string) ($data['notification_key'] ?? ''));
+        }
+
+        return $this->view->redirect($this->notificationRedirect($data));
+    }
+
+    public function notificationPreferences(ServerRequestInterface $request): ResponseInterface
+    {
+        $data = (array) ($request->getParsedBody() ?? []);
+        $this->notificationService->savePreferences((int) ($this->auth->user()['id'] ?? 0), $data);
+        Flash::set('success', 'Preferințele pentru notificări au fost salvate.');
+
+        return $this->view->redirect($this->config->path('admin/notificari/'));
     }
 
     public function transitionOrder(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
@@ -235,6 +311,20 @@ final class AdminController
             Flash::set('error', $exception->getMessage());
         }
         return $this->view->redirect($this->config->path('admin/comenzi/'));
+    }
+
+    /** @param array<string,mixed> $data */
+    private function notificationRedirect(array $data): string
+    {
+        $filter = in_array((string) ($data['filtru'] ?? ''), ['comenzi', 'plati', 'stoc', 'recenzii'], true)
+            ? (string) $data['filtru']
+            : '';
+        $query = http_build_query(array_filter([
+            'filtru' => $filter,
+            'necitite' => (string) ($data['necitite'] ?? '') === '1' ? '1' : '',
+        ], static fn (string $value): bool => $value !== ''));
+
+        return $this->config->path('admin/notificari/' . ($query !== '' ? '?' . $query : ''));
     }
 
     public function reviews(): ResponseInterface

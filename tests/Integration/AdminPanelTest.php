@@ -153,6 +153,58 @@ final class AdminPanelTest extends DatabaseTestCase
         self::assertStringContainsString('pagina=2&amp;cautare=client', $searchPagination);
     }
 
+    public function testNotificationCenterSupportsFiltersReadsAndPreferences(): void
+    {
+        $this->seedOrders(2);
+        $this->get('/admin');
+        $login = $this->post('/admin', [
+            '_csrf' => $_SESSION['_csrf'],
+            'email' => 'admin.panel@example.test',
+            'password' => self::PASSWORD,
+        ], '127.0.0.85');
+        self::assertSame(303, $login->getStatusCode());
+
+        $page = (string) $this->get('/admin/notificari/')->getBody();
+        self::assertStringContainsString('Notificări <em>care contează</em>', $page);
+        self::assertStringContainsString('Comandă nouă LM-TEST-002', $page);
+        self::assertStringContainsString('Plată confirmată · LM-TEST-002', $page);
+        self::assertStringContainsString('href="/admin/notificari/" aria-current="page"', $page);
+        self::assertStringContainsString('Marchează toate citite', $page);
+        self::assertStringContainsString('name="comenzi"', $page);
+
+        $adminId = (int) $this->pdo->query("SELECT id FROM users WHERE email = 'admin.panel@example.test'")->fetchColumn();
+        $orderId = (int) $this->pdo->query("SELECT id FROM orders WHERE order_number = 'LM-TEST-002'")->fetchColumn();
+        $read = $this->post('/admin/notificari/citeste/', [
+            '_csrf' => $_SESSION['_csrf'],
+            'notification_key' => 'order:' . $orderId . ':created',
+            'filtru' => 'comenzi',
+            'necitite' => '1',
+        ], '127.0.0.85');
+
+        self::assertSame(303, $read->getStatusCode());
+        self::assertSame('/admin/notificari/?filtru=comenzi&necitite=1', $read->getHeaderLine('Location'));
+        $readCount = $this->pdo->query(
+            'SELECT COUNT(*) FROM admin_notification_reads WHERE admin_user_id = ' . $adminId
+        )->fetchColumn();
+        self::assertSame(1, (int) $readCount);
+
+        $preferences = $this->post('/admin/notificari/preferinte/', [
+            '_csrf' => $_SESSION['_csrf'],
+            'comenzi' => '1',
+            'stoc' => '1',
+        ], '127.0.0.85');
+        self::assertSame(303, $preferences->getStatusCode());
+
+        $saved = $this->pdo->query(
+            'SELECT orders_enabled, payments_enabled, stock_enabled, reviews_enabled '
+            . 'FROM admin_notification_preferences WHERE admin_user_id = ' . $adminId
+        )->fetch();
+        self::assertSame(1, (int) $saved['orders_enabled']);
+        self::assertSame(0, (int) $saved['payments_enabled']);
+        self::assertSame(1, (int) $saved['stock_enabled']);
+        self::assertSame(0, (int) $saved['reviews_enabled']);
+    }
+
     private function get(string $path): ResponseInterface
     {
         return $this->request('GET', $path);

@@ -1,0 +1,163 @@
+{% extends 'admin/layouts/base.twig' %}
+{% block title %}Notificări{% endblock %}
+
+{% block content %}
+<div class="admin-notification-center">
+  <section class="admin-inbox-hero" aria-labelledby="admin-inbox-title" data-admin-reveal>
+    <div class="admin-inbox-hero__copy">
+      <span class="admin-eyebrow"><i aria-hidden="true"></i> Inbox operațional</span>
+      <h1 id="admin-inbox-title">Notificări <em>care contează</em></h1>
+      <p>Comenzile, plățile și lucrurile care cer atenție, așezate clar într-un singur loc.</p>
+    </div>
+    <div class="admin-inbox-hero__stats" aria-label="Rezumat notificări">
+      <article><span>Necitite</span><strong data-count-up="{{ notification_feed.unread_total }}">{{ notification_feed.unread_total }}</strong></article>
+      <article><span>În inbox</span><strong data-count-up="{{ notification_feed.counts.toate }}">{{ notification_feed.counts.toate }}</strong></article>
+    </div>
+    <span class="admin-inbox-hero__bell" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 7h18s-3 0-3-7"/><path d="M10 20h4"/></svg></span>
+  </section>
+
+  <section class="admin-inbox-toolbar" aria-label="Instrumente notificări" data-admin-reveal>
+    <nav class="admin-inbox-filters" aria-label="Filtrează notificările">
+      {% for key, label in notification_filters %}
+        {% set filter_url = 'admin/notificari/?' ~ (key != 'toate' ? 'filtru=' ~ key ~ (unread_only ? '&necitite=1' : '') : (unread_only ? 'necitite=1' : '')) %}
+        <a href="{{ url(filter_url) }}" class="{{ selected_notification_filter == key ? 'is-active' : '' }}"{% if selected_notification_filter == key %} aria-current="page"{% endif %}>
+          {{ label }}
+          <span>{{ notification_feed.counts[key] }}</span>
+        </a>
+      {% endfor %}
+    </nav>
+    <div class="admin-inbox-toolbar__actions">
+      {% set unread_toggle_query = selected_notification_filter != 'toate' ? '?filtru=' ~ selected_notification_filter ~ (unread_only ? '' : '&necitite=1') : (unread_only ? '' : '?necitite=1') %}
+      <a class="admin-inbox-unread-toggle{{ unread_only ? ' is-active' : '' }}" href="{{ url('admin/notificari/' ~ unread_toggle_query) }}">
+        <span aria-hidden="true"></span>{{ unread_only ? 'Vezi toate' : 'Doar necitite' }}
+      </a>
+      <button class="admin-inbox-browser" type="button" data-admin-browser-notifications>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 7h18s-3 0-3-7"/><path d="M10 20h4"/></svg>
+        <span>Activează alertele</span>
+      </button>
+      <form action="{{ url('admin/notificari/citeste/') }}" method="post">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <input type="hidden" name="all" value="1">
+        <input type="hidden" name="filtru" value="{{ selected_notification_filter }}">
+        <input type="hidden" name="necitite" value="{{ unread_only ? '1' : '' }}">
+        <button class="admin-inbox-read-all" type="submit"{{ notification_feed.unread_total == 0 ? ' disabled' : '' }}>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 12 4 4L18 6"/><path d="m10 15 2 2 8-9"/></svg>
+          Marchează toate citite
+        </button>
+      </form>
+    </div>
+  </section>
+
+  <div class="admin-inbox-layout">
+    <section class="admin-inbox-panel" aria-labelledby="admin-inbox-feed-title" data-admin-reveal>
+      <header class="admin-inbox-panel__head">
+        <div><span class="admin-eyebrow">Flux live</span><h2 id="admin-inbox-feed-title">{{ unread_only ? 'Notificări necitite' : notification_filters[selected_notification_filter] }}</h2></div>
+        <p>{{ notification_feed.total }} {{ notification_feed.total == 1 ? 'eveniment' : 'evenimente' }}</p>
+      </header>
+
+      {% if notifications %}
+        <div class="admin-inbox-list">
+          {% for notification in notifications %}
+            <article class="admin-inbox-item admin-inbox-item--{{ notification.tone }}{{ notification.is_read ? ' is-read' : '' }}" data-admin-notification-item data-notification-key="{{ notification.key }}" data-notification-title="{{ notification.title }}" data-notification-detail="{{ notification.detail }}" data-notification-target="{{ url(notification.target_path) }}">
+              <span class="admin-inbox-item__accent" aria-hidden="true"></span>
+              <span class="admin-inbox-item__icon" aria-hidden="true">
+                {% if notification.type == 'plati' %}
+                  <svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="3"/><path d="M3 10h18M16 15h2"/></svg>
+                {% elseif notification.type == 'stoc' %}
+                  <svg viewBox="0 0 24 24"><path d="m4 8 8-4 8 4-8 4-8-4Z"/><path d="M4 8v8l8 4 8-4V8M12 12v8"/></svg>
+                {% elseif notification.type == 'recenzii' %}
+                  <svg viewBox="0 0 24 24"><path d="m12 3 2.7 5.5 6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1-4.4-4.3 6.1-.9L12 3Z"/></svg>
+                {% else %}
+                  <svg viewBox="0 0 24 24"><path d="M5 7h14v13H5V7Z"/><path d="M8 7a4 4 0 0 1 8 0M8 12h8"/></svg>
+                {% endif %}
+              </span>
+              <a class="admin-inbox-item__body" href="{{ url(notification.target_path) }}">
+                <span class="admin-inbox-item__topline">
+                  <strong>{{ notification.title }}</strong>
+                  {% if not notification.is_read %}<i>Nou</i>{% endif %}
+                </span>
+                <span class="admin-inbox-item__detail">{{ notification.detail }}</span>
+                <span class="admin-inbox-item__meta">
+                  <time datetime="{{ notification.occurred_at }}">{{ notification.display_date }}, {{ notification.display_time }}</time>
+                  <b>{{ notification.type in ['comenzi', 'plati'] ? money(notification.meta) : notification.meta }}</b>
+                </span>
+              </a>
+              <div class="admin-inbox-item__actions">
+                {% if not notification.is_read %}
+                  <form action="{{ url('admin/notificari/citeste/') }}" method="post">
+                    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                    <input type="hidden" name="notification_key" value="{{ notification.key }}">
+                    <input type="hidden" name="filtru" value="{{ selected_notification_filter }}">
+                    <input type="hidden" name="necitite" value="{{ unread_only ? '1' : '' }}">
+                    <button type="submit" aria-label="Marchează notificarea drept citită" title="Marchează drept citită"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg></button>
+                  </form>
+                {% else %}
+                  <span class="admin-inbox-item__read-label"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>Citită</span>
+                {% endif %}
+                <a href="{{ url(notification.target_path) }}" aria-label="Deschide {{ notification.title }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a>
+              </div>
+            </article>
+          {% endfor %}
+        </div>
+
+        {% if notification_feed.total_pages > 1 %}
+          <nav class="admin-pagination admin-inbox-pagination" aria-label="Paginarea notificărilor">
+            {% if notification_feed.page > 1 %}
+              <a class="admin-pagination__arrow" href="{{ url('admin/notificari/?pagina=' ~ (notification_feed.page - 1) ~ (notification_filter_query ? '&' ~ notification_filter_query : '')) }}" aria-label="Pagina anterioară"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg></a>
+            {% endif %}
+            <div class="admin-pagination__pages">
+              {% for page_number in notification_feed.page_numbers %}
+                <a href="{{ url('admin/notificari/?pagina=' ~ page_number ~ (notification_filter_query ? '&' ~ notification_filter_query : '')) }}" class="{{ notification_feed.page == page_number ? 'is-active' : '' }}"{% if notification_feed.page == page_number %} aria-current="page"{% endif %}>{{ page_number }}</a>
+              {% endfor %}
+            </div>
+            {% if notification_feed.page < notification_feed.total_pages %}
+              <a class="admin-pagination__arrow" href="{{ url('admin/notificari/?pagina=' ~ (notification_feed.page + 1) ~ (notification_filter_query ? '&' ~ notification_filter_query : '')) }}" aria-label="Pagina următoare"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a>
+            {% endif %}
+          </nav>
+        {% endif %}
+      {% else %}
+        <div class="admin-inbox-empty">
+          <span class="admin-standard-heart"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 4.8a5.6 5.6 0 0 0-7.9 0L12 5.7l-.9-.9a5.6 5.6 0 0 0-7.9 7.9l.9.9L12 21l7.9-7.4.9-.9a5.6 5.6 0 0 0 0-7.9Z"/></svg></span>
+          <strong>Totul este la zi</strong>
+          <p>{{ unread_only ? 'Nu mai ai notificări necitite în această categorie.' : 'Evenimentele noi vor apărea aici imediat ce magazinul are ceva de spus.' }}</p>
+          {% if unread_only %}<a href="{{ url('admin/notificari/') }}">Vezi întregul inbox</a>{% endif %}
+        </div>
+      {% endif %}
+    </section>
+
+    <aside class="admin-inbox-preferences" aria-labelledby="notification-preferences-title" data-admin-reveal>
+      <div class="admin-inbox-preferences__art" aria-hidden="true"><span></span><i></i></div>
+      <span class="admin-eyebrow">Preferințe</span>
+      <h2 id="notification-preferences-title">Ce vrei să urmărești?</h2>
+      <p>Alege evenimentele care merită să ajungă în inboxul tău administrativ.</p>
+      <form action="{{ url('admin/notificari/preferinte/') }}" method="post" class="admin-inbox-preferences__form">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        {% set preference_labels = {
+          comenzi: ['Comenzi noi', 'Clienți și valori noi'],
+          plati: ['Plăți', 'Confirmări sau probleme'],
+          stoc: ['Stoc redus', 'Produse care cer atenție'],
+          recenzii: ['Recenzii', 'Păreri de moderat']
+        } %}
+        {% for key, copy in preference_labels %}
+          <label class="admin-inbox-switch">
+            <span><strong>{{ copy[0] }}</strong><small>{{ copy[1] }}</small></span>
+            <input type="checkbox" name="{{ key }}" value="1"{{ notification_feed.preferences[key] ? ' checked' : '' }}>
+            <i aria-hidden="true"></i>
+          </label>
+        {% endfor %}
+        <button type="submit" class="admin-inbox-save">
+          <span class="admin-inbox-save__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M5 4h11l3 3v13H5zM8 4v6h7V4M8 20v-6h8v6"/></svg>
+          </span>
+          <span class="admin-inbox-save__copy"><strong>Salvează preferințele</strong><small>Actualizează inboxul</small></span>
+          <span class="admin-inbox-save__arrow" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></span>
+        </button>
+      </form>
+      <div class="admin-inbox-preferences__note">
+        <span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 5 6v5c0 4.6 2.8 8.2 7 10 4.2-1.8 7-5.4 7-10V6l-7-3Z"/><path d="m9 12 2 2 4-4"/></svg></span>
+        <p><strong>Doar pentru echipă</strong><small>Preferințele și starea de citire sunt păstrate separat pentru contul tău.</small></p>
+      </div>
+    </aside>
+  </div>
+</div>
+{% endblock %}

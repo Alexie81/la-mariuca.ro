@@ -120,6 +120,65 @@
     window.setInterval(updateClock, 1000);
   }
 
+  const browserNotificationButton = document.querySelector('[data-admin-browser-notifications]');
+  if (browserNotificationButton) {
+    const label = browserNotificationButton.querySelector('span');
+    const enabledKey = 'la-mariuca-admin-browser-notifications';
+    const newestUnread = document.querySelector('[data-admin-notification-item]:not(.is-read)');
+    const setButtonState = (state) => {
+      browserNotificationButton.classList.toggle('is-active', state === 'active');
+      if (!label) return;
+      label.textContent = state === 'active' ? 'Alerte active' : (state === 'blocked' ? 'Alerte blocate' : (state === 'unsupported' ? 'Indisponibil' : 'Activează alertele'));
+    };
+    const showNewest = () => {
+      if (!newestUnread || Notification.permission !== 'granted') return;
+      const notificationKey = newestUnread.dataset.notificationKey || '';
+      const shownKey = `la-mariuca-admin-alert-${notificationKey}`;
+      try {
+        if (!notificationKey || window.localStorage.getItem(shownKey) === '1') return;
+        const notification = new Notification(newestUnread.dataset.notificationTitle || 'Notificare La Măriuca', {
+          body: newestUnread.dataset.notificationDetail || 'Ai un eveniment nou în magazin.',
+          icon: document.querySelector('link[rel="icon"]')?.href || undefined,
+          tag: notificationKey,
+        });
+        notification.onclick = () => {
+          window.focus();
+          if (newestUnread.dataset.notificationTarget) window.location.href = newestUnread.dataset.notificationTarget;
+          notification.close();
+        };
+        window.localStorage.setItem(shownKey, '1');
+      } catch (_) {}
+    };
+
+    if (!('Notification' in window)) {
+      setButtonState('unsupported');
+      browserNotificationButton.disabled = true;
+    } else {
+      let enabled = false;
+      try { enabled = window.localStorage.getItem(enabledKey) === '1'; } catch (_) {}
+      if (Notification.permission === 'denied') {
+        setButtonState('blocked');
+      } else if (enabled && Notification.permission === 'granted') {
+        setButtonState('active');
+        showNewest();
+      }
+      browserNotificationButton.addEventListener('click', async () => {
+        if (Notification.permission === 'denied') {
+          setButtonState('blocked');
+          return;
+        }
+        const permission = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission();
+        if (permission !== 'granted') {
+          setButtonState(permission === 'denied' ? 'blocked' : 'idle');
+          return;
+        }
+        try { window.localStorage.setItem(enabledKey, '1'); } catch (_) {}
+        setButtonState('active');
+        showNewest();
+      });
+    }
+  }
+
   const numberFormatter = new Intl.NumberFormat('ro-RO');
   const moneyFormatter = new Intl.NumberFormat('ro-RO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const animateCount = (element) => {

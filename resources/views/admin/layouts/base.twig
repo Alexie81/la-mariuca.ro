@@ -69,6 +69,15 @@
           <span><strong>Comenzi</strong><small>Clienți, plăți și status</small></span>
           <span class="admin-nav__pulse" aria-hidden="true"></span>
         </a>
+        <a class="admin-nav__item{{ active_admin_section == 'notifications' ? ' is-active' : '' }}" href="{{ url('admin/notificari/') }}"{% if active_admin_section == 'notifications' %} aria-current="page"{% endif %}>
+          <span class="admin-nav__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 7h18s-3 0-3-7"/><path d="M10 20h4"/></svg></span>
+          <span><strong>Notificări</strong><small>Evenimente importante</small></span>
+          {% if admin_unread_count|default(0) > 0 %}
+            <b class="admin-nav__count" aria-label="{{ admin_unread_count }} notificări necitite">{{ admin_unread_count > 99 ? '99+' : admin_unread_count }}</b>
+          {% else %}
+            <span class="admin-nav__pulse" aria-hidden="true"></span>
+          {% endif %}
+        </a>
       </nav>
 
       <div class="admin-sidebar__spacer"></div>

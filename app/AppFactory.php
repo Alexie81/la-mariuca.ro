@@ -6,6 +6,7 @@ namespace App;
 
 use App\Modules\Admin\AdminController;
 use App\Modules\Admin\AdminDashboardService;
+use App\Modules\Admin\AdminNotificationService;
 use App\Modules\Cart\CartController;
 use App\Modules\Cart\CartService;
 use App\Modules\Catalog\CatalogAdminService;
@@ -127,7 +128,7 @@ final class AppFactory
         $checkoutController = new CheckoutController(new CheckoutService($pdo, $cart, $config, $romanianLocations), $cart, $orders, new StripeCheckoutService($pdo, $config), $auth, $customerAccount, $rateLimiter, $view, $config);
         $authController = new AuthController($pdo, $auth, new GoogleOAuthService($pdo, $config), $customerAccount, $rateLimiter, $view, $config);
         $twoFactorController = new TwoFactorController($pdo, $auth, new TotpService($config), $adminRememberMe, $rateLimiter, $view, $config);
-        $adminController = new AdminController($pdo, new AdminDashboardService($pdo), $catalog, new CatalogAdminService($pdo), $orders, $reviews, new MediaService($pdo, $root), new ContentAdminService($pdo), $auth, $adminRememberMe, $rateLimiter, $view, $config);
+        $adminController = new AdminController($pdo, new AdminDashboardService($pdo), new AdminNotificationService($pdo), $catalog, new CatalogAdminService($pdo), $orders, $reviews, new MediaService($pdo, $root), new ContentAdminService($pdo), $auth, $adminRememberMe, $rateLimiter, $view, $config);
 
         $app = SlimAppFactory::create();
         $basePath = '/' . trim($config->get('APP_BASE_PATH'), '/');
@@ -193,6 +194,9 @@ final class AppFactory
             $group->get('/comenzi/', [$adminController, 'orders']);
             $group->get('/comenzi/{id:[0-9]+}/', [$adminController, 'orderDetail']);
             $group->post('/comenzi/{id:[0-9]+}/actiune/', [$adminController, 'transitionOrder']);
+            $group->get('/notificari/', [$adminController, 'notifications']);
+            $group->post('/notificari/citeste/', [$adminController, 'readNotification']);
+            $group->post('/notificari/preferinte/', [$adminController, 'notificationPreferences']);
             $group->get('/recenzii/', [$adminController, 'reviews']);
             $group->post('/recenzii/{id:[0-9]+}/actiune/', [$adminController, 'moderateReview']);
             $group->get('/continut/', [$adminController, 'content']);
