@@ -1,1 +1,163 @@
-{% extends 'admin/layouts/base.twig' %}{% block title %}Produse{% endblock %}{% block content %}<div class="admin-title"><div><h1>Produse</h1><p>Prețurile sunt stocate în bani întregi; stocul aparține variantei.</p></div><a class="button" href="{{ url('admin/produse/nou/') }}">Produs nou</a></div><div class="panel table-wrap"><table><thead><tr><th>Produs</th><th>SKU</th><th>Categorie</th><th>Preț</th><th>Fizic / rezervat</th><th>Stare</th><th>Homepage</th><th></th></tr></thead><tbody>{% for product in products %}<tr><td>{{ product.name }}</td><td>{{ product.sku }}</td><td>{{ product.category_name }}</td><td>{{ money(product.price_bani) }}</td><td>{{ product.physical_quantity|default(0) }} / {{ product.reserved_quantity|default(0) }}</td><td>{{ product.status }}</td><td>{{ product.featured ? 'Ales cu drag' : '—' }}</td><td><a href="{{ url('admin/produse/' ~ product.id ~ '/editare/') }}">Editează</a></td></tr>{% else %}<tr><td colspan="8">Nu există produse.</td></tr>{% endfor %}</tbody></table></div>{% endblock %}
+{% extends 'admin/layouts/base.twig' %}
+
+{% block title %}Produse{% endblock %}
+
+{% block content %}
+  <section class="admin-products-hero" aria-labelledby="admin-products-title">
+    <div>
+      <span class="admin-eyebrow"><i aria-hidden="true"></i> Catalog</span>
+      <h1 id="admin-products-title">Produse</h1>
+      <p>
+        {% if has_filters %}
+          {{ pagination.total }} {{ pagination.total == 1 ? 'produs relevant' : 'produse relevante' }} pentru „{{ search }}”
+        {% else %}
+          {{ pagination.total }} {{ pagination.total == 1 ? 'produs în catalog' : 'produse în catalog' }}
+        {% endif %}
+      </p>
+    </div>
+    <a class="admin-products-add" href="{{ url('admin/produse/nou/') }}">
+      <span>Adaugă produs</span>
+      <i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></i>
+    </a>
+  </section>
+
+  <section class="admin-products-card" aria-labelledby="admin-products-table-title">
+    <header class="admin-products-card__head">
+      <div>
+        <span class="admin-eyebrow">Registrul catalogului</span>
+        <h2 id="admin-products-table-title">Toate produsele</h2>
+      </div>
+      {% if pagination.total > 0 %}
+        <p>Se afișează <strong>{{ pagination.from }}–{{ pagination.to }}</strong> din <strong>{{ pagination.total }}</strong></p>
+      {% endif %}
+    </header>
+
+    <form class="admin-products-search" action="{{ url('admin/produse/') }}" method="get" role="search">
+      <label>
+        <span class="sr-only">Caută în produse</span>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m16.5 16.5 4 4"/></svg>
+        <input type="search" name="cautare" value="{{ search }}" placeholder="Caută produs, SKU, categorie sau variantă…" autocomplete="off">
+      </label>
+      <button type="submit" aria-label="Caută">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m16.5 16.5 4 4"/></svg>
+      </button>
+      {% if has_filters %}
+        <a href="{{ url('admin/produse/') }}" aria-label="Șterge căutarea">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7l-10 10"/></svg>
+        </a>
+      {% endif %}
+    </form>
+
+    {% if products %}
+      <div class="admin-products-table-wrap">
+        <table class="admin-products-table">
+          <thead>
+            <tr>
+              <th>Produs</th>
+              <th>SKU</th>
+              <th>Categorie</th>
+              <th>Preț</th>
+              <th>Stoc online</th>
+              <th>Stoc efectiv (Conta)</th>
+              <th>Status</th>
+              <th>Acțiuni</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for product in products %}
+              <tr>
+                <td data-label="Produs" class="admin-products-table__product">
+                  {% if product.image_path %}
+                    <img src="{{ url(product.image_path) }}" width="62" height="62" alt="{{ product.image_alt }}" loading="lazy">
+                  {% else %}
+                    <span class="admin-products-table__placeholder" aria-hidden="true">
+                      <svg viewBox="0 0 24 24"><path d="m4.5 7.5 7.5-4 7.5 4v9L12 21l-7.5-4.5v-9Z"/><path d="m4.8 7.7 7.2 4.1 7.2-4.1M12 11.8V21"/></svg>
+                    </span>
+                  {% endif %}
+                  <span>
+                    <strong>{{ product.name }}</strong>
+                  </span>
+                </td>
+                <td data-label="SKU"><code>{{ product.sku ?: '—' }}</code></td>
+                <td data-label="Categorie"><span class="admin-products-table__category">{{ product.category_name }}</span></td>
+                <td data-label="Preț"><strong class="admin-products-table__price">{{ money(product.price_bani) }}</strong></td>
+                <td data-label="Stoc online">
+                  <span class="admin-stock-pill{{ product.online_quantity <= 0 ? ' is-empty' : (product.online_quantity <= 3 ? ' is-low' : '') }}">{{ product.online_quantity }} buc.</span>
+                </td>
+                <td data-label="Stoc efectiv (Conta)">
+                  <span class="admin-physical-stock{{ product.physical_quantity <= 0 ? ' is-empty' : '' }}">
+                    <strong>{{ product.physical_quantity }} buc.</strong>
+                    {% if product.reserved_quantity > 0 %}<small>{{ product.reserved_quantity }} rezervate</small>{% else %}<small>sold contabil</small>{% endif %}
+                  </span>
+                </td>
+                <td data-label="Status"><span class="admin-product-status admin-product-status--{{ product.status }}">{{ product.status_label }}</span></td>
+                <td data-label="Acțiuni" class="admin-products-table__actions">
+                  <a href="{{ url('admin/produse/' ~ product.id ~ '/editare/') }}" aria-label="Editează {{ product.name }}" title="Editează">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 20 4.2-1 10.4-10.4a2 2 0 0 0-2.8-2.8L5.4 16.2 4 20Z"/><path d="m14.5 7.1 2.8 2.8"/></svg>
+                  </a>
+                  <form action="{{ url('admin/produse/' ~ product.id ~ '/sterge/') }}" method="post" data-admin-product-delete-form data-product-name="{{ product.name }}">
+                    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                    <button type="submit" aria-label="Șterge {{ product.name }}" title="Șterge produsul">
+                      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5"/></svg>
+                    </button>
+                  </form>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      {% if pagination.total_pages > 1 %}
+        <nav class="admin-pagination" aria-label="Paginarea produselor">
+          {% if pagination.page > 1 %}
+            <a class="admin-pagination__arrow" href="{{ url('admin/produse/?pagina=' ~ (pagination.page - 1) ~ (filters_query ? '&' ~ filters_query : '')) }}" aria-label="Pagina anterioară"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg></a>
+          {% else %}
+            <span class="admin-pagination__arrow is-disabled" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></svg></span>
+          {% endif %}
+          <div class="admin-pagination__pages">
+            {% for page_number in pagination.page_numbers %}
+              <a href="{{ url('admin/produse/?pagina=' ~ page_number ~ (filters_query ? '&' ~ filters_query : '')) }}" class="{{ pagination.page == page_number ? 'is-active' : '' }}"{% if pagination.page == page_number %} aria-current="page"{% endif %}>{{ page_number }}</a>
+            {% endfor %}
+          </div>
+          {% if pagination.page < pagination.total_pages %}
+            <a class="admin-pagination__arrow" href="{{ url('admin/produse/?pagina=' ~ (pagination.page + 1) ~ (filters_query ? '&' ~ filters_query : '')) }}" aria-label="Pagina următoare"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a>
+          {% else %}
+            <span class="admin-pagination__arrow is-disabled" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></span>
+          {% endif %}
+        </nav>
+      {% endif %}
+    {% else %}
+      <div class="admin-products-empty">
+        <span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4.5 7.5 7.5-4 7.5 4v9L12 21l-7.5-4.5v-9Z"/><path d="m4.8 7.7 7.2 4.1 7.2-4.1M12 11.8V21"/></svg></span>
+        {% if has_filters %}
+          <strong>Nu am găsit produse relevante</strong>
+          <p>Încearcă denumirea, SKU-ul, categoria sau numele unei variante.</p>
+          <a href="{{ url('admin/produse/') }}">Vezi toate produsele</a>
+        {% else %}
+          <strong>Catalogul este încă gol</strong>
+          <p>Adaugă primul produs pentru a începe povestea boutique-ului.</p>
+          <a href="{{ url('admin/produse/nou/') }}">Adaugă produs</a>
+        {% endif %}
+      </div>
+    {% endif %}
+  </section>
+
+  <dialog class="admin-product-delete-dialog" data-admin-product-delete-dialog aria-labelledby="admin-product-delete-title">
+    <div class="admin-product-delete-dialog__content">
+      <button class="admin-product-delete-dialog__close" type="button" aria-label="Închide" data-admin-product-delete-cancel>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"/></svg>
+      </button>
+      <span class="admin-product-delete-dialog__icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5"/></svg>
+      </span>
+      <span class="admin-eyebrow">Confirmare necesară</span>
+      <h2 id="admin-product-delete-title">Ștergi produsul?</h2>
+      <p><strong data-admin-product-delete-name></strong> va fi retras din magazin și eliminat din catalogul activ. Istoricul comenzilor rămâne păstrat.</p>
+      <div class="admin-product-delete-dialog__actions">
+        <button type="button" data-admin-product-delete-cancel>Renunță</button>
+        <button type="button" data-admin-product-delete-confirm>Da, șterge produsul</button>
+      </div>
+    </div>
+  </dialog>
+{% endblock %}

@@ -120,15 +120,47 @@ final class AdminController
         }
     }
 
-    public function products(): ResponseInterface
+    public function products(ServerRequestInterface $request): ResponseInterface
     {
-        return $this->view->render('admin/pages/products.twig', ['products' => $this->catalogAdmin->products()]);
+        $query = $request->getQueryParams();
+        $search = trim(mb_substr((string) ($query['cautare'] ?? ''), 0, 120));
+        $pagination = $this->catalogAdmin->paginateProductsForAdmin(
+            max(1, (int) ($query['pagina'] ?? 1)),
+            15,
+            $search,
+        );
+        $statusLabels = ['published' => 'Publicat', 'draft' => 'Draft', 'archived' => 'Arhivat'];
+        foreach ($pagination['items'] as &$product) {
+            $product['status_label'] = $statusLabels[(string) $product['status']] ?? ucfirst((string) $product['status']);
+        }
+        unset($product);
+
+        $firstPage = max(1, $pagination['page'] - 2);
+        $lastPage = min($pagination['total_pages'], $pagination['page'] + 2);
+        $pagination['page_numbers'] = range($firstPage, $lastPage);
+
+        return $this->view->render('admin/pages/products.twig', [
+            'products' => $pagination['items'],
+            'pagination' => $pagination,
+            'search' => $search,
+            'filters_query' => $search !== '' ? http_build_query(['cautare' => $search]) : '',
+            'has_filters' => $search !== '',
+            'admin_section' => 'products',
+            'admin_context' => 'Produse',
+            'admin_unread_count' => $this->notificationService->unreadCount((int) ($this->auth->user()['id'] ?? 0)),
+        ]);
     }
 
     public function productForm(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
     {
         $id = isset($args['id']) ? (int) $args['id'] : null;
-        return $this->view->render('admin/pages/product-form.twig', ['product' => $id ? $this->catalogAdmin->productForm($id) : null, 'categories' => $this->catalog->allCategories(true)]);
+        return $this->view->render('admin/pages/product-form.twig', [
+            'product' => $id ? $this->catalogAdmin->productForm($id) : null,
+            'categories' => $this->catalog->allCategories(true),
+            'admin_section' => 'products',
+            'admin_context' => $id ? 'Editare produs' : 'Produs nou',
+            'admin_unread_count' => $this->notificationService->unreadCount((int) ($this->auth->user()['id'] ?? 0)),
+        ]);
     }
 
     public function saveProduct(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
@@ -141,6 +173,18 @@ final class AdminController
             Flash::set('error', $exception->getMessage());
             return $this->view->redirect($request->getHeaderLine('Referer') ?: $this->config->path('admin/produse/'));
         }
+    }
+
+    public function deleteProduct(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        try {
+            $this->catalogAdmin->deleteProduct((int) ($args['id'] ?? 0));
+            Flash::set('success', 'Produsul a fost șters din catalog. Istoricul comenzilor a fost păstrat.');
+        } catch (\Throwable $exception) {
+            Flash::set('error', $exception->getMessage());
+        }
+
+        return $this->view->redirect($this->config->path('admin/produse/'));
     }
 
     public function orders(ServerRequestInterface $request): ResponseInterface

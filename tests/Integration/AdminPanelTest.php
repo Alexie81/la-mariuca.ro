@@ -83,9 +83,54 @@ final class AdminPanelTest extends DatabaseTestCase
         self::assertStringContainsString('data-money-count-up=', $body);
         self::assertStringContainsString('data-chart-bar', $body);
         self::assertStringContainsString('aria-current="page"', $body);
-        self::assertStringNotContainsString('href="/admin/produse/"', $body);
+        self::assertStringContainsString('Produse și clienți', $body);
+        self::assertStringContainsString('href="/admin/produse/"', $body);
+        self::assertStringContainsString('Catalog, preț și stoc', $body);
         self::assertArrayHasKey('user_id', $_SESSION);
         self::assertNotSame($cookie, $this->rememberCookie($dashboard), 'Tokenul persistent trebuie rotit la restaurarea sesiunii.');
+    }
+
+    public function testProductsRegistryUsesInventorySearchAndActiveNavigation(): void
+    {
+        $this->seed();
+        $this->get('/admin');
+        $login = $this->post('/admin', [
+            '_csrf' => $_SESSION['_csrf'],
+            'email' => 'admin.panel@example.test',
+            'password' => self::PASSWORD,
+        ], '127.0.0.86');
+        self::assertSame(303, $login->getStatusCode());
+
+        $body = (string) $this->get('/admin/produse/')->getBody();
+        self::assertStringContainsString('Registrul catalogului', $body);
+        self::assertStringContainsString('Stoc online', $body);
+        self::assertStringContainsString('Stoc efectiv (Conta)', $body);
+        self::assertStringContainsString('href="/admin/produse/" aria-current="page"', $body);
+        self::assertStringContainsString('LM-NB-001', $body);
+        self::assertStringContainsString('8 buc.', $body);
+        self::assertStringContainsString('/sterge/', $body);
+        self::assertStringContainsString('data-admin-product-delete-dialog', $body);
+        self::assertStringNotContainsString('1 variantă', $body);
+
+        $search = (string) $this->get('/admin/produse/?cautare=LM-SH-002')->getBody();
+        self::assertStringContainsString('Ghete „Explorator”', $search);
+        self::assertStringNotContainsString('Set nou-născut „Primul dar”', $search);
+        self::assertStringContainsString('1 produs relevant', $search);
+
+        $form = (string) $this->get('/admin/produse/nou/')->getBody();
+        self::assertStringContainsString('href="/admin/produse/" aria-current="page"', $form);
+        self::assertStringContainsString('Produs nou', $form);
+
+        $product = $this->pdo->query("SELECT p.id,p.name FROM products p JOIN product_variants v ON v.product_id=p.id WHERE v.sku='LM-SH-002' LIMIT 1")->fetch();
+        self::assertIsArray($product);
+        $deleted = $this->post('/admin/produse/' . $product['id'] . '/sterge/', [
+            '_csrf' => $_SESSION['_csrf'],
+        ], '127.0.0.86');
+        self::assertSame(303, $deleted->getStatusCode());
+        self::assertSame('/admin/produse/', $deleted->getHeaderLine('Location'));
+        self::assertSame('archived', $this->pdo->query('SELECT status FROM products WHERE id=' . (int) $product['id'])->fetchColumn());
+        self::assertSame(0, (int) $this->pdo->query("SELECT COUNT(*) FROM product_variants WHERE product_id=" . (int) $product['id'] . " AND status='active'")->fetchColumn());
+        self::assertStringNotContainsString('/admin/produse/' . $product['id'] . '/editare/', (string) $this->get('/admin/produse/')->getBody());
     }
 
     public function testAdminLogoutRevokesRememberToken(): void

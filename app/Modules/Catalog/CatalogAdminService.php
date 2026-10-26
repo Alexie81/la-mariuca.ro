@@ -125,6 +125,151 @@ final class CatalogAdminService
         return $this->pdo->query("SELECT p.*, c.name AS category_name, v.sku, v.price_bani, i.physical_quantity, i.reserved_quantity FROM products p LEFT JOIN categories c ON c.id=p.primary_category_id LEFT JOIN product_variants v ON v.product_id=p.id AND v.is_default=1 LEFT JOIN inventory i ON i.variant_id=v.id ORDER BY p.id DESC")->fetchAll();
     }
 
+    public function deleteProduct(int $id): string
+    {
+        if ($id <= 0) {
+            throw new RuntimeException('Produsul solicitat nu este valid.');
+        }
+
+        $product = $this->pdo->prepare('SELECT name,status FROM products WHERE id=:id');
+        $product->execute(['id' => $id]);
+        $row = $product->fetch();
+        if (!is_array($row) || (string) $row['status'] === 'archived') {
+            throw new RuntimeException('Produsul nu există sau a fost deja șters.');
+        }
+
+        $now = gmdate('c');
+        $this->pdo->beginTransaction();
+        try {
+            $this->pdo->prepare('DELETE FROM cart_items WHERE variant_id IN (SELECT id FROM product_variants WHERE product_id=:product_id)')
+                ->execute(['product_id' => $id]);
+            $this->pdo->prepare("UPDATE product_variants SET status='inactive',updated_at=:now WHERE product_id=:product_id")
+                ->execute(['now' => $now, 'product_id' => $id]);
+            $this->pdo->prepare("UPDATE products SET status='archived',featured=0,indexable=0,published_at=NULL,updated_at=:now WHERE id=:id")
+                ->execute(['now' => $now, 'id' => $id]);
+            $this->pdo->commit();
+        } catch (\Throwable $exception) {
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+            throw $exception;
+        }
+
+        return (string) $row['name'];
+    }
+
+    /**
+     * @return array{
+     *     items:list<array<string,mixed>>,
+     *     page:int,
+     *     per_page:int,
+     *     total:int,
+     *     total_pages:int,
+     *     from:int,
+     *     to:int
+     * }
+     */
+    public function paginateProductsForAdmin(int $page, int $perPage = 15, string $search = ''): array
+    {
+        $perPage = max(1, min(50, $perPage));
+        $search = trim($search);
+        $where = " WHERE p.status <> 'archived'";
+        $parameters = [];
+
+        if ($search !== '') {
+            $needle = '%' . mb_strtolower($search) . '%';
+            $where .= " AND (LOWER(p.name) LIKE :name_search
+                OR LOWER(p.slug) LIKE :slug_search
+                OR LOWER(COALESCE(c.name, '')) LIKE :category_search
+                OR LOWER(p.status) LIKE :status_search
+                OR EXISTS (
+                    SELECT 1 FROM product_variants search_variant
+                    WHERE search_variant.product_id = p.id
+                    AND (LOWER(search_variant.sku) LIKE :sku_search
+                        OR LOWER(search_variant.option_summary) LIKE :variant_search)
+                ))";
+            $parameters = [
+                ':name_search' => $needle,
+                ':slug_search' => $needle,
+                ':category_search' => $needle,
+                ':status_search' => $needle,
+                ':sku_search' => $needle,
+                ':variant_search' => $needle,
+            ];
+        }
+
+        $count = $this->pdo->prepare('SELECT COUNT(*) FROM products p LEFT JOIN categories c ON c.id = p.primary_category_id' . $where);
+        $count->execute($parameters);
+        $total = (int) $count->fetchColumn();
+        $totalPages = max(1, (int) ceil($total / $perPage));
+        $page = max(1, min($page, $totalPages));
+        $offset = ($page - 1) * $perPage;
+
+        $statement = $this->pdo->prepare("SELECT
+                p.id,p.name,p.slug,p.status,p.featured,p.updated_at,
+                COALESCE(c.name, 'Fără categorie') AS category_name,
+                COALESCE((
+                    SELECT default_variant.sku FROM product_variants default_variant
+                    WHERE default_variant.product_id = p.id
+                    ORDER BY default_variant.is_default DESC, default_variant.id ASC LIMIT 1
+                ), '') AS sku,
+                COALESCE((
+                    SELECT default_variant.price_bani FROM product_variants default_variant
+                    WHERE default_variant.product_id = p.id
+                    ORDER BY default_variant.is_default DESC, default_variant.id ASC LIMIT 1
+                ), 0) AS price_bani,
+                COALESCE((
+                    SELECT SUM(stock.physical_quantity - stock.reserved_quantity)
+                    FROM product_variants stock_variant
+                    LEFT JOIN inventory stock ON stock.variant_id = stock_variant.id
+                    WHERE stock_variant.product_id = p.id AND stock_variant.status = 'active'
+                ), 0) AS online_quantity,
+                COALESCE((
+                    SELECT SUM(stock.physical_quantity)
+                    FROM product_variants stock_variant
+                    LEFT JOIN inventory stock ON stock.variant_id = stock_variant.id
+                    WHERE stock_variant.product_id = p.id
+                ), 0) AS physical_quantity,
+                COALESCE((
+                    SELECT SUM(stock.reserved_quantity)
+                    FROM product_variants stock_variant
+                    LEFT JOIN inventory stock ON stock.variant_id = stock_variant.id
+                    WHERE stock_variant.product_id = p.id
+                ), 0) AS reserved_quantity,
+                (SELECT product_media.public_path
+                    FROM product_images product_image
+                    JOIN media product_media ON product_media.id = product_image.media_id
+                    WHERE product_image.product_id = p.id AND product_media.public_path IS NOT NULL
+                    ORDER BY product_image.position, product_image.media_id LIMIT 1
+                ) AS image_path,
+                COALESCE((SELECT product_media.alt_text
+                    FROM product_images product_image
+                    JOIN media product_media ON product_media.id = product_image.media_id
+                    WHERE product_image.product_id = p.id AND product_media.public_path IS NOT NULL
+                    ORDER BY product_image.position, product_image.media_id LIMIT 1
+                ), p.name) AS image_alt
+            FROM products p
+            LEFT JOIN categories c ON c.id = p.primary_category_id"
+            . $where
+            . ' ORDER BY p.updated_at DESC,p.id DESC LIMIT :limit OFFSET :offset');
+        foreach ($parameters as $name => $value) {
+            $statement->bindValue($name, $value);
+        }
+        $statement->bindValue(':limit', $perPage, PDO::PARAM_INT);
+        $statement->bindValue(':offset', $offset, PDO::PARAM_INT);
+        $statement->execute();
+
+        return [
+            'items' => $statement->fetchAll(),
+            'page' => $page,
+            'per_page' => $perPage,
+            'total' => $total,
+            'total_pages' => $totalPages,
+            'from' => $total === 0 ? 0 : $offset + 1,
+            'to' => min($offset + $perPage, $total),
+        ];
+    }
+
     /** @return array<string,mixed>|null */
     public function productForm(int $id): ?array
     {

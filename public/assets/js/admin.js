@@ -481,6 +481,52 @@
     });
   });
 
+  const productDeleteDialog = document.querySelector('[data-admin-product-delete-dialog]');
+  const productDeleteName = productDeleteDialog?.querySelector('[data-admin-product-delete-name]');
+  const productDeleteConfirm = productDeleteDialog?.querySelector('[data-admin-product-delete-confirm]');
+  let pendingProductDeleteForm = null;
+
+  const closeProductDeleteDialog = () => {
+    if (!productDeleteDialog?.open) return;
+    productDeleteDialog.classList.remove('is-visible');
+    window.setTimeout(() => productDeleteDialog.close(), reducedMotion ? 0 : 180);
+  };
+
+  document.querySelectorAll('[data-admin-product-delete-form]').forEach((form) => {
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      pendingProductDeleteForm = form;
+      if (productDeleteName) productDeleteName.textContent = form.dataset.productName || 'Produsul';
+      if (!productDeleteDialog || typeof productDeleteDialog.showModal !== 'function') {
+        if (window.confirm(`Ștergi produsul „${form.dataset.productName || ''}”?`)) form.submit();
+        return;
+      }
+      productDeleteDialog.showModal();
+      requestAnimationFrame(() => productDeleteDialog.classList.add('is-visible'));
+    });
+  });
+
+  productDeleteDialog?.querySelectorAll('[data-admin-product-delete-cancel]').forEach((button) => {
+    button.addEventListener('click', closeProductDeleteDialog);
+  });
+  productDeleteDialog?.addEventListener('click', (event) => {
+    if (event.target === productDeleteDialog) closeProductDeleteDialog();
+  });
+  productDeleteDialog?.addEventListener('cancel', (event) => {
+    event.preventDefault();
+    closeProductDeleteDialog();
+  });
+  productDeleteDialog?.addEventListener('close', () => {
+    productDeleteDialog.classList.remove('is-visible');
+    pendingProductDeleteForm = null;
+  });
+  productDeleteConfirm?.addEventListener('click', () => {
+    if (!pendingProductDeleteForm) return;
+    productDeleteConfirm.disabled = true;
+    productDeleteConfirm.textContent = 'Se șterge…';
+    pendingProductDeleteForm.submit();
+  });
+
   document.querySelectorAll('[data-admin-toast]').forEach((toast) => {
     const remove = () => {
       toast.style.opacity = '0';

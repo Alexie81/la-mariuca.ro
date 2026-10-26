@@ -82,6 +82,12 @@
             <span class="admin-nav__pulse" aria-hidden="true"></span>
           {% endif %}
         </a>
+        <span class="admin-nav__label admin-nav__label--section">Produse și clienți</span>
+        <a class="admin-nav__item{{ active_admin_section == 'products' ? ' is-active' : '' }}" href="{{ url('admin/produse/') }}"{% if active_admin_section == 'products' %} aria-current="page"{% endif %}>
+          <span class="admin-nav__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4.5 7.5 7.5-4 7.5 4v9L12 21l-7.5-4.5v-9Z"/><path d="m4.8 7.7 7.2 4.1 7.2-4.1M12 11.8V21"/></svg></span>
+          <span><strong>Produse</strong><small>Catalog, preț și stoc</small></span>
+          <span class="admin-nav__pulse" aria-hidden="true"></span>
+        </a>
       </nav>
 
       <div class="admin-sidebar__spacer"></div>
