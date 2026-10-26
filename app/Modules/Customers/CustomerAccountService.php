@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Customers;
 
+use App\Shared\Support\RomanianLocations;
 use RuntimeException;
 
 final class CustomerAccountService
@@ -26,8 +27,11 @@ final class CustomerAccountService
         'refunded' => 'Rambursată',
     ];
 
-    public function __construct(private readonly CustomerAccountRepository $repository)
+    private readonly RomanianLocations $locations;
+
+    public function __construct(private readonly CustomerAccountRepository $repository, ?RomanianLocations $locations = null)
     {
+        $this->locations = $locations ?? RomanianLocations::fromProjectRoot();
     }
 
     /** @return array<string, mixed> */
@@ -108,9 +112,15 @@ final class CustomerAccountService
         $county = $this->clean((string) ($data['county'] ?? ''), 120);
         $postalCode = preg_replace('/\s+/', '', trim((string) ($data['postal_code'] ?? ''))) ?? '';
         $notes = $this->clean((string) ($data['notes'] ?? ''), 250);
-        if ($label === '' || $firstName === '' || $lastName === '' || $phone === null || $street === '' || $city === '' || $county === '' || preg_match('/^[0-9]{6}$/', $postalCode) !== 1) {
+        if ($label === '' || $firstName === '' || $lastName === '' || $phone === null || $street === '' || preg_match('/^[0-9]{6}$/', $postalCode) !== 1) {
             throw new RuntimeException('Completează toate câmpurile adresei și un cod poștal românesc din 6 cifre.');
         }
+        $officialLocation = $this->locations->canonicalize($county, $city);
+        if ($officialLocation === null) {
+            throw new RuntimeException('Alege județul și localitatea din nomenclatorul oficial disponibil în formular.');
+        }
+        $county = $officialLocation['county'];
+        $city = $officialLocation['locality'];
         if (count($this->repository->addresses($userId)) >= 10 && $addressId === false) {
             throw new RuntimeException('Poți salva maximum 10 adrese în cont.');
         }

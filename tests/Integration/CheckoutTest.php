@@ -88,6 +88,6 @@ final class CheckoutTest extends DatabaseTestCase
     /** @return array<string,mixed> */
     private function checkoutData(string $key): array
     {
-        return ['email'=>'client@example.test','first_name'=>'Ana','last_name'=>'Pop','phone'=>'0700000000','address'=>'Strada Test 1','city'=>'București','county'=>'București','postal_code'=>'010101','payment_method'=>'cod','idempotency_key'=>$key,'terms'=>'1'];
+        return ['email'=>'client@example.test','first_name'=>'Ana','last_name'=>'Pop','phone'=>'0700000000','address'=>'Strada Test 1','city'=>'București — Sector 1','county'=>'București','postal_code'=>'010101','payment_method'=>'cod','idempotency_key'=>$key,'terms'=>'1'];
     }
 }

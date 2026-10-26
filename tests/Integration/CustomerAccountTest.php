@@ -57,7 +57,7 @@ final class CustomerAccountTest extends DatabaseTestCase
             'last_name' => 'Popescu',
             'phone' => '0763 715 974',
             'address' => 'Strada Florilor 10',
-            'city' => 'București',
+            'city' => 'București — Sector 1',
             'county' => 'București',
             'postal_code' => '010101',
             'notes' => 'Interfon 12',

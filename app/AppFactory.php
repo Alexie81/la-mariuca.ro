@@ -41,6 +41,7 @@ use App\Shared\Security\Auth;
 use App\Shared\Security\Csrf;
 use App\Shared\Security\TotpService;
 use App\Shared\Support\Flash;
+use App\Shared\Support\RomanianLocations;
 use App\Shared\Support\Money;
 use Slim\App;
 use Slim\Factory\AppFactory as SlimAppFactory;
@@ -117,8 +118,9 @@ final class AppFactory
 
         $storefront = new StorefrontController($catalog, $catalogSearch, $categoryPaths, new ProductRecommendationService($catalog), $content, $contactWhatsApp, $reviews, $rateLimiter, $auth, $view, $config);
         $cartController = new CartController($cart, $view, $config);
-        $customerAccount = new CustomerAccountService(new CustomerAccountRepository($pdo));
-        $checkoutController = new CheckoutController(new CheckoutService($pdo, $cart, $config), $cart, $orders, new StripeCheckoutService($pdo, $config), $auth, $customerAccount, $rateLimiter, $view, $config);
+        $romanianLocations = RomanianLocations::fromProjectRoot($root);
+        $customerAccount = new CustomerAccountService(new CustomerAccountRepository($pdo), $romanianLocations);
+        $checkoutController = new CheckoutController(new CheckoutService($pdo, $cart, $config, $romanianLocations), $cart, $orders, new StripeCheckoutService($pdo, $config), $auth, $customerAccount, $rateLimiter, $view, $config);
         $authController = new AuthController($pdo, $auth, new GoogleOAuthService($pdo, $config), $customerAccount, $rateLimiter, $view, $config);
         $twoFactorController = new TwoFactorController($pdo, $auth, new TotpService($config), $rateLimiter, $view, $config);
         $adminController = new AdminController($pdo, $catalog, new CatalogAdminService($pdo), $orders, $reviews, new MediaService($pdo, $root), new ContentAdminService($pdo), $auth, $view, $config);

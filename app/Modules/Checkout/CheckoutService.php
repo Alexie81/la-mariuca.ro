@@ -6,13 +6,17 @@ namespace App\Modules\Checkout;
 
 use App\Modules\Cart\CartService;
 use App\Shared\Config\Config;
+use App\Shared\Support\RomanianLocations;
 use PDO;
 use RuntimeException;
 
 final class CheckoutService
 {
-    public function __construct(private readonly PDO $pdo, private readonly CartService $cart, private readonly Config $config)
+    private readonly RomanianLocations $locations;
+
+    public function __construct(private readonly PDO $pdo, private readonly CartService $cart, private readonly Config $config, ?RomanianLocations $locations = null)
     {
+        $this->locations = $locations ?? RomanianLocations::fromProjectRoot();
     }
 
     /** @param array<string, mixed> $data @return array{order_number:string,token:string,id:int,payment_method:string,idempotency_key:string} */
@@ -29,6 +33,10 @@ final class CheckoutService
         }
         if (!isset($data['terms'])) {
             throw new RuntimeException('Trebuie să accepți termenii pentru a plasa comanda.');
+        }
+        $officialLocation = $this->locations->canonicalize((string) $data['county'], (string) $data['city']);
+        if ($officialLocation === null) {
+            throw new RuntimeException('Alege județul și localitatea din nomenclatorul oficial disponibil în formular.');
         }
         $method = (string) $data['payment_method'];
         if (!in_array($method, ['cod', 'stripe'], true)) {
@@ -62,8 +70,8 @@ final class CheckoutService
         $total = $cart['subtotal_bani'] - $discount + $shipping + $tax;
         $token = bin2hex(random_bytes(32));
         $address = [
-            'address' => trim((string) $data['address']), 'city' => trim((string) $data['city']),
-            'county' => trim((string) $data['county']), 'postal_code' => trim((string) $data['postal_code']),
+            'address' => trim((string) $data['address']), 'city' => $officialLocation['locality'],
+            'county' => $officialLocation['county'], 'postal_code' => trim((string) $data['postal_code']),
         ];
         $now = gmdate('c');
 
