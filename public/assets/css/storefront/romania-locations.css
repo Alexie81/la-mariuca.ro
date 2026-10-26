@@ -63,7 +63,10 @@
   top: calc(100% + 8px);
   right: 0;
   left: 0;
+  display: flex;
+  max-height: min(350px, var(--ro-location-space, 350px));
   overflow: hidden;
+  flex-direction: column;
   padding: 9px;
   border: 1px solid #e7bdb6;
   border-radius: 20px;
@@ -89,7 +92,7 @@
   box-shadow: none !important;
 }
 .ro-location-search > input:focus { border-color: #d4666c !important; background: #fff !important; }
-.ro-location-options { max-height: 255px; overflow-y: auto; margin-top: 7px; padding: 2px; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: #e2aaa6 transparent; }
+.ro-location-options { min-height: 0; max-height: 255px; overflow-y: auto; margin-top: 7px; padding: 2px; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: #e2aaa6 transparent; }
 .ro-location-option {
   display: flex;
   width: 100%;
@@ -118,6 +121,10 @@
 .ro-location-field.is-disabled { opacity: .62; }.ro-location-field.is-disabled .ro-location-control { pointer-events: none; }
 
 @keyframes ro-location-open { from { opacity: 0; transform: translateY(-5px) scale(.985); } to { opacity: 1; transform: none; } }
+
+@media (min-width: 761px) {
+  .ro-location-field.opens-up .ro-location-dropdown { top: auto; bottom: calc(100% + 8px); transform-origin: bottom center; }
+}
 
 @media (max-width: 760px) {
   .ro-location-picker { grid-template-columns: 1fr; gap: 14px; }

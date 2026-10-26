@@ -83,6 +83,7 @@ export const initializeRomanianLocationSelectors = (root = document) => {
         const input = field.querySelector('[data-ro-location-input]');
         const toggle = field.querySelector('[data-ro-location-toggle]');
         const dropdown = field.querySelector('[data-ro-location-dropdown]');
+        const control = field.querySelector('.ro-location-control');
         const search = field.querySelector('[data-ro-location-search]');
         const optionList = field.querySelector('[data-ro-location-options]');
         const status = field.querySelector('[data-ro-location-status]');
@@ -119,7 +120,21 @@ export const initializeRomanianLocationSelectors = (root = document) => {
           input.setAttribute('aria-expanded', 'true');
           search.value = '';
           render();
-          window.requestAnimationFrame(() => search.focus());
+          if (!window.matchMedia('(max-width: 760px)').matches) {
+            const headerBottom = Math.max(0, document.querySelector('.site-header')?.getBoundingClientRect().bottom || 0);
+            const initialRect = control.getBoundingClientRect();
+            if (initialRect.top < headerBottom + 18) {
+              window.scrollBy({ top: initialRect.top - headerBottom - 24, behavior: 'auto' });
+            }
+            const controlRect = control.getBoundingClientRect();
+            const preferredHeight = Math.min(350, dropdown.scrollHeight);
+            const spaceBelow = Math.max(0, window.innerHeight - controlRect.bottom - 14);
+            const spaceAbove = Math.max(0, controlRect.top - headerBottom - 14);
+            const opensUp = spaceBelow < preferredHeight && spaceAbove > spaceBelow;
+            field.classList.toggle('opens-up', opensUp);
+            dropdown.style.setProperty('--ro-location-space', `${Math.max(170, opensUp ? spaceAbove : spaceBelow)}px`);
+          }
+          window.requestAnimationFrame(() => search.focus({ preventScroll: true }));
         };
         toggle.addEventListener('click', () => field.classList.contains('is-open') ? closeField(field) : open());
         input.addEventListener('click', open);
@@ -171,8 +186,20 @@ export const initializeRomanianLocationSelectors = (root = document) => {
       if (localityInput.value && !initialLocality) localityField.classList.add('is-invalid');
 
       document.addEventListener('click', (event) => {
-        if (!picker.contains(event.target)) closeAll();
+        const openField = picker.querySelector('[data-ro-location-field].is-open');
+        if (!openField) return;
+        const control = openField.querySelector('.ro-location-control');
+        const dropdown = openField.querySelector('[data-ro-location-dropdown]');
+        if (!control?.contains(event.target) && !dropdown?.contains(event.target)) closeField(openField);
       });
+      document.addEventListener('keydown', (event) => {
+        if (event.key !== 'Escape') return;
+        const openField = picker.querySelector('[data-ro-location-field].is-open');
+        if (!openField) return;
+        closeField(openField);
+        openField.querySelector('[data-ro-location-input]')?.focus();
+      });
+      window.addEventListener('resize', () => closeAll(), { passive: true });
     } catch (error) {
       picker.dataset.locationError = 'true';
     }

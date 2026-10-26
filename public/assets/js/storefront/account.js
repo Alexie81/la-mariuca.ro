@@ -1,4 +1,4 @@
-import { initializeRomanianLocationSelectors } from './romania-locations.js';
+import { initializeRomanianLocationSelectors } from './romania-locations.js?v=20261026-locations2';
 
 initializeRomanianLocationSelectors();
 
@@ -44,6 +44,12 @@ if (accountPage) {
   const syncAddressModalState = () => {
     const mobileModalOpen = window.matchMedia('(max-width: 760px)').matches && addressEditors.some((editor) => editor.open);
     document.documentElement.classList.toggle('account-address-modal-open', mobileModalOpen);
+    accountPage.querySelectorAll('.account-panel').forEach((panel) => {
+      panel.classList.toggle('has-open-address-editor', Boolean(panel.querySelector('.account-address-actions > details[open]')));
+    });
+    accountPage.querySelectorAll('.account-address-card').forEach((card) => {
+      card.classList.toggle('has-open-address-editor', Boolean(card.querySelector('.account-address-actions > details[open]')));
+    });
   };
   addressEditors.forEach((editor) => {
     editor.addEventListener('toggle', () => {
@@ -69,4 +75,5 @@ if (accountPage) {
     syncAddressModalState();
   });
   window.addEventListener('resize', syncAddressModalState, { passive: true });
+  syncAddressModalState();
 }

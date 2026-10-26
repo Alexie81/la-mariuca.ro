@@ -322,6 +322,7 @@
 
 .account-content { display: grid; min-width: 0; gap: 24px; }
 .account-panel {
+  position: relative;
   scroll-margin-top: 175px;
   padding: clamp(25px, 4vw, 42px);
   border: 1px solid var(--account-line);
@@ -329,6 +330,10 @@
   background: rgba(255, 255, 255, .94);
   box-shadow: 0 16px 45px rgba(77, 47, 42, .06);
 }
+.account-panel.has-open-address-editor,
+.account-panel:has(.account-address-actions > details[open]) { z-index: 25; overflow: visible; }
+.account-address-card.has-open-address-editor,
+.account-address-card:has(.account-address-actions > details[open]) { z-index: 26; }
 
 .account-section-heading {
   display: flex;
@@ -451,8 +456,34 @@
 .account-switch { display: flex !important; align-items: center; gap: 11px; padding: 11px 13px; border: 1px solid #ecd2cc; border-radius: 17px; background: #fff9f7; cursor: pointer; }
 .account-switch > input { position: absolute; opacity: 0; pointer-events: none; }.account-switch > span { position: relative; width: 44px; height: 24px; flex: 0 0 auto; border-radius: 999px; background: #e7d6d1; transition: background .2s ease; }.account-switch > span i { position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 2px 6px rgba(75, 45, 40, .18); transition: transform .2s ease; }.account-switch input:checked + span { background: var(--account-rose); }.account-switch input:checked + span i { transform: translateX(20px); }.account-switch p { margin: 0; }.account-switch p strong, .account-switch p small { display: block; }.account-switch p strong { font-size: .68rem; }.account-switch p small { margin-top: 2px; color: #a2847d; font-size: .58rem; }
 
-.account-security-grid { display: grid; gap: 10px; }.account-security-grid > div { display: grid; grid-template-columns: 45px minmax(0, 1fr) auto; align-items: center; gap: 13px; padding: 14px; border: 1px solid #efdbd6; border-radius: 19px; background: #fffaf8; }.account-security-grid > div > span { display: grid; width: 43px; height: 43px; place-items: center; border-radius: 50%; background: #fff0ed; color: var(--account-rose); font-weight: 900; }.account-security-grid svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }.account-security-grid p { min-width: 0; margin: 0; }.account-security-grid p small, .account-security-grid p strong { display: block; }.account-security-grid p small { color: #ab8a82; font-size: .57rem; text-transform: uppercase; }.account-security-grid p strong { overflow: hidden; margin-top: 3px; font-size: .75rem; text-overflow: ellipsis; }.account-security-grid > div > b { padding: 5px 9px; border-radius: 999px; background: #edf8f1; color: #38805e; font-size: .57rem; }.account-google-mark { color: #4285f4 !important; font-family: Arial, sans-serif; }
-.account-security-note { display: flex; align-items: center; gap: 13px; margin-top: 16px; padding: 14px 16px; border-radius: 19px; background: linear-gradient(90deg, #fff0ed, #fff9f7); }.account-security-note img { width: 33px; height: 33px; object-fit: contain; }.account-security-note p { margin: 0; }.account-security-note strong, .account-security-note span { display: block; }.account-security-note strong { font-family: var(--serif); font-size: .88rem; }.account-security-note span { margin-top: 2px; color: #967871; font-size: .62rem; }
+.account-security { position: relative; overflow: hidden; background: radial-gradient(circle at 100% 0, rgba(240, 195, 186, .18) 0 17%, transparent 17.4%), rgba(255, 255, 255, .96); }
+.account-security::before { position: absolute; top: -74px; right: -46px; width: 210px; height: 210px; border: 1px solid rgba(205, 106, 108, .12); border-radius: 50%; content: ""; pointer-events: none; }
+.account-security > * { position: relative; z-index: 1; }
+.account-security-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 13px; }
+.account-security-card { position: relative; display: grid; min-width: 0; min-height: 178px; grid-template-columns: 54px minmax(0, 1fr); align-content: start; gap: 15px; overflow: hidden; padding: 21px 19px 18px; border: 1px solid #eed7d1; border-radius: 24px; background: linear-gradient(145deg, rgba(255, 255, 255, .98), rgba(255, 247, 244, .94)); box-shadow: 0 10px 24px rgba(83, 47, 42, .045); transition: border-color .25s ease, box-shadow .25s ease, transform .25s ease; }
+.account-security-card::before { position: absolute; top: 0; right: 20px; left: 20px; height: 3px; border-radius: 0 0 999px 999px; background: linear-gradient(90deg, transparent, #dc8285, transparent); opacity: .75; content: ""; }
+.account-security-card::after { position: absolute; right: -39px; bottom: -51px; width: 115px; height: 115px; border: 1px solid rgba(210, 112, 111, .11); border-radius: 50%; content: ""; }
+.account-security-card:hover { border-color: #e6b5ad; box-shadow: 0 17px 34px rgba(96, 50, 45, .09); transform: translateY(-3px); }
+.account-security-icon { display: grid; width: 52px; height: 52px; place-items: center; border: 1px solid #f0d7d1; border-radius: 18px; background: linear-gradient(145deg, #fff, #fff0ed); color: var(--account-rose); box-shadow: 0 7px 16px rgba(108, 55, 49, .07); }
+.account-security-icon > svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.65; }
+.account-google-mark { background: #fff; }
+.account-google-mark > svg { width: 27px; height: 27px; stroke: none; }
+.account-security-card p { min-width: 0; margin: 2px 0 0; }
+.account-security-card p small, .account-security-card p strong, .account-security-card p em { display: block; }
+.account-security-card p small { color: #ae8580; font-size: .56rem; font-weight: 800; letter-spacing: .11em; text-transform: uppercase; }
+.account-security-card p strong { overflow: hidden; margin-top: 6px; color: #513934; font-size: .76rem; text-overflow: ellipsis; white-space: nowrap; }
+.account-security-card p em { margin-top: 8px; color: #a0847d; font-size: .61rem; font-style: normal; line-height: 1.45; }
+.account-security-card > b { display: inline-flex; width: fit-content; min-height: 26px; grid-column: 1 / -1; align-items: center; gap: 7px; margin-top: 5px; padding: 5px 10px; border: 1px solid #dceddf; border-radius: 999px; background: #f0f8f2; color: #34765a; font-size: .58rem; font-weight: 800; }
+.account-security-card > b i { width: 7px; height: 7px; border-radius: 50%; background: #49a673; box-shadow: 0 0 0 4px rgba(73, 166, 115, .12); }
+.account-security-note { position: relative; display: grid; min-height: 78px; grid-template-columns: 51px minmax(0, 1fr) 44px; align-items: center; gap: 14px; overflow: hidden; margin-top: 16px; padding: 13px 18px; border: 1px solid #efd8d2; border-radius: 23px; background: linear-gradient(100deg, #fff0ed 0%, #fff9f7 64%, #fff 100%); }
+.account-security-note::after { position: absolute; right: 68px; width: 78px; height: 78px; border: 1px solid rgba(208, 102, 105, .1); border-radius: 50%; content: ""; }
+.account-security-note-icon { display: grid; width: 49px; height: 49px; place-items: center; border: 1px solid #efcfc8; border-radius: 17px; background: rgba(255, 255, 255, .8); box-shadow: 0 7px 16px rgba(108, 55, 49, .06); }
+.account-security-note-icon img { width: 30px; height: 30px; object-fit: contain; }
+.account-security-note p { margin: 0; }
+.account-security-note strong, .account-security-note p span { display: block; }
+.account-security-note strong { color: #523833; font-family: var(--serif); font-size: 1rem; }
+.account-security-note p span { margin-top: 4px; color: #967871; font-size: .63rem; line-height: 1.45; }
+.account-security-note > svg { position: relative; z-index: 1; width: 30px; height: 30px; justify-self: end; fill: none; stroke: #cf686d; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.45; }
 
 @media (max-width: 1024px) {
   .account-page { width: min(100% - 28px, 940px); padding-top: 20px; }
@@ -465,6 +496,7 @@
   .account-nav { display: flex; min-width: max-content; gap: 5px; padding: 0; }
   .account-nav a { grid-template-columns: 25px auto auto; min-height: 43px; padding: 6px 12px; }
   .account-quick-grid { grid-template-columns: repeat(3, 1fr); }
+  .account-security-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }.account-security-card:last-child { grid-column: 1 / -1; min-height: 145px; }
 }
 
 @media (max-width: 760px) {
@@ -492,7 +524,7 @@
   html.account-address-modal-open { overflow: hidden; }
   .account-address-grid { grid-template-columns: 1fr; }.account-address-card { min-height: 0; padding: 18px; }.account-address-card:hover { transform: none; }.account-address-card-head { grid-template-columns: 44px minmax(0, 1fr) auto; }.account-address-icon { width: 44px; height: 44px; border-radius: 14px; }.account-address-copy { margin-block: 18px 14px; }.account-address-actions .is-danger { margin-left: 0; }.account-address-actions > details[open]::before { position: fixed; z-index: 99; inset: 0; background: rgba(50, 32, 29, .48); backdrop-filter: blur(7px); content: ""; }.account-address-edit-wrap, .account-address-card:nth-child(even) .account-address-edit-wrap { position: fixed; z-index: 100; top: max(10px, env(safe-area-inset-top)); right: auto; bottom: max(10px, env(safe-area-inset-bottom)); left: 50%; width: min(520px, calc(100vw - 20px)); overflow-x: hidden; overflow-y: auto; padding: 24px 17px 20px; border: 1px solid rgba(234, 187, 179, .95); border-radius: 29px; background: linear-gradient(155deg, #fff 0%, #fffaf8 100%); box-shadow: 0 28px 80px rgba(48, 25, 22, .34); transform: translateX(-50%); overscroll-behavior: contain; }.account-address-edit-heading { margin: 2px 48px 22px 2px; padding-bottom: 17px; border-bottom: 1px solid #f1dcd7; }.account-address-edit-heading h3 { font-size: 1.55rem; }.account-address-edit-heading p { font-size: .63rem; }.account-address-edit-close { position: absolute; top: 17px; right: 17px; width: 39px; height: 39px; background: #fff; box-shadow: 0 7px 18px rgba(95, 49, 44, .09); }.account-address-edit-wrap .account-form { gap: 13px; }.account-address-edit-wrap .account-form input:not([type="checkbox"]), .account-address-edit-wrap .account-form textarea { min-height: 50px; background: #fff; }
   .account-new-address { min-height: 190px; }.account-new-address:not([open]) > summary { min-height: 190px; padding: 24px 15px; }.account-new-address[open] { min-height: 0; }.account-new-address[open] > summary { min-height: 73px; padding-inline: 15px; }.account-new-address-body { padding: 4px 15px 18px; }
-  .account-security-grid > div { grid-template-columns: 40px minmax(0, 1fr) auto; padding: 11px; }.account-security-grid > div > span { width: 38px; height: 38px; }.account-security-grid p strong { font-size: .68rem; }
+  .account-security-grid { grid-template-columns: 1fr; gap: 10px; }.account-security-card, .account-security-card:last-child { min-height: 0; grid-column: auto; grid-template-columns: 46px minmax(0, 1fr) auto; gap: 12px; padding: 15px 13px; border-radius: 20px; }.account-security-card:hover { transform: none; }.account-security-icon { width: 44px; height: 44px; border-radius: 15px; }.account-security-icon > svg { width: 21px; height: 21px; }.account-google-mark > svg { width: 24px; height: 24px; }.account-security-card p { margin-top: 0; }.account-security-card p strong { margin-top: 4px; font-size: .68rem; }.account-security-card p em { margin-top: 5px; font-size: .56rem; }.account-security-card > b { grid-column: 3; grid-row: 1; align-self: start; margin: 2px 0 0; padding-inline: 8px; }.account-security-note { min-height: 0; grid-template-columns: 44px minmax(0, 1fr); gap: 11px; padding: 13px; border-radius: 20px; }.account-security-note-icon { width: 42px; height: 42px; border-radius: 14px; }.account-security-note-icon img { width: 26px; height: 26px; }.account-security-note strong { font-size: .88rem; }.account-security-note p span { font-size: .57rem; }.account-security-note > svg { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
