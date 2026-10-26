@@ -7,7 +7,7 @@
     <div class="container cart-page__inner">
       <header class="cart-page__header">
         <div>
-          <span class="cart-page__eyebrow"><i aria-hidden="true">♥</i> Alegerile tale</span>
+          <span class="cart-page__eyebrow"><i aria-hidden="true"><img src="{{ url('assets/images/icon-favorite-hearts.png') }}" width="160" height="128" alt=""></i> Alegerile tale</span>
           <h1>Coșul meu</h1>
           <p>{{ cart.items ? 'Mai e doar un pas până când micile tale alegeri pornesc spre casă.' : 'Un loc pregătit pentru lucrurile care îți fac inima să spună «da».' }}</p>
         </div>
@@ -128,7 +128,7 @@
               <i aria-hidden="true">→</i>
             </a>
             <div class="cart-empty-story__notes" aria-label="Avantajele magazinului">
-              <span><i aria-hidden="true">♥</i> Alese cu grijă</span>
+              <span><i aria-hidden="true"><img src="{{ url('assets/images/icon-favorite-hearts.png') }}" width="160" height="128" alt=""></i> Alese cu grijă</span>
               <span><i aria-hidden="true">✦</i> Pentru cei mici</span>
             </div>
           </div>
@@ -136,9 +136,9 @@
           <div class="cart-empty-art" aria-hidden="true">
             <span class="cart-empty-art__orbit cart-empty-art__orbit--one"></span>
             <span class="cart-empty-art__orbit cart-empty-art__orbit--two"></span>
-            <span class="cart-empty-art__heart cart-empty-art__heart--one">♥</span>
-            <span class="cart-empty-art__heart cart-empty-art__heart--two">♥</span>
-            <span class="cart-empty-art__heart cart-empty-art__heart--three">♥</span>
+            <span class="cart-empty-art__heart cart-empty-art__heart--one"><img src="{{ url('assets/images/icon-favorite-hearts.png') }}" width="160" height="128" alt=""></span>
+            <span class="cart-empty-art__heart cart-empty-art__heart--two"><img src="{{ url('assets/images/icon-favorite-hearts.png') }}" width="160" height="128" alt=""></span>
+            <span class="cart-empty-art__heart cart-empty-art__heart--three"><img src="{{ url('assets/images/icon-favorite-hearts.png') }}" width="160" height="128" alt=""></span>
             <span class="cart-empty-art__cart"><img src="{{ url('assets/images/icon-cart-reference.png') }}" width="160" height="145" alt=""></span>
             <span class="cart-empty-art__caption"><i></i>Aici păstrăm alegerile tale</span>
           </div>
@@ -148,16 +148,6 @@
           <a href="{{ url('magazin/?sortare=new') }}">
             <span class="cart-discovery__icon" aria-hidden="true">✦</span>
             <span><small>Proaspăt sosite</small><strong>Noutăți alese cu drag</strong></span>
-            <i aria-hidden="true">→</i>
-          </a>
-          <a href="{{ url('categorie/cadouri/') }}">
-            <span class="cart-discovery__icon" aria-hidden="true">♡</span>
-            <span><small>Pentru momente speciale</small><strong>Cadouri cu poveste</strong></span>
-            <i aria-hidden="true">→</i>
-          </a>
-          <a href="{{ url('categorie/botez/') }}">
-            <span class="cart-discovery__icon" aria-hidden="true">❀</span>
-            <span><small>O zi de neuitat</small><strong>Alegeri pentru botez</strong></span>
             <i aria-hidden="true">→</i>
           </a>
         </nav>

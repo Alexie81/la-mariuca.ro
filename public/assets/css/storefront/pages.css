@@ -99,6 +99,13 @@
   font-style: normal;
 }
 
+.cart-page__eyebrow i img {
+  display: block;
+  width: 1.35rem;
+  height: auto;
+  object-fit: contain;
+}
+
 .cart-page__header h1 {
   margin: .85rem 0 .7rem;
   color: var(--cart-ink);
@@ -316,6 +323,13 @@
   font-style: normal;
 }
 
+.cart-empty-story__notes i img {
+  display: block;
+  width: 1rem;
+  height: auto;
+  object-fit: contain;
+}
+
 .cart-empty-art {
   position: relative;
   isolation: isolate;
@@ -405,6 +419,13 @@
   animation: cart-heart-drift 4.5s ease-in-out infinite;
 }
 
+.cart-empty-art__heart img {
+  display: block;
+  width: 58%;
+  height: auto;
+  object-fit: contain;
+}
+
 .cart-empty-art__heart--one { top: 19%; left: 16%; }
 .cart-empty-art__heart--two { top: 25%; right: 12%; width: 2rem; height: 2rem; animation-delay: -1.5s; }
 .cart-empty-art__heart--three { right: 19%; bottom: 22%; width: 1.75rem; height: 1.75rem; animation-delay: -2.8s; }
@@ -438,9 +459,9 @@
 
 .cart-discovery {
   display: grid;
-  width: min(1180px, 100%);
+  width: min(680px, 100%);
   margin: 1.1rem auto 0;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 1rem;
 }
 

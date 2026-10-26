@@ -42,6 +42,9 @@ final class CartTest extends DatabaseTestCase
         self::assertStringContainsString('href="/magazin/"', $body);
         self::assertStringContainsString('Descoperă colecțiile', $body);
         self::assertStringContainsString('class="cart-discovery"', $body);
+        self::assertStringContainsString('assets/images/icon-favorite-hearts.png', $body);
+        self::assertStringNotContainsString('Cadouri cu poveste', $body);
+        self::assertStringNotContainsString('Alegeri pentru botez', $body);
     }
 
     public function testFilledCartPageShowsImagesControlsAndOrderSummary(): void
