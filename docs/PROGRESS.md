@@ -739,3 +739,4 @@ atribute și filtre fără schimbarea contractelor existente.
 - Meniul administrativ mobil nu mai este un modal centrat: funcționează ca drawer lateral autentic, ancorat de marginea stângă, cu intrare și ieșire lină în direcția butonului hamburger.
 - Headerul editorial cu salutul dinamic al Paulei a fost readus deasupra raportului analitic. Salutul folosește ora Europe/Bucharest și alternează între „Bună dimineața”, „Bună ziua” și „Bună seara”, iar compoziția rămâne compactă pe toate dimensiunile.
 - Tipografia funcțională a Dashboardului a fost mărită și pe desktop: filtrele de perioadă, data și ora, etichetele KPI, notificările, axele graficului și tabelul comenzilor sunt lizibile fără să schimbe proporțiile titlurilor editoriale.
+- Dashboardul și autentificarea administrativă declară aceleași faviconuri de 32 px, 192 px și Apple Touch Icon ca storefrontul, astfel încât identitatea din tab și de pe ecranul principal rămâne unitară în toate zonele site-ului.
