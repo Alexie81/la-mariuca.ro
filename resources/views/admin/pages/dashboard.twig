@@ -48,7 +48,7 @@
       {% for key, label in ranges %}
         <a href="{{ url('admin') }}?perioada={{ key }}" class="{{ period.key == key ? 'is-active' : '' }}" {% if period.key == key %}aria-current="page"{% endif %}>{{ label }}</a>
       {% endfor %}
-      <details class="admin-period__custom" {{ period.key == 'personalizat' ? 'open' : '' }}>
+      <details class="admin-period__custom">
         <summary class="{{ period.key == 'personalizat' ? 'is-active' : '' }}">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M7 3v4M17 3v4M5 7v13h14V7M8 12h3M13 12h3M8 16h3"/></svg>
           Personalizat
