@@ -1,5 +1,5 @@
 const footerMenus = Array.from(document.querySelectorAll('.footer-menu'));
-const mobileFooter = window.matchMedia('(max-width: 700px)');
+const mobileFooter = window.matchMedia('(max-width: 1024px)');
 const reducedFooterMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 
 function resetFooterMenuMotion(menu) {

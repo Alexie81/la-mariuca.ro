@@ -177,10 +177,26 @@ final class CartService
     {
         $statement = $this->pdo->prepare("SELECT ci.id, ci.variant_id, ci.quantity, ci.personalization_json,
                 p.name, p.slug, p.status AS product_status, v.sku, v.option_summary, v.price_bani,
+                COALESCE(variant_media.public_path,
+                    (SELECT product_media.public_path
+                     FROM product_images pi
+                     JOIN media product_media ON product_media.id = pi.media_id
+                     WHERE pi.product_id = p.id AND product_media.public_path IS NOT NULL
+                     ORDER BY pi.position, pi.media_id LIMIT 1)
+                ) AS image_path,
+                COALESCE(NULLIF(variant_media.alt_text, ''),
+                    (SELECT product_media.alt_text
+                     FROM product_images pi
+                     JOIN media product_media ON product_media.id = pi.media_id
+                     WHERE pi.product_id = p.id AND product_media.public_path IS NOT NULL
+                     ORDER BY pi.position, pi.media_id LIMIT 1),
+                    p.name
+                ) AS image_alt,
                 COALESCE(i.physical_quantity - i.reserved_quantity, 0) AS available_quantity
             FROM cart_items ci
             JOIN product_variants v ON v.id = ci.variant_id
             JOIN products p ON p.id = v.product_id
+            LEFT JOIN media variant_media ON variant_media.id = v.image_media_id
             LEFT JOIN inventory i ON i.variant_id = v.id
             WHERE ci.cart_id = :cart ORDER BY ci.id");
         $statement->execute(['cart' => $this->cartId()]);

@@ -230,8 +230,8 @@ const renderEmptyUtilityPanel = (panel, kind) => {
     : 'Descoperă hăinuțe alese cu drag pentru cei mici.';
   copy.append(heading, detail);
 
-  const searchUrl = document.querySelector('.search-form')?.action || '/cautare/';
-  panel.append(icon, copy, createMiniPanelAction('Descoperă colecțiile', searchUrl));
+  const shopUrl = panel.dataset.shopUrl || '/magazin/';
+  panel.append(icon, copy, createMiniPanelAction('Descoperă colecțiile', shopUrl));
 };
 
 const renderFilledUtilityPanel = (panel, kind, count, totalBani = 0) => {

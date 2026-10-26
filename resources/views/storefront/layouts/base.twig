@@ -34,9 +34,9 @@
   <link rel="stylesheet" href="{{ url('assets/css/storefront/tokens.css') }}">
   <link rel="stylesheet" href="{{ url('assets/css/storefront/base.css') }}">
   <link rel="stylesheet" href="{{ url('assets/css/storefront/typography.css') }}">
-  <link rel="stylesheet" href="{{ url('assets/css/storefront/layout.css') }}?v=20261024-search-panel6">
+  <link rel="stylesheet" href="{{ url('assets/css/storefront/layout.css') }}?v=20261026-tablet-footer1">
   <link rel="stylesheet" href="{{ url('assets/css/storefront/components.css') }}">
-  <link rel="stylesheet" href="{{ url('assets/css/storefront/pages.css') }}?v=20261025-contact6">
+  <link rel="stylesheet" href="{{ url('assets/css/storefront/pages.css') }}?v=20261026-cart1">
   <link rel="stylesheet" href="{{ url('assets/css/storefront/empty-states.css') }}">
   <link rel="stylesheet" href="{{ url('assets/css/storefront/interactions.css') }}?v=20261024-carttoggle3">
   {% block head %}{% endblock %}
@@ -101,7 +101,7 @@
             </span>
             <span>Favorite</span>
           </button>
-          <div id="desktop-favorites-panel" class="mini-cart mini-favorites-panel{{ favorite_total == 0 ? ' mini-cart-empty' : ' mini-cart-filled' }}" data-utility-panel hidden>
+          <div id="desktop-favorites-panel" class="mini-cart mini-favorites-panel{{ favorite_total == 0 ? ' mini-cart-empty' : ' mini-cart-filled' }}" data-utility-panel data-shop-url="{{ url('magazin/') }}" hidden>
             {% if favorite_total > 0 %}
               <span class="mini-panel-head">
                 <span class="mini-panel-icon mini-panel-icon-favorite" aria-hidden="true">
@@ -128,7 +128,7 @@
                 <strong>Favoritele tale așteaptă ceva drag</strong>
                 <small>Salvează aici micile comori pe care vrei să le regăsești ușor.</small>
               </span>
-              <a href="{{ url('cautare/') }}">Descoperă colecțiile <span aria-hidden="true">→</span></a>
+              <a href="{{ url('magazin/') }}">Descoperă colecțiile <span aria-hidden="true">→</span></a>
             {% endif %}
           </div>
         </div>
@@ -144,7 +144,7 @@
             </span>
             <span>Coș</span>
           </button>
-          <div id="desktop-mini-cart" class="mini-cart{{ cart.count == 0 ? ' mini-cart-empty' : ' mini-cart-filled' }}" data-utility-panel hidden>
+          <div id="desktop-mini-cart" class="mini-cart{{ cart.count == 0 ? ' mini-cart-empty' : ' mini-cart-filled' }}" data-utility-panel data-shop-url="{{ url('magazin/') }}" hidden>
             {% if cart.count > 0 %}
               <span class="mini-panel-head">
                 <span class="mini-panel-icon mini-panel-icon-cart" aria-hidden="true">
@@ -171,7 +171,7 @@
                 <strong>Coșul tău așteaptă ceva special</strong>
                 <small>Descoperă hăinuțe alese cu drag pentru cei mici.</small>
               </span>
-              <a href="{{ url('cautare/') }}">Descoperă colecțiile <span aria-hidden="true">→</span></a>
+              <a href="{{ url('magazin/') }}">Descoperă colecțiile <span aria-hidden="true">→</span></a>
             {% endif %}
           </div>
         </div>
@@ -446,10 +446,10 @@
     </span>
   </a>
   <script type="module" src="{{ url('assets/js/storefront/navigation.js') }}?v=20261024-search-panel5"></script>
-  <script type="module" src="{{ url('assets/js/storefront/storefront-actions.js') }}?v=20261024-product3"></script>
+  <script type="module" src="{{ url('assets/js/storefront/storefront-actions.js') }}?v=20261026-shop-link1"></script>
   <script type="module" src="{{ url('assets/js/storefront/product-carousel.js') }}?v=20261025-carousel6"></script>
   <script type="module" src="{{ url('assets/js/storefront/hero-parallax.js') }}"></script>
   <script type="module" src="{{ url('assets/js/storefront/variant-selector.js') }}?v=20261024-product4"></script>
-  <script type="module" src="{{ url('assets/js/storefront/footer.js') }}?v=20261021-footer3"></script>
+  <script type="module" src="{{ url('assets/js/storefront/footer.js') }}?v=20261026-tablet-footer1"></script>
 </body>
 </html>

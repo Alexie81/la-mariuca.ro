@@ -1,15 +1,167 @@
 {% extends 'storefront/layouts/base.twig' %}
-{% block content %}<div class="container page-shell narrow"><h1>Coșul meu</h1>{% if cart.items %}
-<div class="cart-list">{% for item in cart.items %}<article class="cart-item"><div><h2><a href="{{ url('produs/' ~ item.slug ~ '/') }}">{{ item.name }}</a></h2><p>{{ item.option_summary }} · SKU {{ item.sku }}</p>{% for key,value in item.personalization %}<small>{{ key }}: {{ value }}</small>{% endfor %}</div><strong>{{ money(item.line_total_bani) }}</strong><form action="{{ url('cos/actualizeaza/') }}" method="post"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="item_id" value="{{ item.id }}"><label for="qty-{{ item.id }}">Cantitate</label><input id="qty-{{ item.id }}" type="number" name="quantity" min="0" max="20" value="{{ item.quantity }}"><button type="submit">Actualizează</button></form></article>{% endfor %}</div>
-<form class="coupon-form" action="{{ url('cos/cupon/') }}" method="post"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><label for="coupon_code">Cupon</label><input id="coupon_code" name="coupon_code" value="{{ cart.coupon.code|default('') }}" placeholder="Cod cupon"><button type="submit">{{ cart.coupon ? 'Elimină sau schimbă' : 'Aplică' }}</button></form>
-<div class="cart-summary"><span>Subtotal</span><strong>{{ money(cart.subtotal_bani) }}</strong>{% if cart.discount_bani %}<span>Reducere {{ cart.coupon.code }}</span><strong>−{{ money(cart.discount_bani) }}</strong><span>După reducere</span><strong>{{ money(cart.total_bani) }}</strong>{% endif %}<small>Transportul și costul final se calculează la checkout după reducere.</small><a class="button" href="{{ url('finalizare-comanda/') }}">Continuă spre finalizare</a></div>
-{% else %}
-  {% include 'storefront/components/boutique-empty-panel.twig' with {
-    kind: 'cart',
-    heading_id: 'empty-cart-heading',
-    eyebrow: 'Un început frumos',
-    title: 'Coșul tău așteaptă ceva special',
-    message: 'Descoperă hăinuțe alese cu drag pentru cei mici.',
-    action: 'Descoperă colecțiile'
-  } %}
-{% endif %}</div>{% endblock %}
+
+{% block body_class %}cart-page-body{% endblock %}
+
+{% block content %}
+  <div class="cart-page">
+    <div class="container cart-page__inner">
+      <header class="cart-page__header">
+        <div>
+          <span class="cart-page__eyebrow"><i aria-hidden="true">♥</i> Alegerile tale</span>
+          <h1>Coșul meu</h1>
+          <p>{{ cart.items ? 'Mai e doar un pas până când micile tale alegeri pornesc spre casă.' : 'Un loc pregătit pentru lucrurile care îți fac inima să spună «da».' }}</p>
+        </div>
+        <span class="cart-page__count" aria-label="{{ cart.count }} produse în coș">
+          <strong>{{ cart.count }}</strong>
+          <small>{{ cart.count == 1 ? 'produs' : 'produse' }}</small>
+        </span>
+      </header>
+
+      {% if cart.items %}
+        <div class="cart-filled-layout">
+          <section class="cart-products-panel" aria-labelledby="cart-products-title">
+            <header class="cart-panel-heading">
+              <span>
+                <small>Pregătite cu drag</small>
+                <h2 id="cart-products-title">Produsele tale</h2>
+              </span>
+              <a href="{{ url('magazin/') }}">Continuă cumpărăturile <i aria-hidden="true">→</i></a>
+            </header>
+
+            <div class="cart-list">
+              {% for item in cart.items %}
+                <article class="cart-item">
+                  <a class="cart-item__media" href="{{ url('produs/' ~ item.slug ~ '/') }}" aria-label="Vezi {{ item.name }}">
+                    {% if item.image_path %}
+                      <img src="{{ url(item.image_path) }}" alt="{{ item.image_alt|default(item.name) }}" loading="lazy" decoding="async">
+                    {% else %}
+                      <span aria-hidden="true"><img src="{{ url('assets/images/icon-favorite-hearts.png') }}" width="160" height="128" alt=""></span>
+                    {% endif %}
+                  </a>
+
+                  <div class="cart-item__copy">
+                    <span class="cart-item__status"><i aria-hidden="true"></i> În stoc</span>
+                    <h2><a href="{{ url('produs/' ~ item.slug ~ '/') }}">{{ item.name }}</a></h2>
+                    {% if item.option_summary %}<p>{{ item.option_summary }}</p>{% endif %}
+                    <small>Cod produs: {{ item.sku }}</small>
+                    {% if item.personalization %}
+                      <dl class="cart-item__personalization">
+                        {% for key, value in item.personalization %}<div><dt>{{ key }}</dt><dd>{{ value }}</dd></div>{% endfor %}
+                      </dl>
+                    {% endif %}
+                  </div>
+
+                  <div class="cart-item__price">
+                    <small>{{ money(item.price_bani) }} / buc.</small>
+                    <strong>{{ money(item.line_total_bani) }}</strong>
+                  </div>
+
+                  <div class="cart-item__actions">
+                    <form class="cart-quantity-form" action="{{ url('cos/actualizeaza/') }}" method="post">
+                      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                      <input type="hidden" name="item_id" value="{{ item.id }}">
+                      <label for="qty-{{ item.id }}">Cantitate</label>
+                      <span>
+                        <input id="qty-{{ item.id }}" type="number" name="quantity" min="1" max="20" value="{{ item.quantity }}" inputmode="numeric">
+                        <button type="submit">Actualizează</button>
+                      </span>
+                    </form>
+                    <form class="cart-remove-form" action="{{ url('cos/actualizeaza/') }}" method="post">
+                      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                      <input type="hidden" name="item_id" value="{{ item.id }}">
+                      <input type="hidden" name="quantity" value="0">
+                      <button type="submit" aria-label="Elimină {{ item.name }} din coș">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5"></path></svg>
+                        Elimină
+                      </button>
+                    </form>
+                  </div>
+                </article>
+              {% endfor %}
+            </div>
+
+            <form class="cart-coupon" action="{{ url('cos/cupon/') }}" method="post">
+              <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+              <span class="cart-coupon__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M4 5h16v5a2 2 0 0 0 0 4v5H4v-5a2 2 0 0 0 0-4V5Z"></path><path d="M12 8v8"></path></svg>
+              </span>
+              <label for="coupon_code"><strong>Ai un cod de reducere?</strong><small>Introdu-l aici și îl aplicăm imediat.</small></label>
+              <span class="cart-coupon__control">
+                <input id="coupon_code" name="coupon_code" value="{{ cart.coupon.code|default('') }}" placeholder="Cod cupon" autocomplete="off">
+                <button type="submit">{{ cart.coupon ? 'Actualizează' : 'Aplică' }}</button>
+              </span>
+            </form>
+          </section>
+
+          <aside class="cart-order-card" aria-labelledby="cart-summary-title">
+            <span class="cart-order-card__label">Rezumat comandă</span>
+            <h2 id="cart-summary-title">Totul, pe scurt</h2>
+            <div class="cart-order-lines">
+              <span>Subtotal</span><strong>{{ money(cart.subtotal_bani) }}</strong>
+              {% if cart.discount_bani %}
+                <span>Reducere {{ cart.coupon.code }}</span><strong class="cart-order-discount">−{{ money(cart.discount_bani) }}</strong>
+              {% endif %}
+            </div>
+            <div class="cart-order-total"><span>Total produse</span><strong>{{ money(cart.total_bani) }}</strong></div>
+            <p>Transportul și costul final se calculează la pasul următor.</p>
+            <a class="cart-checkout-button" href="{{ url('finalizare-comanda/') }}">
+              <span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 7h14l-1 13H6L5 7ZM9 7V5a3 3 0 0 1 6 0v2"></path></svg></span>
+              Continuă spre finalizare
+              <i aria-hidden="true">→</i>
+            </a>
+            <ul class="cart-order-benefits">
+              <li><span aria-hidden="true">✓</span> Plată sigură și protejată</li>
+              <li><span aria-hidden="true">✓</span> Livrare rapidă în România</li>
+              <li><span aria-hidden="true">✓</span> Ajutor direct pe WhatsApp</li>
+            </ul>
+          </aside>
+        </div>
+      {% else %}
+        <section class="cart-empty-experience" aria-labelledby="empty-cart-heading">
+          <div class="cart-empty-story">
+            <span class="cart-empty-story__label">Un început frumos</span>
+            <h2 id="empty-cart-heading">Coșul e gol.<br><em>Povestea abia începe.</em></h2>
+            <p>Am adunat într-un singur loc hăinuțe, cadouri și mici bucurii alese pentru copilărie. Când găsești ceva drag, îl păstrăm aici pentru tine.</p>
+            <a class="cart-empty-story__cta" href="{{ url('magazin/') }}">
+              <span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 7h14l-1 13H6L5 7ZM9 7V5a3 3 0 0 1 6 0v2"></path></svg></span>
+              Descoperă colecțiile
+              <i aria-hidden="true">→</i>
+            </a>
+            <div class="cart-empty-story__notes" aria-label="Avantajele magazinului">
+              <span><i aria-hidden="true">♥</i> Alese cu grijă</span>
+              <span><i aria-hidden="true">✦</i> Pentru cei mici</span>
+            </div>
+          </div>
+
+          <div class="cart-empty-art" aria-hidden="true">
+            <span class="cart-empty-art__orbit cart-empty-art__orbit--one"></span>
+            <span class="cart-empty-art__orbit cart-empty-art__orbit--two"></span>
+            <span class="cart-empty-art__heart cart-empty-art__heart--one">♥</span>
+            <span class="cart-empty-art__heart cart-empty-art__heart--two">♥</span>
+            <span class="cart-empty-art__heart cart-empty-art__heart--three">♥</span>
+            <span class="cart-empty-art__cart"><img src="{{ url('assets/images/icon-cart-reference.png') }}" width="160" height="145" alt=""></span>
+            <span class="cart-empty-art__caption"><i></i>Aici păstrăm alegerile tale</span>
+          </div>
+        </section>
+
+        <nav class="cart-discovery" aria-label="Idei pentru cumpărături">
+          <a href="{{ url('magazin/?sortare=new') }}">
+            <span class="cart-discovery__icon" aria-hidden="true">✦</span>
+            <span><small>Proaspăt sosite</small><strong>Noutăți alese cu drag</strong></span>
+            <i aria-hidden="true">→</i>
+          </a>
+          <a href="{{ url('categorie/cadouri/') }}">
+            <span class="cart-discovery__icon" aria-hidden="true">♡</span>
+            <span><small>Pentru momente speciale</small><strong>Cadouri cu poveste</strong></span>
+            <i aria-hidden="true">→</i>
+          </a>
+          <a href="{{ url('categorie/botez/') }}">
+            <span class="cart-discovery__icon" aria-hidden="true">❀</span>
+            <span><small>O zi de neuitat</small><strong>Alegeri pentru botez</strong></span>
+            <i aria-hidden="true">→</i>
+          </a>
+        </nav>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}

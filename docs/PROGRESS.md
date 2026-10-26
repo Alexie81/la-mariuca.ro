@@ -648,3 +648,15 @@ atribute și filtre fără schimbarea contractelor existente.
 - Migrarea `012_contact_whatsapp_page.sql` actualizează conținutul și metadatele SEO atât pentru SQLite, cât și pentru MySQL; seederul păstrează aceeași configurație pentru instalările noi.
 - Verificări locale trecute după finisarea interfeței: lint PHP, compilarea tuturor celor 37 de template-uri Twig, PHPStan fără erori și PHPUnit cu 54 de teste / 395 de aserțiuni.
 - Footerul afișează în coloana „Informații” telefonul și adresa de email configurate central; ambele sunt acționabile (`tel:` / `mailto:`) și apar uniform pe toate paginile storefrontului.
+
+## 2026-10-26 — Navigare magazin și footer pe tabletă
+
+- Acțiunea „Descoperă colecțiile” din panourile goale pentru coș și favorite deschide acum direct `/magazin/`, inclusiv după actualizarea dinamică a panourilor prin JavaScript și în instalările cu `APP_BASE_PATH`.
+- Footerul folosește până la 1024 px aceeași structură compactă, pe un singur flux și cu secțiuni acordeon, ca pe telefon; configurația desktop cu panouri pe coloane începe de la 1025 px.
+
+## 2026-10-26 — Pagina Coș
+
+- Pagina `/cos/` a fost reconstruită în stilul editorial La Măriuca pentru telefon, tabletă și desktop. Starea goală are acum o compoziție caldă, un îndemn clar către Magazin și scurtături către Noutăți, Cadouri și Botez.
+- Starea cu produse folosește carduri responsive cu imagine, variantă, SKU, personalizare, cantitate, eliminare și totaluri clare; rezumatul comenzii rămâne ușor accesibil și păstrează formularele POST cu CSRF existente.
+- Serviciul coșului livrează explicit către view imaginea variantei sau imaginea principală a produsului și textul alternativ aferent, fără interogări din Twig.
+- Verificarea vizuală locală a fost făcută la 390, 960 și 1440 px, fără overflow orizontal și fără erori în consola browserului. Verificări locale trecute: lint PHP, compilarea tuturor celor 37 de template-uri Twig, PHPStan fără erori și PHPUnit cu 56 de teste / 411 aserțiuni.

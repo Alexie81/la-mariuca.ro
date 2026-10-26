@@ -3487,7 +3487,7 @@ body.menu-open .whatsapp-float {
   to { stroke-dashoffset: 0; }
 }
 
-@media (min-width: 701px) {
+@media (min-width: 1025px) {
   .footer-menu {
     position: relative;
     overflow: hidden;
@@ -3583,7 +3583,7 @@ body.menu-open .whatsapp-float {
   }
 }
 
-@media (min-width: 901px) {
+@media (min-width: 1025px) {
   .footer-main {
     align-items: stretch;
   }
@@ -3604,23 +3604,7 @@ body.menu-open .whatsapp-float {
   }
 }
 
-@media (max-width: 900px) and (min-width: 701px) {
-  .footer-newsletter-content {
-    width: 55%;
-    margin-left: 28%;
-  }
-
-  .footer-main {
-    grid-template-columns: 1.35fr repeat(2, 1fr);
-  }
-
-  .footer-brand-panel {
-    grid-row: span 2;
-  }
-
-}
-
-@media (max-width: 700px) {
+@media (max-width: 1024px) {
   .site-footer {
     margin-top: 4rem;
     padding-bottom: 1rem;

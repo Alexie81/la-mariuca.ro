@@ -47,6 +47,8 @@ final class ContactPageTest extends DatabaseTestCase
         self::assertStringContainsString('Telefon: 0763 715 974', $body);
         self::assertStringContainsString('data-footer-contact="email" href="mailto:contact@la-mariuca.ro"', $body);
         self::assertStringContainsString('Email: contact@la-mariuca.ro', $body);
+        self::assertSame(2, substr_count($body, 'data-shop-url="/magazin/"'));
+        self::assertSame(2, substr_count($body, 'href="/magazin/">Descoperă colecțiile'));
         self::assertStringNotContainsString('Datele de contact ale comerciantului se configurează', $body);
     }
 
