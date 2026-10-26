@@ -141,7 +141,7 @@
         {% endif %}
 
         {% if product.variants %}
-          {% set product_requires_selection = product.variants|length > 1 or product.required_personalization_count|default(0) > 0 %}
+          {% set product_requires_selection = product.required_personalization_count|default(0) > 0 %}
           {% set product_initially_in_cart = product.variants|length == 1 and default_variant_is_in_cart %}
           <form class="product-buy-form{{ product_initially_in_cart ? ' is-added' : '' }}" action="{{ url('cos/adauga/') }}" method="post" data-cart-form data-storefront-cart data-cart-toggle data-cart-state="{{ product_initially_in_cart ? 'added' : 'removed' }}" data-product-name="{{ product.name }}" data-product-url="{{ url('produs/' ~ product.slug ~ '/') }}"{% if product.image_path %} data-product-image="{{ url(product.image_path) }}"{% endif %} data-cart-url="{{ url('cos/') }}" data-cart-ready="{{ product_requires_selection or default_variant.available_quantity <= 0 ? 'false' : 'true' }}">
             <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
@@ -154,8 +154,8 @@
                       <span>{{ group.name }}</span>
                       <span class="product-select-shell">
                         <select id="variant-option-{{ loop.index }}" data-variant-option data-option-name="{{ group.name }}" aria-required="true">
-                          <option value="">Selectează</option>
-                          {% for value in group.values %}<option value="{{ value }}">{{ value }}</option>{% endfor %}
+                          <option value="" hidden>Selectează</option>
+                          {% for value in group.values %}<option value="{{ value }}"{{ loop.first ? ' selected' : '' }}>{{ value }}</option>{% endfor %}
                         </select>
                         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"></path></svg>
                       </span>
@@ -167,9 +167,9 @@
                 <span>Variantă</span>
                 <span class="product-select-shell">
                   <select id="variant" name="variant_id" data-variant-select required>
-                    <option value="" selected>Selectează varianta</option>
+                    <option value="" hidden>Selectează varianta</option>
                     {% for variant in product.variants %}
-                      <option value="{{ variant.id }}" data-options="{{ variant.options_json|default('{}') }}" data-price="{{ variant.price_bani }}" data-compare-price="{{ variant.compare_price_bani ?: 0 }}" data-stock="{{ variant.available_quantity }}" data-sku="{{ variant.sku }}" data-in-cart="{{ is_variant_in_cart(variant.id) ? '1' : '0' }}">{{ variant.option_summary ?: 'Variantă standard' }} — {{ money(variant.price_bani) }}</option>
+                      <option value="{{ variant.id }}" data-options="{{ variant.options_json|default('{}') }}" data-price="{{ variant.price_bani }}" data-compare-price="{{ variant.compare_price_bani ?: 0 }}" data-stock="{{ variant.available_quantity }}" data-sku="{{ variant.sku }}" data-in-cart="{{ is_variant_in_cart(variant.id) ? '1' : '0' }}"{{ variant.id == default_variant.id ? ' selected' : '' }}>{{ variant.option_summary ?: 'Variantă standard' }} — {{ money(variant.price_bani) }}</option>
                     {% endfor %}
                   </select>
                   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"></path></svg>

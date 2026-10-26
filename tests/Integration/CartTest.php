@@ -60,9 +60,49 @@ final class CartTest extends DatabaseTestCase
         self::assertStringContainsString('class="cart-filled-layout"', $body);
         self::assertStringContainsString('class="cart-item__media"', $body);
         self::assertStringContainsString('class="cart-quantity-form"', $body);
+        self::assertStringContainsString('data-cart-quantity-decrease', $body);
+        self::assertStringContainsString('data-cart-quantity-increase', $body);
+        self::assertStringNotContainsString('<button type="submit">Actualizează</button>', $body);
+        self::assertStringContainsString('aria-label="Înapoi la magazin"', $body);
+        self::assertStringContainsString('Magazin', $body);
+        self::assertStringNotContainsString('Continuă cumpărăturile', $body);
+        self::assertStringNotContainsString('Mărime standard', $body);
         self::assertStringContainsString('class="cart-remove-form"', $body);
         self::assertStringContainsString('class="cart-order-card"', $body);
         self::assertStringContainsString('Continuă spre finalizare', $body);
+    }
+
+    public function testQuantityStepperUpdatesCartThroughJson(): void
+    {
+        $this->seed();
+        $variantId = (int) $this->pdo->query(
+            'SELECT v.id FROM product_variants v JOIN inventory i ON i.variant_id = v.id WHERE i.physical_quantity - i.reserved_quantity >= 2 LIMIT 1'
+        )->fetchColumn();
+        $cart = new CartService($this->pdo);
+        $cart->add($variantId, 1);
+        $itemId = (int) $cart->summary()['items'][0]['id'];
+        $_SESSION['_csrf'] = 'cart-quantity-token';
+
+        $request = (new ServerRequestFactory())
+            ->createServerRequest('POST', 'http://localhost/cos/actualizeaza/')
+            ->withHeader('Accept', 'application/json')
+            ->withParsedBody([
+                '_csrf' => 'cart-quantity-token',
+                'item_id' => (string) $itemId,
+                'quantity' => '2',
+            ]);
+        $app = AppFactory::create($this->root);
+        $response = $app->handle($request);
+        unset($app);
+        gc_collect_cycles();
+
+        self::assertSame(200, $response->getStatusCode());
+        self::assertSame('application/json; charset=utf-8', $response->getHeaderLine('Content-Type'));
+        $payload = json_decode((string) $response->getBody(), true, 512, JSON_THROW_ON_ERROR);
+        self::assertTrue($payload['ok']);
+        self::assertSame(2, $payload['item_quantity']);
+        self::assertSame(2, $payload['cart_count']);
+        self::assertSame(2, (new CartService($this->pdo))->summary()['count']);
     }
 
     private function get(string $path): ResponseInterface

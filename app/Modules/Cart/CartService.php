@@ -176,7 +176,7 @@ final class CartService
     private function baseSummary(): array
     {
         $statement = $this->pdo->prepare("SELECT ci.id, ci.variant_id, ci.quantity, ci.personalization_json,
-                p.name, p.slug, p.status AS product_status, v.sku, v.option_summary, v.price_bani,
+                p.name, p.slug, p.status AS product_status, v.sku, v.option_summary, v.options_json, v.price_bani,
                 COALESCE(variant_media.public_path,
                     (SELECT product_media.public_path
                      FROM product_images pi
@@ -204,6 +204,11 @@ final class CartService
         $subtotal = 0;
         $count = 0;
         foreach ($items as &$item) {
+            $variantOptions = json_decode((string) $item['options_json'], true);
+            if (!is_array($variantOptions) || $variantOptions === []) {
+                $item['option_summary'] = '';
+            }
+            unset($item['options_json']);
             $item['personalization'] = json_decode((string) $item['personalization_json'], true) ?: [];
             $item['line_total_bani'] = (int) $item['price_bani'] * (int) $item['quantity'];
             $subtotal += $item['line_total_bani'];

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Integration;
 
 use App\AppFactory;
+use Database\Seeders\ExpandedCatalogSeeder;
 use Psr\Http\Message\ResponseInterface;
 use Slim\Psr7\Factory\ServerRequestFactory;
 use Tests\DatabaseTestCase;
@@ -159,6 +160,29 @@ final class CategoryRouteTest extends DatabaseTestCase
         self::assertStringContainsString('name="rating"', $body);
         self::assertStringContainsString('product-similar-carousel', $body);
         self::assertStringContainsString('data-product-carousel', $body);
+    }
+
+    public function testVariantGroupsPreselectFirstAvailableValue(): void
+    {
+        $this->seed();
+        (new ExpandedCatalogSeeder($this->pdo))->run();
+        $slug = (string) $this->pdo->query("SELECT p.slug FROM products p JOIN product_variants v ON v.product_id = p.id WHERE v.sku = 'LM-26-030' LIMIT 1")->fetchColumn();
+
+        $body = (string) $this->get('/produs/' . $slug . '/')->getBody();
+
+        self::assertMatchesRegularExpression(
+            '/data-option-name="Dimensiune"[^>]*>.*?<option value="1 cm" selected>1 cm<\/option>/s',
+            $body
+        );
+        self::assertMatchesRegularExpression(
+            '/data-option-name="Mărime"[^>]*>.*?<option value="0-6 luni" selected>0-6 luni<\/option>/s',
+            $body
+        );
+        self::assertMatchesRegularExpression(
+            '/data-option-name="Culoare"[^>]*>.*?<option value="Roșu" selected>Roșu<\/option>/s',
+            $body
+        );
+        self::assertStringContainsString('selectFirstAvailableOptions', file_get_contents($this->root . '/public/assets/js/storefront/variant-selector.js'));
     }
 
     private function get(string $path): ResponseInterface

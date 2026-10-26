@@ -76,8 +76,27 @@ document.querySelectorAll('[data-variant-select]').forEach((variantControl) => {
     });
   };
 
+  const selectFirstAvailableOptions = () => {
+    if (!canEnhanceGroups) return;
+    let changed = false;
+    let passes = 0;
+    do {
+      changed = false;
+      updateGroupAvailability();
+      optionControls.forEach((control) => {
+        if (control.value !== '') return;
+        const availableOptions = [...control.options].filter((option) => option.value !== '' && !option.disabled);
+        if (availableOptions.length === 0) return;
+        control.value = availableOptions[0].value;
+        changed = true;
+      });
+      passes += 1;
+    } while (changed && passes <= optionControls.length);
+  };
+
   const resolveGroupedVariant = () => {
     if (!canEnhanceGroups || !(variantControl instanceof HTMLSelectElement)) return;
+    selectFirstAvailableOptions();
     updateGroupAvailability();
     const allSelected = optionControls.every((control) => control.value !== '');
     const match = allSelected

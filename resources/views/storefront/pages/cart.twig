@@ -11,9 +11,9 @@
           <h1>Coșul meu</h1>
           <p>{{ cart.items ? 'Mai e doar un pas până când micile tale alegeri pornesc spre casă.' : 'Un loc pregătit pentru lucrurile care îți fac inima să spună «da».' }}</p>
         </div>
-        <span class="cart-page__count" aria-label="{{ cart.count }} produse în coș">
-          <strong>{{ cart.count }}</strong>
-          <small>{{ cart.count == 1 ? 'produs' : 'produse' }}</small>
+        <span class="cart-page__count" data-cart-page-count aria-label="{{ cart.count }} produse în coș">
+          <strong data-cart-page-count-value>{{ cart.count }}</strong>
+          <small data-cart-page-count-label>{{ cart.count == 1 ? 'produs' : 'produse' }}</small>
         </span>
       </header>
 
@@ -25,12 +25,17 @@
                 <small>Pregătite cu drag</small>
                 <h2 id="cart-products-title">Produsele tale</h2>
               </span>
-              <a href="{{ url('magazin/') }}">Continuă cumpărăturile <i aria-hidden="true">→</i></a>
+              <a href="{{ url('magazin/') }}" aria-label="Înapoi la magazin">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10.5 12 4l8 6.5v8a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 18.5v-8Z"></path><path d="M9 20v-6h6v6"></path></svg>
+                Magazin
+                <i aria-hidden="true">→</i>
+              </a>
             </header>
 
             <div class="cart-list">
               {% for item in cart.items %}
-                <article class="cart-item">
+                {% set maximum_quantity = item.available_quantity < 20 ? item.available_quantity : 20 %}
+                <article class="cart-item" data-cart-item="{{ item.id }}">
                   <a class="cart-item__media" href="{{ url('produs/' ~ item.slug ~ '/') }}" aria-label="Vezi {{ item.name }}">
                     {% if item.image_path %}
                       <img src="{{ url(item.image_path) }}" alt="{{ item.image_alt|default(item.name) }}" loading="lazy" decoding="async">
@@ -53,18 +58,24 @@
 
                   <div class="cart-item__price">
                     <small>{{ money(item.price_bani) }} / buc.</small>
-                    <strong>{{ money(item.line_total_bani) }}</strong>
+                    <strong data-cart-line-total="{{ item.id }}">{{ money(item.line_total_bani) }}</strong>
                   </div>
 
                   <div class="cart-item__actions">
-                    <form class="cart-quantity-form" action="{{ url('cos/actualizeaza/') }}" method="post">
+                    <form class="cart-quantity-form" action="{{ url('cos/actualizeaza/') }}" method="post" data-cart-quantity-form data-item-id="{{ item.id }}" data-max-quantity="{{ maximum_quantity }}">
                       <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
                       <input type="hidden" name="item_id" value="{{ item.id }}">
-                      <label for="qty-{{ item.id }}">Cantitate</label>
-                      <span>
-                        <input id="qty-{{ item.id }}" type="number" name="quantity" min="1" max="20" value="{{ item.quantity }}" inputmode="numeric">
-                        <button type="submit">Actualizează</button>
+                      <span class="cart-quantity-form__label" id="qty-label-{{ item.id }}">Cantitate</span>
+                      <span class="cart-quantity-control" role="group" aria-labelledby="qty-label-{{ item.id }}">
+                        <button type="submit" name="quantity" value="{{ item.quantity - 1 }}" data-cart-quantity-decrease aria-label="Scade cantitatea pentru {{ item.name }}"{{ item.quantity <= 1 ? ' disabled' : '' }}>
+                          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12"></path></svg>
+                        </button>
+                        <output id="qty-{{ item.id }}" data-cart-quantity-value aria-live="polite">{{ item.quantity }}</output>
+                        <button type="submit" name="quantity" value="{{ item.quantity + 1 }}" data-cart-quantity-increase aria-label="Mărește cantitatea pentru {{ item.name }}"{{ item.quantity >= maximum_quantity ? ' disabled' : '' }}>
+                          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6v12M6 12h12"></path></svg>
+                        </button>
                       </span>
+                      <small class="cart-quantity-form__status" data-cart-quantity-status aria-live="polite"></small>
                     </form>
                     <form class="cart-remove-form" action="{{ url('cos/actualizeaza/') }}" method="post">
                       <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
@@ -97,12 +108,12 @@
             <span class="cart-order-card__label">Rezumat comandă</span>
             <h2 id="cart-summary-title">Totul, pe scurt</h2>
             <div class="cart-order-lines">
-              <span>Subtotal</span><strong>{{ money(cart.subtotal_bani) }}</strong>
+              <span>Subtotal</span><strong data-cart-subtotal>{{ money(cart.subtotal_bani) }}</strong>
               {% if cart.discount_bani %}
-                <span>Reducere {{ cart.coupon.code }}</span><strong class="cart-order-discount">−{{ money(cart.discount_bani) }}</strong>
+                <span>Reducere {{ cart.coupon.code }}</span><strong class="cart-order-discount" data-cart-discount>−{{ money(cart.discount_bani) }}</strong>
               {% endif %}
             </div>
-            <div class="cart-order-total"><span>Total produse</span><strong>{{ money(cart.total_bani) }}</strong></div>
+            <div class="cart-order-total"><span>Total produse</span><strong data-cart-total>{{ money(cart.total_bani) }}</strong></div>
             <p>Transportul și costul final se calculează la pasul următor.</p>
             <a class="cart-checkout-button" href="{{ url('finalizare-comanda/') }}">
               <span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 7h14l-1 13H6L5 7ZM9 7V5a3 3 0 0 1 6 0v2"></path></svg></span>

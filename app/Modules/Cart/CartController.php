@@ -79,10 +79,37 @@ final class CartController
     public function update(ServerRequestInterface $request): ResponseInterface
     {
         $data = (array) ($request->getParsedBody() ?? []);
+        $wantsJson = $this->wantsJson($request);
+        $itemId = (int) ($data['item_id'] ?? 0);
         try {
-            $this->cart->update((int) ($data['item_id'] ?? 0), (int) ($data['quantity'] ?? 0));
+            $this->cart->update($itemId, (int) ($data['quantity'] ?? 0));
+            if ($wantsJson) {
+                $summary = $this->cart->summary();
+                $updatedItem = null;
+                foreach ($summary['items'] as $item) {
+                    if ((int) $item['id'] === $itemId) {
+                        $updatedItem = $item;
+                        break;
+                    }
+                }
+
+                return $this->json([
+                    'ok' => true,
+                    'message' => 'Cantitatea a fost actualizată.',
+                    'item_id' => $itemId,
+                    'item_quantity' => (int) ($updatedItem['quantity'] ?? 0),
+                    'line_total_bani' => (int) ($updatedItem['line_total_bani'] ?? 0),
+                    'cart_count' => (int) $summary['count'],
+                    'subtotal_bani' => (int) $summary['subtotal_bani'],
+                    'discount_bani' => (int) $summary['discount_bani'],
+                    'total_bani' => (int) $summary['total_bani'],
+                ]);
+            }
             Flash::set('success', 'Coșul a fost actualizat.');
         } catch (\Throwable $exception) {
+            if ($wantsJson) {
+                return $this->json(['ok' => false, 'message' => $exception->getMessage()], 422);
+            }
             Flash::set('error', $exception->getMessage());
         }
         return $this->view->redirect($this->config->path('cos/'));
