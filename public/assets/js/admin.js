@@ -108,18 +108,20 @@
     if (!desktopSidebar.matches) setMobileMenu(false);
   }));
 
-  const clock = document.querySelector('[data-admin-clock]');
-  if (clock) {
+  const clocks = document.querySelectorAll('[data-admin-clock]');
+  if (clocks.length) {
     const updateClock = () => {
-      clock.textContent = new Intl.DateTimeFormat('ro-RO', {
+      const value = new Intl.DateTimeFormat('ro-RO', {
         timeZone: 'Europe/Bucharest', hour: '2-digit', minute: '2-digit', second: '2-digit'
       }).format(new Date());
+      clocks.forEach((clock) => { clock.textContent = value; });
     };
     updateClock();
     window.setInterval(updateClock, 1000);
   }
 
   const numberFormatter = new Intl.NumberFormat('ro-RO');
+  const moneyFormatter = new Intl.NumberFormat('ro-RO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const animateCount = (element) => {
     const target = Math.max(0, Number.parseInt(element.dataset.countUp || '0', 10));
     if (reducedMotion || target === 0) {
@@ -137,11 +139,30 @@
     requestAnimationFrame(frame);
   };
 
+  const animateMoney = (element) => {
+    const target = Math.max(0, Number.parseInt(element.dataset.moneyCountUp || '0', 10));
+    const render = (value) => { element.textContent = `${moneyFormatter.format(value / 100)} lei`; };
+    if (reducedMotion || target === 0) {
+      render(target);
+      return;
+    }
+    const start = performance.now();
+    const duration = 1050;
+    const frame = (time) => {
+      const progress = Math.min(1, (time - start) / duration);
+      render(Math.round(target * (1 - Math.pow(1 - progress, 3))));
+      if (progress < 1) requestAnimationFrame(frame);
+    };
+    requestAnimationFrame(frame);
+  };
+
   const revealElement = (element) => {
     if (element.matches('[data-count-up]')) animateCount(element);
+    if (element.matches('[data-money-count-up]')) animateMoney(element);
     if (element.matches('[data-progress-bar]')) element.classList.add('is-visible');
+    if (element.matches('[data-chart-bar]')) element.classList.add('is-visible');
   };
-  const animated = document.querySelectorAll('[data-count-up],[data-progress-bar]');
+  const animated = document.querySelectorAll('[data-count-up],[data-money-count-up],[data-progress-bar],[data-chart-bar]');
   if ('IntersectionObserver' in window && !reducedMotion) {
     const observer = new IntersectionObserver((entries) => {
       entries.forEach((entry) => {
@@ -154,6 +175,21 @@
   } else {
     animated.forEach(revealElement);
   }
+
+  const chartScroller = document.querySelector('[data-admin-chart-scroll]');
+  document.querySelectorAll('[data-chart-scroll]').forEach((button) => {
+    button.addEventListener('click', () => {
+      if (!chartScroller) return;
+      const direction = Number.parseInt(button.dataset.chartScroll || '1', 10);
+      chartScroller.scrollBy({ left: direction * Math.max(260, chartScroller.clientWidth * .72), behavior: reducedMotion ? 'auto' : 'smooth' });
+    });
+  });
+
+  document.addEventListener('click', (event) => {
+    document.querySelectorAll('.admin-period__custom[open]').forEach((details) => {
+      if (!details.contains(event.target)) details.removeAttribute('open');
+    });
+  });
 
   document.querySelectorAll('[data-admin-toast]').forEach((toast) => {
     const remove = () => {

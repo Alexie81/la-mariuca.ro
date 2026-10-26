@@ -75,10 +75,13 @@ final class AdminPanelTest extends DatabaseTestCase
 
         self::assertSame(200, $dashboard->getStatusCode());
         self::assertStringContainsString('<body class="admin-body">', $body);
-        $bucharestHour = (int) (new \DateTimeImmutable('now', new \DateTimeZone('Europe/Bucharest')))->format('G');
-        $expectedGreeting = $bucharestHour < 12 ? 'Bună dimineața' : ($bucharestHour < 18 ? 'Bună ziua' : 'Bună seara');
-        self::assertStringContainsString($expectedGreeting, $body);
+        self::assertStringContainsString('Prezentare <em>generală</em>', $body);
+        self::assertStringContainsString('Săptămâna curentă', $body);
+        self::assertStringContainsString('Vânzări nete', $body);
+        self::assertStringContainsString('Comenzi recente', $body);
         self::assertStringContainsString('data-count-up=', $body);
+        self::assertStringContainsString('data-money-count-up=', $body);
+        self::assertStringContainsString('data-chart-bar', $body);
         self::assertStringContainsString('aria-current="page"', $body);
         self::assertStringNotContainsString('href="/admin/produse/"', $body);
         self::assertArrayHasKey('user_id', $_SESSION);

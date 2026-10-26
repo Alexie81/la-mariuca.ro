@@ -23,64 +23,23 @@ use Psr\Http\Message\ServerRequestInterface;
 
 final class AdminController
 {
-    public function __construct(private readonly PDO $pdo, private readonly CatalogRepository $catalog, private readonly CatalogAdminService $catalogAdmin, private readonly OrderService $orders, private readonly ProductReviewService $reviews, private readonly MediaService $media, private readonly ContentAdminService $contentAdmin, private readonly Auth $auth, private readonly AdminRememberMe $rememberMe, private readonly RateLimiter $limiter, private readonly View $view, private readonly Config $config)
+    public function __construct(private readonly PDO $pdo, private readonly AdminDashboardService $dashboardService, private readonly CatalogRepository $catalog, private readonly CatalogAdminService $catalogAdmin, private readonly OrderService $orders, private readonly ProductReviewService $reviews, private readonly MediaService $media, private readonly ContentAdminService $contentAdmin, private readonly Auth $auth, private readonly AdminRememberMe $rememberMe, private readonly RateLimiter $limiter, private readonly View $view, private readonly Config $config)
     {
     }
 
-    public function dashboard(): ResponseInterface
+    public function dashboard(ServerRequestInterface $request): ResponseInterface
     {
         if (!$this->auth->hasRole(['administrator', 'operator'])) {
             return $this->view->render('admin/pages/login.twig');
         }
         $admin = $this->auth->user();
-        $stats = [
-            'products' => (int) $this->pdo->query("SELECT COUNT(*) FROM products WHERE status='published'")->fetchColumn(),
-            'orders' => (int) $this->pdo->query('SELECT COUNT(*) FROM orders')->fetchColumn(),
-            'open_orders' => (int) $this->pdo->query("SELECT COUNT(*) FROM orders WHERE status IN ('new','confirmed','preparing','manual_review')")->fetchColumn(),
-            'reserved_units' => (int) $this->pdo->query('SELECT COALESCE(SUM(reserved_quantity),0) FROM inventory')->fetchColumn(),
-        ];
-        $health = [
-            'draft_products' => (int) $this->pdo->query("SELECT COUNT(*) FROM products WHERE status='draft'")->fetchColumn(),
-            'low_stock' => (int) $this->pdo->query("SELECT COUNT(*) FROM inventory i JOIN product_variants v ON v.id=i.variant_id WHERE v.status='active' AND (i.physical_quantity-i.reserved_quantity)<=3")->fetchColumn(),
-            'pending_reviews' => (int) $this->pdo->query("SELECT COUNT(*) FROM product_reviews WHERE status='pending'")->fetchColumn(),
-        ];
-        $recentOrders = $this->pdo->query('SELECT id,order_number,first_name,last_name,total_bani,status,payment_status,created_at FROM orders ORDER BY id DESC LIMIT 6')->fetchAll();
-        $statusCounts = [];
-        foreach ($this->pdo->query('SELECT status,COUNT(*) AS total FROM orders GROUP BY status')->fetchAll() as $row) {
-            $statusCounts[(string) $row['status']] = (int) $row['total'];
-        }
-        $statusLabels = [
-            'new' => 'Comenzi noi',
-            'confirmed' => 'Confirmate',
-            'preparing' => 'În pregătire',
-            'shipped' => 'Expediate',
-            'delivered' => 'Livrate',
-        ];
-        $orderFlow = [];
-        foreach ($statusLabels as $status => $label) {
-            $count = $statusCounts[$status] ?? 0;
-            $orderFlow[] = [
-                'status' => $status,
-                'label' => $label,
-                'count' => $count,
-                'percent' => $stats['orders'] > 0 ? (int) round(($count / $stats['orders']) * 100) : 0,
-            ];
-        }
-        $lowStock = $this->pdo->query("SELECT p.name,v.sku,(i.physical_quantity-i.reserved_quantity) AS available FROM inventory i JOIN product_variants v ON v.id=i.variant_id JOIN products p ON p.id=v.product_id WHERE v.status='active' AND (i.physical_quantity-i.reserved_quantity)<=3 ORDER BY available ASC,p.name ASC LIMIT 5")->fetchAll();
+        $overview = $this->dashboardService->overview($request->getQueryParams());
         $bucharestNow = new \DateTimeImmutable('now', new \DateTimeZone('Europe/Bucharest'));
-        $hour = (int) $bucharestNow->format('G');
-        $greeting = $hour < 12 ? 'Bună dimineața' : ($hour < 18 ? 'Bună ziua' : 'Bună seara');
 
         return $this->view->render('admin/pages/dashboard.twig', [
-            'stats' => $stats,
-            'health' => $health,
-            'recent_orders' => $recentOrders,
-            'order_flow' => $orderFlow,
-            'low_stock' => $lowStock,
+            ...$overview,
             'admin_user' => $admin,
-            'greeting' => $greeting,
-            'generated_at' => $bucharestNow->format('d.m.Y H:i'),
-            'totp_enabled' => (int) ($admin['totp_enabled'] ?? 0) === 1,
+            'today' => $bucharestNow->format('d.m.Y'),
         ]);
     }
 
