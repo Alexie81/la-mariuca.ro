@@ -1,0 +1,129 @@
+{% set is_modal = modal_form|default(false) %}
+<form class="admin-product-editor__form{{ is_modal ? ' is-modal' : '' }}" action="{{ form_action }}" method="post" data-admin-product-form>
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  <div class="admin-product-editor__feedback" data-admin-product-form-feedback role="alert" hidden></div>
+
+  <div class="admin-product-editor__sections">
+    <section class="admin-product-editor__section" aria-labelledby="product-section-identity{{ is_modal ? '-modal' : '' }}">
+      <header>
+        <span class="admin-product-editor__section-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m4.5 7.5 7.5-4 7.5 4v9L12 21l-7.5-4.5v-9Z"/><path d="m4.8 7.7 7.2 4.1 7.2-4.1M12 11.8V21"/></svg></span>
+        <div><span>Identitate</span><h3 id="product-section-identity{{ is_modal ? '-modal' : '' }}">Cum apare în boutique</h3></div>
+      </header>
+      <div class="admin-product-editor__grid">
+        <label class="admin-product-field admin-product-field--wide">
+          <span>Numele produsului <b>*</b></span>
+          <input name="name" value="{{ product.name|default('') }}" autocomplete="off" placeholder="Ex: Rochiță de botez Maria" required>
+          <small>Denumirea pe care o vede clientul.</small>
+        </label>
+        <label class="admin-product-field">
+          <span>SKU <b>*</b></span>
+          <input name="sku" value="{{ product.sku|default('') }}" autocomplete="off" placeholder="LM-RO-001" required>
+        </label>
+        <label class="admin-product-field">
+          <span>Slug</span>
+          <input name="slug" value="{{ product.slug|default('') }}" autocomplete="off" placeholder="Se generează din nume">
+        </label>
+        <label class="admin-product-field admin-product-field--wide">
+          <span>Categoria principală <b>*</b></span>
+          <span class="admin-product-field__select">
+            <select name="category_id" required>
+              <option value="">Alege categoria potrivită</option>
+              {% for category in categories %}<option value="{{ category.id }}" {{ product and product.primary_category_id == category.id ? 'selected' }}>{{ category.name }}</option>{% endfor %}
+            </select>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg>
+          </span>
+        </label>
+      </div>
+    </section>
+
+    <section class="admin-product-editor__section" aria-labelledby="product-section-commerce{{ is_modal ? '-modal' : '' }}">
+      <header>
+        <span class="admin-product-editor__section-icon is-gold" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 7h14l-1 13H6L5 7Z"/><path d="M9 7V5a3 3 0 0 1 6 0v2M9 12h6"/></svg></span>
+        <div><span>Comercial</span><h3 id="product-section-commerce{{ is_modal ? '-modal' : '' }}">Preț, stoc și stare</h3></div>
+      </header>
+      <div class="admin-product-editor__grid admin-product-editor__grid--three">
+        <label class="admin-product-field">
+          <span>Preț RON <b>*</b></span>
+          <span class="admin-product-field__suffix"><input name="price" inputmode="decimal" value="{{ product ? '%d,%02d'|format(product.price_bani // 100, product.price_bani % 100) : '' }}" placeholder="129,90" required><em>RON</em></span>
+        </label>
+        <label class="admin-product-field">
+          <span>Stoc fizic <b>*</b></span>
+          <span class="admin-product-field__suffix"><input type="number" min="0" name="stock" value="{{ product.stock|default(0) }}" required><em>buc.</em></span>
+        </label>
+        <label class="admin-product-field">
+          <span>Stare</span>
+          <span class="admin-product-field__select">
+            <select name="status"><option value="draft" {{ product.status|default('draft') == 'draft' ? 'selected' }}>Draft</option><option value="published" {{ product.status|default('') == 'published' ? 'selected' }}>Publicat</option><option value="archived" {{ product.status|default('') == 'archived' ? 'selected' }}>Arhivat</option></select>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg>
+          </span>
+        </label>
+      </div>
+      <div class="admin-product-editor__switches">
+        <label class="admin-product-switch">
+          <input type="checkbox" name="featured" {{ product.featured|default(false) ? 'checked' }}>
+          <i aria-hidden="true"><b></b></i>
+          <span><strong>Ales cu drag</strong><small>Afișează produsul în selecția de pe homepage.</small></span>
+        </label>
+        <label class="admin-product-switch">
+          <input type="checkbox" name="indexable" {{ not product or product.indexable ? 'checked' }}>
+          <i aria-hidden="true"><b></b></i>
+          <span><strong>Vizibil pentru Google</strong><small>Permite indexarea paginii produsului.</small></span>
+        </label>
+      </div>
+    </section>
+
+    <section class="admin-product-editor__section" aria-labelledby="product-section-story{{ is_modal ? '-modal' : '' }}">
+      <header>
+        <span class="admin-product-editor__section-icon is-rose" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 20s-7-4.3-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.7-7 10-7 10Z"/></svg></span>
+        <div><span>Editorial</span><h3 id="product-section-story{{ is_modal ? '-modal' : '' }}">Povestea produsului</h3></div>
+      </header>
+      <div class="admin-product-editor__grid">
+        <label class="admin-product-field admin-product-field--full">
+          <span>Descriere scurtă</span>
+          <textarea name="short_description" rows="3" placeholder="O frază caldă și clară despre produs…">{{ product.short_description|default('') }}</textarea>
+          <small>Apare în zona editorială de lângă titlul produsului.</small>
+        </label>
+        <label class="admin-product-field admin-product-field--full">
+          <span>Descriere completă</span>
+          <textarea name="description" rows="7" placeholder="Materiale, beneficii, ocazii și toate detaliile care ajută familia să aleagă…">{{ product.description|default('') }}</textarea>
+        </label>
+      </div>
+    </section>
+
+    <section class="admin-product-editor__section" aria-labelledby="product-section-details{{ is_modal ? '-modal' : '' }}">
+      <header>
+        <span class="admin-product-editor__section-icon is-sage" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 3h12v18H6zM9 7h6M9 11h6M9 15h4"/></svg></span>
+        <div><span>Detalii utile</span><h3 id="product-section-details{{ is_modal ? '-modal' : '' }}">Tot ce trebuie știut</h3></div>
+      </header>
+      <div class="admin-product-editor__grid">
+        <label class="admin-product-field"><span>Compoziție</span><input name="composition" value="{{ product.composition|default('') }}" placeholder="Ex: 100% bumbac"></label>
+        <label class="admin-product-field"><span>Întreținere</span><input name="care_instructions" value="{{ product.care_instructions|default('') }}" placeholder="Ex: Spălare la 30°C"></label>
+        <label class="admin-product-field"><span>Ghid de mărimi</span><input name="size_guide" value="{{ product.size_guide|default('') }}" placeholder="Recomandări pentru alegerea mărimii"></label>
+        <label class="admin-product-field"><span>Conținutul pachetului</span><input name="package_contents" value="{{ product.package_contents|default('') }}" placeholder="Ce primește clientul"></label>
+        <label class="admin-product-field admin-product-field--full"><span>Accesorii neincluse</span><input name="excluded_accessories" value="{{ product.excluded_accessories|default('') }}" placeholder="Elementele decorative din fotografie care nu sunt incluse"></label>
+      </div>
+    </section>
+
+    <section class="admin-product-editor__section" aria-labelledby="product-section-seo{{ is_modal ? '-modal' : '' }}">
+      <header>
+        <span class="admin-product-editor__section-icon is-blue" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m16.5 16.5 4 4"/></svg></span>
+        <div><span>Căutare</span><h3 id="product-section-seo{{ is_modal ? '-modal' : '' }}">Prezentare pentru Google</h3></div>
+      </header>
+      <div class="admin-product-editor__grid">
+        <label class="admin-product-field"><span>Titlu SEO</span><input name="seo_title" value="{{ product.seo_title|default('') }}" placeholder="Titlul afișat în rezultatele căutării"></label>
+        <label class="admin-product-field"><span>Meta description</span><textarea name="meta_description" rows="3" placeholder="O descriere scurtă și relevantă pentru căutare">{{ product.meta_description|default('') }}</textarea></label>
+      </div>
+    </section>
+  </div>
+
+  <footer class="admin-product-editor__footer">
+    <span class="admin-product-editor__save-status" data-admin-product-save-status><i aria-hidden="true"></i> Modificările sunt verificate înainte de salvare</span>
+    <div class="admin-product-editor__footer-actions">
+      {% if is_modal %}<button type="button" class="admin-product-editor__cancel" data-admin-product-editor-close>Renunță</button>{% endif %}
+      <button type="submit" class="admin-product-editor__submit" data-admin-product-submit>
+        <span>{{ product ? 'Salvează modificările' : 'Adaugă produsul' }}</span>
+        <i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></i>
+      </button>
+    </div>
+  </footer>
+</form>

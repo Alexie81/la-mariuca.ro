@@ -1,0 +1,11 @@
+<header class="admin-product-editor__header">
+  <span class="admin-product-editor__mark" aria-hidden="true">
+    <svg viewBox="0 0 24 24"><path d="m4.5 7.5 7.5-4 7.5 4v9L12 21l-7.5-4.5v-9Z"/><path d="m4.8 7.7 7.2 4.1 7.2-4.1M12 11.8V21"/></svg>
+  </span>
+  <div>
+    <span class="admin-eyebrow">{{ product ? 'Atelier de editare' : 'Un produs nou' }}</span>
+    <h2 id="admin-product-editor-title">{{ product ? 'Finisează produsul' : 'Adaugă o poveste nouă' }}</h2>
+    <p>{{ product ? product.name : 'Completează detaliile de bază, apoi îl poți publica în boutique.' }}</p>
+  </div>
+</header>
+{% include 'admin/partials/product-form-fields.twig' with { modal_form: true } %}

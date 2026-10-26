@@ -154,22 +154,59 @@ final class AdminController
     public function productForm(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
     {
         $id = isset($args['id']) ? (int) $args['id'] : null;
+        $product = $id ? $this->catalogAdmin->productForm($id) : null;
+        if ($id !== null && $product === null) {
+            Flash::set('error', 'Produsul solicitat nu mai este disponibil.');
+            return $this->view->redirect($this->config->path('admin/produse/'));
+        }
         return $this->view->render('admin/pages/product-form.twig', [
-            'product' => $id ? $this->catalogAdmin->productForm($id) : null,
+            'product' => $product,
             'categories' => $this->catalog->allCategories(true),
+            'form_action' => $this->config->path($id ? 'admin/produse/' . $id . '/editare/' : 'admin/produse/nou/'),
             'admin_section' => 'products',
             'admin_context' => $id ? 'Editare produs' : 'Produs nou',
             'admin_unread_count' => $this->notificationService->unreadCount((int) ($this->auth->user()['id'] ?? 0)),
         ]);
     }
 
+    public function productModalForm(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $id = isset($args['id']) ? (int) $args['id'] : null;
+        $product = $id ? $this->catalogAdmin->productForm($id) : null;
+        if ($id !== null && $product === null) {
+            return $this->view->render('admin/partials/product-form-error.twig', [], 404);
+        }
+
+        return $this->view->render('admin/partials/product-form-modal.twig', [
+            'product' => $product,
+            'categories' => $this->catalog->allCategories(true),
+            'form_action' => $this->config->path($id ? 'admin/produse/' . $id . '/editare/' : 'admin/produse/nou/'),
+        ]);
+    }
+
     public function saveProduct(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
     {
+        $wantsJson = str_contains(strtolower($request->getHeaderLine('Accept')), 'application/json');
         try {
             $id = $this->catalogAdmin->saveProduct((array) ($request->getParsedBody() ?? []), isset($args['id']) ? (int) $args['id'] : null);
+            if ($wantsJson) {
+                $response->getBody()->write((string) json_encode([
+                    'ok' => true,
+                    'id' => $id,
+                    'message' => 'Produsul și stocul au fost salvate.',
+                ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+                return $response->withHeader('Content-Type', 'application/json; charset=utf-8')->withHeader('Cache-Control', 'no-store');
+            }
             Flash::set('success', 'Produsul și stocul au fost salvate.');
             return $this->view->redirect($this->config->path('admin/produse/' . $id . '/editare/'));
         } catch (\Throwable $exception) {
+            if ($wantsJson) {
+                $response->getBody()->write((string) json_encode([
+                    'ok' => false,
+                    'message' => $exception->getMessage(),
+                ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+                return $response->withStatus(422)->withHeader('Content-Type', 'application/json; charset=utf-8')->withHeader('Cache-Control', 'no-store');
+            }
             Flash::set('error', $exception->getMessage());
             return $this->view->redirect($request->getHeaderLine('Referer') ?: $this->config->path('admin/produse/'));
         }

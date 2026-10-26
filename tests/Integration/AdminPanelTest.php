@@ -112,6 +112,9 @@ final class AdminPanelTest extends DatabaseTestCase
         self::assertStringContainsString('8 buc.', $body);
         self::assertStringContainsString('/sterge/', $body);
         self::assertStringContainsString('data-admin-product-delete-dialog', $body);
+        self::assertStringContainsString('data-admin-product-editor-dialog', $body);
+        self::assertStringContainsString('data-admin-product-editor-trigger', $body);
+        self::assertStringContainsString('/editare/modal/', $body);
         self::assertStringNotContainsString('1 variantă', $body);
 
         $search = (string) $this->get('/admin/produse/?cautare=LM-SH-002')->getBody();
@@ -123,8 +126,35 @@ final class AdminPanelTest extends DatabaseTestCase
         self::assertStringContainsString('href="/admin/produse/" aria-current="page"', $form);
         self::assertStringContainsString('Produs nou', $form);
 
+        $newModal = $this->get('/admin/produse/nou/modal/');
+        self::assertSame(200, $newModal->getStatusCode());
+        self::assertStringContainsString('Adaugă o poveste nouă', (string) $newModal->getBody());
+        self::assertStringContainsString('data-admin-product-form', (string) $newModal->getBody());
+
+        $categoryId = (int) $this->pdo->query('SELECT id FROM categories ORDER BY id LIMIT 1')->fetchColumn();
+        $created = $this->request('POST', '/admin/produse/nou/', [
+            '_csrf' => $_SESSION['_csrf'],
+            'name' => 'Produs creat din modal',
+            'sku' => 'LM-MODAL-001',
+            'price' => '149,90',
+            'stock' => '4',
+            'category_id' => (string) $categoryId,
+            'status' => 'draft',
+            'indexable' => 'on',
+        ], '127.0.0.86', [], ['Accept' => 'application/json']);
+        self::assertSame(200, $created->getStatusCode());
+        self::assertSame('application/json; charset=utf-8', $created->getHeaderLine('Content-Type'));
+        $createdPayload = json_decode((string) $created->getBody(), true, 512, JSON_THROW_ON_ERROR);
+        self::assertIsArray($createdPayload);
+        self::assertTrue((bool) $createdPayload['ok']);
+        self::assertSame(1, (int) $this->pdo->query("SELECT COUNT(*) FROM product_variants WHERE sku='LM-MODAL-001'")->fetchColumn());
+
         $product = $this->pdo->query("SELECT p.id,p.name FROM products p JOIN product_variants v ON v.product_id=p.id WHERE v.sku='LM-SH-002' LIMIT 1")->fetch();
         self::assertIsArray($product);
+        $editModal = $this->get('/admin/produse/' . $product['id'] . '/editare/modal/');
+        self::assertSame(200, $editModal->getStatusCode());
+        self::assertStringContainsString('Finisează produsul', (string) $editModal->getBody());
+        self::assertStringContainsString('LM-SH-002', (string) $editModal->getBody());
         $deleted = $this->post('/admin/produse/' . $product['id'] . '/sterge/', [
             '_csrf' => $_SESSION['_csrf'],
         ], '127.0.0.86');
@@ -290,13 +320,16 @@ final class AdminPanelTest extends DatabaseTestCase
         return $this->request('POST', $path, $data, $ip);
     }
 
-    /** @param array<string, mixed> $data @param array<string, string> $cookies */
-    private function request(string $method, string $path, array $data = [], string $ip = '127.0.0.80', array $cookies = []): ResponseInterface
+    /** @param array<string, mixed> $data @param array<string, string> $cookies @param array<string, string> $headers */
+    private function request(string $method, string $path, array $data = [], string $ip = '127.0.0.80', array $cookies = [], array $headers = []): ResponseInterface
     {
         $request = (new ServerRequestFactory())
             ->createServerRequest($method, 'http://localhost' . $path, ['REMOTE_ADDR' => $ip])
             ->withHeader('User-Agent', self::USER_AGENT)
             ->withCookieParams($cookies);
+        foreach ($headers as $name => $value) {
+            $request = $request->withHeader($name, $value);
+        }
         if ($data !== []) {
             $request = $request->withParsedBody($data);
         }

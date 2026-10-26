@@ -1,1 +1,22 @@
-{% extends 'admin/layouts/base.twig' %}{% block title %}{{ product ? 'Editare produs' : 'Produs nou' }}{% endblock %}{% block content %}<div class="admin-title"><div><h1>{{ product ? 'Editare produs' : 'Produs nou' }}</h1><p>Formularul creează o variantă implicită; variantele complexe se gestionează în etapa dedicată.</p></div></div><form class="panel form" method="post"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><div class="form-grid"><label>Nume *<input name="name" value="{{ product.name|default('') }}" required></label><label>Slug<input name="slug" value="{{ product.slug|default('') }}"></label><label>SKU *<input name="sku" value="{{ product.sku|default('') }}" required></label><label>Preț RON *<input name="price" value="{{ product ? '%d,%02d'|format(product.price_bani // 100, product.price_bani % 100) : '' }}" placeholder="129,90" required></label><label>Stoc fizic *<input type="number" min="0" name="stock" value="{{ product.stock|default(0) }}" required></label><label>Categorie principală *<select name="category_id" required><option value="">Alege</option>{% for category in categories %}<option value="{{ category.id }}" {{ product and product.primary_category_id == category.id ? 'selected' }}>{{ category.name }}</option>{% endfor %}</select></label><label>Stare<select name="status"><option value="draft" {{ product.status|default('draft') == 'draft' ? 'selected' }}>Draft</option><option value="published" {{ product.status|default('') == 'published' ? 'selected' }}>Publicat</option><option value="archived" {{ product.status|default('') == 'archived' ? 'selected' }}>Arhivat</option></select></label><label class="choice"><input type="checkbox" name="featured" {{ product.featured|default(false) ? 'checked' }}> Afișează în „Alese cu drag” pe homepage</label><label class="full">Descriere scurtă<textarea name="short_description" rows="3">{{ product.short_description|default('') }}</textarea></label><label class="full">Descriere<textarea name="description" rows="7">{{ product.description|default('') }}</textarea></label><label>Compoziție<input name="composition" value="{{ product.composition|default('') }}"></label><label>Întreținere<input name="care_instructions" value="{{ product.care_instructions|default('') }}"></label><label>Ghid mărimi<input name="size_guide" value="{{ product.size_guide|default('') }}"></label><label>Conținut pachet<input name="package_contents" value="{{ product.package_contents|default('') }}"></label><label class="full">Accesorii neincluse<input name="excluded_accessories" value="{{ product.excluded_accessories|default('') }}"></label><label>Titlu SEO<input name="seo_title" value="{{ product.seo_title|default('') }}"></label><label>Meta description<input name="meta_description" value="{{ product.meta_description|default('') }}"></label><label class="choice full"><input type="checkbox" name="indexable" {{ not product or product.indexable ? 'checked' }}> Eligibil pentru indexare</label></div><button class="button">Salvează produsul</button></form>{% endblock %}
+{% extends 'admin/layouts/base.twig' %}
+
+{% block title %}{{ product ? 'Editare produs' : 'Produs nou' }}{% endblock %}
+
+{% block content %}
+  <section class="admin-product-form-page">
+    <header class="admin-product-form-page__hero">
+      <div>
+        <a href="{{ url('admin/produse/') }}" class="admin-product-form-page__back">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg>
+          Catalog
+        </a>
+        <span class="admin-eyebrow"><i aria-hidden="true"></i> {{ product ? 'Atelier de editare' : 'Produs nou' }}</span>
+        <h1>{{ product ? 'Finisează produsul' : 'Adaugă o poveste nouă' }}</h1>
+        <p>Informațiile sunt grupate firesc, de la identitate și stoc până la poveste și vizibilitate.</p>
+      </div>
+    </header>
+    <div class="admin-product-form-page__card">
+      {% include 'admin/partials/product-form-fields.twig' with { modal_form: false } %}
+    </div>
+  </section>
+{% endblock %}

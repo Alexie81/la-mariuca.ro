@@ -481,6 +481,138 @@
     });
   });
 
+  const productEditorDialog = document.querySelector('[data-admin-product-editor-dialog]');
+  const productEditorContent = productEditorDialog?.querySelector('[data-admin-product-editor-content]');
+  const productEditorLoading = productEditorContent?.innerHTML || '';
+  let productEditorTrigger = null;
+  let productEditorRequest = null;
+
+  const closeProductEditor = () => {
+    if (!productEditorDialog?.open) return;
+    productEditorRequest?.abort();
+    productEditorRequest = null;
+    productEditorDialog.classList.remove('is-visible', 'is-success');
+    document.documentElement.classList.remove('has-admin-product-editor');
+    window.setTimeout(() => {
+      if (productEditorDialog.open) productEditorDialog.close();
+    }, reducedMotion ? 0 : 230);
+  };
+
+  const showProductEditorError = (message) => {
+    if (!productEditorContent) return;
+    productEditorContent.innerHTML = `<div class="admin-product-editor__error-state"><span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 8v5M12 17h.01"></path><circle cx="12" cy="12" r="9"></circle></svg></span><h2>Nu am putut deschide editorul</h2><p>${message}</p><button type="button" data-admin-product-editor-retry>Încearcă din nou</button></div>`;
+  };
+
+  const loadProductEditor = async (trigger) => {
+    if (!productEditorDialog || !productEditorContent) return;
+    productEditorRequest?.abort();
+    productEditorRequest = new AbortController();
+    productEditorContent.innerHTML = productEditorLoading;
+    const modalUrl = trigger.dataset.modalUrl;
+    if (!modalUrl) return;
+    try {
+      const response = await fetch(modalUrl, {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        signal: productEditorRequest.signal,
+      });
+      const markup = await response.text();
+      if (!response.ok || response.redirected || !markup.includes('data-admin-product-form')) {
+        throw new Error('Produsul nu mai este disponibil sau sesiunea a expirat.');
+      }
+      productEditorContent.innerHTML = markup;
+      requestAnimationFrame(() => productEditorContent.querySelector('input:not([type="hidden"])')?.focus({ preventScroll: true }));
+    } catch (error) {
+      if (error.name === 'AbortError') return;
+      showProductEditorError(error.message || 'A apărut o problemă temporară. Încearcă din nou.');
+    } finally {
+      productEditorRequest = null;
+    }
+  };
+
+  document.querySelectorAll('[data-admin-product-editor-trigger]').forEach((trigger) => {
+    trigger.addEventListener('click', (event) => {
+      if (!productEditorDialog || typeof productEditorDialog.showModal !== 'function' || !window.fetch) return;
+      event.preventDefault();
+      productEditorTrigger = trigger;
+      productEditorDialog.showModal();
+      document.documentElement.classList.add('has-admin-product-editor');
+      requestAnimationFrame(() => productEditorDialog.classList.add('is-visible'));
+      loadProductEditor(trigger);
+    });
+  });
+
+  productEditorDialog?.addEventListener('click', (event) => {
+    if (event.target === productEditorDialog || event.target.closest('[data-admin-product-editor-close]')) {
+      closeProductEditor();
+      return;
+    }
+    if (event.target.closest('[data-admin-product-editor-reload]')) window.location.reload();
+    if (event.target.closest('[data-admin-product-editor-retry]') && productEditorTrigger) loadProductEditor(productEditorTrigger);
+  });
+  productEditorDialog?.addEventListener('cancel', (event) => {
+    event.preventDefault();
+    closeProductEditor();
+  });
+  productEditorDialog?.addEventListener('close', () => {
+    productEditorDialog.classList.remove('is-visible', 'is-success');
+    document.documentElement.classList.remove('has-admin-product-editor');
+    if (productEditorContent) productEditorContent.innerHTML = productEditorLoading;
+    productEditorTrigger?.focus({ preventScroll: true });
+    productEditorTrigger = null;
+  });
+
+  productEditorContent?.addEventListener('submit', async (event) => {
+    const form = event.target.closest('[data-admin-product-form]');
+    if (!form) return;
+    event.preventDefault();
+    form.classList.add('was-validated');
+    if (!form.reportValidity()) {
+      form.querySelector(':invalid')?.focus({ preventScroll: false });
+      return;
+    }
+
+    const submit = form.querySelector('[data-admin-product-submit]');
+    const submitLabel = submit?.querySelector('span');
+    const feedback = form.querySelector('[data-admin-product-form-feedback]');
+    const saveStatus = form.querySelector('[data-admin-product-save-status]');
+    if (submit) submit.disabled = true;
+    if (submitLabel) submitLabel.textContent = 'Se salvează…';
+    if (saveStatus) saveStatus.lastChild.textContent = ' Salvăm în siguranță…';
+    if (feedback) feedback.hidden = true;
+    form.classList.add('is-saving');
+
+    try {
+      const response = await fetch(form.action, {
+        method: 'POST',
+        body: new FormData(form),
+        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+      });
+      const contentType = response.headers.get('Content-Type') || '';
+      if (!contentType.includes('application/json')) throw new Error('Sesiunea a expirat. Reîncarcă pagina și autentifică-te din nou.');
+      const payload = await response.json();
+      if (!response.ok || !payload.ok) throw new Error(payload.message || 'Produsul nu a putut fi salvat.');
+      productEditorDialog?.classList.add('is-success');
+      form.classList.remove('is-saving');
+      form.classList.add('is-saved');
+      if (submitLabel) submitLabel.textContent = 'Salvat cu grijă';
+      if (saveStatus) saveStatus.lastChild.textContent = ` ${payload.message}`;
+      window.setTimeout(() => {
+        closeProductEditor();
+        window.setTimeout(() => window.location.reload(), reducedMotion ? 0 : 250);
+      }, reducedMotion ? 80 : 720);
+    } catch (error) {
+      form.classList.remove('is-saving');
+      if (submit) submit.disabled = false;
+      if (submitLabel) submitLabel.textContent = 'Încearcă din nou';
+      if (feedback) {
+        feedback.textContent = error.message || 'A apărut o problemă temporară. Verifică datele și încearcă din nou.';
+        feedback.hidden = false;
+        feedback.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'center' });
+      }
+      if (saveStatus) saveStatus.lastChild.textContent = ' Produsul nu a fost salvat';
+    }
+  });
+
   const productDeleteDialog = document.querySelector('[data-admin-product-delete-dialog]');
   const productDeleteName = productDeleteDialog?.querySelector('[data-admin-product-delete-name]');
   const productDeleteConfirm = productDeleteDialog?.querySelector('[data-admin-product-delete-confirm]');

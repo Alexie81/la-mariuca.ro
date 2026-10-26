@@ -15,7 +15,7 @@
         {% endif %}
       </p>
     </div>
-    <a class="admin-products-add" href="{{ url('admin/produse/nou/') }}">
+    <a class="admin-products-add" href="{{ url('admin/produse/nou/') }}" data-admin-product-editor-trigger data-modal-url="{{ url('admin/produse/nou/modal/') }}">
       <span>Adaugă produs</span>
       <i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></i>
     </a>
@@ -92,7 +92,7 @@
                 </td>
                 <td data-label="Status"><span class="admin-product-status admin-product-status--{{ product.status }}">{{ product.status_label }}</span></td>
                 <td data-label="Acțiuni" class="admin-products-table__actions">
-                  <a href="{{ url('admin/produse/' ~ product.id ~ '/editare/') }}" aria-label="Editează {{ product.name }}" title="Editează">
+                  <a href="{{ url('admin/produse/' ~ product.id ~ '/editare/') }}" data-admin-product-editor-trigger data-modal-url="{{ url('admin/produse/' ~ product.id ~ '/editare/modal/') }}" aria-label="Editează {{ product.name }}" title="Editează">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 20 4.2-1 10.4-10.4a2 2 0 0 0-2.8-2.8L5.4 16.2 4 20Z"/><path d="m14.5 7.1 2.8 2.8"/></svg>
                   </a>
                   <form action="{{ url('admin/produse/' ~ product.id ~ '/sterge/') }}" method="post" data-admin-product-delete-form data-product-name="{{ product.name }}">
@@ -142,6 +142,21 @@
       </div>
     {% endif %}
   </section>
+
+  <dialog class="admin-product-editor-dialog" data-admin-product-editor-dialog aria-labelledby="admin-product-editor-title">
+    <div class="admin-product-editor-dialog__surface">
+      <button class="admin-product-editor-dialog__close" type="button" aria-label="Închide editorul" data-admin-product-editor-close>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"/></svg>
+      </button>
+      <div class="admin-product-editor-dialog__content" data-admin-product-editor-content aria-live="polite">
+        <div class="admin-product-editor__loading">
+          <span aria-hidden="true"><i></i><i></i><i></i></span>
+          <strong>Pregătim atelierul produsului…</strong>
+          <small>Încărcăm toate detaliile în siguranță.</small>
+        </div>
+      </div>
+    </div>
+  </dialog>
 
   <dialog class="admin-product-delete-dialog" data-admin-product-delete-dialog aria-labelledby="admin-product-delete-title">
     <div class="admin-product-delete-dialog__content">
