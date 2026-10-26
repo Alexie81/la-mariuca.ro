@@ -1,0 +1,1 @@
+ALTER TABLE users ADD COLUMN phone VARCHAR(40) NULL AFTER last_name;

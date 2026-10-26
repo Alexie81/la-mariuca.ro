@@ -19,6 +19,7 @@ use App\Modules\Content\ContentRepository;
 use App\Modules\Content\ContactWhatsAppService;
 use App\Modules\Content\ContentAdminService;
 use App\Modules\Customers\AuthController;
+use App\Modules\Customers\GoogleOAuthService;
 use App\Modules\Customers\TwoFactorController;
 use App\Modules\Media\MediaService;
 use App\Modules\Orders\OrderService;
@@ -115,7 +116,7 @@ final class AppFactory
         $storefront = new StorefrontController($catalog, $catalogSearch, $categoryPaths, new ProductRecommendationService($catalog), $content, $contactWhatsApp, $reviews, $rateLimiter, $auth, $view, $config);
         $cartController = new CartController($cart, $view, $config);
         $checkoutController = new CheckoutController(new CheckoutService($pdo, $cart, $config), $cart, $orders, new StripeCheckoutService($pdo, $config), $rateLimiter, $view, $config);
-        $authController = new AuthController($pdo, $auth, $rateLimiter, $view, $config);
+        $authController = new AuthController($pdo, $auth, new GoogleOAuthService($pdo, $config), $rateLimiter, $view, $config);
         $twoFactorController = new TwoFactorController($pdo, $auth, new TotpService($config), $rateLimiter, $view, $config);
         $adminController = new AdminController($pdo, $catalog, new CatalogAdminService($pdo), $orders, $reviews, new MediaService($pdo, $root), new ContentAdminService($pdo), $auth, $view, $config);
 
@@ -150,6 +151,8 @@ final class AppFactory
 
         $app->get('/cont/autentificare/', [$authController, 'loginForm']);
         $app->post('/cont/autentificare/', [$authController, 'login']);
+        $app->get('/cont/google/', [$authController, 'googleStart']);
+        $app->get('/cont/google/retur/', [$authController, 'googleCallback']);
         $app->get('/cont/totp/', [$twoFactorController, 'challengeForm']);
         $app->post('/cont/totp/', [$twoFactorController, 'challenge']);
         $app->get('/cont/inregistrare/', [$authController, 'registerForm']);

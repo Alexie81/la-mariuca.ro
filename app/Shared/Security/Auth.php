@@ -45,6 +45,21 @@ final class Auth
         return 'authenticated';
     }
 
+    public function loginCustomer(int $userId): bool
+    {
+        $statement = $this->pdo->prepare("SELECT id FROM users WHERE id=:id AND role='customer' AND status='active' LIMIT 1");
+        $statement->execute(['id' => $userId]);
+        $id = $statement->fetchColumn();
+        if ($id === false) {
+            return false;
+        }
+
+        session_regenerate_id(true);
+        $_SESSION['user_id'] = (int) $id;
+        unset($_SESSION['pending_2fa_user_id']);
+        return true;
+    }
+
     /** @return array<string,mixed>|null */
     public function pendingTwoFactorUser(): ?array
     {

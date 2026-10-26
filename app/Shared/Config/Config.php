@@ -41,6 +41,7 @@ final class Config
             'WHATSAPP_NUMBER' => '40763715974',
             'WHATSAPP_MESSAGE' => 'Bună! Aș dori mai multe informații despre produsele La Măriuca Boutique.',
             'CONTACT_EMAIL' => 'contact@la-mariuca.ro',
+            'GOOGLE_OAUTH_ENABLED' => 'false',
         ];
 
         $values = [];
@@ -49,7 +50,7 @@ final class Config
             $values[$key] = is_string($value) && $value !== '' ? $value : $default;
         }
 
-        foreach (['APP_KEY', 'TRUSTED_HOSTS', 'TRUSTED_PROXIES', 'DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER', 'DB_PASSWORD', 'MAILER_DSN', 'MAIL_FROM_ADDRESS', 'MAIL_FROM_NAME', 'STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET', 'STRIPE_CURRENCY'] as $key) {
+        foreach (['APP_KEY', 'TRUSTED_HOSTS', 'TRUSTED_PROXIES', 'DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER', 'DB_PASSWORD', 'MAILER_DSN', 'MAIL_FROM_ADDRESS', 'MAIL_FROM_NAME', 'STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET', 'STRIPE_CURRENCY', 'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET'] as $key) {
             $value = $_ENV[$key] ?? $_SERVER[$key] ?? getenv($key);
             if (is_string($value)) {
                 $values[$key] = $value;
