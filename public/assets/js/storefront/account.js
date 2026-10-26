@@ -37,13 +37,19 @@ if (accountPage) {
   });
 
   const addressEditors = [...accountPage.querySelectorAll('.account-address-actions > details')];
+  const syncAddressModalState = () => {
+    const mobileModalOpen = window.matchMedia('(max-width: 760px)').matches && addressEditors.some((editor) => editor.open);
+    document.documentElement.classList.toggle('account-address-modal-open', mobileModalOpen);
+  };
   addressEditors.forEach((editor) => {
     editor.addEventListener('toggle', () => {
-      if (!editor.open) return;
-      addressEditors.forEach((other) => {
-        if (other !== editor) other.open = false;
-      });
-      window.requestAnimationFrame(() => editor.querySelector('input:not([type="hidden"])')?.focus());
+      if (editor.open) {
+        addressEditors.forEach((other) => {
+          if (other !== editor) other.open = false;
+        });
+        window.requestAnimationFrame(() => editor.querySelector('input:not([type="hidden"])')?.focus());
+      }
+      syncAddressModalState();
     });
   });
   accountPage.querySelectorAll('[data-account-address-close]').forEach((button) => {
@@ -56,5 +62,7 @@ if (accountPage) {
   document.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape') return;
     addressEditors.forEach((editor) => { editor.open = false; });
+    syncAddressModalState();
   });
+  window.addEventListener('resize', syncAddressModalState, { passive: true });
 }

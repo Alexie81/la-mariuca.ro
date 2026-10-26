@@ -1,6 +1,6 @@
 {% extends 'storefront/layouts/base.twig' %}
 {% block body_class %}account-page-body{% endblock %}
-{% block head %}<link rel="stylesheet" href="{{ url('assets/css/storefront/account.css') }}?v=20261026-account4">{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url('assets/css/storefront/account.css') }}?v=20261026-account5">{% endblock %}
 {% block content %}
 {% set initials = (account.first_name|first ~ account.last_name|first)|upper %}
 <div class="account-page">
@@ -141,6 +141,7 @@
                 <details>
                     <summary><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 20 4.2-1 10.9-10.9a2.2 2.2 0 0 0-3.2-3.2L5 15.8 4 20Z"></path></svg>Editează</summary>
                     <div class="account-address-edit-wrap">
+                      <div class="account-address-edit-heading"><span>Adresă salvată</span><h3>Editează „{{ saved.label }}”</h3><p>Actualizează datele folosite la livrare.</p></div>
                       <button class="account-address-edit-close" type="button" data-account-address-close aria-label="Închide editarea adresei">×</button>
                       <form class="account-form account-address-form" action="{{ url('cont/adrese/') }}" method="post">
                         <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="address_id" value="{{ saved.id }}">
