@@ -1,1 +1,186 @@
-{% extends 'storefront/layouts/base.twig' %}{% block content %}<div class="container page-shell"><div class="page-title"><div><h1>Contul meu</h1><p>{{ account.first_name }} {{ account.last_name }} · {{ account.email }}</p></div><form action="{{ url('cont/deconectare/') }}" method="post"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><button>Deconectare</button></form></div><h2>Comenzi</h2><div class="table-wrap"><table><thead><tr><th>Număr</th><th>Data</th><th>Stare</th><th>Plată</th><th>Total</th></tr></thead><tbody>{% for order in orders %}<tr><td>{{ order.order_number }}</td><td>{{ order.created_at|date('d.m.Y') }}</td><td>{{ order.status }}</td><td>{{ order.payment_status }}</td><td>{{ money(order.total_bani) }}</td></tr>{% else %}<tr><td colspan="5">Nu există comenzi asociate contului verificat.</td></tr>{% endfor %}</tbody></table></div></div>{% endblock %}
+{% extends 'storefront/layouts/base.twig' %}
+{% block body_class %}account-page-body{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url('assets/css/storefront/account.css') }}?v=20261026-account2">{% endblock %}
+{% block content %}
+{% set initials = (account.first_name|first ~ account.last_name|first)|upper %}
+<div class="account-page">
+  <section class="account-hero" aria-labelledby="account-title">
+    <span class="account-hero-orbit account-hero-orbit--one" aria-hidden="true"></span>
+    <span class="account-hero-orbit account-hero-orbit--two" aria-hidden="true"></span>
+    <div class="account-hero-copy">
+      <span class="account-kicker"><img src="{{ url('assets/images/icon-favorite-hearts.png') }}" alt="" width="34" height="34"> Spațiul familiei tale</span>
+      <h1 id="account-title">Bine ai revenit,<br><em>{{ account.first_name }}</em></h1>
+      <p>Aici găsești comenzile, datele și adresele familiei, așezate simplu într-un singur loc.</p>
+      <div class="account-hero-meta">
+        <span><i aria-hidden="true"></i>{{ account.email }}</span>
+        <span class="is-verified"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 12 3.2 3.2L17.5 8"></path></svg>Email verificat</span>
+      </div>
+    </div>
+    <div class="account-hero-profile" aria-hidden="true">
+      <div class="account-avatar"><span>{{ initials }}</span><img src="{{ url('assets/images/icon-favorite-hearts.png') }}" alt=""></div>
+      <small>Membru din</small>
+      <strong>{{ account.created_at|date('Y') }}</strong>
+    </div>
+    <div class="account-stats" aria-label="Rezumatul contului">
+      <a href="#comenzi"><span>{{ stats.orders }}</span><small>comenzi</small></a>
+      <a href="#comenzi"><span>{{ stats.active_orders }}</span><small>în desfășurare</small></a>
+      <a href="#adrese"><span>{{ stats.addresses }}</span><small>adrese salvate</small></a>
+    </div>
+  </section>
+
+  <div class="account-layout">
+    <aside class="account-sidebar" aria-label="Navigarea contului">
+      <div class="account-sidebar-profile">
+        <span>{{ initials }}</span>
+        <div><strong>{{ account.first_name }} {{ account.last_name }}</strong><small>Cont client</small></div>
+      </div>
+      <nav class="account-nav">
+        <a href="#rezumat" class="is-active"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"></path></svg><span>Rezumat</span></a>
+        <a href="#comenzi"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14l-1 13H6L5 7Z"></path><path d="M8.5 8V5.8A3.5 3.5 0 0 1 12 2.5a3.5 3.5 0 0 1 3.5 3.3V8"></path></svg><span>Comenzile mele</span><b>{{ stats.orders }}</b></a>
+        <a href="#date-personale"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="7" r="3.5"></circle><path d="M5 21c.5-5 2.8-7.4 7-7.4s6.5 2.4 7 7.4"></path></svg><span>Date personale</span></a>
+        <a href="#adrese"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s7-6.1 7-12a7 7 0 0 0-14 0c0 5.9 7 12 7 12Z"></path><circle cx="12" cy="9" r="2.2"></circle></svg><span>Adrese</span><b>{{ stats.addresses }}</b></a>
+        <a href="#securitate"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.8c2.3 1.5 4.8 2.4 7.2 2.7v5.2c0 5-2.9 8.2-7.2 10.5-4.3-2.3-7.2-5.5-7.2-10.5V5.5c2.4-.3 4.9-1.2 7.2-2.7Z"></path><path d="m8.5 12.2 2.3 2.3 4.8-5"></path></svg><span>Securitate</span></a>
+        <a href="{{ url('favorite/') }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.5C5 16.3 3 12.6 3 8.8 3 5.7 5.2 3.5 8.2 3.5c1.8 0 3.1.9 3.8 2.2.7-1.3 2-2.2 3.8-2.2 3 0 5.2 2.2 5.2 5.3 0 3.8-2 7.5-9 11.7Z"></path></svg><span>Favorite</span></a>
+      </nav>
+      <form class="account-logout" action="{{ url('cont/deconectare/') }}" method="post">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <button type="submit"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 4H5v16h5M14 8l4 4-4 4M8 12h10"></path></svg>Deconectare</button>
+      </form>
+    </aside>
+
+    <div class="account-content">
+      <section id="rezumat" class="account-panel account-overview">
+        <header class="account-section-heading">
+          <div><span>Pe scurt</span><h2>Tot ce contează, aproape</h2></div>
+          <p>Continuă de unde ai rămas sau actualizează rapid informațiile familiei.</p>
+        </header>
+        <div class="account-quick-grid">
+          <a href="#comenzi"><span class="account-quick-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14l-1 13H6L5 7Z"></path><path d="M9 8V5.8a3 3 0 0 1 6 0V8"></path></svg></span><span><small>Istoricul tău</small><strong>Vezi comenzile</strong></span><i>›</i></a>
+          <a href="#adrese"><span class="account-quick-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s7-6.1 7-12a7 7 0 0 0-14 0c0 5.9 7 12 7 12Z"></path><circle cx="12" cy="9" r="2.2"></circle></svg></span><span><small>Pentru checkout rapid</small><strong>Gestionează adresele</strong></span><i>›</i></a>
+          <a href="{{ url('favorite/') }}"><span class="account-quick-icon"><img src="{{ url('assets/images/icon-favorite-hearts.png') }}" alt=""></span><span><small>Alese cu drag</small><strong>Deschide favoritele</strong></span><i>›</i></a>
+        </div>
+      </section>
+
+      <section id="comenzi" class="account-panel account-orders">
+        <header class="account-section-heading">
+          <div><span>Pachetele tale</span><h2>Comenzile mele</h2></div>
+          {% if orders %}<p>Ultimele {{ orders|length }} comenzi asociate acestui cont.</p>{% endif %}
+        </header>
+        {% if orders %}
+          <div class="account-order-list">
+            {% for order in orders %}
+              <article class="account-order-card">
+                <div class="account-order-top">
+                  <div><small>Comandă</small><strong>{{ order.order_number }}</strong></div>
+                  <div><small>Plasată pe</small><strong>{{ order.created_at|date('d.m.Y') }}</strong></div>
+                  <div><small>Total</small><strong class="account-order-total">{{ money(order.total_bani) }}</strong></div>
+                  <span class="account-status account-status--{{ order.status }}"><i></i>{{ order.status_label }}</span>
+                </div>
+                <div class="account-order-products">
+                  {% for item in order.items %}
+                    <div><span>{{ item.quantity }}×</span><p><strong>{{ item.product_name }}</strong>{% if item.variant_summary %}<small>{{ item.variant_summary }}</small>{% endif %}</p><b>{{ money(item.line_total_bani) }}</b></div>
+                  {% endfor %}
+                </div>
+                <details class="account-order-details">
+                  <summary><span>Detalii comandă</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 9 5 5 5-5"></path></svg></summary>
+                  <div class="account-order-detail-grid">
+                    <div><small>Plată</small><strong>{{ order.payment_method_label }} · {{ order.payment_label }}</strong></div>
+                    <div><small>Livrare la</small><strong>{{ order.shipping_address.address|default('—') }}, {{ order.shipping_address.city|default('') }}</strong></div>
+                    {% if order.awb %}<div><small>AWB</small><strong>{{ order.awb }}</strong></div>{% endif %}
+                    <div><small>Produse</small><strong>{{ order.items|length }}</strong></div>
+                  </div>
+                </details>
+              </article>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="account-empty-state">
+            <span><svg viewBox="0 0 48 48" aria-hidden="true"><path d="M10 15h28l-2 26H12l-2-26Z"></path><path d="M17 17v-4a7 7 0 0 1 14 0v4"></path><path d="M19 27c2-4 8-3 9 1 1-4 7-5 9-1"></path></svg></span>
+            <div><small>Prima poveste începe aici</small><h3>Încă nu ai nicio comandă</h3><p>Când alegi ceva drag, comanda și parcursul ei vor apărea aici.</p></div>
+            <a href="{{ url('magazin/') }}">Descoperă magazinul <i>›</i></a>
+          </div>
+        {% endif %}
+      </section>
+
+      <section id="date-personale" class="account-panel">
+        <header class="account-section-heading">
+          <div><span>Despre tine</span><h2>Date personale</h2></div>
+          <p>Folosim aceste date numai pentru cont și comenzile tale.</p>
+        </header>
+        <form class="account-form" action="{{ url('cont/detalii/') }}" method="post">
+          <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+          <label><span>Prenume *</span><input name="first_name" value="{{ account.first_name }}" autocomplete="given-name" maxlength="120" required></label>
+          <label><span>Nume *</span><input name="last_name" value="{{ account.last_name }}" autocomplete="family-name" maxlength="120" required></label>
+          <label><span>Telefon *</span><input name="phone" value="{{ account.phone|default('') }}" autocomplete="tel" inputmode="tel" placeholder="07xx xxx xxx" required></label>
+          <label class="account-field-readonly"><span>Email</span><input type="email" value="{{ account.email }}" readonly><small>Adresa verificată folosită pentru autentificare.</small></label>
+          <div class="account-form-actions"><button type="submit">Salvează modificările <i>›</i></button></div>
+        </form>
+      </section>
+
+      <section id="adrese" class="account-panel account-addresses">
+        <header class="account-section-heading">
+          <div><span>Livrare mai simplă</span><h2>Adresele mele</h2></div>
+          <p>Salvează până la 10 locuri și denumește-le cum îți este mai ușor.</p>
+        </header>
+        {% if addresses %}
+          <div class="account-address-grid">
+            {% for saved in addresses %}
+              <article class="account-address-card{{ saved.is_default ? ' is-default' : '' }}">
+                <div class="account-address-card-head">
+                  <span class="account-address-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s7-6.1 7-12a7 7 0 0 0-14 0c0 5.9 7 12 7 12Z"></path><circle cx="12" cy="9" r="2.2"></circle></svg></span>
+                  <div><small>Alias adresă</small><h3>{{ saved.label }}</h3></div>
+                  {% if saved.is_default %}<span class="account-default-badge">Implicită</span>{% endif %}
+                </div>
+                <p><strong>{{ saved.details.first_name|default(account.first_name) }} {{ saved.details.last_name|default(account.last_name) }}</strong><br>{{ saved.details.address|default('') }}<br>{{ saved.details.postal_code|default('') }} {{ saved.details.city|default('') }}, {{ saved.details.county|default('') }}</p>
+                <small class="account-address-phone">{{ saved.details.phone|default(account.phone) }}</small>
+                {% if saved.details.notes|default('') %}<small class="account-address-note">{{ saved.details.notes }}</small>{% endif %}
+                <div class="account-address-actions">
+                  <details>
+                    <summary>Editează</summary>
+                    <div class="account-address-edit-wrap">
+                      <button class="account-address-edit-close" type="button" data-account-address-close aria-label="Închide editarea adresei">×</button>
+                      <form class="account-form account-address-form" action="{{ url('cont/adrese/') }}" method="post">
+                        <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="address_id" value="{{ saved.id }}">
+                        {% include 'storefront/partials/account-address-fields.twig' with { values: saved.details, label_value: saved.label, default_checked: saved.is_default } %}
+                        <div class="account-form-actions"><button type="submit">Actualizează adresa <i>›</i></button></div>
+                      </form>
+                    </div>
+                  </details>
+                  {% if not saved.is_default %}
+                    <form action="{{ url('cont/adrese/' ~ saved.id ~ '/implicita/') }}" method="post"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><button type="submit">Setează implicită</button></form>
+                  {% endif %}
+                  <form action="{{ url('cont/adrese/' ~ saved.id ~ '/sterge/') }}" method="post" data-account-delete-address><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><button class="is-danger" type="submit" aria-label="Șterge adresa {{ saved.label }}">Șterge</button></form>
+                </div>
+              </article>
+            {% endfor %}
+          </div>
+        {% endif %}
+        <details class="account-new-address"{{ addresses ? '' : ' open' }}>
+          <summary><span><b>+</b><span><small>Un loc nou</small><strong>Adaugă o adresă</strong></span></span><i>›</i></summary>
+          <div class="account-new-address-body">
+            <form class="account-form account-address-form" action="{{ url('cont/adrese/') }}" method="post">
+              <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+              {% include 'storefront/partials/account-address-fields.twig' with { values: { first_name: account.first_name, last_name: account.last_name, phone: account.phone|default('') }, label_value: '', default_checked: addresses is empty } %}
+              <div class="account-form-actions"><button type="submit">Salvează adresa <i>›</i></button></div>
+            </form>
+          </div>
+        </details>
+      </section>
+
+      <section id="securitate" class="account-panel account-security">
+        <header class="account-section-heading">
+          <div><span>Cont protejat</span><h2>Securitate</h2></div>
+          <p>Detalii despre accesul și verificarea contului tău.</p>
+        </header>
+        <div class="account-security-grid">
+          <div><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 12 3.2 3.2L17.5 8"></path></svg></span><p><small>Adresă verificată</small><strong>{{ account.email }}</strong></p><b>Activ</b></div>
+          <div><span class="account-google-mark">G</span><p><small>Metodă de acces</small><strong>{{ account.uses_google ? 'Google și cont La Măriuca' : 'Email și parolă' }}</strong></p></div>
+          <div><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.8c2.3 1.5 4.8 2.4 7.2 2.7v5.2c0 5-2.9 8.2-7.2 10.5-4.3-2.3-7.2-5.5-7.2-10.5V5.5c2.4-.3 4.9-1.2 7.2-2.7Z"></path><path d="m8.5 12.2 2.3 2.3 4.8-5"></path></svg></span><p><small>Sesiune curentă</small><strong>Conexiune protejată</strong></p><b>Sigur</b></div>
+        </div>
+        <div class="account-security-note"><img src="{{ url('assets/images/icon-favorite-hearts.png') }}" alt=""><p><strong>Datele tale rămân ale tale.</strong><span>Nu îți vom cere niciodată parola prin telefon, WhatsApp sau email.</span></p></div>
+      </section>
+    </div>
+  </div>
+</div>
+<script type="module" src="{{ url('assets/js/storefront/account.js') }}?v=20261026-account2"></script>
+{% endblock %}

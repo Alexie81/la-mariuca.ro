@@ -682,3 +682,13 @@ atribute și filtre fără schimbarea contractelor existente.
 - Verificări locale trecute: lint PHP/JavaScript, compilarea tuturor celor 37 de template-uri Twig, PHPStan fără erori și PHPUnit cu 63 de teste / 470 de aserțiuni.
 - Fluxul Google verifică acum explicit existența extensiei PHP `curl` înainte de redirecționare și afișează cauza sigură a erorilor de configurare/autorizare în locul mesajului generic. Checklistul de deployment precizează că serverul local trebuie pornit prin `bin/php-local.ps1`, care încarcă `curl` împreună cu driverele bazei de date.
 - Scriptul PHP local detectează acum automat bundle-ul CA disponibil prin `SSL_CERT_FILE`, distribuția PHP sau instalarea Git și îl configurează pentru cURL/OpenSSL. Astfel, schimbul OAuth validează certificatul Google în loc să eșueze cu `cURL error 60`; verificarea HTTPS către endpointul Google a răspuns fără eroare de certificat.
+
+## 2026-10-26 — Centrul contului clientului
+
+- Pagina `/cont/` a fost reconstruită ca un centru complet și responsive pentru client, cu rezumat personal, statistici, navigare rapidă, comenzi, detalii personale, adrese salvate și informații despre accesul în cont.
+- Istoricul comenzilor afișează numărul, data, starea comenzii, plata, totalul, articolele și adresa de livrare. Comenzile de vizitator cu același email verificat sunt asociate automat contului, fără a modifica comenzile altor clienți.
+- Clientul își poate actualiza numele și telefonul, iar emailul verificat rămâne protejat până la existența unui flux dedicat de reverificare. Conturile conectate prin Google sunt semnalate clar în zona de securitate.
+- Agenda de livrare acceptă maximum zece adrese, fiecare cu alias propriu — de exemplu „Acasă”, „Birou” sau „Bunici” — destinatar, telefon, stradă, localitate, județ, cod poștal și indicații pentru curier. Adresele pot fi adăugate, editate, șterse sau declarate implicite; proprietatea este verificată server-side la fiecare operație.
+- Checkout-ul recunoaște clientul autentificat, precompletează datele sale și oferă selector pentru adresele salvate, cu adresa implicită aleasă automat. Formularul continuă să funcționeze complet și fără JavaScript.
+- Toate operațiile de profil și adresă folosesc POST cu CSRF, validare server-side, interogări pregătite și tranzacții pentru schimbarea adresei implicite. Interfața are confirmare la ștergere, editare accesibilă și compoziții distincte pentru telefon, tabletă și desktop.
+- Verificarea vizuală locală a confirmat centrul contului și precompletarea checkout-ului pe telefon și desktop. Verificări locale trecute: lint PHP/JavaScript, compilarea tuturor celor 38 de template-uri Twig, PHPStan fără erori și PHPUnit cu 66 de teste / 492 de aserțiuni.

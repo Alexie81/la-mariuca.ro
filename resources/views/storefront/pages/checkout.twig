@@ -1,5 +1,63 @@
 {% extends 'storefront/layouts/base.twig' %}
-{% block content %}<div class="container page-shell"><h1>Finalizare comandă</h1>{% if cart.items %}<div class="checkout-grid">
-<form class="form-card" method="post"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="idempotency_key" value="{{ idempotency_key }}"><h2>Date de contact</h2><div class="form-grid"><label>Prenume *<input name="first_name" autocomplete="given-name" required></label><label>Nume *<input name="last_name" autocomplete="family-name" required></label><label>Email *<input type="email" name="email" autocomplete="email" required></label><label>Telefon *<input name="phone" autocomplete="tel" required></label></div><h2>Adresă de livrare</h2><div class="form-grid"><label class="full">Adresă *<input name="address" autocomplete="street-address" required></label><label>Localitate *<input name="city" autocomplete="address-level2" required></label><label>Județ *<input name="county" autocomplete="address-level1" required></label><label>Cod poștal *<input name="postal_code" autocomplete="postal-code" required></label></div><h2>Plată</h2><label class="choice"><input type="radio" name="payment_method" value="cod" checked> Ramburs la livrare</label><label class="choice"><input type="radio" name="payment_method" value="stripe" {{ stripe_enabled ? '' : 'disabled' }}> Card prin Stripe {{ stripe_enabled ? '' : '(indisponibil până la configurare)' }}</label><label class="choice"><input type="checkbox" name="terms" required> Confirm că am citit și accept termenii. Trimiterea comenzii implică obligația de plată.</label><label class="choice"><input type="checkbox" name="marketing"> Doresc să primesc noutăți (opțional).</label><button class="button button-wide" type="submit">Plasează comanda cu obligație de plată</button></form>
-<aside class="order-summary"><h2>Sumar</h2>{% for item in cart.items %}<div><span>{{ item.name }} × {{ item.quantity }}</span><strong>{{ money(item.line_total_bani) }}</strong></div>{% endfor %}<hr><div><span>Subtotal</span><strong>{{ money(cart.subtotal_bani) }}</strong></div>{% if cart.discount_bani %}<div><span>Reducere {{ cart.coupon.code }}</span><strong>−{{ money(cart.discount_bani) }}</strong></div><div><span>După reducere</span><strong>{{ money(cart.total_bani) }}</strong></div>{% endif %}<small>Transportul se adaugă server-side după reducere, conform pragului configurat.</small></aside>
-</div>{% else %}<div class="empty"><p>Coșul este gol.</p><a class="button" href="{{ url('') }}">Înapoi la produse</a></div>{% endif %}</div>{% endblock %}
+{% block content %}
+{% set profile = checkout_customer.profile|default({}) %}
+{% set selected_address = checkout_customer.default_address.details|default({}) %}
+<div class="container page-shell">
+  <h1>Finalizare comandă</h1>
+  {% if cart.items %}
+    <div class="checkout-grid">
+      <form class="form-card" method="post">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <input type="hidden" name="idempotency_key" value="{{ idempotency_key }}">
+        <h2>Date de contact</h2>
+        <div class="form-grid">
+          <label>Prenume *<input name="first_name" value="{{ selected_address.first_name|default(profile.first_name|default('')) }}" autocomplete="given-name" required></label>
+          <label>Nume *<input name="last_name" value="{{ selected_address.last_name|default(profile.last_name|default('')) }}" autocomplete="family-name" required></label>
+          <label>Email *<input type="email" name="email" value="{{ profile.email|default('') }}" autocomplete="email" required></label>
+          <label>Telefon *<input name="phone" value="{{ selected_address.phone|default(profile.phone|default('')) }}" autocomplete="tel" required></label>
+        </div>
+        <h2>Adresă de livrare</h2>
+        {% if checkout_customer.addresses|default([]) %}
+          <label class="full">Alege o adresă salvată
+            <select data-checkout-saved-address>
+              {% for saved in checkout_customer.addresses %}
+                <option value="{{ saved.id }}"{{ saved.is_default ? ' selected' : '' }}
+                  data-first-name="{{ saved.details.first_name|default(profile.first_name|default('')) }}"
+                  data-last-name="{{ saved.details.last_name|default(profile.last_name|default('')) }}"
+                  data-phone="{{ saved.details.phone|default(profile.phone|default('')) }}"
+                  data-address="{{ saved.details.address|default('') }}"
+                  data-city="{{ saved.details.city|default('') }}"
+                  data-county="{{ saved.details.county|default('') }}"
+                  data-postal-code="{{ saved.details.postal_code|default('') }}">{{ saved.label }}{{ saved.is_default ? ' · implicită' : '' }}</option>
+              {% endfor %}
+              <option value="">Altă adresă</option>
+            </select>
+          </label>
+        {% endif %}
+        <div class="form-grid">
+          <label class="full">Adresă *<input name="address" value="{{ selected_address.address|default('') }}" autocomplete="street-address" required></label>
+          <label>Localitate *<input name="city" value="{{ selected_address.city|default('') }}" autocomplete="address-level2" required></label>
+          <label>Județ *<input name="county" value="{{ selected_address.county|default('') }}" autocomplete="address-level1" required></label>
+          <label>Cod poștal *<input name="postal_code" value="{{ selected_address.postal_code|default('') }}" autocomplete="postal-code" required></label>
+        </div>
+        <h2>Plată</h2>
+        <label class="choice"><input type="radio" name="payment_method" value="cod" checked> Ramburs la livrare</label>
+        <label class="choice"><input type="radio" name="payment_method" value="stripe" {{ stripe_enabled ? '' : 'disabled' }}> Card prin Stripe {{ stripe_enabled ? '' : '(indisponibil până la configurare)' }}</label>
+        <label class="choice"><input type="checkbox" name="terms" required> Confirm că am citit și accept termenii. Trimiterea comenzii implică obligația de plată.</label>
+        <label class="choice"><input type="checkbox" name="marketing"> Doresc să primesc noutăți (opțional).</label>
+        <button class="button button-wide" type="submit">Plasează comanda cu obligație de plată</button>
+      </form>
+      <aside class="order-summary">
+        <h2>Sumar</h2>
+        {% for item in cart.items %}<div><span>{{ item.name }} × {{ item.quantity }}</span><strong>{{ money(item.line_total_bani) }}</strong></div>{% endfor %}
+        <hr><div><span>Subtotal</span><strong>{{ money(cart.subtotal_bani) }}</strong></div>
+        {% if cart.discount_bani %}<div><span>Reducere {{ cart.coupon.code }}</span><strong>−{{ money(cart.discount_bani) }}</strong></div><div><span>După reducere</span><strong>{{ money(cart.total_bani) }}</strong></div>{% endif %}
+        <small>Transportul se adaugă server-side după reducere, conform pragului configurat.</small>
+      </aside>
+    </div>
+  {% else %}
+    <div class="empty"><p>Coșul este gol.</p><a class="button" href="{{ url('') }}">Înapoi la produse</a></div>
+  {% endif %}
+</div>
+<script type="module" src="{{ url('assets/js/storefront/checkout-account.js') }}?v=20261026-account2"></script>
+{% endblock %}

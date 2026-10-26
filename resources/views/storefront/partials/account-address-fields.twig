@@ -1,0 +1,10 @@
+<label><span>Alias adresă *</span><input name="label" value="{{ label_value|default('') }}" placeholder="Acasă, Bunici, Birou…" maxlength="60" required></label>
+<label><span>Prenume destinatar *</span><input name="first_name" value="{{ values.first_name|default('') }}" autocomplete="given-name" maxlength="120" required></label>
+<label><span>Nume destinatar *</span><input name="last_name" value="{{ values.last_name|default('') }}" autocomplete="family-name" maxlength="120" required></label>
+<label><span>Telefon *</span><input name="phone" value="{{ values.phone|default('') }}" autocomplete="tel" inputmode="tel" required></label>
+<label class="account-form-full"><span>Stradă, număr, bloc, apartament *</span><input name="address" value="{{ values.address|default('') }}" autocomplete="street-address" maxlength="220" required></label>
+<label><span>Localitate *</span><input name="city" value="{{ values.city|default('') }}" autocomplete="address-level2" maxlength="120" required></label>
+<label><span>Județ *</span><input name="county" value="{{ values.county|default('') }}" autocomplete="address-level1" maxlength="120" required></label>
+<label><span>Cod poștal *</span><input name="postal_code" value="{{ values.postal_code|default('') }}" autocomplete="postal-code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" placeholder="000000" required></label>
+<label class="account-form-full"><span>Indicații pentru curier <small>opțional</small></span><textarea name="notes" maxlength="250" rows="3" placeholder="Interfon, reper sau alte detalii utile…">{{ values.notes|default('') }}</textarea></label>
+<label class="account-switch account-form-full"><input type="checkbox" name="is_default" value="1"{{ default_checked ? ' checked' : '' }}><span aria-hidden="true"><i></i></span><p><strong>Adresă implicită</strong><small>Va fi prima propunere la finalizarea comenzii.</small></p></label>
