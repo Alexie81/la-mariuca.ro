@@ -15,6 +15,7 @@
 {% set first_name = operator.first_name|default('Administrator') %}
 {% set last_name = operator.last_name|default('') %}
 {% set initials = (first_name|slice(0, 1) ~ last_name|slice(0, 1))|upper %}
+{% set active_admin_section = admin_section|default('dashboard') %}
 <body class="admin-body">
   <a class="admin-skip-link" href="#admin-content">Sari la conținut</a>
 
@@ -27,7 +28,7 @@
         <img src="{{ url('assets/images/logo-la-mariuca-transparent.png') }}" width="1000" height="337" alt="La Măriuca Boutique">
       </a>
       <span class="admin-topbar__divider" aria-hidden="true"></span>
-      <div class="admin-topbar__context"><small>Panou de administrare</small><strong>Dashboard</strong></div>
+      <div class="admin-topbar__context"><small>Panou de administrare</small><strong>{{ admin_context|default('Dashboard') }}</strong></div>
     </div>
     <div class="admin-topbar__actions">
       <span class="admin-live-time" data-admin-clock aria-label="Ora curentă">--:--</span>
@@ -58,9 +59,14 @@
 
       <nav class="admin-nav" aria-label="Secțiuni">
         <span class="admin-nav__label">Activitate zilnică</span>
-        <a class="admin-nav__item is-active" href="{{ url('admin') }}" aria-current="page">
+        <a class="admin-nav__item{{ active_admin_section == 'dashboard' ? ' is-active' : '' }}" href="{{ url('admin') }}"{% if active_admin_section == 'dashboard' %} aria-current="page"{% endif %}>
           <span class="admin-nav__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/></svg></span>
           <span><strong>Dashboard</strong><small>Privire de ansamblu</small></span>
+          <span class="admin-nav__pulse" aria-hidden="true"></span>
+        </a>
+        <a class="admin-nav__item{{ active_admin_section == 'orders' ? ' is-active' : '' }}" href="{{ url('admin/comenzi/') }}"{% if active_admin_section == 'orders' %} aria-current="page"{% endif %}>
+          <span class="admin-nav__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 7h12l1 13H5L6 7Z"/><path d="M9 8V6a3 3 0 0 1 6 0v2M8 12h8"/></svg></span>
+          <span><strong>Comenzi</strong><small>Clienți, plăți și status</small></span>
           <span class="admin-nav__pulse" aria-hidden="true"></span>
         </a>
       </nav>

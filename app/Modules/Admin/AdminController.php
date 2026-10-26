@@ -142,9 +142,57 @@ final class AdminController
         }
     }
 
-    public function orders(): ResponseInterface
+    public function orders(ServerRequestInterface $request): ResponseInterface
     {
-        return $this->view->render('admin/pages/orders.twig', ['orders' => $this->orders->list()]);
+        $query = $request->getQueryParams();
+        $statusLabels = [
+            'new' => 'Nouă', 'confirmed' => 'Confirmată', 'preparing' => 'În pregătire',
+            'shipped' => 'Expediată', 'delivered' => 'Livrată', 'cancelled' => 'Anulată',
+            'returned' => 'Returnată', 'manual_review' => 'De verificat',
+        ];
+        $filterStatusLabels = $statusLabels;
+        unset($filterStatusLabels['manual_review']);
+        $search = trim(mb_substr((string) ($query['cautare'] ?? ''), 0, 120));
+        $status = (string) ($query['status'] ?? '');
+        if (!array_key_exists($status, $filterStatusLabels)) {
+            $status = '';
+        }
+        $pagination = $this->orders->paginateForAdmin(
+            max(1, (int) ($query['pagina'] ?? 1)),
+            15,
+            $search,
+            $status !== '' ? $status : null,
+        );
+        $paymentLabels = [
+            'pending' => 'În așteptare', 'paid' => 'Plătită', 'failed' => 'Eșuată',
+            'partially_refunded' => 'Rambursată parțial', 'refunded' => 'Rambursată',
+        ];
+        $zone = new \DateTimeZone('Europe/Bucharest');
+        foreach ($pagination['items'] as &$order) {
+            $createdAt = new \DateTimeImmutable((string) $order['created_at'], new \DateTimeZone('UTC'));
+            $order['display_created_at'] = $createdAt->setTimezone($zone)->format('d.m.Y, H:i');
+            $order['status_label'] = $statusLabels[(string) $order['status']] ?? ucfirst((string) $order['status']);
+            $order['payment_status_label'] = $paymentLabels[(string) $order['payment_status']] ?? ucfirst((string) $order['payment_status']);
+            $order['payment_method_label'] = (string) $order['payment_method'] === 'stripe' ? 'Card online' : 'Ramburs';
+        }
+        unset($order);
+
+        $firstPage = max(1, $pagination['page'] - 2);
+        $lastPage = min($pagination['total_pages'], $pagination['page'] + 2);
+        $pagination['page_numbers'] = range($firstPage, $lastPage);
+        $filterQuery = array_filter(['cautare' => $search, 'status' => $status], static fn (string $value): bool => $value !== '');
+
+        return $this->view->render('admin/pages/orders.twig', [
+            'orders' => $pagination['items'],
+            'pagination' => $pagination,
+            'search' => $search,
+            'selected_status' => $status,
+            'status_options' => $filterStatusLabels,
+            'filters_query' => http_build_query($filterQuery),
+            'has_filters' => $filterQuery !== [],
+            'admin_section' => 'orders',
+            'admin_context' => 'Comenzi',
+        ]);
     }
 
     public function orderDetail(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
@@ -169,7 +217,11 @@ final class AdminController
         $order['status_label'] = $statusLabels[(string) $order['status']] ?? ucfirst((string) $order['status']);
         $order['payment_status_label'] = $paymentLabels[(string) $order['payment_status']] ?? ucfirst((string) $order['payment_status']);
 
-        return $this->view->render('admin/pages/order-detail.twig', ['order' => $order]);
+        return $this->view->render('admin/pages/order-detail.twig', [
+            'order' => $order,
+            'admin_section' => 'orders',
+            'admin_context' => 'Comenzi',
+        ]);
     }
 
     public function transitionOrder(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface

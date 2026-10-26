@@ -20,6 +20,172 @@ final class OrderService
         return $this->pdo->query("SELECT * FROM orders ORDER BY id DESC LIMIT {$limit}")->fetchAll();
     }
 
+    /**
+     * @return array{
+     *     items:list<array<string, mixed>>,
+     *     page:int,
+     *     per_page:int,
+     *     total:int,
+     *     total_pages:int,
+     *     from:int,
+     *     to:int
+     * }
+     */
+    public function paginateForAdmin(
+        int $page,
+        int $perPage = 15,
+        string $search = '',
+        ?string $status = null,
+    ): array
+    {
+        $perPage = max(1, min(50, $perPage));
+        [$whereSql, $parameters] = $this->adminSearchWhere($search, $status);
+
+        $count = $this->pdo->prepare('SELECT COUNT(*) FROM orders o' . $whereSql);
+        $count->execute($parameters);
+        $total = (int) $count->fetchColumn();
+        $totalPages = max(1, (int) ceil($total / $perPage));
+        $page = max(1, min($page, $totalPages));
+        $offset = ($page - 1) * $perPage;
+
+        $statement = $this->pdo->prepare(
+            'SELECT o.id,o.order_number,o.email,o.first_name,o.last_name,o.phone,o.total_bani,o.currency,o.status,o.payment_status,o.payment_method,o.created_at '
+            . 'FROM orders o' . $whereSql . ' ORDER BY o.created_at DESC,o.id DESC LIMIT :limit OFFSET :offset'
+        );
+        foreach ($parameters as $name => $value) {
+            $statement->bindValue($name, $value);
+        }
+        $statement->bindValue(':limit', $perPage, PDO::PARAM_INT);
+        $statement->bindValue(':offset', $offset, PDO::PARAM_INT);
+        $statement->execute();
+
+        return [
+            'items' => $statement->fetchAll(),
+            'page' => $page,
+            'per_page' => $perPage,
+            'total' => $total,
+            'total_pages' => $totalPages,
+            'from' => $total === 0 ? 0 : $offset + 1,
+            'to' => min($offset + $perPage, $total),
+        ];
+    }
+
+    /**
+     * The admin search deliberately uses a strict AND between meaningful words and
+     * an OR only between fields/synonyms. This keeps results on-topic while still
+     * understanding the Romanian labels displayed in the interface.
+     *
+     * @return array{0:string,1:array<string, string|int>}
+     */
+    private function adminSearchWhere(string $search, ?string $status): array
+    {
+        $where = [];
+        $parameters = [];
+        $allowedStatuses = ['new', 'confirmed', 'preparing', 'shipped', 'delivered', 'cancelled', 'returned', 'manual_review'];
+        if ($status !== null && in_array($status, $allowedStatuses, true)) {
+            $where[] = 'o.status = :filter_status';
+            $parameters[':filter_status'] = $status;
+        }
+
+        $search = trim($search);
+        if ($search !== '') {
+            $normalized = $this->normalizeAdminSearch($search);
+            $tokens = preg_split('/\s+/u', $normalized, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+            $stopWords = ['a', 'ai', 'ale', 'cu', 'de', 'din', 'dupa', 'in', 'la', 'o', 'pe', 'pentru', 'si', 'un'];
+            $tokens = array_values(array_filter(
+                $tokens,
+                static fn (string $token): bool => strlen($token) > 1 && !in_array($token, $stopWords, true),
+            ));
+            if ($tokens === []) {
+                $tokens = [$normalized];
+            }
+            $tokens = array_slice(array_values(array_unique($tokens)), 0, 8);
+            if (preg_match('/^(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{4})$/', $normalized, $dateParts) === 1) {
+                $tokens = [sprintf('%04d-%02d-%02d', (int) $dateParts[3], (int) $dateParts[2], (int) $dateParts[1])];
+            }
+
+            $rawWords = preg_split('/\s+/u', mb_strtolower($search, 'UTF-8'), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+            $rawByNormalized = [];
+            foreach ($rawWords as $rawWord) {
+                $rawByNormalized[$this->normalizeAdminSearch($rawWord)] = $rawWord;
+            }
+            foreach ($tokens as $tokenIndex => $token) {
+                $aliases = $this->adminSearchAliases($token);
+                if (isset($rawByNormalized[$token]) && $rawByNormalized[$token] !== $token) {
+                    $aliases[] = $rawByNormalized[$token];
+                }
+                $aliases = array_values(array_unique(array_filter($aliases)));
+                $tokenClauses = [];
+
+                foreach ($aliases as $aliasIndex => $alias) {
+                    $needle = '%' . $alias . '%';
+                    $columns = [
+                        'order_number', 'email', 'first_name', 'last_name', 'phone', 'status',
+                        'payment_status', 'payment_method', 'awb', 'created_at', 'shipping_address_json',
+                        'billing_address_json', 'internal_notes',
+                    ];
+                    foreach ($columns as $columnIndex => $column) {
+                        $placeholder = ':search_' . $tokenIndex . '_' . $aliasIndex . '_' . $columnIndex;
+                        $tokenClauses[] = "LOWER(COALESCE(o.{$column}, '')) LIKE {$placeholder}";
+                        $parameters[$placeholder] = $needle;
+                    }
+
+                    $itemName = ':item_name_' . $tokenIndex . '_' . $aliasIndex;
+                    $itemSku = ':item_sku_' . $tokenIndex . '_' . $aliasIndex;
+                    $itemVariant = ':item_variant_' . $tokenIndex . '_' . $aliasIndex;
+                    $tokenClauses[] = "EXISTS (SELECT 1 FROM order_items oi WHERE oi.order_id = o.id AND (LOWER(oi.product_name) LIKE {$itemName} OR LOWER(oi.sku) LIKE {$itemSku} OR LOWER(oi.variant_summary) LIKE {$itemVariant}))";
+                    $parameters[$itemName] = $needle;
+                    $parameters[$itemSku] = $needle;
+                    $parameters[$itemVariant] = $needle;
+                }
+
+                if (preg_match('/^\d+(?:[.,]\d{1,2})?$/', $token) === 1) {
+                    $amount = (int) round((float) str_replace(',', '.', $token) * 100);
+                    $amountName = ':amount_' . $tokenIndex;
+                    $tokenClauses[] = "o.total_bani = {$amountName}";
+                    $parameters[$amountName] = $amount;
+                }
+
+                $where[] = '(' . implode(' OR ', $tokenClauses) . ')';
+            }
+
+        }
+
+        return [$where === [] ? '' : ' WHERE ' . implode(' AND ', $where), $parameters];
+    }
+
+    /** @return list<string> */
+    private function adminSearchAliases(string $token): array
+    {
+        $semanticAliases = [
+            'nou' => ['new'], 'noua' => ['new'], 'noi' => ['new'],
+            'confirmat' => ['confirmed'], 'confirmata' => ['confirmed'],
+            'pregatit' => ['preparing'], 'pregatita' => ['preparing'], 'pregatire' => ['preparing'],
+            'expediat' => ['shipped'], 'expediata' => ['shipped'], 'trimis' => ['shipped'], 'trimisa' => ['shipped'],
+            'livrat' => ['delivered'], 'livrata' => ['delivered'],
+            'anulat' => ['cancelled'], 'anulata' => ['cancelled'],
+            'returnat' => ['returned'], 'returnata' => ['returned'],
+            'verificare' => ['manual_review'], 'manual' => ['manual_review'], 'manuala' => ['manual_review'],
+            'asteptare' => ['pending'], 'neplatit' => ['pending'], 'neplatita' => ['pending'],
+            'platit' => ['paid'], 'platita' => ['paid'], 'achitat' => ['paid'], 'achitata' => ['paid'],
+            'esuat' => ['failed'], 'esuata' => ['failed'], 'refuzat' => ['failed'], 'refuzata' => ['failed'],
+            'rambursat' => ['refunded', 'partially_refunded'], 'rambursata' => ['refunded', 'partially_refunded'],
+            'partial' => ['partially_refunded'], 'partiala' => ['partially_refunded'],
+            'ramburs' => ['cod'], 'cash' => ['cod'], 'numerar' => ['cod'],
+            'card' => ['stripe'], 'online' => ['stripe'],
+        ];
+
+        return array_values(array_unique(array_merge([$token], $semanticAliases[$token] ?? [])));
+    }
+
+    private function normalizeAdminSearch(string $value): string
+    {
+        $value = mb_strtolower(trim($value), 'UTF-8');
+        return strtr($value, [
+            'ă' => 'a', 'â' => 'a', 'î' => 'i', 'ș' => 's', 'ş' => 's', 'ț' => 't', 'ţ' => 't',
+        ]);
+    }
+
     /** @return array<string, mixed>|null */
     public function findForAdmin(int $orderId): ?array
     {

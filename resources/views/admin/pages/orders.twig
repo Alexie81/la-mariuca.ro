@@ -1,1 +1,138 @@
-{% extends 'admin/layouts/base.twig' %}{% block title %}Comenzi{% endblock %}{% block content %}<div class="admin-title"><div><h1>Comenzi</h1><p>Tranzițiile actualizează rezervările și stocul exact o dată.</p></div></div><div class="panel table-wrap"><table><thead><tr><th>Comandă</th><th>Client</th><th>Total</th><th>Stare</th><th>Plată</th><th>Acțiuni</th></tr></thead><tbody>{% for order in orders %}<tr><td><a class="admin-order-number-link" href="{{ url('admin/comenzi/' ~ order.id ~ '/') }}">{{ order.order_number }}</a><br><small>{{ order.created_at }}</small></td><td>{{ order.first_name }} {{ order.last_name }}<br><small>{{ order.email }}</small></td><td>{{ money(order.total_bani) }}</td><td>{{ order.status }}</td><td>{{ order.payment_method }} / {{ order.payment_status }}</td><td><form class="inline-form" action="{{ url('admin/comenzi/' ~ order.id ~ '/actiune/') }}" method="post"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><select name="action"><option value="confirm">Confirmă</option><option value="prepare">Pregătește</option><option value="ship">Expediază</option><option value="deliver">Marchează livrată</option><option value="cancel">Anulează</option></select><input name="awb" placeholder="AWB manual"><button>Aplică</button></form></td></tr>{% else %}<tr><td colspan="6">Nu există comenzi.</td></tr>{% endfor %}</tbody></table></div>{% endblock %}
+{% extends 'admin/layouts/base.twig' %}
+
+{% block title %}Comenzi{% endblock %}
+
+{% block content %}
+  <section class="admin-orders-hero" aria-labelledby="admin-orders-title">
+    <div>
+      <span class="admin-eyebrow"><i aria-hidden="true"></i> Activitatea boutique-ului</span>
+      <h1 id="admin-orders-title">Comenzi</h1>
+      <p>Urmărește fiecare comandă, clientul, plata și starea livrării dintr-o singură privire.</p>
+    </div>
+    <div class="admin-orders-hero__summary" aria-label="Total comenzi">
+      <span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 7h12l1 13H5L6 7Z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg></span>
+      <strong>{{ pagination.total }}</strong>
+      <small>{% if has_filters %}{{ pagination.total == 1 ? 'comandă relevantă' : 'comenzi relevante' }}{% else %}{{ pagination.total == 1 ? 'comandă înregistrată' : 'comenzi înregistrate' }}{% endif %}</small>
+    </div>
+  </section>
+
+  <section class="admin-orders-card" aria-labelledby="admin-orders-table-title">
+    <header class="admin-orders-card__head">
+      <div>
+        <span class="admin-eyebrow">Registrul comenzilor</span>
+        <h2 id="admin-orders-table-title">Toate comenzile</h2>
+      </div>
+      {% if pagination.total > 0 %}
+        <p>Se afișează <strong>{{ pagination.from }}–{{ pagination.to }}</strong> din <strong>{{ pagination.total }}</strong></p>
+      {% endif %}
+    </header>
+
+    <form class="admin-orders-filters" action="{{ url('admin/comenzi/') }}" method="get" role="search">
+      <label class="admin-orders-search">
+        <span class="sr-only">Caută în comenzi</span>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m16.5 16.5 4 4"/></svg>
+        <input type="search" name="cautare" value="{{ search }}" placeholder="Număr, client, email, telefon, produs, SKU, AWB…" autocomplete="off">
+      </label>
+      <label class="admin-orders-status">
+        <span class="sr-only">Filtrează după status</span>
+        <select name="status">
+          <option value="">Toate statusurile</option>
+          {% for status_value, status_label in status_options %}
+            <option value="{{ status_value }}"{{ selected_status == status_value ? ' selected' : '' }}>{{ status_label }}</option>
+          {% endfor %}
+        </select>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 9 5 5 5-5"/></svg>
+      </label>
+      <button type="submit" class="admin-orders-filter-button">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
+        <span>Filtrează</span>
+      </button>
+      {% if has_filters %}
+        <a class="admin-orders-filter-reset" href="{{ url('admin/comenzi/') }}" aria-label="Șterge toate filtrele">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"/></svg>
+          <span>Resetează</span>
+        </a>
+      {% endif %}
+    </form>
+
+    {% if has_filters and pagination.total > 0 %}
+      <p class="admin-orders-filter-summary">
+        <span aria-hidden="true"></span>
+        {{ pagination.total }} {{ pagination.total == 1 ? 'rezultat relevant' : 'rezultate relevante' }}{% if search %} pentru „{{ search }}”{% endif %}
+      </p>
+    {% endif %}
+
+    {% if orders %}
+      <div class="admin-orders-table-wrap">
+        <table class="admin-orders-table">
+          <thead>
+            <tr>
+              <th>Nr. comandă</th>
+              <th>Client</th>
+              <th>Tip plată</th>
+              <th>Stare plată</th>
+              <th>Status comandă</th>
+              <th>Data și ora</th>
+              <th>Total</th>
+              <th><span class="sr-only">Deschide</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for order in orders %}
+              <tr>
+                <td data-label="Nr. comandă">
+                  <a class="admin-orders-table__number" href="{{ url('admin/comenzi/' ~ order.id ~ '/') }}">{{ order.order_number ?: '#' ~ order.id }}</a>
+                </td>
+                <td data-label="Client" class="admin-orders-table__client">
+                  <strong>{{ order.first_name }} {{ order.last_name }}</strong>
+                  <a href="mailto:{{ order.email }}">{{ order.email }}</a>
+                  <a href="tel:{{ order.phone|replace({' ': '', '-': ''}) }}">{{ order.phone }}</a>
+                </td>
+                <td data-label="Tip plată"><span class="admin-payment-method admin-payment-method--{{ order.payment_method }}">{{ order.payment_method_label }}</span></td>
+                <td data-label="Stare plată"><span class="admin-payment-state admin-payment-state--{{ order.payment_status }}">{{ order.payment_status_label }}</span></td>
+                <td data-label="Status comandă"><span class="admin-order-badge admin-order-badge--{{ order.status }}">{{ order.status_label }}</span></td>
+                <td data-label="Data și ora"><time datetime="{{ order.created_at }}">{{ order.display_created_at }}</time></td>
+                <td data-label="Total"><strong class="admin-orders-table__total">{{ money(order.total_bani) }}</strong></td>
+                <td class="admin-orders-table__action"><a href="{{ url('admin/comenzi/' ~ order.id ~ '/') }}" aria-label="Deschide comanda {{ order.order_number ?: '#' ~ order.id }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a></td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      {% if pagination.total_pages > 1 %}
+        <nav class="admin-pagination" aria-label="Paginarea comenzilor">
+          {% if pagination.page > 1 %}
+            <a class="admin-pagination__arrow" href="{{ url('admin/comenzi/?pagina=' ~ (pagination.page - 1) ~ (filters_query ? '&' ~ filters_query : '')) }}" aria-label="Pagina anterioară"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg></a>
+          {% else %}
+            <span class="admin-pagination__arrow is-disabled" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></svg></span>
+          {% endif %}
+
+          <div class="admin-pagination__pages">
+            {% for page_number in pagination.page_numbers %}
+              <a href="{{ url('admin/comenzi/?pagina=' ~ page_number ~ (filters_query ? '&' ~ filters_query : '')) }}" class="{{ pagination.page == page_number ? 'is-active' : '' }}"{% if pagination.page == page_number %} aria-current="page"{% endif %}>{{ page_number }}</a>
+            {% endfor %}
+          </div>
+
+          {% if pagination.page < pagination.total_pages %}
+            <a class="admin-pagination__arrow" href="{{ url('admin/comenzi/?pagina=' ~ (pagination.page + 1) ~ (filters_query ? '&' ~ filters_query : '')) }}" aria-label="Pagina următoare"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a>
+          {% else %}
+            <span class="admin-pagination__arrow is-disabled" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></span>
+          {% endif %}
+        </nav>
+      {% endif %}
+    {% else %}
+      <div class="admin-orders-empty">
+        <span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 7h12l1 13H5L6 7Z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg></span>
+        {% if has_filters %}
+          <strong>Nu am găsit comenzi relevante</strong>
+          <p>Încearcă numărul comenzii, clientul, telefonul, produsul, SKU-ul ori o stare precum „plătită” sau „expediată”.</p>
+          <a href="{{ url('admin/comenzi/') }}">Vezi toate comenzile</a>
+        {% else %}
+          <strong>Nu există încă nicio comandă</strong>
+          <p>Primele comenzi plasate în magazin vor apărea automat aici.</p>
+        {% endif %}
+      </div>
+    {% endif %}
+  </section>
+{% endblock %}

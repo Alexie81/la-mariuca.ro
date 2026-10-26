@@ -108,6 +108,51 @@ final class AdminPanelTest extends DatabaseTestCase
         self::assertArrayNotHasKey('user_id', $_SESSION);
     }
 
+    public function testOrdersRegistryIsPaginatedAndShowsOperationalColumns(): void
+    {
+        $this->seedOrders(16);
+        $this->get('/admin');
+        $login = $this->post('/admin', [
+            '_csrf' => $_SESSION['_csrf'],
+            'email' => 'admin.panel@example.test',
+            'password' => self::PASSWORD,
+        ], '127.0.0.84');
+        self::assertSame(303, $login->getStatusCode());
+
+        $firstPage = (string) $this->get('/admin/comenzi/')->getBody();
+        self::assertStringContainsString('Registrul comenzilor', $firstPage);
+        self::assertStringContainsString('LM-TEST-016', $firstPage);
+        self::assertStringContainsString('client16@example.test', $firstPage);
+        self::assertStringContainsString('0712 000 016', $firstPage);
+        self::assertStringContainsString('Card online', $firstPage);
+        self::assertStringContainsString('Plătită', $firstPage);
+        self::assertStringContainsString('Livrată', $firstPage);
+        self::assertStringContainsString('admin/comenzi/?pagina=2', $firstPage);
+        self::assertStringContainsString('href="/admin/comenzi/" aria-current="page"', $firstPage);
+        self::assertStringNotContainsString('<option value="manual_review"', $firstPage);
+        self::assertStringNotContainsString('LM-TEST-001</a>', $firstPage);
+
+        $secondPage = (string) $this->get('/admin/comenzi/?pagina=2')->getBody();
+        self::assertStringContainsString('LM-TEST-001', $secondPage);
+        self::assertStringNotContainsString('LM-TEST-016</a>', $secondPage);
+        self::assertStringContainsString('aria-current="page">2</a>', $secondPage);
+
+        $semanticPayment = (string) $this->get('/admin/comenzi/?cautare=platita')->getBody();
+        self::assertStringContainsString('LM-TEST-016', $semanticPayment);
+        self::assertStringNotContainsString('LM-TEST-015</a>', $semanticPayment);
+
+        $productSearch = (string) $this->get('/admin/comenzi/?cautare=Cuburi%20Poveste')->getBody();
+        self::assertStringContainsString('LM-TEST-016', $productSearch);
+        self::assertStringContainsString('1 rezultat relevant', $productSearch);
+
+        $statusFilter = (string) $this->get('/admin/comenzi/?status=delivered')->getBody();
+        self::assertStringContainsString('LM-TEST-016', $statusFilter);
+        self::assertStringNotContainsString('LM-TEST-015</a>', $statusFilter);
+
+        $searchPagination = (string) $this->get('/admin/comenzi/?cautare=client')->getBody();
+        self::assertStringContainsString('pagina=2&amp;cautare=client', $searchPagination);
+    }
+
     private function get(string $path): ResponseInterface
     {
         return $this->request('GET', $path);
@@ -146,5 +191,68 @@ final class AdminPanelTest extends DatabaseTestCase
         }
 
         return '';
+    }
+
+    private function seedOrders(int $count): void
+    {
+        $cart = $this->pdo->prepare(
+            'INSERT INTO carts (token,user_id,status,coupon_code,created_at,updated_at,expires_at) '
+            . "VALUES (:token,NULL,'converted',NULL,:created,:created,:expires)"
+        );
+        $order = $this->pdo->prepare(
+            'INSERT INTO orders (order_number,public_token_hash,idempotency_key,cart_id,user_id,email,first_name,last_name,phone,customer_type,company_json,shipping_address_json,billing_address_json,subtotal_bani,discount_bani,shipping_bani,tax_bani,total_bani,currency,status,payment_status,payment_method,shipping_method,internal_notes,terms_accepted_at,marketing_consent,created_at,updated_at) '
+            . "VALUES (:number,:token_hash,:idempotency,:cart,NULL,:email,:first_name,:last_name,:phone,'person','{}',:shipping,:billing,:subtotal,0,0,0,:total,'RON',:status,:payment_status,:payment_method,'manual','',:terms,0,:created,:created)"
+        );
+        $orderItem = $this->pdo->prepare(
+            'INSERT INTO order_items (order_id,product_id,variant_id,product_name,variant_summary,sku,quantity,unit_price_bani,personalization_bani,line_total_bani,tax_bani,personalization_json) '
+            . "VALUES (:order,NULL,NULL,:product_name,:variant_summary,:sku,1,:price,0,:price,0,'{}')"
+        );
+        $base = new \DateTimeImmutable('2026-10-01 10:00:00', new \DateTimeZone('UTC'));
+
+        for ($index = 1; $index <= $count; $index++) {
+            $created = $base->modify('+' . $index . ' minutes')->format('c');
+            $expires = $base->modify('+30 days')->format('c');
+            $cart->execute([
+                'token' => 'admin-orders-cart-' . $index,
+                'created' => $created,
+                'expires' => $expires,
+            ]);
+            $cartId = (int) $this->pdo->lastInsertId();
+            $isLatest = $index === $count;
+            $address = json_encode([
+                'address' => 'Strada Test ' . $index,
+                'city' => 'București — Sector 1',
+                'county' => 'București',
+                'postal_code' => '010101',
+            ], JSON_THROW_ON_ERROR);
+            $order->execute([
+                'number' => 'LM-TEST-' . str_pad((string) $index, 3, '0', STR_PAD_LEFT),
+                'token_hash' => hash('sha256', 'admin-order-token-' . $index),
+                'idempotency' => 'admin-order-idempotency-' . $index,
+                'cart' => $cartId,
+                'email' => 'client' . $index . '@example.test',
+                'first_name' => 'Client',
+                'last_name' => (string) $index,
+                'phone' => '0712 000 ' . str_pad((string) $index, 3, '0', STR_PAD_LEFT),
+                'shipping' => $address,
+                'billing' => $address,
+                'subtotal' => 10000 + $index,
+                'total' => 10000 + $index,
+                'status' => $isLatest ? 'delivered' : 'new',
+                'payment_status' => $isLatest ? 'paid' : 'pending',
+                'payment_method' => $isLatest ? 'stripe' : 'cod',
+                'terms' => $created,
+                'created' => $created,
+            ]);
+            if ($isLatest) {
+                $orderItem->execute([
+                    'order' => (int) $this->pdo->lastInsertId(),
+                    'product_name' => 'Cuburi moi Poveste',
+                    'variant_summary' => 'Culoare: Roz',
+                    'sku' => 'CUBURI-POVESTE-ROZ',
+                    'price' => 10000 + $index,
+                ]);
+            }
+        }
     }
 }
