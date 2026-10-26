@@ -21,6 +21,10 @@ Google cere potrivire exactă pentru redirect URI, inclusiv protocol, host, cale
 Dacă domeniul canonic devine `www.la-mariuca.ro` sau aplicația este mutată într-un subdirector,
 actualizează mai întâi configurația Google și apoi `APP_URL`/`APP_BASE_PATH`.
 
+Local, proiectul se pornește prin `./bin/php-local.ps1 -S 127.0.0.1:8080 -t public public/router.php`.
+Scriptul încarcă extensiile disponibile, inclusiv `curl`; fără `curl`, schimbul securizat al codului
+OAuth cu Google nu poate fi finalizat.
+
 ## 2. Fișiere private care se transferă separat
 
 Fișierul JSON descărcat din Google Cloud se transferă separat la:

@@ -99,6 +99,9 @@ final class AuthController
             }
             Flash::set('success', 'Te-ai autentificat cu Google. Bine ai revenit!');
             return $this->view->redirect($this->config->path('cont/'));
+        } catch (\RuntimeException $exception) {
+            Flash::set('error', $exception->getMessage());
+            return $this->view->redirect($this->config->path('cont/autentificare/'));
         } catch (\Throwable) {
             Flash::set('error', 'Autentificarea cu Google nu a putut fi finalizată. Încearcă din nou.');
             return $this->view->redirect($this->config->path('cont/autentificare/'));

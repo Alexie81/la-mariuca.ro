@@ -30,6 +30,7 @@ final class GoogleOAuthService
         if (!$this->enabled()) {
             throw new RuntimeException('Autentificarea cu Google nu este configurată.');
         }
+        $this->assertRuntimeAvailable();
 
         $state = $this->randomUrlSafe(32);
         $nonce = $this->randomUrlSafe(32);
@@ -60,6 +61,17 @@ final class GoogleOAuthService
     {
         if (!$this->enabled()) {
             throw new RuntimeException('Autentificarea cu Google nu este configurată.');
+        }
+        $this->assertRuntimeAvailable();
+
+        $providerError = is_string($query['error'] ?? null) ? trim($query['error']) : '';
+        if ($providerError !== '') {
+            unset($_SESSION['google_oauth']);
+            throw new RuntimeException(
+                $providerError === 'access_denied'
+                    ? 'Google nu a autorizat accesul. Dacă aplicația este încă în testare, contul trebuie adăugat în lista de utilizatori de test.'
+                    : 'Google a returnat o eroare de autorizare. Încearcă din nou.'
+            );
         }
 
         $pending = $_SESSION['google_oauth'] ?? null;
@@ -254,6 +266,13 @@ final class GoogleOAuthService
     private function redirectUri(): string
     {
         return $this->config->rootUrl() . '/cont/google/retur/';
+    }
+
+    private function assertRuntimeAvailable(): void
+    {
+        if (!function_exists('curl_init')) {
+            throw new RuntimeException('Extensia PHP cURL necesară autentificării cu Google nu este activă pe server.');
+        }
     }
 
     private function randomUrlSafe(int $bytes): string
