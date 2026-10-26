@@ -99,6 +99,47 @@ final class AuthPageTest extends DatabaseTestCase
         self::assertSame('/cont/autentificare/', $response->getHeaderLine('Location'));
     }
 
+    public function testGoogleEntryPointUsesTheProductionAppUrlWithPrivateCredentialsFile(): void
+    {
+        $credentialsPath = sys_get_temp_dir() . '/la-mariuca-google-' . bin2hex(random_bytes(6)) . '.json';
+        file_put_contents($credentialsPath, json_encode([
+            'web' => [
+                'client_id' => 'client-id-for-test.apps.googleusercontent.com',
+                'client_secret' => 'secret-for-test',
+            ],
+        ], JSON_THROW_ON_ERROR));
+
+        $_ENV['APP_ENV'] = 'production';
+        $_ENV['APP_URL'] = 'https://la-mariuca.ro';
+        $_ENV['GOOGLE_OAUTH_ENABLED'] = 'true';
+        $_ENV['GOOGLE_CREDENTIALS_FILE'] = $credentialsPath;
+        try {
+            $request = (new ServerRequestFactory())->createServerRequest('GET', 'https://la-mariuca.ro/cont/google/');
+            $app = AppFactory::create($this->root);
+            $response = $app->handle($request);
+            unset($app);
+            gc_collect_cycles();
+
+            self::assertSame(303, $response->getStatusCode());
+            $location = $response->getHeaderLine('Location');
+            $parts = parse_url($location);
+            self::assertSame('accounts.google.com', $parts['host'] ?? null);
+            parse_str((string) ($parts['query'] ?? ''), $query);
+            self::assertSame('https://la-mariuca.ro/cont/google/retur/', $query['redirect_uri'] ?? null);
+            self::assertSame('S256', $query['code_challenge_method'] ?? null);
+            self::assertArrayHasKey('state', $query);
+            self::assertArrayHasKey('nonce', $query);
+        } finally {
+            if (is_file($credentialsPath)) {
+                unlink($credentialsPath);
+            }
+            $_ENV['APP_ENV'] = 'testing';
+            $_ENV['APP_URL'] = 'http://localhost';
+            $_ENV['GOOGLE_OAUTH_ENABLED'] = 'false';
+            unset($_ENV['GOOGLE_CREDENTIALS_FILE']);
+        }
+    }
+
     private function get(string $path): ResponseInterface
     {
         $request = (new ServerRequestFactory())->createServerRequest('GET', 'http://localhost' . $path);

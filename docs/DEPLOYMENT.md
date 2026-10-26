@@ -109,6 +109,35 @@ Redirectul browserului nu marchează plata ca achitată. Numai webhookul semnat 
 Rambursările se inițiază în dashboardul Stripe în această versiune; sincronizarea completă a
 rambursărilor parțiale este încă de implementat.
 
+## Autentificare Google în producție
+
+Același client Web Google deservește localhost și producția; callback-ul este construit exclusiv
+din `APP_URL`, deci nu există URL de producție hardcodat în cod. Pentru hosting:
+
+1. Urcă separat JSON-ul descărcat din Google Cloud în
+   `<proiect>/storage/private/google-oauth-client.json`. Fișierul este ignorat de Git și trebuie să
+   rămână în afara `public/`, `public_html` sau `httpdocs`.
+2. Configurează în `.env` de pe server:
+
+```dotenv
+APP_ENV=production
+APP_URL=https://la-mariuca.ro
+APP_BASE_PATH=
+GOOGLE_OAUTH_ENABLED=true
+GOOGLE_CREDENTIALS_FILE=storage/private/google-oauth-client.json
+```
+
+3. Callback-ul rezultat va fi exact
+   `https://la-mariuca.ro/cont/google/retur/`, deja înregistrat în clientul Google. Dacă se folosește
+   un subdirector sau alt domeniu canonic, actualizează simultan `APP_URL`/`APP_BASE_PATH` și clientul
+   Google; Google cere potrivire exactă.
+4. JSON-ul poate fi omis numai dacă `GOOGLE_CLIENT_ID` și `GOOGLE_CLIENT_SECRET` sunt furnizate direct
+   ca variabile private ale hostingului. Nu configura ambele metode cu valori diferite.
+
+În `APP_ENV=production`, dacă `GOOGLE_CREDENTIALS_FILE` este omis dar fișierul privat standard există,
+aplicația îl detectează automat. Activarea eșuează închis dacă lipsesc credențialele; secretul nu este
+afișat în pagini, loguri sau redirecturi.
+
 ## Taxe, livrare și indexare
 
 - Confirmă statutul fiscal, cota și afișarea prețurilor înainte de lansare; valorile demo nu sunt

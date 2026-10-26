@@ -59,6 +59,10 @@ final class Config
         }
 
         $credentialsFile = trim($values['GOOGLE_CREDENTIALS_FILE'] ?? '');
+        if ($credentialsFile === '' && $values['APP_ENV'] === 'production' && is_file($root . '/storage/private/google-oauth-client.json')) {
+            $credentialsFile = 'storage/private/google-oauth-client.json';
+            $values['GOOGLE_CREDENTIALS_FILE'] = $credentialsFile;
+        }
         if ($credentialsFile !== '' && (($values['GOOGLE_CLIENT_ID'] ?? '') === '' || ($values['GOOGLE_CLIENT_SECRET'] ?? '') === '')) {
             $isAbsolute = str_starts_with($credentialsFile, '/') || preg_match('/^[A-Za-z]:[\\\\\/]/', $credentialsFile) === 1;
             $credentialsPath = $isAbsolute ? $credentialsFile : $root . '/' . ltrim($credentialsFile, '/\\');
