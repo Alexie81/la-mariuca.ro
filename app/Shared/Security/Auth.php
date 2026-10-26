@@ -45,6 +45,33 @@ final class Auth
         return 'authenticated';
     }
 
+    public function attemptAdmin(string $email, string $password): string
+    {
+        $statement = $this->pdo->prepare('SELECT id, password_hash, status, role, totp_enabled FROM users WHERE email = :email LIMIT 1');
+        $statement->execute(['email' => mb_strtolower(trim($email))]);
+        $user = $statement->fetch();
+        $passwordValid = is_array($user) && password_verify($password, (string) $user['password_hash']);
+        $allowed = $passwordValid
+            && $user['status'] === 'active'
+            && in_array($user['role'] ?? '', ['administrator', 'operator'], true);
+        if (!$allowed) {
+            if (!is_array($user)) {
+                password_verify($password, '$2y$12$S0m3N0nUs3rHashxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx');
+            }
+            return 'invalid';
+        }
+
+        session_regenerate_id(true);
+        if ((int) ($user['totp_enabled'] ?? 0) === 1) {
+            $_SESSION['pending_2fa_user_id'] = (int) $user['id'];
+            unset($_SESSION['user_id']);
+            return 'totp';
+        }
+        $_SESSION['user_id'] = (int) $user['id'];
+        unset($_SESSION['pending_2fa_user_id']);
+        return 'authenticated';
+    }
+
     public function loginCustomer(int $userId): bool
     {
         $statement = $this->pdo->prepare("SELECT id FROM users WHERE id=:id AND role='customer' AND status='active' LIMIT 1");
@@ -107,6 +134,7 @@ final class Auth
     {
         unset($_SESSION['user_id']);
         unset($_SESSION['pending_2fa_user_id']);
+        unset($_SESSION['admin_remember_after_2fa']);
         session_regenerate_id(true);
     }
 
