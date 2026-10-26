@@ -21,6 +21,30 @@ final class OrderService
     }
 
     /** @return array<string, mixed>|null */
+    public function findForAdmin(int $orderId): ?array
+    {
+        $statement = $this->pdo->prepare('SELECT * FROM orders WHERE id = :id LIMIT 1');
+        $statement->execute(['id' => $orderId]);
+        $order = $statement->fetch();
+        if (!is_array($order)) {
+            return null;
+        }
+
+        $items = $this->pdo->prepare('SELECT * FROM order_items WHERE order_id = :id ORDER BY id');
+        $items->execute(['id' => $orderId]);
+        $order['items'] = $items->fetchAll();
+
+        $payments = $this->pdo->prepare('SELECT provider,provider_payment_id,amount_bani,refunded_bani,currency,status,created_at,updated_at FROM payments WHERE order_id = :id ORDER BY id DESC');
+        $payments->execute(['id' => $orderId]);
+        $order['payments'] = $payments->fetchAll();
+        $order['shipping_address'] = $this->decodeJson((string) $order['shipping_address_json']);
+        $order['billing_address'] = $this->decodeJson((string) $order['billing_address_json']);
+        $order['company'] = $this->decodeJson((string) $order['company_json']);
+
+        return $order;
+    }
+
+    /** @return array<string, mixed>|null */
     public function byPublicToken(string $token): ?array
     {
         $statement = $this->pdo->prepare('SELECT * FROM orders WHERE public_token_hash = :token');
@@ -111,5 +135,20 @@ final class OrderService
             }
             throw $exception;
         }
+    }
+
+    /** @return array<string, mixed> */
+    private function decodeJson(string $value): array
+    {
+        if ($value === '') {
+            return [];
+        }
+        try {
+            $decoded = json_decode($value, true, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            return [];
+        }
+
+        return is_array($decoded) ? $decoded : [];
     }
 }

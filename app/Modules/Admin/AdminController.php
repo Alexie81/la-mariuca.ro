@@ -147,6 +147,31 @@ final class AdminController
         return $this->view->render('admin/pages/orders.twig', ['orders' => $this->orders->list()]);
     }
 
+    public function orderDetail(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $order = $this->orders->findForAdmin((int) $args['id']);
+        if ($order === null) {
+            Flash::set('error', 'Comanda solicitată nu a fost găsită.');
+            return $this->view->redirect($this->config->path('admin/comenzi/'));
+        }
+
+        $statusLabels = [
+            'new' => 'Nouă', 'confirmed' => 'Confirmată', 'preparing' => 'În pregătire',
+            'shipped' => 'Expediată', 'delivered' => 'Livrată', 'cancelled' => 'Anulată',
+            'returned' => 'Returnată', 'manual_review' => 'De verificat',
+        ];
+        $paymentLabels = [
+            'pending' => 'În așteptare', 'paid' => 'Plătită', 'failed' => 'Eșuată',
+            'partially_refunded' => 'Rambursată parțial', 'refunded' => 'Rambursată',
+        ];
+        $createdAt = new \DateTimeImmutable((string) $order['created_at'], new \DateTimeZone('UTC'));
+        $order['display_created_at'] = $createdAt->setTimezone(new \DateTimeZone('Europe/Bucharest'))->format('d.m.Y, H:i');
+        $order['status_label'] = $statusLabels[(string) $order['status']] ?? ucfirst((string) $order['status']);
+        $order['payment_status_label'] = $paymentLabels[(string) $order['payment_status']] ?? ucfirst((string) $order['payment_status']);
+
+        return $this->view->render('admin/pages/order-detail.twig', ['order' => $order]);
+    }
+
     public function transitionOrder(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
     {
         $data = (array) ($request->getParsedBody() ?? []);

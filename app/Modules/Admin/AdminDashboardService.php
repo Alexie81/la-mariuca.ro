@@ -190,6 +190,7 @@ final class AdminDashboardService
         foreach ($orders as $order) {
             if ((string) $order['payment_status'] === 'paid') {
                 $items[] = [
+                    'order_id' => (int) $order['id'],
                     'type' => 'payment',
                     'title' => 'Plată confirmată ' . (string) ($order['order_number'] ?: '#' . $order['id']),
                     'detail' => (string) $order['email'],
@@ -197,6 +198,7 @@ final class AdminDashboardService
                 ];
             }
             $items[] = [
+                'order_id' => (int) $order['id'],
                 'type' => 'order',
                 'title' => 'Comandă nouă ' . (string) ($order['order_number'] ?: '#' . $order['id']),
                 'detail' => (string) $order['email'],

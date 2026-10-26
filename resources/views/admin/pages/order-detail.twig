@@ -1,0 +1,100 @@
+{% extends 'admin/layouts/base.twig' %}
+{% block title %}Comanda {{ order.order_number ?: '#' ~ order.id }}{% endblock %}
+{% block content %}
+  <header class="admin-order-detail__hero">
+    <div>
+      <a class="admin-order-detail__back" href="{{ url('admin') }}">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg>
+        Înapoi la dashboard
+      </a>
+      <span class="admin-eyebrow">Detaliile comenzii</span>
+      <h1>{{ order.order_number ?: '#' ~ order.id }}</h1>
+      <p>Plasată în {{ order.display_created_at }} de {{ order.first_name }} {{ order.last_name }}</p>
+    </div>
+    <div class="admin-order-detail__states">
+      <span class="admin-order-badge admin-order-badge--{{ order.status }}">{{ order.status_label }}</span>
+      <span class="admin-order-payment admin-order-payment--{{ order.payment_status }}">{{ order.payment_status_label }}</span>
+    </div>
+  </header>
+
+  <div class="admin-order-detail__layout">
+    <main class="admin-order-detail__main">
+      <section class="admin-order-detail__card" aria-labelledby="order-products-title">
+        <div class="admin-order-detail__heading">
+          <div><span class="admin-eyebrow">Conținut</span><h2 id="order-products-title">Produsele comandate</h2></div>
+          <span>{{ order.items|length }} {{ order.items|length == 1 ? 'produs' : 'produse' }}</span>
+        </div>
+        <div class="admin-order-products">
+          {% for item in order.items %}
+            <article class="admin-order-product">
+              <span class="admin-order-product__quantity">{{ item.quantity }}×</span>
+              <div>
+                <strong>{{ item.product_name }}</strong>
+                {% if item.variant_summary %}<p>{{ item.variant_summary }}</p>{% endif %}
+                <small>SKU {{ item.sku }}</small>
+              </div>
+              <div class="admin-order-product__price">
+                <strong>{{ money(item.line_total_bani) }}</strong>
+                <small>{{ money(item.unit_price_bani) }} / buc.</small>
+              </div>
+            </article>
+          {% else %}
+            <p class="admin-order-detail__empty">Comanda nu conține linii de produs.</p>
+          {% endfor %}
+        </div>
+      </section>
+
+      <section class="admin-order-detail__card" aria-labelledby="order-customer-title">
+        <div class="admin-order-detail__heading">
+          <div><span class="admin-eyebrow">Client</span><h2 id="order-customer-title">Date de contact și livrare</h2></div>
+        </div>
+        <div class="admin-order-customer-grid">
+          <article>
+            <span>Email</span>
+            <a href="mailto:{{ order.email }}">{{ order.email }}</a>
+          </article>
+          <article>
+            <span>Telefon</span>
+            <a href="tel:{{ order.phone }}">{{ order.phone }}</a>
+          </article>
+          <article class="admin-order-customer-grid__wide">
+            <span>Adresă de livrare</span>
+            <strong>{{ order.shipping_address.address|default('—') }}</strong>
+            <p>{{ order.shipping_address.postal_code|default('') }} {{ order.shipping_address.city|default('') }}{% if order.shipping_address.county|default('') %}, {{ order.shipping_address.county }}{% endif %}</p>
+          </article>
+          {% if order.awb %}
+            <article class="admin-order-customer-grid__wide"><span>AWB</span><strong>{{ order.awb }}</strong></article>
+          {% endif %}
+        </div>
+      </section>
+    </main>
+
+    <aside class="admin-order-detail__aside">
+      <section class="admin-order-detail__card admin-order-summary" aria-labelledby="order-summary-title">
+        <div class="admin-order-detail__heading"><div><span class="admin-eyebrow">Total</span><h2 id="order-summary-title">Rezumat</h2></div></div>
+        <dl>
+          <div><dt>Subtotal</dt><dd>{{ money(order.subtotal_bani) }}</dd></div>
+          {% if order.discount_bani > 0 %}<div><dt>Reducere</dt><dd>−{{ money(order.discount_bani) }}</dd></div>{% endif %}
+          <div><dt>Livrare</dt><dd>{{ order.shipping_bani > 0 ? money(order.shipping_bani) : 'Gratuită' }}</dd></div>
+          {% if order.tax_bani > 0 %}<div><dt>Taxe</dt><dd>{{ money(order.tax_bani) }}</dd></div>{% endif %}
+          <div class="admin-order-summary__total"><dt>Total</dt><dd>{{ money(order.total_bani) }}</dd></div>
+        </dl>
+        <div class="admin-order-summary__method">
+          <span>Metodă de plată</span>
+          <strong>{{ order.payment_method == 'cod' ? 'Ramburs la curier' : 'Card online' }}</strong>
+        </div>
+      </section>
+
+      {% if order.payments %}
+        <section class="admin-order-detail__card" aria-labelledby="order-payments-title">
+          <div class="admin-order-detail__heading"><div><span class="admin-eyebrow">Tranzacții</span><h2 id="order-payments-title">Plăți</h2></div></div>
+          <div class="admin-order-payments">
+            {% for payment in order.payments %}
+              <article><span>{{ payment.provider|upper }}</span><strong>{{ money(payment.amount_bani) }}</strong><small>{{ payment.status }}</small></article>
+            {% endfor %}
+          </div>
+        </section>
+      {% endif %}
+    </aside>
+  </div>
+{% endblock %}

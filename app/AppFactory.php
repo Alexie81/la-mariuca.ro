@@ -191,6 +191,7 @@ final class AppFactory
             $group->get('/produse/{id:[0-9]+}/editare/', [$adminController, 'productForm']);
             $group->post('/produse/{id:[0-9]+}/editare/', [$adminController, 'saveProduct']);
             $group->get('/comenzi/', [$adminController, 'orders']);
+            $group->get('/comenzi/{id:[0-9]+}/', [$adminController, 'orderDetail']);
             $group->post('/comenzi/{id:[0-9]+}/actiune/', [$adminController, 'transitionOrder']);
             $group->get('/recenzii/', [$adminController, 'reviews']);
             $group->post('/recenzii/{id:[0-9]+}/actiune/', [$adminController, 'moderateReview']);
