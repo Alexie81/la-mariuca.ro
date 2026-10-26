@@ -86,6 +86,7 @@ bin/console.php migrate
 bin/console.php seed:demo
 bin/console.php admin:create
 bin/console.php outbox:process
+bin/console.php push:process 100
 bin/console.php reservations:expire
 bin/console.php csv:export [fișier]
 bin/console.php csv:import <fișier> --dry-run

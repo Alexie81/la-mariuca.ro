@@ -86,11 +86,12 @@ Comenzi recomandate (căile absolute și lockul cron se adaptează hostingului):
 
 ```text
 */5 * * * * php /cale/bin/console.php outbox:process
+* * * * * php /cale/bin/console.php push:process 100
 */10 * * * * php /cale/bin/console.php reservations:expire
 ```
 
-Nu expune aceste comenzi ca URL public. Dacă hostingul nu oferă cron, outbox-ul și expirarea
-rezervărilor sunt `BLOCKED_EXTERNAL_CONFIG`; comenzile trebuie rulate controlat din panou.
+Nu expune aceste comenzi ca URL public. Dacă hostingul nu oferă cron, outbox-ul, reîncercările
+Web Push și expirarea rezervărilor sunt `BLOCKED_EXTERNAL_CONFIG`; comenzile trebuie rulate controlat.
 
 În dezvoltare, outbox-ul scrie preview-uri în `storage/private/mail`. În producție, setează un
 `MAILER_DSN` SMTP real și testează retry/backoff fără date reale de client.
