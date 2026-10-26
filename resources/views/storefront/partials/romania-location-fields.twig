@@ -1,0 +1,27 @@
+{% set picker_id = location_id|default('delivery-location') %}
+<div class="ro-location-picker account-form-full" data-ro-location-picker data-source="{{ url('assets/data/romania-localities.json') }}">
+  <div class="ro-location-field" data-ro-location-field="county">
+    <label for="{{ picker_id }}-county">Județ / Municipiul București *</label>
+    <div class="ro-location-control">
+      <input id="{{ picker_id }}-county" name="county" value="{{ county_value|default('') }}" autocomplete="address-level1" maxlength="120" placeholder="Alege județul" required data-ro-location-input role="combobox" aria-autocomplete="list" aria-haspopup="listbox" aria-expanded="false">
+      <button type="button" aria-label="Deschide lista județelor" data-ro-location-toggle><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 9 5 5 5-5"></path></svg></button>
+    </div>
+    <div class="ro-location-dropdown" data-ro-location-dropdown hidden>
+      <label class="ro-location-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"></circle><path d="m16 16 5 5"></path></svg><input type="search" placeholder="Caută județul…" autocomplete="off" data-ro-location-search></label>
+      <div class="ro-location-options" role="listbox" data-ro-location-options></div>
+      <small data-ro-location-status></small>
+    </div>
+  </div>
+  <div class="ro-location-field" data-ro-location-field="locality">
+    <label for="{{ picker_id }}-locality">Localitate / sector *</label>
+    <div class="ro-location-control">
+      <input id="{{ picker_id }}-locality" name="city" value="{{ city_value|default('') }}" autocomplete="address-level2" maxlength="160" placeholder="Alege întâi județul" required data-ro-location-input role="combobox" aria-autocomplete="list" aria-haspopup="listbox" aria-expanded="false">
+      <button type="button" aria-label="Deschide lista localităților" data-ro-location-toggle><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 9 5 5 5-5"></path></svg></button>
+    </div>
+    <div class="ro-location-dropdown" data-ro-location-dropdown hidden>
+      <label class="ro-location-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"></circle><path d="m16 16 5 5"></path></svg><input type="search" placeholder="Caută localitatea…" autocomplete="off" data-ro-location-search></label>
+      <div class="ro-location-options" role="listbox" data-ro-location-options></div>
+      <small data-ro-location-status></small>
+    </div>
+  </div>
+</div>

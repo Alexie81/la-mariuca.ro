@@ -1,3 +1,7 @@
+import { initializeRomanianLocationSelectors } from './romania-locations.js';
+
+initializeRomanianLocationSelectors();
+
 const accountPage = document.querySelector('.account-page');
 
 if (accountPage) {

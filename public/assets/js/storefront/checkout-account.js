@@ -1,10 +1,17 @@
+import { initializeRomanianLocationSelectors } from './romania-locations.js';
+
+initializeRomanianLocationSelectors();
+
 const addressSelector = document.querySelector('[data-checkout-saved-address]');
 
 if (addressSelector instanceof HTMLSelectElement) {
   const form = addressSelector.closest('form');
   const assign = (name, value) => {
     const field = form?.elements.namedItem(name);
-    if (field instanceof HTMLInputElement) field.value = value || '';
+    if (field instanceof HTMLInputElement) {
+      field.value = value || '';
+      field.dispatchEvent(new Event('change', { bubbles: true }));
+    }
   };
 
   addressSelector.addEventListener('change', () => {

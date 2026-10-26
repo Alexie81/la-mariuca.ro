@@ -1,6 +1,6 @@
 {% extends 'storefront/layouts/base.twig' %}
 {% block body_class %}account-page-body{% endblock %}
-{% block head %}<link rel="stylesheet" href="{{ url('assets/css/storefront/account.css') }}?v=20261026-account5">{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url('assets/css/storefront/account.css') }}?v=20261026-account6"><link rel="stylesheet" href="{{ url('assets/css/storefront/romania-locations.css') }}?v=20261026-locations1">{% endblock %}
 {% block content %}
 {% set initials = (account.first_name|first ~ account.last_name|first)|upper %}
 <div class="account-page">
@@ -145,7 +145,7 @@
                       <button class="account-address-edit-close" type="button" data-account-address-close aria-label="Închide editarea adresei">×</button>
                       <form class="account-form account-address-form" action="{{ url('cont/adrese/') }}" method="post">
                         <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="address_id" value="{{ saved.id }}">
-                        {% include 'storefront/partials/account-address-fields.twig' with { values: saved.details, label_value: saved.label, default_checked: saved.is_default } %}
+                        {% include 'storefront/partials/account-address-fields.twig' with { values: saved.details, label_value: saved.label, default_checked: saved.is_default, location_id: 'saved-address-' ~ saved.id } %}
                         <div class="account-form-actions"><button type="submit">Actualizează adresa <i>›</i></button></div>
                       </form>
                     </div>
@@ -162,7 +162,7 @@
             <div class="account-new-address-body">
               <form class="account-form account-address-form" action="{{ url('cont/adrese/') }}" method="post">
                 <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-                {% include 'storefront/partials/account-address-fields.twig' with { values: { first_name: account.first_name, last_name: account.last_name, phone: account.phone|default('') }, label_value: '', default_checked: addresses is empty } %}
+                {% include 'storefront/partials/account-address-fields.twig' with { values: { first_name: account.first_name, last_name: account.last_name, phone: account.phone|default('') }, label_value: '', default_checked: addresses is empty, location_id: 'new-address' } %}
                 <div class="account-form-actions"><button type="submit">Salvează adresa <i>›</i></button></div>
               </form>
             </div>
@@ -185,5 +185,5 @@
     </div>
   </div>
 </div>
-<script type="module" src="{{ url('assets/js/storefront/account.js') }}?v=20261026-account2"></script>
+<script type="module" src="{{ url('assets/js/storefront/account.js') }}?v=20261026-account3"></script>
 {% endblock %}
