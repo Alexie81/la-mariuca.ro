@@ -1,6 +1,6 @@
 {% extends 'storefront/layouts/base.twig' %}
 {% block body_class %}account-page-body{% endblock %}
-{% block head %}<link rel="stylesheet" href="{{ url('assets/css/storefront/account.css') }}?v=20261026-account2">{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url('assets/css/storefront/account.css') }}?v=20261026-account3">{% endblock %}
 {% block content %}
 {% set initials = (account.first_name|first ~ account.last_name|first)|upper %}
 <div class="account-page">
@@ -122,21 +122,24 @@
           <div><span>Livrare mai simplă</span><h2>Adresele mele</h2></div>
           <p>Salvează până la 10 locuri și denumește-le cum îți este mai ușor.</p>
         </header>
-        {% if addresses %}
-          <div class="account-address-grid">
-            {% for saved in addresses %}
-              <article class="account-address-card{{ saved.is_default ? ' is-default' : '' }}">
-                <div class="account-address-card-head">
-                  <span class="account-address-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s7-6.1 7-12a7 7 0 0 0-14 0c0 5.9 7 12 7 12Z"></path><circle cx="12" cy="9" r="2.2"></circle></svg></span>
-                  <div><small>Alias adresă</small><h3>{{ saved.label }}</h3></div>
-                  {% if saved.is_default %}<span class="account-default-badge">Implicită</span>{% endif %}
-                </div>
-                <p><strong>{{ saved.details.first_name|default(account.first_name) }} {{ saved.details.last_name|default(account.last_name) }}</strong><br>{{ saved.details.address|default('') }}<br>{{ saved.details.postal_code|default('') }} {{ saved.details.city|default('') }}, {{ saved.details.county|default('') }}</p>
-                <small class="account-address-phone">{{ saved.details.phone|default(account.phone) }}</small>
-                {% if saved.details.notes|default('') %}<small class="account-address-note">{{ saved.details.notes }}</small>{% endif %}
-                <div class="account-address-actions">
-                  <details>
-                    <summary>Editează</summary>
+        <div class="account-address-grid">
+          {% for saved in addresses %}
+            <article class="account-address-card{{ saved.is_default ? ' is-default' : '' }}">
+              <div class="account-address-card-head">
+                <span class="account-address-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s7-6.1 7-12a7 7 0 0 0-14 0c0 5.9 7 12 7 12Z"></path><circle cx="12" cy="9" r="2.2"></circle></svg></span>
+                <div><small>Alias adresă</small><h3>{{ saved.label }}</h3></div>
+                {% if saved.is_default %}<span class="account-default-badge"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 10 3 3 7-7"></path></svg>Implicită</span>{% endif %}
+              </div>
+              <div class="account-address-copy">
+                <strong>{{ saved.details.first_name|default(account.first_name) }} {{ saved.details.last_name|default(account.last_name) }}</strong>
+                <span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h16M6.5 20V9l5.5-4 5.5 4v11M9 13h6M9 16h6"></path></svg>{{ saved.details.address|default('') }}</span>
+                <span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s7-6.1 7-12a7 7 0 0 0-14 0c0 5.9 7 12 7 12Z"></path><circle cx="12" cy="9" r="2"></circle></svg>{{ saved.details.postal_code|default('') }} {{ saved.details.city|default('') }}, {{ saved.details.county|default('') }}</span>
+              </div>
+              <small class="account-address-phone"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.3 3.5 10 8 7.8 9.8c1.4 3 3.4 5 6.4 6.4L16 14l4.5 2.7-.6 3.3c-.2.8-.9 1.4-1.8 1.4C9.6 21.4 2.6 14.4 2.6 5.9c0-.9.6-1.6 1.4-1.8l3.3-.6Z"></path></svg>{{ saved.details.phone|default(account.phone) }}</small>
+              {% if saved.details.notes|default('') %}<small class="account-address-note">„{{ saved.details.notes }}”</small>{% endif %}
+              <div class="account-address-actions">
+                <details>
+                    <summary><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 20 4.2-1 10.9-10.9a2.2 2.2 0 0 0-3.2-3.2L5 15.8 4 20Z"></path></svg>Editează</summary>
                     <div class="account-address-edit-wrap">
                       <button class="account-address-edit-close" type="button" data-account-address-close aria-label="Închide editarea adresei">×</button>
                       <form class="account-form account-address-form" action="{{ url('cont/adrese/') }}" method="post">
@@ -145,26 +148,25 @@
                         <div class="account-form-actions"><button type="submit">Actualizează adresa <i>›</i></button></div>
                       </form>
                     </div>
-                  </details>
-                  {% if not saved.is_default %}
-                    <form action="{{ url('cont/adrese/' ~ saved.id ~ '/implicita/') }}" method="post"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><button type="submit">Setează implicită</button></form>
-                  {% endif %}
-                  <form action="{{ url('cont/adrese/' ~ saved.id ~ '/sterge/') }}" method="post" data-account-delete-address><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><button class="is-danger" type="submit" aria-label="Șterge adresa {{ saved.label }}">Șterge</button></form>
-                </div>
-              </article>
-            {% endfor %}
-          </div>
-        {% endif %}
-        <details class="account-new-address"{{ addresses ? '' : ' open' }}>
-          <summary><span><b>+</b><span><small>Un loc nou</small><strong>Adaugă o adresă</strong></span></span><i>›</i></summary>
-          <div class="account-new-address-body">
-            <form class="account-form account-address-form" action="{{ url('cont/adrese/') }}" method="post">
-              <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-              {% include 'storefront/partials/account-address-fields.twig' with { values: { first_name: account.first_name, last_name: account.last_name, phone: account.phone|default('') }, label_value: '', default_checked: addresses is empty } %}
-              <div class="account-form-actions"><button type="submit">Salvează adresa <i>›</i></button></div>
-            </form>
-          </div>
-        </details>
+                </details>
+                {% if not saved.is_default %}
+                  <form action="{{ url('cont/adrese/' ~ saved.id ~ '/implicita/') }}" method="post"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><button type="submit"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.7 5.5 6.1.9-4.4 4.3 1 6-5.4-2.9-5.4 2.9 1-6-4.4-4.3 6.1-.9L12 3Z"></path></svg>Setează implicită</button></form>
+                {% endif %}
+                <form action="{{ url('cont/adrese/' ~ saved.id ~ '/sterge/') }}" method="post" data-account-delete-address><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><button class="is-danger" type="submit" aria-label="Șterge adresa {{ saved.label }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M9 7V4h6v3M8 10v8M12 10v8M16 10v8M7 7l1 14h8l1-14"></path></svg>Șterge</button></form>
+              </div>
+            </article>
+          {% endfor %}
+          <details class="account-new-address"{{ addresses ? '' : ' open' }}>
+            <summary><span><b><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></b><span><small>Un loc nou</small><strong>Adaugă o adresă</strong><em>Salveaz-o o dată, folosește-o rapid la fiecare comandă.</em></span></span><i>›</i></summary>
+            <div class="account-new-address-body">
+              <form class="account-form account-address-form" action="{{ url('cont/adrese/') }}" method="post">
+                <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                {% include 'storefront/partials/account-address-fields.twig' with { values: { first_name: account.first_name, last_name: account.last_name, phone: account.phone|default('') }, label_value: '', default_checked: addresses is empty } %}
+                <div class="account-form-actions"><button type="submit">Salvează adresa <i>›</i></button></div>
+              </form>
+            </div>
+          </details>
+        </div>
       </section>
 
       <section id="securitate" class="account-panel account-security">
