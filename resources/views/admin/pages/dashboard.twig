@@ -43,7 +43,7 @@
     </div>
   </header>
 
-  <section class="admin-period" aria-label="Perioada raportului" data-admin-reveal>
+  <section class="admin-period" aria-label="Perioada raportului">
     <nav class="admin-period__options" aria-label="Alege perioada">
       {% for key, label in ranges %}
         <a href="{{ url('admin') }}?perioada={{ key }}" class="{{ period.key == key ? 'is-active' : '' }}" {% if period.key == key %}aria-current="page"{% endif %}>{{ label }}</a>
