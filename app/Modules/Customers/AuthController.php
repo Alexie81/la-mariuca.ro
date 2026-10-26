@@ -15,7 +15,7 @@ use Psr\Http\Message\ServerRequestInterface;
 
 final class AuthController
 {
-    public function __construct(private readonly PDO $pdo, private readonly Auth $auth, private readonly GoogleOAuthService $googleOAuth, private readonly RateLimiter $limiter, private readonly View $view, private readonly Config $config)
+    public function __construct(private readonly PDO $pdo, private readonly Auth $auth, private readonly GoogleOAuthService $googleOAuth, private readonly CustomerAccountService $accountService, private readonly RateLimiter $limiter, private readonly View $view, private readonly Config $config)
     {
     }
 
@@ -130,9 +130,81 @@ final class AuthController
         if ($user === null) {
             return $this->view->redirect($this->config->path('cont/autentificare/'));
         }
-        $orders = $this->pdo->prepare('SELECT order_number,total_bani,status,payment_status,created_at FROM orders WHERE user_id=:id ORDER BY id DESC');
-        $orders->execute(['id' => $user['id']]);
-        return $this->view->render('storefront/pages/account.twig', ['account' => $user, 'orders' => $orders->fetchAll(), 'meta' => ['title' => 'Contul meu', 'noindex' => true]]);
+        if (($user['role'] ?? '') !== 'customer') {
+            return $this->view->redirect($this->config->path('admin/'));
+        }
+        try {
+            return $this->view->render('storefront/pages/account.twig', $this->accountService->dashboard((int) $user['id']) + [
+                'meta' => ['title' => 'Contul meu', 'noindex' => true],
+            ]);
+        } catch (\RuntimeException $exception) {
+            Flash::set('error', $exception->getMessage());
+            return $this->view->redirect($this->config->path('cont/autentificare/'));
+        }
+    }
+
+    public function updateProfile(ServerRequestInterface $request): ResponseInterface
+    {
+        $userId = $this->customerId();
+        if ($userId === null) {
+            return $this->view->redirect($this->config->path('cont/autentificare/'));
+        }
+        try {
+            $this->accountService->updateProfile($userId, (array) ($request->getParsedBody() ?? []));
+            Flash::set('success', 'Datele tale au fost actualizate.');
+        } catch (\RuntimeException $exception) {
+            Flash::set('error', $exception->getMessage());
+        }
+
+        return $this->view->redirect($this->config->path('cont/#date-personale'));
+    }
+
+    public function saveAddress(ServerRequestInterface $request): ResponseInterface
+    {
+        $userId = $this->customerId();
+        if ($userId === null) {
+            return $this->view->redirect($this->config->path('cont/autentificare/'));
+        }
+        try {
+            $this->accountService->saveAddress($userId, (array) ($request->getParsedBody() ?? []));
+            Flash::set('success', 'Adresa a fost salvată în cont.');
+        } catch (\RuntimeException $exception) {
+            Flash::set('error', $exception->getMessage());
+        }
+
+        return $this->view->redirect($this->config->path('cont/#adrese'));
+    }
+
+    public function deleteAddress(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $userId = $this->customerId();
+        if ($userId === null) {
+            return $this->view->redirect($this->config->path('cont/autentificare/'));
+        }
+        try {
+            $this->accountService->deleteAddress($userId, (int) ($args['id'] ?? 0));
+            Flash::set('success', 'Adresa a fost eliminată.');
+        } catch (\RuntimeException $exception) {
+            Flash::set('error', $exception->getMessage());
+        }
+
+        return $this->view->redirect($this->config->path('cont/#adrese'));
+    }
+
+    public function setDefaultAddress(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $userId = $this->customerId();
+        if ($userId === null) {
+            return $this->view->redirect($this->config->path('cont/autentificare/'));
+        }
+        try {
+            $this->accountService->setDefaultAddress($userId, (int) ($args['id'] ?? 0));
+            Flash::set('success', 'Adresa implicită a fost schimbată.');
+        } catch (\RuntimeException $exception) {
+            Flash::set('error', $exception->getMessage());
+        }
+
+        return $this->view->redirect($this->config->path('cont/#adrese'));
     }
 
     public function logout(): ResponseInterface
@@ -140,5 +212,11 @@ final class AuthController
         $this->auth->logout();
         Flash::set('success', 'Te-ai deconectat.');
         return $this->view->redirect($this->config->path(''));
+    }
+
+    private function customerId(): ?int
+    {
+        $user = $this->auth->user();
+        return $user !== null && ($user['role'] ?? '') === 'customer' ? (int) $user['id'] : null;
     }
 }

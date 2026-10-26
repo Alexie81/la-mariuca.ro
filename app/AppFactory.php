@@ -19,6 +19,8 @@ use App\Modules\Content\ContentRepository;
 use App\Modules\Content\ContactWhatsAppService;
 use App\Modules\Content\ContentAdminService;
 use App\Modules\Customers\AuthController;
+use App\Modules\Customers\CustomerAccountRepository;
+use App\Modules\Customers\CustomerAccountService;
 use App\Modules\Customers\GoogleOAuthService;
 use App\Modules\Customers\TwoFactorController;
 use App\Modules\Media\MediaService;
@@ -115,8 +117,9 @@ final class AppFactory
 
         $storefront = new StorefrontController($catalog, $catalogSearch, $categoryPaths, new ProductRecommendationService($catalog), $content, $contactWhatsApp, $reviews, $rateLimiter, $auth, $view, $config);
         $cartController = new CartController($cart, $view, $config);
-        $checkoutController = new CheckoutController(new CheckoutService($pdo, $cart, $config), $cart, $orders, new StripeCheckoutService($pdo, $config), $rateLimiter, $view, $config);
-        $authController = new AuthController($pdo, $auth, new GoogleOAuthService($pdo, $config), $rateLimiter, $view, $config);
+        $customerAccount = new CustomerAccountService(new CustomerAccountRepository($pdo));
+        $checkoutController = new CheckoutController(new CheckoutService($pdo, $cart, $config), $cart, $orders, new StripeCheckoutService($pdo, $config), $auth, $customerAccount, $rateLimiter, $view, $config);
+        $authController = new AuthController($pdo, $auth, new GoogleOAuthService($pdo, $config), $customerAccount, $rateLimiter, $view, $config);
         $twoFactorController = new TwoFactorController($pdo, $auth, new TotpService($config), $rateLimiter, $view, $config);
         $adminController = new AdminController($pdo, $catalog, new CatalogAdminService($pdo), $orders, $reviews, new MediaService($pdo, $root), new ContentAdminService($pdo), $auth, $view, $config);
 
@@ -158,6 +161,10 @@ final class AppFactory
         $app->get('/cont/inregistrare/', [$authController, 'registerForm']);
         $app->post('/cont/inregistrare/', [$authController, 'register']);
         $app->get('/cont/', [$authController, 'account']);
+        $app->post('/cont/detalii/', [$authController, 'updateProfile']);
+        $app->post('/cont/adrese/', [$authController, 'saveAddress']);
+        $app->post('/cont/adrese/{id:[0-9]+}/implicita/', [$authController, 'setDefaultAddress']);
+        $app->post('/cont/adrese/{id:[0-9]+}/sterge/', [$authController, 'deleteAddress']);
         $app->post('/cont/deconectare/', [$authController, 'logout']);
 
         $app->group('/admin', function (RouteCollectorProxy $group) use ($adminController, $twoFactorController): void {
