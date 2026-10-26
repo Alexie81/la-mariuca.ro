@@ -15,5 +15,18 @@ foreach ($extension in $extensions) {
     }
 }
 
+$caCandidates = @(
+    $env:SSL_CERT_FILE,
+    (Join-Path $phpDir 'extras\ssl\cacert.pem'),
+    'C:\Program Files\Git\mingw64\etc\ssl\certs\ca-bundle.crt',
+    'C:\Program Files\Git\usr\ssl\certs\ca-bundle.crt'
+)
+$caBundle = $caCandidates |
+    Where-Object { $_ -is [string] -and $_ -ne '' -and (Test-Path -LiteralPath $_) } |
+    Select-Object -First 1
+if ($caBundle) {
+    $extensionArgs += @('-d', "curl.cainfo=$caBundle", '-d', "openssl.cafile=$caBundle")
+}
+
 & $phpExe -d "extension_dir=$extensionDir" @extensionArgs @PhpArgs
 exit $LASTEXITCODE

@@ -66,7 +66,7 @@ webrootului și nu se trimite în Git.
 
 Înainte de primul test Google pe server:
 
-1. Confirmă PHP cu extensiile `curl`, `openssl`, `json`, `mbstring`, `pdo` și driverul bazei.
+1. Confirmă PHP cu extensiile `curl`, `openssl`, `json`, `mbstring`, `pdo` și driverul bazei. Verifică și că `curl.cainfo`/`openssl.cafile` indică un bundle CA valid atunci când hostingul nu folosește automat certificatele sistemului.
 2. Rulează migrările, inclusiv:
    - `013_google_oauth_identities.sql`;
    - `014_user_phone.sql`.
