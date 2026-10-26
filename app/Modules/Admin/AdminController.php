@@ -67,7 +67,8 @@ final class AdminController
             ];
         }
         $lowStock = $this->pdo->query("SELECT p.name,v.sku,(i.physical_quantity-i.reserved_quantity) AS available FROM inventory i JOIN product_variants v ON v.id=i.variant_id JOIN products p ON p.id=v.product_id WHERE v.status='active' AND (i.physical_quantity-i.reserved_quantity)<=3 ORDER BY available ASC,p.name ASC LIMIT 5")->fetchAll();
-        $hour = (int) date('G');
+        $bucharestNow = new \DateTimeImmutable('now', new \DateTimeZone('Europe/Bucharest'));
+        $hour = (int) $bucharestNow->format('G');
         $greeting = $hour < 12 ? 'Bună dimineața' : ($hour < 18 ? 'Bună ziua' : 'Bună seara');
 
         return $this->view->render('admin/pages/dashboard.twig', [
@@ -78,7 +79,7 @@ final class AdminController
             'low_stock' => $lowStock,
             'admin_user' => $admin,
             'greeting' => $greeting,
-            'generated_at' => date('d.m.Y H:i'),
+            'generated_at' => $bucharestNow->format('d.m.Y H:i'),
             'totp_enabled' => (int) ($admin['totp_enabled'] ?? 0) === 1,
         ]);
     }
