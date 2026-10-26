@@ -37,7 +37,7 @@
           <input type="hidden" name="perioada" value="personalizat">
           <label><span>De la</span><input type="date" name="de_la" value="{{ period.start_input }}" required></label>
           <label><span>Până la</span><input type="date" name="pana_la" value="{{ period.end_input }}" required></label>
-          <button type="submit">Aplică perioada <span aria-hidden="true">›</span></button>
+          <button type="submit">Aplică perioada <span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></span></button>
         </form>
       </details>
     </nav>
@@ -116,7 +116,7 @@
     <section class="admin-overview-card admin-notifications" aria-labelledby="notifications-title" data-admin-reveal>
       <div class="admin-overview-card__head">
         <div><span class="admin-eyebrow">Acțiuni</span><h2 id="notifications-title">Notificări</h2></div>
-        <a href="{{ url('admin/comenzi/') }}">Vezi toate <span aria-hidden="true">›</span></a>
+        <a href="{{ url('admin/comenzi/') }}">Vezi toate <span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></span></a>
       </div>
       <div class="admin-notifications__list">
         {% for notification in notifications %}
@@ -129,7 +129,7 @@
               {% endif %}
             </span>
             <span><strong>{{ notification.title }}</strong><small>{{ notification.detail }} · {{ money(notification.total_bani) }}</small></span>
-            <i aria-hidden="true">›</i>
+            <i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></i>
           </a>
         {% else %}
           <div class="admin-notifications__empty">
@@ -144,7 +144,7 @@
   <section class="admin-overview-card admin-recent-table-card" aria-labelledby="recent-orders-title" data-admin-reveal>
     <div class="admin-overview-card__head">
       <div><span class="admin-eyebrow">Ultimele înregistrări</span><h2 id="recent-orders-title">Comenzi recente</h2></div>
-      <a href="{{ url('admin/comenzi/') }}">Toate comenzile <span aria-hidden="true">›</span></a>
+      <a href="{{ url('admin/comenzi/') }}">Toate comenzile <span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></span></a>
     </div>
     {% if recent_orders %}
       <div class="admin-overview-table-wrap">
@@ -158,7 +158,7 @@
               <td data-label="Data"><span>{{ order.display_date }}</span></td>
               <td data-label="Status"><span class="admin-order-badge admin-order-badge--{{ order.status_tone }}">{{ order.status_label }}</span></td>
               <td data-label="Total"><strong>{{ money(order.total_bani) }}</strong></td>
-              <td><a class="admin-table-open" href="{{ url('admin/comenzi/') }}" aria-label="Deschide comanda {{ order.order_number ?: '#' ~ order.id }}">›</a></td>
+              <td><a class="admin-table-open" href="{{ url('admin/comenzi/') }}" aria-label="Deschide comanda {{ order.order_number ?: '#' ~ order.id }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a></td>
             </tr>
           {% endfor %}
           </tbody>
