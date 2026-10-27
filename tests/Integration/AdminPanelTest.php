@@ -130,6 +130,8 @@ final class AdminPanelTest extends DatabaseTestCase
         self::assertSame(200, $newModal->getStatusCode());
         self::assertStringContainsString('Adaugă o poveste nouă', (string) $newModal->getBody());
         self::assertStringContainsString('data-admin-product-form', (string) $newModal->getBody());
+        self::assertStringContainsString('data-product-name-input', (string) $newModal->getBody());
+        self::assertStringContainsString('/admin/produse/verifica-nume/', (string) $newModal->getBody());
 
         $categoryId = (int) $this->pdo->query('SELECT id FROM categories ORDER BY id LIMIT 1')->fetchColumn();
         $created = $this->request('POST', '/admin/produse/nou/', [
@@ -148,8 +150,32 @@ final class AdminPanelTest extends DatabaseTestCase
         $createdPayload = json_decode((string) $created->getBody(), true, 512, JSON_THROW_ON_ERROR);
         self::assertIsArray($createdPayload);
         self::assertTrue((bool) $createdPayload['ok']);
+        $createdId = (int) $createdPayload['id'];
         self::assertSame(1, (int) $this->pdo->query("SELECT COUNT(*) FROM product_variants WHERE sku='LM-MODAL-001'")->fetchColumn());
         self::assertSame(1, (int) $this->pdo->query("SELECT p.featured FROM products p JOIN product_variants v ON v.product_id=p.id WHERE v.sku='LM-MODAL-001'")->fetchColumn());
+
+        $duplicateAvailability = json_decode((string) $this->get('/admin/produse/verifica-nume/?nume=PRODUS%20CREAT%20DIN%20MODAL')->getBody(), true, 512, JSON_THROW_ON_ERROR);
+        self::assertFalse((bool) $duplicateAvailability['available']);
+        self::assertSame('Acest titlu există deja.', $duplicateAvailability['message']);
+        $ownAvailability = json_decode((string) $this->get('/admin/produse/verifica-nume/?nume=Produs%20creat%20din%20modal&exclude_id=' . $createdId)->getBody(), true, 512, JSON_THROW_ON_ERROR);
+        self::assertTrue((bool) $ownAvailability['available']);
+        $newAvailability = json_decode((string) $this->get('/admin/produse/verifica-nume/?nume=Titlu%20complet%20nou')->getBody(), true, 512, JSON_THROW_ON_ERROR);
+        self::assertTrue((bool) $newAvailability['available']);
+
+        $duplicateSave = $this->request('POST', '/admin/produse/nou/', [
+            '_csrf' => $_SESSION['_csrf'],
+            'name' => '  PRODUS creat din modal  ',
+            'sku' => 'LM-MODAL-DUPLICAT',
+            'price' => '129,00',
+            'stock' => '2',
+            'category_id' => (string) $categoryId,
+            'status' => 'draft',
+        ], '127.0.0.86', [], ['Accept' => 'application/json']);
+        self::assertSame(422, $duplicateSave->getStatusCode());
+        $duplicatePayload = json_decode((string) $duplicateSave->getBody(), true, 512, JSON_THROW_ON_ERROR);
+        self::assertFalse((bool) $duplicatePayload['ok']);
+        self::assertStringContainsString('Acest titlu există deja', (string) $duplicatePayload['message']);
+        self::assertSame(0, (int) $this->pdo->query("SELECT COUNT(*) FROM product_variants WHERE sku='LM-MODAL-DUPLICAT'")->fetchColumn());
 
         $product = $this->pdo->query("SELECT p.id,p.name FROM products p JOIN product_variants v ON v.product_id=p.id WHERE v.sku='LM-SH-002' LIMIT 1")->fetch();
         self::assertIsArray($product);

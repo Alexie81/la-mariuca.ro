@@ -184,6 +184,27 @@ final class AdminController
         ]);
     }
 
+    public function productNameAvailability(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    {
+        $query = $request->getQueryParams();
+        $name = trim(mb_substr((string) ($query['nume'] ?? ''), 0, 255));
+        $excludeId = max(0, (int) ($query['exclude_id'] ?? 0));
+        $available = $name !== '' && $this->catalogAdmin->isProductNameAvailable($name, $excludeId > 0 ? $excludeId : null);
+        $message = $name === ''
+            ? 'Denumirea pe care o vede clientul.'
+            : ($available ? 'Acest titlu de produs este disponibil!' : 'Acest titlu există deja.');
+
+        $response->getBody()->write((string) json_encode([
+            'ok' => true,
+            'available' => $available,
+            'message' => $message,
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+
+        return $response
+            ->withHeader('Content-Type', 'application/json; charset=utf-8')
+            ->withHeader('Cache-Control', 'no-store');
+    }
+
     public function saveProduct(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
     {
         $wantsJson = str_contains(strtolower($request->getHeaderLine('Accept')), 'application/json');

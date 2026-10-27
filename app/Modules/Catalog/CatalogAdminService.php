@@ -56,6 +56,9 @@ final class CatalogAdminService
         if ($name === '' || $sku === '') {
             throw new RuntimeException('Numele și SKU sunt obligatorii.');
         }
+        if (!$this->isProductNameAvailable($name, $id)) {
+            throw new RuntimeException('Acest titlu există deja. Alege o denumire unică pentru produs.');
+        }
         $price = Money::parse((string) ($data['price'] ?? ''));
         $stock = filter_var($data['stock'] ?? null, FILTER_VALIDATE_INT);
         if ($stock === false || $stock < 0) {
@@ -123,6 +126,28 @@ final class CatalogAdminService
     public function products(): array
     {
         return $this->pdo->query("SELECT p.*, c.name AS category_name, v.sku, v.price_bani, i.physical_quantity, i.reserved_quantity FROM products p LEFT JOIN categories c ON c.id=p.primary_category_id LEFT JOIN product_variants v ON v.product_id=p.id AND v.is_default=1 LEFT JOIN inventory i ON i.variant_id=v.id ORDER BY p.id DESC")->fetchAll();
+    }
+
+    public function isProductNameAvailable(string $name, ?int $excludeId = null): bool
+    {
+        $name = trim($name);
+        if ($name === '') {
+            return false;
+        }
+
+        $statement = $excludeId !== null && $excludeId > 0
+            ? $this->pdo->prepare('SELECT name FROM products WHERE id <> :exclude_id')
+            : $this->pdo->prepare('SELECT name FROM products');
+        $statement->execute($excludeId !== null && $excludeId > 0 ? ['exclude_id' => $excludeId] : []);
+        $nameKey = Slugger::slug($name);
+
+        foreach ($statement->fetchAll(PDO::FETCH_COLUMN) as $existingName) {
+            if (Slugger::slug((string) $existingName) === $nameKey) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     public function deleteProduct(int $id): string

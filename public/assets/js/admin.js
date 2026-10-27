@@ -481,6 +481,71 @@
     });
   });
 
+  const productNameRequests = new WeakMap();
+  const setProductNameState = (input, state, message) => {
+    const field = input.closest('[data-product-name-field]');
+    const status = field?.querySelector('[data-product-name-status]');
+    const form = input.closest('[data-admin-product-form]');
+    const submit = form?.querySelector('[data-admin-product-submit]');
+    if (field) field.dataset.nameAvailability = state;
+    if (status) status.textContent = message;
+    if (state === 'unavailable') input.setCustomValidity(message);
+    else if (state === 'pending') input.setCustomValidity('Așteaptă verificarea disponibilității titlului.');
+    else input.setCustomValidity('');
+    if (submit && !form?.classList.contains('is-saving')) submit.disabled = state === 'pending' || state === 'unavailable';
+  };
+
+  const checkProductName = (input) => {
+    const previous = productNameRequests.get(input);
+    if (previous?.timer) window.clearTimeout(previous.timer);
+    previous?.controller?.abort();
+
+    const name = input.value.trim();
+    if (!name) {
+      productNameRequests.delete(input);
+      setProductNameState(input, 'idle', 'Denumirea pe care o vede clientul.');
+      return;
+    }
+
+    setProductNameState(input, 'pending', 'Verificăm disponibilitatea titlului…');
+    const timer = window.setTimeout(async () => {
+      const controller = new AbortController();
+      productNameRequests.set(input, { controller });
+      const endpoint = new URL(input.dataset.availabilityUrl || '', window.location.href);
+      endpoint.searchParams.set('nume', name);
+      if (input.dataset.productId) endpoint.searchParams.set('exclude_id', input.dataset.productId);
+
+      try {
+        const response = await fetch(endpoint, {
+          headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+          signal: controller.signal,
+        });
+        const contentType = response.headers.get('Content-Type') || '';
+        if (!response.ok || !contentType.includes('application/json')) throw new Error('Verificarea nu este disponibilă momentan.');
+        const payload = await response.json();
+        if (input.value.trim() !== name) return;
+        setProductNameState(
+          input,
+          payload.available ? 'available' : 'unavailable',
+          payload.message || (payload.available ? 'Acest titlu de produs este disponibil!' : 'Acest titlu există deja.')
+        );
+      } catch (error) {
+        if (error.name === 'AbortError' || input.value.trim() !== name) return;
+        setProductNameState(input, 'error', 'Nu am putut verifica acum; titlul va fi validat obligatoriu la salvare.');
+      } finally {
+        const active = productNameRequests.get(input);
+        if (active?.controller === controller) productNameRequests.delete(input);
+      }
+    }, 360);
+
+    productNameRequests.set(input, { timer });
+  };
+
+  document.addEventListener('input', (event) => {
+    const input = event.target.closest?.('[data-product-name-input]');
+    if (input) checkProductName(input);
+  });
+
   const productEditorDialog = document.querySelector('[data-admin-product-editor-dialog]');
   const productEditorContent = productEditorDialog?.querySelector('[data-admin-product-editor-content]');
   const productEditorLoading = productEditorContent?.innerHTML || '';
