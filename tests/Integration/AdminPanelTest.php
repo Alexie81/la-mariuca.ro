@@ -140,6 +140,7 @@ final class AdminPanelTest extends DatabaseTestCase
             'stock' => '4',
             'category_id' => (string) $categoryId,
             'status' => 'draft',
+            'featured' => 'on',
             'indexable' => 'on',
         ], '127.0.0.86', [], ['Accept' => 'application/json']);
         self::assertSame(200, $created->getStatusCode());
@@ -148,6 +149,7 @@ final class AdminPanelTest extends DatabaseTestCase
         self::assertIsArray($createdPayload);
         self::assertTrue((bool) $createdPayload['ok']);
         self::assertSame(1, (int) $this->pdo->query("SELECT COUNT(*) FROM product_variants WHERE sku='LM-MODAL-001'")->fetchColumn());
+        self::assertSame(1, (int) $this->pdo->query("SELECT p.featured FROM products p JOIN product_variants v ON v.product_id=p.id WHERE v.sku='LM-MODAL-001'")->fetchColumn());
 
         $product = $this->pdo->query("SELECT p.id,p.name FROM products p JOIN product_variants v ON v.product_id=p.id WHERE v.sku='LM-SH-002' LIMIT 1")->fetch();
         self::assertIsArray($product);

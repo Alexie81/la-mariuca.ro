@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>{% block title %}Dashboard{% endblock %} · Administrare La Măriuca</title>
-  <link rel="stylesheet" href="{{ url('assets/css/admin.css?v=20261026-product-editor') }}">
+  <link rel="stylesheet" href="{{ url('assets/css/admin.css?v=20261027-sticky-product-editor-header') }}">
 </head>
 {% set operator = admin_user|default(current_user()) %}
 {% set first_name = operator.first_name|default('Administrator') %}
@@ -125,6 +125,6 @@
     </main>
   </div>
 
-  <script src="{{ url('assets/js/admin.js?v=20261026-product-editor') }}" defer></script>
+  <script src="{{ url('assets/js/admin.js?v=20261027-sticky-product-editor-header') }}" defer></script>
 </body>
 </html>
