@@ -482,17 +482,23 @@
   });
 
   const productNameRequests = new WeakMap();
+  const productSkuRequests = new WeakMap();
+  const updateProductSubmitState = (form) => {
+    if (!form) return;
+    const submit = form.querySelector('[data-admin-product-submit]');
+    if (!submit || form.classList.contains('is-saving')) return;
+    submit.disabled = form.querySelector('[data-product-availability="pending"],[data-product-availability="unavailable"]') !== null;
+  };
   const setProductNameState = (input, state, message) => {
     const field = input.closest('[data-product-name-field]');
     const status = field?.querySelector('[data-product-name-status]');
     const form = input.closest('[data-admin-product-form]');
-    const submit = form?.querySelector('[data-admin-product-submit]');
-    if (field) field.dataset.nameAvailability = state;
+    if (field) field.dataset.productAvailability = state;
     if (status) status.textContent = message;
     if (state === 'unavailable') input.setCustomValidity(message);
     else if (state === 'pending') input.setCustomValidity('Așteaptă verificarea disponibilității titlului.');
     else input.setCustomValidity('');
-    if (submit && !form?.classList.contains('is-saving')) submit.disabled = state === 'pending' || state === 'unavailable';
+    updateProductSubmitState(form);
   };
 
   const checkProductName = (input) => {
@@ -541,10 +547,81 @@
     productNameRequests.set(input, { timer });
   };
 
+  const setProductSkuState = (input, state, message) => {
+    const field = input.closest('[data-product-sku-field]');
+    const status = field?.querySelector('[data-product-sku-status]');
+    const form = input.closest('[data-admin-product-form]');
+    if (field) field.dataset.productAvailability = state;
+    if (status) status.textContent = message;
+    if (state === 'unavailable') input.setCustomValidity(message);
+    else if (state === 'pending') input.setCustomValidity('Așteaptă verificarea disponibilității SKU-ului.');
+    else input.setCustomValidity('');
+    updateProductSubmitState(form);
+  };
+
+  const checkProductSku = (input) => {
+    const previous = productSkuRequests.get(input);
+    if (previous?.timer) window.clearTimeout(previous.timer);
+    previous?.controller?.abort();
+
+    const sku = input.value.trim();
+    if (!sku) {
+      productSkuRequests.delete(input);
+      setProductSkuState(input, 'idle', 'SKU-ul va fi generat automat la salvare.');
+      return;
+    }
+
+    setProductSkuState(input, 'pending', 'Verificăm disponibilitatea SKU-ului…');
+    const timer = window.setTimeout(async () => {
+      const controller = new AbortController();
+      productSkuRequests.set(input, { controller });
+      const endpoint = new URL(input.dataset.availabilityUrl || '', window.location.href);
+      endpoint.searchParams.set('sku', sku);
+      if (input.dataset.variantId) endpoint.searchParams.set('exclude_variant_id', input.dataset.variantId);
+
+      try {
+        const response = await fetch(endpoint, {
+          headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+          signal: controller.signal,
+        });
+        const contentType = response.headers.get('Content-Type') || '';
+        if (!response.ok || !contentType.includes('application/json')) throw new Error('Verificarea nu este disponibilă momentan.');
+        const payload = await response.json();
+        if (input.value.trim() !== sku) return;
+        setProductSkuState(
+          input,
+          payload.available ? 'available' : 'unavailable',
+          payload.message || (payload.available ? 'Acest SKU este disponibil!' : 'Acest SKU este deja folosit.')
+        );
+      } catch (error) {
+        if (error.name === 'AbortError' || input.value.trim() !== sku) return;
+        setProductSkuState(input, 'error', 'Nu am putut verifica acum; SKU-ul va fi validat obligatoriu la salvare.');
+      } finally {
+        const active = productSkuRequests.get(input);
+        if (active?.controller === controller) productSkuRequests.delete(input);
+      }
+    }, 360);
+
+    productSkuRequests.set(input, { timer });
+  };
+
+  const initializeProductAvailability = (root) => {
+    root.querySelectorAll('[data-product-name-input]').forEach((input) => {
+      if (input.value.trim()) checkProductName(input);
+    });
+    root.querySelectorAll('[data-product-sku-input]').forEach((input) => {
+      if (input.value.trim()) checkProductSku(input);
+    });
+  };
+
   document.addEventListener('input', (event) => {
-    const input = event.target.closest?.('[data-product-name-input]');
-    if (input) checkProductName(input);
+    const nameInput = event.target.closest?.('[data-product-name-input]');
+    if (nameInput) checkProductName(nameInput);
+    const skuInput = event.target.closest?.('[data-product-sku-input]');
+    if (skuInput) checkProductSku(skuInput);
   });
+
+  initializeProductAvailability(document);
 
   const productEditorDialog = document.querySelector('[data-admin-product-editor-dialog]');
   const productEditorContent = productEditorDialog?.querySelector('[data-admin-product-editor-content]');
@@ -585,6 +662,7 @@
         throw new Error('Produsul nu mai este disponibil sau sesiunea a expirat.');
       }
       productEditorContent.innerHTML = markup;
+      initializeProductAvailability(productEditorContent);
       requestAnimationFrame(() => productEditorContent.querySelector('input:not([type="hidden"])')?.focus({ preventScroll: true }));
     } catch (error) {
       if (error.name === 'AbortError') return;
@@ -667,7 +745,6 @@
       }, reducedMotion ? 80 : 720);
     } catch (error) {
       form.classList.remove('is-saving');
-      if (submit) submit.disabled = false;
       if (submitLabel) submitLabel.textContent = 'Încearcă din nou';
       if (feedback) {
         feedback.textContent = error.message || 'A apărut o problemă temporară. Verifică datele și încearcă din nou.';
@@ -675,6 +752,7 @@
         feedback.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'center' });
       }
       if (saveStatus) saveStatus.lastChild.textContent = ' Produsul nu a fost salvat';
+      updateProductSubmitState(form);
     }
   });
 

@@ -161,6 +161,7 @@ final class AdminController
         }
         return $this->view->render('admin/pages/product-form.twig', [
             'product' => $product,
+            'suggested_sku' => $product ? null : $this->catalogAdmin->generateProductSku(),
             'categories' => $this->catalog->allCategories(true),
             'form_action' => $this->config->path($id ? 'admin/produse/' . $id . '/editare/' : 'admin/produse/nou/'),
             'admin_section' => 'products',
@@ -179,6 +180,7 @@ final class AdminController
 
         return $this->view->render('admin/partials/product-form-modal.twig', [
             'product' => $product,
+            'suggested_sku' => $product ? null : $this->catalogAdmin->generateProductSku(),
             'categories' => $this->catalog->allCategories(true),
             'form_action' => $this->config->path($id ? 'admin/produse/' . $id . '/editare/' : 'admin/produse/nou/'),
         ]);
@@ -193,6 +195,27 @@ final class AdminController
         $message = $name === ''
             ? 'Denumirea pe care o vede clientul.'
             : ($available ? 'Acest titlu de produs este disponibil!' : 'Acest titlu există deja.');
+
+        $response->getBody()->write((string) json_encode([
+            'ok' => true,
+            'available' => $available,
+            'message' => $message,
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+
+        return $response
+            ->withHeader('Content-Type', 'application/json; charset=utf-8')
+            ->withHeader('Cache-Control', 'no-store');
+    }
+
+    public function productSkuAvailability(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    {
+        $query = $request->getQueryParams();
+        $sku = trim(mb_substr((string) ($query['sku'] ?? ''), 0, 100));
+        $excludeVariantId = max(0, (int) ($query['exclude_variant_id'] ?? 0));
+        $available = $sku !== '' && $this->catalogAdmin->isProductSkuAvailable($sku, $excludeVariantId > 0 ? $excludeVariantId : null);
+        $message = $sku === ''
+            ? 'SKU-ul va fi generat automat.'
+            : ($available ? 'Acest SKU este disponibil!' : 'Acest SKU este deja folosit.');
 
         $response->getBody()->write((string) json_encode([
             'ok' => true,

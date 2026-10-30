@@ -193,6 +193,7 @@ final class AppFactory
             $group->post('/categorii/{id:[0-9]+}/editare/', [$adminController, 'saveCategory']);
             $group->get('/produse/', [$adminController, 'products']);
             $group->get('/produse/verifica-nume/', [$adminController, 'productNameAvailability']);
+            $group->get('/produse/verifica-sku/', [$adminController, 'productSkuAvailability']);
             $group->get('/produse/nou/', [$adminController, 'productForm']);
             $group->get('/produse/nou/modal/', [$adminController, 'productModalForm']);
             $group->post('/produse/nou/', [$adminController, 'saveProduct']);

@@ -132,6 +132,9 @@ final class AdminPanelTest extends DatabaseTestCase
         self::assertStringContainsString('data-admin-product-form', (string) $newModal->getBody());
         self::assertStringContainsString('data-product-name-input', (string) $newModal->getBody());
         self::assertStringContainsString('/admin/produse/verifica-nume/', (string) $newModal->getBody());
+        self::assertStringContainsString('data-product-sku-input', (string) $newModal->getBody());
+        self::assertStringContainsString('/admin/produse/verifica-sku/', (string) $newModal->getBody());
+        self::assertMatchesRegularExpression('/name="sku" value="LM-\d{2}-\d{3,}"/', (string) $newModal->getBody());
 
         $categoryId = (int) $this->pdo->query('SELECT id FROM categories ORDER BY id LIMIT 1')->fetchColumn();
         $created = $this->request('POST', '/admin/produse/nou/', [
@@ -153,6 +156,7 @@ final class AdminPanelTest extends DatabaseTestCase
         $createdId = (int) $createdPayload['id'];
         self::assertSame(1, (int) $this->pdo->query("SELECT COUNT(*) FROM product_variants WHERE sku='LM-MODAL-001'")->fetchColumn());
         self::assertSame(1, (int) $this->pdo->query("SELECT p.featured FROM products p JOIN product_variants v ON v.product_id=p.id WHERE v.sku='LM-MODAL-001'")->fetchColumn());
+        $createdVariantId = (int) $this->pdo->query("SELECT id FROM product_variants WHERE sku='LM-MODAL-001'")->fetchColumn();
 
         $duplicateAvailability = json_decode((string) $this->get('/admin/produse/verifica-nume/?nume=PRODUS%20CREAT%20DIN%20MODAL')->getBody(), true, 512, JSON_THROW_ON_ERROR);
         self::assertFalse((bool) $duplicateAvailability['available']);
@@ -161,6 +165,14 @@ final class AdminPanelTest extends DatabaseTestCase
         self::assertTrue((bool) $ownAvailability['available']);
         $newAvailability = json_decode((string) $this->get('/admin/produse/verifica-nume/?nume=Titlu%20complet%20nou')->getBody(), true, 512, JSON_THROW_ON_ERROR);
         self::assertTrue((bool) $newAvailability['available']);
+
+        $duplicateSkuAvailability = json_decode((string) $this->get('/admin/produse/verifica-sku/?sku=lm-modal-001')->getBody(), true, 512, JSON_THROW_ON_ERROR);
+        self::assertFalse((bool) $duplicateSkuAvailability['available']);
+        self::assertSame('Acest SKU este deja folosit.', $duplicateSkuAvailability['message']);
+        $ownSkuAvailability = json_decode((string) $this->get('/admin/produse/verifica-sku/?sku=LM-MODAL-001&exclude_variant_id=' . $createdVariantId)->getBody(), true, 512, JSON_THROW_ON_ERROR);
+        self::assertTrue((bool) $ownSkuAvailability['available']);
+        $newSkuAvailability = json_decode((string) $this->get('/admin/produse/verifica-sku/?sku=LM-MODAL-LIBER')->getBody(), true, 512, JSON_THROW_ON_ERROR);
+        self::assertTrue((bool) $newSkuAvailability['available']);
 
         $duplicateSave = $this->request('POST', '/admin/produse/nou/', [
             '_csrf' => $_SESSION['_csrf'],
@@ -177,12 +189,39 @@ final class AdminPanelTest extends DatabaseTestCase
         self::assertStringContainsString('Acest titlu există deja', (string) $duplicatePayload['message']);
         self::assertSame(0, (int) $this->pdo->query("SELECT COUNT(*) FROM product_variants WHERE sku='LM-MODAL-DUPLICAT'")->fetchColumn());
 
+        $duplicateSkuSave = $this->request('POST', '/admin/produse/nou/', [
+            '_csrf' => $_SESSION['_csrf'],
+            'name' => 'Produs cu SKU duplicat',
+            'sku' => 'lm-modal-001',
+            'price' => '129,00',
+            'stock' => '2',
+            'category_id' => (string) $categoryId,
+            'status' => 'draft',
+        ], '127.0.0.86', [], ['Accept' => 'application/json']);
+        self::assertSame(422, $duplicateSkuSave->getStatusCode());
+        $duplicateSkuPayload = json_decode((string) $duplicateSkuSave->getBody(), true, 512, JSON_THROW_ON_ERROR);
+        self::assertStringContainsString('Acest SKU există deja', (string) $duplicateSkuPayload['message']);
+
+        $autoSkuCreated = $this->request('POST', '/admin/produse/nou/', [
+            '_csrf' => $_SESSION['_csrf'],
+            'name' => 'Produs cu SKU automat',
+            'price' => '119,00',
+            'stock' => '1',
+            'category_id' => (string) $categoryId,
+            'status' => 'draft',
+        ], '127.0.0.86', [], ['Accept' => 'application/json']);
+        self::assertSame(200, $autoSkuCreated->getStatusCode());
+        $autoSkuPayload = json_decode((string) $autoSkuCreated->getBody(), true, 512, JSON_THROW_ON_ERROR);
+        $autoSku = (string) $this->pdo->query('SELECT sku FROM product_variants WHERE product_id=' . (int) $autoSkuPayload['id'])->fetchColumn();
+        self::assertMatchesRegularExpression('/^LM-\d{2}-\d{3,}$/', $autoSku);
+
         $product = $this->pdo->query("SELECT p.id,p.name FROM products p JOIN product_variants v ON v.product_id=p.id WHERE v.sku='LM-SH-002' LIMIT 1")->fetch();
         self::assertIsArray($product);
         $editModal = $this->get('/admin/produse/' . $product['id'] . '/editare/modal/');
         self::assertSame(200, $editModal->getStatusCode());
         self::assertStringContainsString('Finisează produsul', (string) $editModal->getBody());
         self::assertStringContainsString('LM-SH-002', (string) $editModal->getBody());
+        self::assertStringContainsString('data-variant-id=', (string) $editModal->getBody());
         $deleted = $this->post('/admin/produse/' . $product['id'] . '/sterge/', [
             '_csrf' => $_SESSION['_csrf'],
         ], '127.0.0.86');

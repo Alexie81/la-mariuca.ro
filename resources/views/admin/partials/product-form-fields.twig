@@ -10,14 +10,15 @@
         <div><span>Identitate</span><h3 id="product-section-identity{{ is_modal ? '-modal' : '' }}">Cum apare în boutique</h3></div>
       </header>
       <div class="admin-product-editor__grid">
-        <label class="admin-product-field admin-product-field--wide" data-product-name-field data-name-availability="idle">
+        <label class="admin-product-field admin-product-field--wide" data-product-name-field data-product-availability="idle">
           <span>Numele produsului <b>*</b></span>
           <input name="name" value="{{ product.name|default('') }}" autocomplete="off" placeholder="Ex: Rochiță de botez Maria" required data-product-name-input data-availability-url="{{ url('admin/produse/verifica-nume/') }}" data-product-id="{{ product.id|default('') }}" aria-describedby="product-name-status{{ is_modal ? '-modal' : '' }}">
-          <small id="product-name-status{{ is_modal ? '-modal' : '' }}" data-product-name-status aria-live="polite">Denumirea pe care o vede clientul.</small>
+          <small id="product-name-status{{ is_modal ? '-modal' : '' }}" data-product-name-status data-product-availability-status aria-live="polite">Denumirea pe care o vede clientul.</small>
         </label>
-        <label class="admin-product-field">
-          <span>SKU <b>*</b></span>
-          <input name="sku" value="{{ product.sku|default('') }}" autocomplete="off" placeholder="LM-RO-001" required>
+        <label class="admin-product-field" data-product-sku-field data-product-availability="idle">
+          <span>SKU</span>
+          <input name="sku" value="{{ product ? product.sku : suggested_sku|default('') }}" autocomplete="off" placeholder="Se generează automat" data-product-sku-input data-availability-url="{{ url('admin/produse/verifica-sku/') }}" data-variant-id="{{ product.variant_id|default('') }}" aria-describedby="product-sku-status{{ is_modal ? '-modal' : '' }}">
+          <small id="product-sku-status{{ is_modal ? '-modal' : '' }}" data-product-sku-status data-product-availability-status aria-live="polite">Generat automat. Îl poți modifica manual.</small>
         </label>
         <label class="admin-product-field">
           <span>Slug</span>

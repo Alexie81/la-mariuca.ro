@@ -53,11 +53,17 @@ final class CatalogAdminService
     {
         $name = trim((string) ($data['name'] ?? ''));
         $sku = trim((string) ($data['sku'] ?? ''));
-        if ($name === '' || $sku === '') {
-            throw new RuntimeException('Numele și SKU sunt obligatorii.');
+        if ($name === '') {
+            throw new RuntimeException('Numele produsului este obligatoriu.');
+        }
+        if ($sku === '') {
+            $sku = $this->generateProductSku();
         }
         if (!$this->isProductNameAvailable($name, $id)) {
             throw new RuntimeException('Acest titlu există deja. Alege o denumire unică pentru produs.');
+        }
+        if (!$this->isProductSkuAvailable($sku, $this->defaultVariantId($id))) {
+            throw new RuntimeException('Acest SKU există deja. Alege un cod unic pentru produs.');
         }
         $price = Money::parse((string) ($data['price'] ?? ''));
         $stock = filter_var($data['stock'] ?? null, FILTER_VALIDATE_INT);
@@ -148,6 +154,47 @@ final class CatalogAdminService
         }
 
         return true;
+    }
+
+    public function isProductSkuAvailable(string $sku, ?int $excludeVariantId = null): bool
+    {
+        $sku = trim($sku);
+        if ($sku === '') {
+            return false;
+        }
+
+        $sql = 'SELECT COUNT(*) FROM product_variants WHERE LOWER(sku)=LOWER(:sku)';
+        $parameters = ['sku' => $sku];
+        if ($excludeVariantId !== null && $excludeVariantId > 0) {
+            $sql .= ' AND id<>:exclude_variant_id';
+            $parameters['exclude_variant_id'] = $excludeVariantId;
+        }
+        $statement = $this->pdo->prepare($sql);
+        $statement->execute($parameters);
+
+        return (int) $statement->fetchColumn() === 0;
+    }
+
+    public function generateProductSku(): string
+    {
+        $year = (new \DateTimeImmutable('now', new \DateTimeZone('Europe/Bucharest')))->format('y');
+        $prefix = 'LM-' . $year . '-';
+        $statement = $this->pdo->prepare('SELECT sku FROM product_variants WHERE sku LIKE :prefix');
+        $statement->execute(['prefix' => $prefix . '%']);
+        $maximum = 0;
+        $pattern = '/^' . preg_quote($prefix, '/') . '(\d+)$/i';
+        foreach ($statement->fetchAll(PDO::FETCH_COLUMN) as $existingSku) {
+            if (preg_match($pattern, (string) $existingSku, $matches) === 1) {
+                $maximum = max($maximum, (int) $matches[1]);
+            }
+        }
+
+        do {
+            ++$maximum;
+            $candidate = $prefix . str_pad((string) $maximum, 3, '0', STR_PAD_LEFT);
+        } while (!$this->isProductSkuAvailable($candidate));
+
+        return $candidate;
     }
 
     public function deleteProduct(int $id): string
@@ -298,10 +345,22 @@ final class CatalogAdminService
     /** @return array<string,mixed>|null */
     public function productForm(int $id): ?array
     {
-        $statement = $this->pdo->prepare('SELECT p.*,v.sku,v.price_bani,i.physical_quantity AS stock FROM products p JOIN product_variants v ON v.product_id=p.id AND v.is_default=1 LEFT JOIN inventory i ON i.variant_id=v.id WHERE p.id=:id');
+        $statement = $this->pdo->prepare('SELECT p.*,v.id AS variant_id,v.sku,v.price_bani,i.physical_quantity AS stock FROM products p JOIN product_variants v ON v.product_id=p.id AND v.is_default=1 LEFT JOIN inventory i ON i.variant_id=v.id WHERE p.id=:id');
         $statement->execute(['id' => $id]);
         $row = $statement->fetch();
         return is_array($row) ? $row : null;
+    }
+
+    private function defaultVariantId(?int $productId): ?int
+    {
+        if ($productId === null || $productId <= 0) {
+            return null;
+        }
+        $statement = $this->pdo->prepare('SELECT id FROM product_variants WHERE product_id=:product_id ORDER BY is_default DESC,id LIMIT 1');
+        $statement->execute(['product_id' => $productId]);
+        $variantId = $statement->fetchColumn();
+
+        return $variantId === false ? null : (int) $variantId;
     }
 
     /** @param array<string,mixed> $data @return array<string,mixed> */
