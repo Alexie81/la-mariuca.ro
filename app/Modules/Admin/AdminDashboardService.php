@@ -40,8 +40,11 @@ final class AdminDashboardService
         $customerStatement = $this->pdo->prepare("SELECT COUNT(*) FROM users WHERE role='customer' AND created_at>=:start AND created_at<=:end");
         $customerStatement->execute(['start' => $period['start_utc'], 'end' => $period['end_utc']]);
 
-        $lowStock = (int) $this->pdo->query(
-            "SELECT COUNT(*) FROM inventory i JOIN product_variants v ON v.id=i.variant_id WHERE v.status='active' AND v.stock_unlimited=0 AND (i.physical_quantity-i.reserved_quantity)<=3"
+        $negativeAccountingStock = (int) $this->pdo->query(
+            'SELECT COUNT(*) FROM ('
+            . 'SELECT balance.product_id FROM accounting_stock_balances balance '
+            . 'GROUP BY balance.product_id HAVING SUM(balance.quantity) < 0'
+            . ') negative_products'
         )->fetchColumn();
 
         $recentOrders = $this->recentOrders();
@@ -52,7 +55,7 @@ final class AdminDashboardService
                 'net_sales' => $netSales,
                 'orders' => count($validOrders),
                 'new_customers' => (int) $customerStatement->fetchColumn(),
-                'low_stock' => $lowStock,
+                'negative_accounting_stock' => $negativeAccountingStock,
             ],
             'chart' => $this->chart($period, $validOrders),
             'notifications' => $this->notifications($recentOrders),

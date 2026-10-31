@@ -34,6 +34,7 @@ final class SupplierAdminTest extends DatabaseTestCase
     {
         $emptyPage = (string) $this->get('/admin/furnizori/')->getBody();
         self::assertStringContainsString('Agenda furnizorilor este goală', $emptyPage);
+        self::assertStringContainsString('Stoc și achiziții', $emptyPage);
         self::assertStringContainsString('href="/admin/furnizori/" aria-current="page"', $emptyPage);
 
         $form = (string) $this->get('/admin/furnizori/nou/')->getBody();

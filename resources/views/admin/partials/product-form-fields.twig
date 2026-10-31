@@ -302,6 +302,81 @@
         <div><span>Editorial</span><h3 id="product-section-story{{ is_modal ? '-modal' : '' }}">Povestea produsului</h3></div>
       </header>
       <div class="admin-product-editor__grid">
+        {% set gallery_images = product.gallery_images|default([]) %}
+        <section
+          class="admin-product-gallery admin-product-field--full"
+          data-product-gallery-editor
+          data-gallery-max="12"
+          data-upload-url="{{ url('admin/produse/galerie-imagine/') }}"
+          aria-labelledby="product-gallery-title{{ is_modal ? '-modal' : '' }}"
+        >
+          <header class="admin-product-gallery__heading">
+            <span class="admin-product-gallery__step" aria-hidden="true">01</span>
+            <div>
+              <span>Imaginile văzute de client</span>
+              <h4 id="product-gallery-title{{ is_modal ? '-modal' : '' }}">Galeria produsului</h4>
+              <p>Adaugă până la 12 fotografii. Prima este imaginea principală; ține apăsat pe mâner și trage pentru a schimba ordinea.</p>
+            </div>
+            <span class="admin-product-gallery__counter" data-product-gallery-count>{{ gallery_images|length }} din 12 fotografii</span>
+          </header>
+
+          <div class="admin-product-gallery__rail-shell">
+            <div class="admin-product-gallery__rail" data-product-gallery-list role="list" aria-label="Fotografiile produsului, în ordinea afișării">
+              {% for image in gallery_images %}
+                <article class="admin-product-gallery__item{{ loop.first ? ' is-primary' : '' }}" data-product-gallery-item draggable="true" role="listitem">
+                  <input type="hidden" name="gallery_media_ids[]" value="{{ image.id }}">
+                  <div class="admin-product-gallery__photo">
+                    <img src="{{ url(image.public_path) }}" alt="{{ image.alt_text|default(image.original_name|default(product.name|default('Fotografie produs'))) }}" loading="lazy">
+                    <span class="admin-product-gallery__primary-badge" data-product-gallery-primary-badge{{ not loop.first ? ' hidden' : '' }}>
+                      <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m10 2 2.3 4.7 5.2.8-3.8 3.7.9 5.2-4.6-2.5-4.6 2.5.9-5.2-3.8-3.7 5.2-.8Z"/></svg>
+                      Principală
+                    </span>
+                    <button type="button" class="admin-product-gallery__remove" data-product-gallery-remove aria-label="Șterge această fotografie">
+                      <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 6 8 8M14 6l-8 8"/></svg>
+                    </button>
+                  </div>
+                  <footer class="admin-product-gallery__item-footer">
+                    <button type="button" class="admin-product-gallery__drag" data-product-gallery-drag aria-label="Trage pentru a muta fotografia" title="Trage pentru a schimba ordinea">
+                      <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="7" cy="5" r="1"/><circle cx="13" cy="5" r="1"/><circle cx="7" cy="10" r="1"/><circle cx="13" cy="10" r="1"/><circle cx="7" cy="15" r="1"/><circle cx="13" cy="15" r="1"/></svg>
+                      <span>Trage</span>
+                    </button>
+                    <button type="button" class="admin-product-gallery__make-primary" data-product-gallery-make-primary{{ loop.first ? ' hidden' : '' }}>
+                      <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m10 2 2.3 4.7 5.2.8-3.8 3.7.9 5.2-4.6-2.5-4.6 2.5.9-5.2-3.8-3.7 5.2-.8Z"/></svg>
+                      <span>Alege principală</span>
+                    </button>
+                  </footer>
+                </article>
+              {% endfor %}
+
+              <button type="button" class="admin-product-gallery__add" data-product-gallery-add>
+                <span class="admin-product-gallery__add-icon"><svg viewBox="0 0 22 22" aria-hidden="true"><path d="M11 4v14M4 11h14"/></svg></span>
+                <strong>Adaugă poze</strong>
+                <small data-product-gallery-remaining>{{ 12 - gallery_images|length }} locuri disponibile</small>
+              </button>
+            </div>
+          </div>
+          <p class="admin-product-gallery__status" data-product-gallery-status aria-live="polite">Poți încărca JPG, PNG sau WebP. Imaginile sunt optimizate automat.</p>
+          <input type="file" accept="image/jpeg,image/png,image/webp" multiple data-product-gallery-input hidden>
+
+          <template data-product-gallery-template>
+            <article class="admin-product-gallery__item is-entering" data-product-gallery-item draggable="true" role="listitem">
+              <input type="hidden" name="gallery_media_ids[]">
+              <div class="admin-product-gallery__photo">
+                <img alt="Fotografie produs">
+                <span class="admin-product-gallery__primary-badge" data-product-gallery-primary-badge hidden>
+                  <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m10 2 2.3 4.7 5.2.8-3.8 3.7.9 5.2-4.6-2.5-4.6 2.5.9-5.2-3.8-3.7 5.2-.8Z"/></svg>
+                  Principală
+                </span>
+                <button type="button" class="admin-product-gallery__remove" data-product-gallery-remove aria-label="Șterge această fotografie"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 6 8 8M14 6l-8 8"/></svg></button>
+              </div>
+              <footer class="admin-product-gallery__item-footer">
+                <button type="button" class="admin-product-gallery__drag" data-product-gallery-drag aria-label="Trage pentru a muta fotografia" title="Trage pentru a schimba ordinea"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="7" cy="5" r="1"/><circle cx="13" cy="5" r="1"/><circle cx="7" cy="10" r="1"/><circle cx="13" cy="10" r="1"/><circle cx="7" cy="15" r="1"/><circle cx="13" cy="15" r="1"/></svg><span>Trage</span></button>
+                <button type="button" class="admin-product-gallery__make-primary" data-product-gallery-make-primary><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m10 2 2.3 4.7 5.2.8-3.8 3.7.9 5.2-4.6-2.5-4.6 2.5.9-5.2-3.8-3.7 5.2-.8Z"/></svg><span>Alege principală</span></button>
+              </footer>
+            </article>
+          </template>
+        </section>
+
         <label class="admin-product-field admin-product-field--full">
           <span>Descriere scurtă</span>
           <textarea name="short_description" rows="3" maxlength="200" placeholder="O frază caldă și clară despre produs…" data-product-short-description aria-describedby="product-short-description-help{{ is_modal ? '-modal' : '' }}">{{ product.short_description|default('') }}</textarea>
@@ -440,12 +515,7 @@
           </div>
           <div class="admin-product-seo__preview-source">
             <span class="admin-product-seo__google-mark" aria-hidden="true">
-              <svg viewBox="0 0 24 24">
-                <path fill="#4285F4" d="M21.6 12.2c0-.7-.1-1.4-.2-2H12v3.9h5.4a4.6 4.6 0 0 1-2 3v2.6h3.3c1.9-1.8 2.9-4.4 2.9-7.5Z"/>
-                <path fill="#34A853" d="M12 22c2.7 0 5-.9 6.7-2.3l-3.3-2.6c-.9.6-2.1 1-3.4 1-2.6 0-4.8-1.8-5.6-4.2H3v2.7A10 10 0 0 0 12 22Z"/>
-                <path fill="#FBBC05" d="M6.4 13.9A6 6 0 0 1 6.1 12c0-.7.1-1.3.3-1.9V7.4H3A10 10 0 0 0 2 12c0 1.7.4 3.2 1 4.6l3.4-2.7Z"/>
-                <path fill="#EA4335" d="M12 5.9c1.5 0 2.9.5 3.9 1.5l2.9-2.9A9.8 9.8 0 0 0 12 2a10 10 0 0 0-9 5.4l3.4 2.7C7.2 7.7 9.4 5.9 12 5.9Z"/>
-              </svg>
+              <img src="{{ url('assets/images/google-g.svg') }}" width="48" height="48" alt="">
             </span>
             <span><strong data-product-seo-preview-host>La Măriuca Boutique</strong><small data-product-seo-preview-url>{{ url('produs/' ~ (product.slug|default('numele-produsului')) ~ '/') }}</small></span>
           </div>

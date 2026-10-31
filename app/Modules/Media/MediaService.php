@@ -100,4 +100,13 @@ final class MediaService
 
         return is_array($row) ? $row : null;
     }
+
+    public function updateAltText(int $id, string $altText): void
+    {
+        $statement = $this->pdo->prepare('UPDATE media SET alt_text=:alt_text WHERE id=:id');
+        $statement->execute([
+            'alt_text' => mb_substr(trim($altText), 0, 500),
+            'id' => $id,
+        ]);
+    }
 }

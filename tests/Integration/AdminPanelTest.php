@@ -89,6 +89,10 @@ final class AdminPanelTest extends DatabaseTestCase
         self::assertStringContainsString('Produse și clienți', $body);
         self::assertStringContainsString('href="/admin/produse/"', $body);
         self::assertStringContainsString('Catalog, preț și stoc', $body);
+        self::assertStringContainsString('Stoc și achiziții', $body);
+        self::assertStringContainsString('href="/admin/furnizori/"', $body);
+        self::assertLessThan(strpos($body, 'Stoc și achiziții'), strpos($body, 'Produse și clienți'));
+        self::assertLessThan(strpos($body, 'href="/admin/furnizori/"'), strpos($body, 'Stoc și achiziții'));
         self::assertArrayHasKey('user_id', $_SESSION);
         self::assertNotSame($cookie, $this->rememberCookie($dashboard), 'Tokenul persistent trebuie rotit la restaurarea sesiunii.');
     }
@@ -105,6 +109,16 @@ final class AdminPanelTest extends DatabaseTestCase
         self::assertSame(303, $login->getStatusCode());
 
         $this->pdo->exec("UPDATE product_variants SET price_bani=10710,compare_price_bani=11900,discount_type='percent',discount_value=1000 WHERE sku='LM-NB-001'");
+        $accountingScope = $this->pdo->query("SELECT p.id AS product_id, v.id AS variant_id, v.sku FROM products p JOIN product_variants v ON v.product_id=p.id WHERE v.sku='LM-NB-001' LIMIT 1")->fetch();
+        self::assertIsArray($accountingScope);
+        $balance = $this->pdo->prepare("INSERT INTO accounting_stock_balances (scope_type,scope_id,product_id,variant_id,sku,quantity,created_at,updated_at) VALUES ('variant',:scope_id,:product_id,:variant_id,:sku,-1,:now,:now)");
+        $balance->execute([
+            'scope_id' => (int) $accountingScope['variant_id'],
+            'product_id' => (int) $accountingScope['product_id'],
+            'variant_id' => (int) $accountingScope['variant_id'],
+            'sku' => (string) $accountingScope['sku'],
+            'now' => gmdate('c'),
+        ]);
         $body = (string) $this->get('/admin/produse/')->getBody();
         self::assertStringContainsString('Registrul catalogului', $body);
         self::assertStringContainsString('Stoc online', $body);
@@ -117,6 +131,14 @@ final class AdminPanelTest extends DatabaseTestCase
         self::assertStringContainsString('10%', $body);
         self::assertStringContainsString('admin-products-table__compare-price', $body);
         self::assertStringContainsString('8 buc.', $body);
+        self::assertStringContainsString('-1 buc.', $body);
+        self::assertStringContainsString('admin-physical-stock is-negative', $body);
+        self::assertStringContainsString('sold contabil negativ', $body);
+        $dashboardWithNegativeStock = (string) $this->get('/admin')->getBody();
+        self::assertMatchesRegularExpression(
+            '/<small>Stoc Conta negativ<\/small>\s*<\/div>\s*<strong data-count-up="1">1<\/strong>/',
+            $dashboardWithNegativeStock
+        );
         self::assertStringContainsString('/sterge/', $body);
         self::assertStringContainsString('data-admin-product-delete-dialog', $body);
         self::assertStringContainsString('data-admin-product-editor-dialog', $body);
@@ -165,11 +187,18 @@ final class AdminPanelTest extends DatabaseTestCase
         self::assertStringNotContainsString('Subcategorie · nivel', (string) $newModal->getBody());
         self::assertStringContainsString('name="short_description" rows="3" maxlength="200"', (string) $newModal->getBody());
         self::assertStringContainsString('data-product-short-description-count>0</strong>/200 caractere', (string) $newModal->getBody());
+        self::assertStringContainsString('data-product-gallery-editor', (string) $newModal->getBody());
+        self::assertStringContainsString('data-gallery-max="12"', (string) $newModal->getBody());
+        self::assertStringContainsString('/admin/produse/galerie-imagine/', (string) $newModal->getBody());
+        self::assertStringContainsString('Galeria produsului', (string) $newModal->getBody());
+        self::assertStringContainsString('/assets/images/google-g.svg', (string) $newModal->getBody());
 
         $categoryIds = array_map('intval', $this->pdo->query('SELECT id FROM categories ORDER BY id LIMIT 2')->fetchAll(PDO::FETCH_COLUMN));
         self::assertCount(2, $categoryIds);
         $categoryId = $categoryIds[0];
         $secondaryCategoryId = $categoryIds[1];
+        $galleryMediaIds = array_map('intval', $this->pdo->query('SELECT id FROM media ORDER BY id LIMIT 2')->fetchAll(PDO::FETCH_COLUMN));
+        self::assertCount(2, $galleryMediaIds);
         $automaticMetaDescription = 'O descriere scurtă completată automat în prezentarea Google, păstrată integral chiar și atunci când depășește recomandarea de o sută șaizeci de caractere, fără nicio tăiere.';
         self::assertGreaterThan(160, mb_strlen($automaticMetaDescription));
         $created = $this->request('POST', '/admin/produse/nou/', [
@@ -180,6 +209,7 @@ final class AdminPanelTest extends DatabaseTestCase
             'price' => '149,90',
             'stock' => '4',
             'category_ids' => [(string) $categoryId, (string) $secondaryCategoryId],
+            'gallery_media_ids' => [(string) $galleryMediaIds[1], (string) $galleryMediaIds[0]],
             'status' => 'draft',
             'featured' => 'on',
             'indexable' => 'on',
@@ -194,6 +224,8 @@ final class AdminPanelTest extends DatabaseTestCase
         self::assertSame(1, (int) $this->pdo->query("SELECT p.featured FROM products p JOIN product_variants v ON v.product_id=p.id WHERE v.sku='LM-MODAL-001'")->fetchColumn());
         self::assertSame($categoryId, (int) $this->pdo->query('SELECT primary_category_id FROM products WHERE id=' . $createdId)->fetchColumn());
         self::assertSame(2, (int) $this->pdo->query('SELECT COUNT(*) FROM product_categories WHERE product_id=' . $createdId)->fetchColumn());
+        $savedGallery = array_map('intval', $this->pdo->query('SELECT media_id FROM product_images WHERE product_id=' . $createdId . ' ORDER BY position')->fetchAll(PDO::FETCH_COLUMN));
+        self::assertSame([$galleryMediaIds[1], $galleryMediaIds[0]], $savedGallery);
         $createdSeo = $this->pdo->query('SELECT name,short_description,seo_title,meta_description FROM products WHERE id=' . $createdId)->fetch();
         self::assertIsArray($createdSeo);
         self::assertSame($createdSeo['name'], $createdSeo['seo_title']);
@@ -202,6 +234,10 @@ final class AdminPanelTest extends DatabaseTestCase
         $createdEditModal = (string) $this->get('/admin/produse/' . $createdId . '/editare/modal/')->getBody();
         self::assertMatchesRegularExpression('/name="category_ids\[\]" value="' . $categoryId . '" checked/', $createdEditModal);
         self::assertMatchesRegularExpression('/name="category_ids\[\]" value="' . $secondaryCategoryId . '" checked/', $createdEditModal);
+        self::assertLessThan(
+            strpos($createdEditModal, 'name="gallery_media_ids[]" value="' . $galleryMediaIds[0] . '"'),
+            strpos($createdEditModal, 'name="gallery_media_ids[]" value="' . $galleryMediaIds[1] . '"')
+        );
         $createdVariantId = (int) $this->pdo->query("SELECT id FROM product_variants WHERE sku='LM-MODAL-001'")->fetchColumn();
 
         $duplicateAvailability = json_decode((string) $this->get('/admin/produse/verifica-nume/?nume=PRODUS%20CREAT%20DIN%20MODAL')->getBody(), true, 512, JSON_THROW_ON_ERROR);

@@ -20,20 +20,7 @@ final class CatalogRepository
             FROM categories c
             LEFT JOIN media m ON m.id = c.image_media_id
             WHERE c.status = 'published' AND c.visibility = 'public'
-            ORDER BY
-              CASE WHEN c.parent_id IS NULL THEN
-                CASE c.slug
-                  WHEN 'nou-nascuti' THEN 1
-                  WHEN 'fetite' THEN 2
-                  WHEN 'baieti' THEN 3
-                  WHEN 'costume-traditionale' THEN 4
-                  WHEN 'botez' THEN 5
-                  WHEN 'incaltaminte' THEN 6
-                  ELSE 99
-                END
-              ELSE 100 END,
-              c.position,
-              c.name")->fetchAll();
+            ORDER BY c.position, c.name, c.id")->fetchAll();
         return $this->tree($rows);
     }
 
@@ -64,19 +51,7 @@ final class CatalogRepository
             WHERE c.parent_id IS NULL
               AND c.status = 'published'
               AND c.visibility = 'public'
-            ORDER BY
-              CASE c.slug
-                WHEN 'nou-nascuti' THEN 1
-                WHEN 'fetite' THEN 2
-                WHEN 'baieti' THEN 3
-                WHEN 'costume-traditionale' THEN 4
-                WHEN 'botez' THEN 5
-                WHEN 'incaltaminte' THEN 6
-                ELSE 99
-              END,
-              c.position,
-              c.name,
-              c.id")->fetchAll();
+            ORDER BY c.position, c.name, c.id")->fetchAll();
     }
 
     /** @return array<string, mixed>|null */
@@ -95,7 +70,7 @@ final class CatalogRepository
     /** @return array<string, mixed>|null */
     public function categoryById(int $id): ?array
     {
-        $statement = $this->pdo->prepare('SELECT * FROM categories WHERE id = :id');
+        $statement = $this->pdo->prepare('SELECT c.*,parent.name AS parent_name,m.public_path AS image_path,m.alt_text AS image_alt,m.original_name AS image_name FROM categories c LEFT JOIN categories parent ON parent.id=c.parent_id LEFT JOIN media m ON m.id=c.image_media_id WHERE c.id=:id');
         $statement->execute(['id' => $id]);
         $row = $statement->fetch();
         return is_array($row) ? $row : null;
@@ -377,19 +352,7 @@ final class CatalogRepository
               AND category.visibility = 'public'
             GROUP BY category.id, category.parent_id, category.name, category.slug, category.position,
                 category_media.public_path, category_media.alt_text
-            ORDER BY
-              CASE WHEN category.parent_id IS NULL THEN
-                CASE category.slug
-                  WHEN 'nou-nascuti' THEN 1
-                  WHEN 'fetite' THEN 2
-                  WHEN 'baieti' THEN 3
-                  WHEN 'costume-traditionale' THEN 4
-                  WHEN 'botez' THEN 5
-                  WHEN 'incaltaminte' THEN 6
-                  ELSE 99
-                END
-              ELSE 100 END,
-              category.parent_id, category.position, category.name, category.id")->fetchAll();
+            ORDER BY category.position, category.name, category.id")->fetchAll();
 
         $byParent = [];
         foreach ($rows as $row) {

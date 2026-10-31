@@ -195,15 +195,21 @@ final class AppFactory
 
         $app->group('/admin', function (RouteCollectorProxy $group) use ($adminController, $adminPushController, $twoFactorController): void {
             $group->get('/categorii/', [$adminController, 'categories']);
+            $group->get('/categorii/verifica-nume/', [$adminController, 'categoryNameAvailability']);
+            $group->get('/categorii/verifica-slug/', [$adminController, 'categorySlugAvailability']);
             $group->get('/categorii/noua/', [$adminController, 'categoryForm']);
+            $group->get('/categorii/noua/modal/', [$adminController, 'categoryModalForm']);
             $group->post('/categorii/noua/', [$adminController, 'saveCategory']);
             $group->get('/categorii/{id:[0-9]+}/editare/', [$adminController, 'categoryForm']);
+            $group->get('/categorii/{id:[0-9]+}/editare/modal/', [$adminController, 'categoryModalForm']);
             $group->post('/categorii/{id:[0-9]+}/editare/', [$adminController, 'saveCategory']);
+            $group->post('/categorii/{id:[0-9]+}/sterge/', [$adminController, 'deleteCategory']);
             $group->get('/produse/', [$adminController, 'products']);
             $group->get('/produse/verifica-nume/', [$adminController, 'productNameAvailability']);
             $group->get('/produse/verifica-sku/', [$adminController, 'productSkuAvailability']);
             $group->get('/produse/verifica-slug/', [$adminController, 'productSlugAvailability']);
             $group->post('/produse/descriere-imagine/', [$adminController, 'uploadProductDescriptionImage']);
+            $group->post('/produse/galerie-imagine/', [$adminController, 'uploadProductDescriptionImage']);
             $group->get('/produse/nou/', [$adminController, 'productForm']);
             $group->get('/produse/nou/modal/', [$adminController, 'productModalForm']);
             $group->post('/produse/nou/', [$adminController, 'saveProduct']);

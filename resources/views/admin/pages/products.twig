@@ -113,9 +113,15 @@
                   {% endif %}
                 </td>
                 <td data-label="Stoc efectiv (Conta)">
-                  <span class="admin-physical-stock{{ product.physical_quantity <= 0 ? ' is-empty' : '' }}">
+                  <span class="admin-physical-stock{{ product.physical_quantity < 0 ? ' is-negative' : (product.physical_quantity == 0 ? ' is-empty' : '') }}">
                     <strong>{{ product.physical_quantity }} buc.</strong>
-                    {% if product.reserved_quantity > 0 %}<small>{{ product.reserved_quantity }} rezervate</small>{% else %}<small>sold contabil</small>{% endif %}
+                    {% if product.physical_quantity < 0 %}
+                      <small>sold contabil negativ</small>
+                    {% elseif product.reserved_quantity > 0 %}
+                      <small>{{ product.reserved_quantity }} rezervate</small>
+                    {% else %}
+                      <small>sold contabil</small>
+                    {% endif %}
                   </span>
                 </td>
                 <td data-label="Status"><span class="admin-product-status admin-product-status--{{ product.status }}">{{ product.status_label }}</span></td>

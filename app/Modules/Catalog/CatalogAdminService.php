@@ -22,34 +22,79 @@ final class CatalogAdminService
     /** @param array<string,mixed> $data */
     public function saveCategory(array $data, ?int $id = null): int
     {
-        $name = trim((string) ($data['name'] ?? ''));
+        $name = trim(mb_substr((string) ($data['name'] ?? ''), 0, 190));
         if ($name === '') {
             throw new RuntimeException('Numele categoriei este obligatoriu.');
         }
-        $slug = Slugger::slug((string) ($data['slug'] ?? $name));
+        if (!$this->isCategoryNameAvailable($name, $id)) {
+            throw new RuntimeException('Există deja o categorie cu acest nume. Alege o denumire unică.');
+        }
+        $description = trim((string) ($data['description'] ?? ''));
+        if (mb_strlen($description) > 100) {
+            throw new RuntimeException('Descrierea scurtă poate avea maximum 100 de caractere.');
+        }
+        $slugInput = trim((string) ($data['slug'] ?? ''));
+        $slug = $this->normalizeCategorySlug($slugInput !== '' ? $slugInput : $name);
+        if ($slug === '') {
+            throw new RuntimeException('Slugul nu a putut fi generat. Introdu manual un nume de link valid.');
+        }
+        if (!$this->isCategorySlugAvailable($slug, $id)) {
+            throw new RuntimeException('Acest slug este deja folosit. Alege un nume de link unic.');
+        }
         $parentId = ($data['parent_id'] ?? '') === '' ? null : (int) $data['parent_id'];
+        if ($parentId !== null) {
+            $parent = $this->pdo->prepare('SELECT COUNT(*) FROM categories WHERE id=:id');
+            $parent->execute(['id' => $parentId]);
+            if ((int) $parent->fetchColumn() !== 1) {
+                throw new RuntimeException('Categoria părinte nu mai există. Reîncarcă formularul și alege din nou.');
+            }
+        }
         if ($id !== null && ($parentId === $id || ($parentId !== null && $this->wouldCreateCycle($id, $parentId)))) {
             throw new RuntimeException('Categoria nu poate fi mutată sub ea însăși sau un descendent.');
         }
         $status = in_array(($data['status'] ?? ''), ['draft', 'published', 'archived'], true) ? (string) $data['status'] : 'draft';
+        $seoTitle = trim((string) ($data['seo_title'] ?? ''));
+        $metaDescription = trim((string) ($data['meta_description'] ?? ''));
+        if (mb_strlen($seoTitle) > 255) {
+            throw new RuntimeException('Titlul Google poate avea maximum 255 de caractere.');
+        }
+        if (mb_strlen($metaDescription) > 500) {
+            throw new RuntimeException('Descrierea Google poate avea maximum 500 de caractere.');
+        }
+        $seoTitle = $seoTitle !== '' ? $seoTitle : $name;
+        $metaDescription = $metaDescription !== '' ? $metaDescription : $name;
+        $position = $parentId === null ? max(0, min(999, (int) ($data['position'] ?? 0))) : 0;
+        $imageMediaId = $this->categoryImageId($data, $id);
         $now = gmdate('c');
-        if ($id === null) {
-            $statement = $this->pdo->prepare('INSERT INTO categories (parent_id, name, slug, description, position, status, visibility, seo_title, meta_description, indexable, published_at, created_at, updated_at) VALUES (:parent_id, :name, :slug, :description, :position, :status, :visibility, :seo_title, :meta_description, :indexable, :published_at, :created_at, :updated_at)');
-            $statement->execute($this->categoryParams($data, $name, $slug, $parentId, $status, $now) + ['created_at' => $now]);
-            return (int) $this->pdo->lastInsertId();
+        $this->pdo->beginTransaction();
+        try {
+            if ($id === null) {
+                $publishedAt = $status === 'published' ? $now : null;
+                $statement = $this->pdo->prepare('INSERT INTO categories (parent_id,name,slug,description,image_media_id,position,status,visibility,seo_title,meta_description,indexable,published_at,created_at,updated_at) VALUES (:parent_id,:name,:slug,:description,:image_media_id,:position,:status,:visibility,:seo_title,:meta_description,:indexable,:published_at,:created_at,:updated_at)');
+                $statement->execute($this->categoryParams($data, $name, $slug, $description, $parentId, $position, $status, $seoTitle, $metaDescription, $imageMediaId, $publishedAt, $now) + ['created_at' => $now]);
+                $id = (int) $this->pdo->lastInsertId();
+            } else {
+                $old = $this->pdo->prepare('SELECT slug,published_at FROM categories WHERE id=:id');
+                $old->execute(['id' => $id]);
+                $oldCategory = $old->fetch();
+                if (!is_array($oldCategory)) {
+                    throw new RuntimeException('Categoria nu există.');
+                }
+                $publishedAt = $status === 'published' ? ((string) ($oldCategory['published_at'] ?? '') ?: $now) : null;
+                $statement = $this->pdo->prepare('UPDATE categories SET parent_id=:parent_id,name=:name,slug=:slug,description=:description,image_media_id=:image_media_id,position=:position,status=:status,visibility=:visibility,seo_title=:seo_title,meta_description=:meta_description,indexable=:indexable,published_at=:published_at,updated_at=:updated_at WHERE id=:id');
+                $statement->execute($this->categoryParams($data, $name, $slug, $description, $parentId, $position, $status, $seoTitle, $metaDescription, $imageMediaId, $publishedAt, $now) + ['id' => $id]);
+                if ((string) $oldCategory['slug'] !== $slug) {
+                    $this->saveRedirect('category', (string) $oldCategory['slug'], $slug);
+                }
+            }
+            $this->pdo->commit();
+            return $id;
+        } catch (\Throwable $exception) {
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+            throw $exception;
         }
-        $old = $this->pdo->prepare('SELECT slug FROM categories WHERE id = :id');
-        $old->execute(['id' => $id]);
-        $oldSlug = $old->fetchColumn();
-        if ($oldSlug === false) {
-            throw new RuntimeException('Categoria nu există.');
-        }
-        $statement = $this->pdo->prepare('UPDATE categories SET parent_id=:parent_id,name=:name,slug=:slug,description=:description,position=:position,status=:status,visibility=:visibility,seo_title=:seo_title,meta_description=:meta_description,indexable=:indexable,published_at=:published_at,updated_at=:updated_at WHERE id=:id');
-        $statement->execute($this->categoryParams($data, $name, $slug, $parentId, $status, $now) + ['id' => $id]);
-        if ($oldSlug !== $slug) {
-            $this->saveRedirect('category', (string) $oldSlug, $slug);
-        }
-        return $id;
     }
 
     /** @param array<string,mixed> $data */
@@ -96,6 +141,7 @@ final class CatalogAdminService
         if (!$this->isProductPrimarySkuAvailable($primarySku, $id)) {
             throw new RuntimeException('Acest SKU există deja ca SKU principal. Alege alt cod pentru produs.');
         }
+        $galleryMediaIds = $this->submittedProductImageIds($data);
         $trackInConta = (string) ($data['track_in_conta'] ?? '1') === '1';
         $variants = $this->submittedProductVariants($data, $id, $primarySku, $trackInConta);
         $now = gmdate('c');
@@ -122,6 +168,7 @@ final class CatalogAdminService
                 }
             }
             $this->syncProductVariants($id, $variants, $now);
+            $this->syncProductImages($id, $galleryMediaIds);
             $this->pdo->commit();
             return $id;
         } catch (\Throwable $exception) {
@@ -136,6 +183,196 @@ final class CatalogAdminService
     public function products(): array
     {
         return $this->pdo->query("SELECT p.*, c.name AS category_name, COALESCE(p.primary_sku,v.sku) AS sku, v.price_bani, i.physical_quantity, i.reserved_quantity FROM products p LEFT JOIN categories c ON c.id=p.primary_category_id LEFT JOIN product_variants v ON v.product_id=p.id AND v.is_default=1 LEFT JOIN inventory i ON i.variant_id=v.id ORDER BY p.id DESC")->fetchAll();
+    }
+
+    /** @return list<array<string,mixed>> */
+    public function categoriesForAdmin(string $search = ''): array
+    {
+        $rows = $this->pdo->query("SELECT c.id,c.parent_id,c.name,c.slug,c.description,c.position,c.status,c.visibility,
+                c.seo_title,c.meta_description,c.indexable,c.image_media_id,c.updated_at,
+                parent.name AS parent_name,media.public_path AS image_path,media.alt_text AS image_alt,
+                (SELECT COUNT(*) FROM categories child WHERE child.parent_id=c.id) AS child_count,
+                (SELECT COUNT(*) FROM product_categories pc WHERE pc.category_id=c.id) AS product_count
+            FROM categories c
+            LEFT JOIN categories parent ON parent.id=c.parent_id
+            LEFT JOIN media ON media.id=c.image_media_id
+            ORDER BY c.position,c.name,c.id")->fetchAll();
+
+        $children = [];
+        $byId = [];
+        foreach ($rows as $row) {
+            $row['id'] = (int) $row['id'];
+            $row['parent_id'] = $row['parent_id'] === null ? null : (int) $row['parent_id'];
+            $row['position'] = (int) $row['position'];
+            $row['child_count'] = (int) $row['child_count'];
+            $row['product_count'] = (int) $row['product_count'];
+            $byId[$row['id']] = $row;
+            $key = $row['parent_id'] === null ? 0 : $row['parent_id'];
+            $children[$key][] = $row;
+        }
+
+        $flat = [];
+        $visited = [];
+        $walk = function (int $parentId, int $depth, array $trail, array $ancestorConnectors) use (&$walk, &$flat, &$visited, $children): void {
+            $siblings = $children[$parentId] ?? [];
+            $lastIndex = count($siblings) - 1;
+            foreach ($siblings as $index => $row) {
+                $categoryId = (int) $row['id'];
+                if (isset($visited[$categoryId])) {
+                    continue;
+                }
+                $visited[$categoryId] = true;
+                $path = [...$trail, (string) $row['name']];
+                $isLast = $index === $lastIndex;
+                $row['depth'] = $depth;
+                $row['level'] = $depth;
+                $row['path_label'] = implode(' › ', $path);
+                $row['is_last'] = $isLast;
+                $row['ancestor_connectors'] = $ancestorConnectors;
+                $flat[] = $row;
+                $childConnectors = $depth === 0 ? [] : [...$ancestorConnectors, !$isLast];
+                $walk($categoryId, $depth + 1, $path, $childConnectors);
+            }
+        };
+        $walk(0, 0, [], []);
+        foreach ($rows as $row) {
+            $categoryId = (int) $row['id'];
+            if (isset($visited[$categoryId])) {
+                continue;
+            }
+            $row['depth'] = 0;
+            $row['level'] = 0;
+            $row['path_label'] = (string) $row['name'];
+            $row['is_last'] = true;
+            $row['ancestor_connectors'] = [];
+            $flat[] = $row;
+        }
+
+        $search = mb_strtolower(trim($search));
+        if ($search === '') {
+            return $flat;
+        }
+
+        $visible = [];
+        foreach ($flat as &$row) {
+            $haystack = mb_strtolower(implode(' ', [(string) $row['name'], (string) $row['slug'], (string) $row['path_label']]));
+            $row['is_search_match'] = str_contains($haystack, $search);
+            if (!$row['is_search_match']) {
+                continue;
+            }
+            $cursor = (int) $row['id'];
+            while ($cursor > 0 && !isset($visible[$cursor])) {
+                $visible[$cursor] = true;
+                $cursor = isset($byId[$cursor]) && $byId[$cursor]['parent_id'] !== null ? (int) $byId[$cursor]['parent_id'] : 0;
+            }
+        }
+        unset($row);
+
+        return array_values(array_filter($flat, static fn(array $row): bool => isset($visible[(int) $row['id']])));
+    }
+
+    /** @return list<array<string,mixed>> */
+    public function categoryParentTree(?int $excludeId = null): array
+    {
+        $rows = $this->pdo->query('SELECT id,parent_id,name,slug,position,status FROM categories ORDER BY position,name,id')->fetchAll();
+        $excluded = [];
+        if ($excludeId !== null && $excludeId > 0) {
+            $excluded[$excludeId] = true;
+            do {
+                $changed = false;
+                foreach ($rows as $row) {
+                    $parentId = $row['parent_id'] === null ? null : (int) $row['parent_id'];
+                    $categoryId = (int) $row['id'];
+                    if ($parentId !== null && isset($excluded[$parentId]) && !isset($excluded[$categoryId])) {
+                        $excluded[$categoryId] = true;
+                        $changed = true;
+                    }
+                }
+            } while ($changed);
+        }
+
+        $available = array_values(array_filter($rows, static fn(array $row): bool => !isset($excluded[(int) $row['id']])));
+        return $this->buildCategoryTree($available);
+    }
+
+    public function nextRootCategoryPosition(): int
+    {
+        return (int) $this->pdo->query('SELECT COALESCE(MAX(position),0)+1 FROM categories WHERE parent_id IS NULL')->fetchColumn();
+    }
+
+    public function isCategoryNameAvailable(string $name, ?int $excludeId = null): bool
+    {
+        $name = trim($name);
+        if ($name === '') {
+            return false;
+        }
+        $statement = $excludeId !== null && $excludeId > 0
+            ? $this->pdo->prepare('SELECT name FROM categories WHERE id<>:exclude_id')
+            : $this->pdo->prepare('SELECT name FROM categories');
+        $statement->execute($excludeId !== null && $excludeId > 0 ? ['exclude_id' => $excludeId] : []);
+        $key = Slugger::slug($name);
+        foreach ($statement->fetchAll(PDO::FETCH_COLUMN) as $existingName) {
+            if (Slugger::slug((string) $existingName) === $key) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public function normalizeCategorySlug(string $slug): string
+    {
+        return Slugger::slug(trim($slug));
+    }
+
+    public function isCategorySlugAvailable(string $slug, ?int $excludeId = null): bool
+    {
+        $slug = $this->normalizeCategorySlug($slug);
+        if ($slug === '') {
+            return false;
+        }
+        $sql = 'SELECT COUNT(*) FROM categories WHERE LOWER(slug)=LOWER(:slug)';
+        $parameters = ['slug' => $slug];
+        if ($excludeId !== null && $excludeId > 0) {
+            $sql .= ' AND id<>:exclude_id';
+            $parameters['exclude_id'] = $excludeId;
+        }
+        $statement = $this->pdo->prepare($sql);
+        $statement->execute($parameters);
+        return (int) $statement->fetchColumn() === 0;
+    }
+
+    public function deleteCategory(int $id): string
+    {
+        $statement = $this->pdo->prepare('SELECT name,slug FROM categories WHERE id=:id');
+        $statement->execute(['id' => $id]);
+        $category = $statement->fetch();
+        if (!is_array($category)) {
+            throw new RuntimeException('Categoria nu mai există.');
+        }
+        $children = $this->pdo->prepare('SELECT COUNT(*) FROM categories WHERE parent_id=:id');
+        $children->execute(['id' => $id]);
+        if ((int) $children->fetchColumn() > 0) {
+            throw new RuntimeException('Mută sau șterge mai întâi subcategoriile acestei categorii.');
+        }
+        $products = $this->pdo->prepare('SELECT COUNT(*) FROM product_categories WHERE category_id=:id');
+        $products->execute(['id' => $id]);
+        if ((int) $products->fetchColumn() > 0) {
+            throw new RuntimeException('Mută mai întâi produsele asociate într-o altă categorie.');
+        }
+
+        $this->pdo->beginTransaction();
+        try {
+            $this->pdo->prepare("DELETE FROM slug_redirects WHERE entity_type='category' AND (old_slug=:old_slug OR new_slug=:new_slug)")
+                ->execute(['old_slug' => $category['slug'], 'new_slug' => $category['slug']]);
+            $this->pdo->prepare('DELETE FROM categories WHERE id=:id')->execute(['id' => $id]);
+            $this->pdo->commit();
+        } catch (\Throwable $exception) {
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+            throw $exception;
+        }
+        return (string) $category['name'];
     }
 
     public function isProductNameAvailable(string $name, ?int $excludeId = null): bool
@@ -380,6 +617,10 @@ final class CatalogAdminService
                       AND unlimited_variant.stock_unlimited=1
                 ) THEN 1 ELSE 0 END AS has_unlimited_stock,
                 COALESCE((
+                    SELECT SUM(accounting_balance.quantity)
+                    FROM accounting_stock_balances accounting_balance
+                    WHERE accounting_balance.product_id = p.id
+                ), (
                     SELECT SUM(stock.physical_quantity)
                     FROM product_variants stock_variant
                     LEFT JOIN inventory stock ON stock.variant_id = stock_variant.id
@@ -506,7 +747,68 @@ final class CatalogAdminService
             $row['stock'] = (int) $default['stock'];
         }
 
+        $images = $this->pdo->prepare('SELECT media.id,media.public_path,media.alt_text,media.original_name,media.width,media.height,product_images.position
+            FROM product_images
+            INNER JOIN media ON media.id=product_images.media_id
+            WHERE product_images.product_id=:product_id AND media.public_path IS NOT NULL
+            ORDER BY product_images.position,product_images.media_id');
+        $images->execute(['product_id' => $id]);
+        $row['gallery_images'] = $images->fetchAll();
+
         return $row;
+    }
+
+    /** @param array<string,mixed> $data @return list<int> */
+    private function submittedProductImageIds(array $data): array
+    {
+        $values = $data['gallery_media_ids'] ?? [];
+        if (!is_array($values)) {
+            $values = [$values];
+        }
+
+        $mediaIds = [];
+        foreach ($values as $value) {
+            $mediaId = (int) $value;
+            if ($mediaId > 0 && !in_array($mediaId, $mediaIds, true)) {
+                $mediaIds[] = $mediaId;
+            }
+        }
+        if (count($mediaIds) > 12) {
+            throw new RuntimeException('Galeria produsului poate conține maximum 12 fotografii.');
+        }
+        if ($mediaIds === []) {
+            return [];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($mediaIds), '?'));
+        $statement = $this->pdo->prepare('SELECT id FROM media WHERE public_path IS NOT NULL AND id IN (' . $placeholders . ')');
+        $statement->execute($mediaIds);
+        $availableIds = array_map('intval', $statement->fetchAll(PDO::FETCH_COLUMN));
+        foreach ($mediaIds as $mediaId) {
+            if (!in_array($mediaId, $availableIds, true)) {
+                throw new RuntimeException('Una dintre imaginile galeriei nu mai este disponibilă. Reîncarcă formularul.');
+            }
+        }
+
+        return $mediaIds;
+    }
+
+    /** @param list<int> $mediaIds */
+    private function syncProductImages(int $productId, array $mediaIds): void
+    {
+        $this->pdo->prepare('DELETE FROM product_images WHERE product_id=:product_id')->execute(['product_id' => $productId]);
+        if ($mediaIds === []) {
+            return;
+        }
+
+        $statement = $this->pdo->prepare('INSERT INTO product_images (product_id,media_id,position) VALUES (:product_id,:media_id,:position)');
+        foreach ($mediaIds as $position => $mediaId) {
+            $statement->execute([
+                'product_id' => $productId,
+                'media_id' => $mediaId,
+                'position' => $position,
+            ]);
+        }
     }
 
     /** @param array<string,mixed> $data @return list<int> */
@@ -971,15 +1273,56 @@ final class CatalogAdminService
     }
 
     /** @param array<string,mixed> $data @return array<string,mixed> */
-    private function categoryParams(array $data, string $name, string $slug, ?int $parentId, string $status, string $now): array
+    private function categoryParams(array $data, string $name, string $slug, string $description, ?int $parentId, int $position, string $status, string $seoTitle, string $metaDescription, ?int $imageMediaId, ?string $publishedAt, string $now): array
     {
         return [
-            'parent_id' => $parentId, 'name' => $name, 'slug' => $slug, 'description' => trim((string) ($data['description'] ?? '')),
-            'position' => (int) ($data['position'] ?? 0), 'status' => $status,
+            'parent_id' => $parentId, 'name' => $name, 'slug' => $slug, 'description' => $description,
+            'image_media_id' => $imageMediaId, 'position' => $position, 'status' => $status,
             'visibility' => ($data['visibility'] ?? 'public') === 'hidden' ? 'hidden' : 'public',
-            'seo_title' => trim((string) ($data['seo_title'] ?? '')), 'meta_description' => trim((string) ($data['meta_description'] ?? '')),
-            'indexable' => isset($data['indexable']) ? 1 : 0, 'published_at' => $status === 'published' ? $now : null, 'updated_at' => $now,
+            'seo_title' => $seoTitle, 'meta_description' => $metaDescription,
+            'indexable' => isset($data['indexable']) ? 1 : 0, 'published_at' => $publishedAt, 'updated_at' => $now,
         ];
+    }
+
+    /** @param array<string,mixed> $data */
+    private function categoryImageId(array $data, ?int $categoryId): ?int
+    {
+        if (in_array((string) ($data['remove_image'] ?? ''), ['1', 'on'], true)) {
+            return null;
+        }
+        $imageId = (int) ($data['image_media_id'] ?? 0);
+        if ($imageId <= 0 && $categoryId !== null) {
+            $current = $this->pdo->prepare('SELECT image_media_id FROM categories WHERE id=:id');
+            $current->execute(['id' => $categoryId]);
+            $value = $current->fetchColumn();
+            $imageId = $value === false || $value === null ? 0 : (int) $value;
+        }
+        if ($imageId <= 0) {
+            return null;
+        }
+        $media = $this->pdo->prepare('SELECT COUNT(*) FROM media WHERE id=:id AND public_path IS NOT NULL');
+        $media->execute(['id' => $imageId]);
+        if ((int) $media->fetchColumn() !== 1) {
+            throw new RuntimeException('Imaginea categoriei nu mai este disponibilă. Alege fotografia din nou.');
+        }
+        return $imageId;
+    }
+
+    /** @param list<array<string,mixed>> $rows @return list<array<string,mixed>> */
+    private function buildCategoryTree(array $rows, ?int $parentId = null): array
+    {
+        $result = [];
+        foreach ($rows as $row) {
+            $rowParentId = $row['parent_id'] === null ? null : (int) $row['parent_id'];
+            if ($rowParentId !== $parentId) {
+                continue;
+            }
+            $row['id'] = (int) $row['id'];
+            $row['parent_id'] = $rowParentId;
+            $row['children'] = $this->buildCategoryTree($rows, (int) $row['id']);
+            $result[] = $row;
+        }
+        return $result;
     }
 
     /** @param array<string,mixed> $data @return array<string,mixed> */

@@ -1,0 +1,6 @@
+<header class="admin-category-modal__header">
+  <span class="admin-category-modal__mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5h6v5H4zM14 14h6v5h-6zM4 14h6v5H4z"/><path d="M7 10v2h10v2M7 12v2"/></svg></span>
+  <div><span class="admin-eyebrow">Catalog · Categorii</span><h2 id="admin-category-editor-title">{{ category ? 'Editează categoria' : 'Adaugă o categorie' }}</h2><p>{{ category ? category.name : 'Un loc potrivit pentru fiecare produs.' }}</p></div>
+</header>
+{% set category_modal = true %}
+{% include 'admin/partials/category-form-fields.twig' %}

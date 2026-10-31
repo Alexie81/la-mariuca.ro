@@ -38,7 +38,9 @@ final class DemoSeeder
                 $statement->execute(['parent' => $parent ? $ids[$parent] : null, 'name' => $name, 'slug' => $slug, 'description' => 'Selecție demo pentru categoria ' . $name . '. Conținutul se editează din administrare.', 'seo' => $name . ' pentru copii', 'meta' => 'Descoperă selecția ' . mb_strtolower($name) . ' pentru copii.', 'now' => $now]);
                 $ids[$slug] = (int) $this->pdo->lastInsertId();
             }
-            $this->pdo->prepare('UPDATE categories SET position = :position WHERE slug = :slug')->execute(['position' => 4, 'slug' => 'costume-traditionale']);
+            foreach (['nou-nascuti' => 1, 'fetite' => 2, 'baieti' => 3, 'costume-traditionale' => 4, 'botez' => 5, 'incaltaminte' => 6, 'accesorii' => 7] as $slug => $position) {
+                $this->pdo->prepare('UPDATE categories SET position = :position WHERE slug = :slug')->execute(['position' => $position, 'slug' => $slug]);
+            }
             $this->pdo->prepare('UPDATE categories SET position = :position WHERE slug = :slug')->execute(['position' => 1, 'slug' => 'costume-traditionale-fetite']);
             $this->pdo->prepare('UPDATE categories SET position = :position WHERE slug = :slug')->execute(['position' => 2, 'slug' => 'costume-traditionale-baietei']);
             $this->archiveAccessoryCategories();

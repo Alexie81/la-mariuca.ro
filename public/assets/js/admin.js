@@ -752,8 +752,8 @@
 
   const closeAdminCategoryPicker = (picker) => {
     picker.removeAttribute('open');
-    picker.querySelector('[data-admin-category-toggle]')?.setAttribute('aria-expanded', 'false');
-    document.documentElement.classList.remove('has-admin-category-picker');
+    picker.querySelector('[data-admin-category-toggle],[data-admin-category-parent-toggle]')?.setAttribute('aria-expanded', 'false');
+    document.documentElement.classList.toggle('has-admin-category-picker', Boolean(document.querySelector('[data-admin-category-picker][open],[data-admin-category-parent-picker][open]')));
   };
 
   const initializeAdminCategoryPickers = (root) => {
@@ -1186,6 +1186,246 @@
     });
   };
 
+  const productGalleryItems = (editor) => Array.from(editor.querySelectorAll('[data-product-gallery-item]'));
+
+  const animateProductGalleryLayout = (editor, mutate) => {
+    const before = new Map(productGalleryItems(editor).map((item) => [item, item.getBoundingClientRect()]));
+    mutate();
+    if (reducedMotion) return;
+    productGalleryItems(editor).forEach((item) => {
+      const oldRect = before.get(item);
+      if (!oldRect) return;
+      const newRect = item.getBoundingClientRect();
+      const x = oldRect.left - newRect.left;
+      const y = oldRect.top - newRect.top;
+      if (Math.abs(x) < 1 && Math.abs(y) < 1) return;
+      item.animate([
+        { transform: `translate(${x}px, ${y}px)` },
+        { transform: 'translate(0, 0)' },
+      ], { duration: 280, easing: 'cubic-bezier(.2,.78,.22,1)' });
+    });
+  };
+
+  const updateProductGallery = (editor) => {
+    const items = productGalleryItems(editor);
+    const max = Number.parseInt(editor.dataset.galleryMax || '12', 10) || 12;
+    const count = editor.querySelector('[data-product-gallery-count]');
+    const remaining = editor.querySelector('[data-product-gallery-remaining]');
+    const add = editor.querySelector('[data-product-gallery-add]');
+    items.forEach((item, index) => {
+      const primary = index === 0;
+      item.classList.toggle('is-primary', primary);
+      item.dataset.galleryPosition = String(index + 1);
+      item.setAttribute('aria-label', primary ? `Fotografia ${index + 1}, imagine principală` : `Fotografia ${index + 1}`);
+      const badge = item.querySelector('[data-product-gallery-primary-badge]');
+      const choose = item.querySelector('[data-product-gallery-make-primary]');
+      if (badge) badge.hidden = !primary;
+      if (choose) choose.hidden = primary;
+      const drag = item.querySelector('[data-product-gallery-drag]');
+      if (drag) drag.setAttribute('aria-label', `Mută fotografia ${index + 1}. Folosește săgețile stânga și dreapta pentru mutare fină.`);
+    });
+    if (count) count.textContent = `${items.length} din ${max} ${items.length === 1 ? 'fotografie' : 'fotografii'}`;
+    if (remaining) {
+      const available = Math.max(0, max - items.length);
+      remaining.textContent = available === 1 ? '1 loc disponibil' : `${available} locuri disponibile`;
+    }
+    if (add) add.hidden = items.length >= max;
+    editor.classList.toggle('is-empty', items.length === 0);
+  };
+
+  const setProductGalleryStatus = (editor, message, state = 'idle') => {
+    const status = editor.querySelector('[data-product-gallery-status]');
+    if (!status) return;
+    status.textContent = message;
+    status.dataset.state = state;
+  };
+
+  const createProductGalleryItem = (editor, media) => {
+    const template = editor.querySelector('[data-product-gallery-template]');
+    const item = template?.content?.firstElementChild?.cloneNode(true);
+    if (!item) return null;
+    const input = item.querySelector('input[name="gallery_media_ids[]"]');
+    const image = item.querySelector('img');
+    if (input) input.value = String(media.id);
+    if (image) {
+      image.src = media.url;
+      image.alt = media.alt || 'Fotografie produs';
+    }
+    window.setTimeout(() => item.classList.remove('is-entering'), reducedMotion ? 0 : 380);
+    return item;
+  };
+
+  const uploadProductGalleryFiles = async (editor, files) => {
+    if (editor.classList.contains('is-uploading')) return;
+    const max = Number.parseInt(editor.dataset.galleryMax || '12', 10) || 12;
+    const available = Math.max(0, max - productGalleryItems(editor).length);
+    const accepted = Array.from(files).filter((file) => ['image/jpeg', 'image/png', 'image/webp'].includes(file.type)).slice(0, available);
+    if (available === 0) {
+      setProductGalleryStatus(editor, 'Galeria este completă. Poți păstra maximum 12 fotografii.', 'error');
+      return;
+    }
+    if (accepted.length === 0) {
+      setProductGalleryStatus(editor, 'Alege fotografii JPG, PNG sau WebP.', 'error');
+      return;
+    }
+
+    const form = editor.closest('[data-admin-product-form]');
+    const csrf = form?.querySelector('input[name="_csrf"]')?.value || '';
+    const add = editor.querySelector('[data-product-gallery-add]');
+    editor.classList.add('is-uploading');
+    if (add) add.disabled = true;
+    let completed = 0;
+    try {
+      for (const file of accepted) {
+        setProductGalleryStatus(editor, `Se optimizează fotografia ${completed + 1} din ${accepted.length}…`, 'loading');
+        const body = new FormData();
+        body.append('_csrf', csrf);
+        body.append('image', file);
+        body.append('alt_text', file.name.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' '));
+        const response = await fetch(editor.dataset.uploadUrl, {
+          method: 'POST',
+          body,
+          headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        });
+        const payload = await response.json().catch(() => ({ ok: false, message: 'Răspunsul serverului nu a putut fi citit.' }));
+        if (!response.ok || !payload.ok || !payload.id || !payload.url) {
+          throw new Error(payload.message || 'Fotografia nu a putut fi încărcată.');
+        }
+        const item = createProductGalleryItem(editor, payload);
+        if (item) {
+          const addTile = editor.querySelector('[data-product-gallery-add]');
+          addTile?.before(item);
+          completed += 1;
+          updateProductGallery(editor);
+          markProductFormDirty(editor);
+          item.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'nearest', inline: 'nearest' });
+        }
+      }
+      setProductGalleryStatus(editor, completed === 1 ? 'Fotografia a fost adăugată în galerie.' : `${completed} fotografii au fost adăugate în galerie.`, 'success');
+    } catch (error) {
+      setProductGalleryStatus(editor, error.message || 'Fotografiile nu au putut fi încărcate.', 'error');
+    } finally {
+      editor.classList.remove('is-uploading');
+      if (add) add.disabled = false;
+      updateProductGallery(editor);
+    }
+  };
+
+  const initializeProductGallery = (root) => {
+    root.querySelectorAll('[data-product-gallery-editor]').forEach((editor) => {
+      if (editor.dataset.productGalleryEnhanced === 'true') return;
+      editor.dataset.productGalleryEnhanced = 'true';
+      const rail = editor.querySelector('[data-product-gallery-list]');
+      const input = editor.querySelector('[data-product-gallery-input]');
+      const add = editor.querySelector('[data-product-gallery-add]');
+      let draggedItem = null;
+      let pointerItem = null;
+
+      updateProductGallery(editor);
+      add?.addEventListener('click', () => input?.click());
+      input?.addEventListener('change', () => {
+        uploadProductGalleryFiles(editor, input.files || []);
+        input.value = '';
+      });
+
+      rail?.addEventListener('click', (event) => {
+        const item = event.target.closest('[data-product-gallery-item]');
+        if (!item) return;
+        if (event.target.closest('[data-product-gallery-remove]')) {
+          event.preventDefault();
+          item.classList.add('is-removing');
+          const remove = () => {
+            item.remove();
+            updateProductGallery(editor);
+            markProductFormDirty(editor);
+            setProductGalleryStatus(editor, 'Fotografia a fost scoasă din galerie. Salvează produsul pentru a păstra schimbarea.', 'success');
+          };
+          if (reducedMotion) remove();
+          else window.setTimeout(remove, 230);
+          return;
+        }
+        if (event.target.closest('[data-product-gallery-make-primary]')) {
+          event.preventDefault();
+          animateProductGalleryLayout(editor, () => rail.prepend(item));
+          updateProductGallery(editor);
+          markProductFormDirty(editor);
+          setProductGalleryStatus(editor, 'Imaginea principală a fost schimbată.', 'success');
+        }
+      });
+
+      rail?.addEventListener('dragstart', (event) => {
+        const item = event.target.closest('[data-product-gallery-item]');
+        if (!item) return;
+        draggedItem = item;
+        item.classList.add('is-dragging');
+        if (event.dataTransfer) {
+          event.dataTransfer.effectAllowed = 'move';
+          event.dataTransfer.setData('text/plain', item.querySelector('input')?.value || 'gallery-image');
+        }
+      });
+      rail?.addEventListener('dragover', (event) => {
+        if (!draggedItem) return;
+        const target = event.target.closest('[data-product-gallery-item]');
+        if (!target || target === draggedItem) return;
+        event.preventDefault();
+        const box = target.getBoundingClientRect();
+        rail.insertBefore(draggedItem, event.clientX < box.left + box.width / 2 ? target : target.nextSibling);
+      });
+      rail?.addEventListener('dragend', () => {
+        if (!draggedItem) return;
+        draggedItem.classList.remove('is-dragging');
+        draggedItem = null;
+        updateProductGallery(editor);
+        markProductFormDirty(editor);
+        setProductGalleryStatus(editor, 'Ordinea fotografiilor a fost actualizată.', 'success');
+      });
+
+      rail?.addEventListener('pointerdown', (event) => {
+        const handle = event.target.closest('[data-product-gallery-drag]');
+        if (!handle || event.pointerType === 'mouse') return;
+        pointerItem = handle.closest('[data-product-gallery-item]');
+        if (!pointerItem) return;
+        event.preventDefault();
+        handle.setPointerCapture?.(event.pointerId);
+        pointerItem.classList.add('is-dragging', 'is-touch-dragging');
+      });
+      rail?.addEventListener('pointermove', (event) => {
+        if (!pointerItem) return;
+        event.preventDefault();
+        const hit = document.elementFromPoint(event.clientX, event.clientY)?.closest?.('[data-product-gallery-item]');
+        if (!hit || hit === pointerItem || !editor.contains(hit)) return;
+        const box = hit.getBoundingClientRect();
+        rail.insertBefore(pointerItem, event.clientX < box.left + box.width / 2 ? hit : hit.nextSibling);
+      });
+      const endPointerDrag = () => {
+        if (!pointerItem) return;
+        pointerItem.classList.remove('is-dragging', 'is-touch-dragging');
+        pointerItem = null;
+        updateProductGallery(editor);
+        markProductFormDirty(editor);
+        setProductGalleryStatus(editor, 'Ordinea fotografiilor a fost actualizată.', 'success');
+      };
+      rail?.addEventListener('pointerup', endPointerDrag);
+      rail?.addEventListener('pointercancel', endPointerDrag);
+
+      rail?.addEventListener('keydown', (event) => {
+        const handle = event.target.closest('[data-product-gallery-drag]');
+        if (!handle || !['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+        const item = handle.closest('[data-product-gallery-item]');
+        const sibling = event.key === 'ArrowLeft' ? item?.previousElementSibling : item?.nextElementSibling;
+        if (!item || !sibling?.matches('[data-product-gallery-item]')) return;
+        event.preventDefault();
+        animateProductGalleryLayout(editor, () => {
+          if (event.key === 'ArrowLeft') rail.insertBefore(item, sibling);
+          else rail.insertBefore(sibling, item);
+        });
+        updateProductGallery(editor);
+        markProductFormDirty(editor);
+        handle.focus({ preventScroll: true });
+      });
+    });
+  };
+
   const initializeProductAvailability = (root) => {
     root.querySelectorAll('[data-admin-product-form]').forEach((form) => setProductFormSyncState(form, 'synced'));
     root.querySelectorAll('[data-product-short-description]').forEach((input) => updateProductShortDescriptionCount(input));
@@ -1200,6 +1440,7 @@
       if (input.value.trim()) checkProductSlug(input);
     });
     initializeAdminCategoryPickers(root);
+    initializeProductGallery(root);
     initializeProductOptions(root);
     initializeProductSeo(root);
   };
@@ -1468,18 +1709,18 @@
   initializeProductAvailability(document);
 
   document.addEventListener('click', (event) => {
-    document.querySelectorAll('[data-admin-category-picker][open]').forEach((picker) => {
+    document.querySelectorAll('[data-admin-category-picker][open],[data-admin-category-parent-picker][open]').forEach((picker) => {
       if (!picker.contains(event.target)) closeAdminCategoryPicker(picker);
     });
   });
 
   document.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape') return;
-    const picker = document.querySelector('[data-admin-category-picker][open]');
+    const picker = document.querySelector('[data-admin-category-picker][open],[data-admin-category-parent-picker][open]');
     if (!picker) return;
     event.preventDefault();
     closeAdminCategoryPicker(picker);
-    picker.querySelector('[data-admin-category-toggle]')?.focus({ preventScroll: true });
+    picker.querySelector('[data-admin-category-toggle],[data-admin-category-parent-toggle]')?.focus({ preventScroll: true });
   });
 
   const productEditorDialog = document.querySelector('[data-admin-product-editor-dialog]');
@@ -1873,6 +2114,416 @@
     supplierDeleteConfirm.disabled = true;
     supplierDeleteConfirm.textContent = 'Se șterge…';
     pendingSupplierDeleteForm.submit();
+  });
+
+  const categoryAvailabilityRequests = new WeakMap();
+
+  const setCategoryAvailability = (input, state, message) => {
+    const field = input?.closest('[data-category-availability]');
+    const status = field?.querySelector('small');
+    if (field) field.dataset.categoryAvailability = state;
+    if (status) status.textContent = message;
+    if (!input) return;
+    if (state === 'unavailable') input.setCustomValidity(message);
+    else if (state === 'checking') input.setCustomValidity('Așteaptă o clipă să verificăm disponibilitatea.');
+    else input.setCustomValidity('');
+  };
+
+  const checkCategoryAvailability = (input, type) => {
+    if (!input) return;
+    const previous = categoryAvailabilityRequests.get(input);
+    if (previous?.timer) window.clearTimeout(previous.timer);
+    previous?.controller?.abort();
+
+    const value = input.value.trim();
+    if (!value) {
+      categoryAvailabilityRequests.delete(input);
+      setCategoryAvailability(
+        input,
+        'idle',
+        type === 'name' ? 'Scrie denumirea pe care o va vedea clientul.' : 'Slugul se generează automat din nume.'
+      );
+      return;
+    }
+
+    setCategoryAvailability(input, 'checking', type === 'name' ? 'Verificăm dacă denumirea este liberă…' : 'Verificăm dacă slugul este liber…');
+    const timer = window.setTimeout(async () => {
+      const form = input.closest('[data-admin-category-form]');
+      const endpointValue = type === 'name' ? form?.dataset.nameCheckUrl : form?.dataset.slugCheckUrl;
+      if (!endpointValue) {
+        setCategoryAvailability(input, 'error', 'Câmpul va fi verificat la salvare.');
+        return;
+      }
+      const controller = new AbortController();
+      categoryAvailabilityRequests.set(input, { controller });
+      const endpoint = new URL(endpointValue, window.location.href);
+      endpoint.searchParams.set(type === 'name' ? 'nume' : 'slug', value);
+      if (form?.dataset.categoryId) endpoint.searchParams.set('exclude_id', form.dataset.categoryId);
+      try {
+        const response = await fetch(endpoint, {
+          headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+          signal: controller.signal,
+        });
+        const contentType = response.headers.get('Content-Type') || '';
+        if (!response.ok || !contentType.includes('application/json')) throw new Error('Verificarea nu este disponibilă.');
+        const payload = await response.json();
+        if (input.value.trim() !== value) return;
+        if (type === 'slug' && payload.slug && input.dataset.slugAuto === 'true') input.value = payload.slug;
+        setCategoryAvailability(input, payload.available ? 'available' : 'unavailable', payload.message || (payload.available ? 'Este disponibil.' : 'Este deja folosit.'));
+      } catch (error) {
+        if (error.name === 'AbortError' || input.value.trim() !== value) return;
+        setCategoryAvailability(input, 'error', 'Nu am putut verifica acum; câmpul va fi validat la salvare.');
+      } finally {
+        const active = categoryAvailabilityRequests.get(input);
+        if (active?.controller === controller) categoryAvailabilityRequests.delete(input);
+      }
+    }, 360);
+    categoryAvailabilityRequests.set(input, { timer });
+  };
+
+  const initializeCategoryForm = (root = document) => {
+    const form = root.matches?.('[data-admin-category-form]') ? root : root.querySelector?.('[data-admin-category-form]');
+    if (!form || form.dataset.categoryInitialized === 'true') return;
+    form.dataset.categoryInitialized = 'true';
+
+    const nameInput = form.querySelector('[data-admin-category-name]');
+    const slugInput = form.querySelector('[data-admin-category-slug]');
+    const seoTitle = form.querySelector('[data-admin-category-seo-title]');
+    const seoDescription = form.querySelector('[data-admin-category-seo-description]');
+    const description = form.querySelector('[data-admin-category-description]');
+    const parentPicker = form.querySelector('[data-admin-category-parent-picker]');
+    const parentLabel = form.querySelector('[data-admin-category-parent-label]');
+    const parentPreview = form.querySelector('[data-admin-category-parent-preview]');
+    const parentStatus = form.querySelector('[data-admin-category-parent-status]');
+    const levelPreview = form.querySelector('[data-admin-category-level-preview]');
+    const placementText = form.querySelector('[data-admin-category-placement-text]');
+    const positionInput = form.querySelector('[data-admin-category-position]');
+    const positionHelp = form.querySelector('[data-admin-category-position-help]');
+    const previewTitle = form.querySelector('[data-admin-category-preview-title]');
+    const previewDescription = form.querySelector('[data-admin-category-preview-description]');
+    const previewUrl = form.querySelector('[data-admin-category-preview-url]');
+
+    const sectionLinks = Array.from(form.querySelectorAll('[data-category-section-link]'));
+    const sections = Array.from(form.querySelectorAll('[data-category-section]'));
+    const formScroll = form.querySelector('.admin-category-form__scroll');
+    const updateActiveSection = () => {
+      const top = formScroll?.getBoundingClientRect().top || 0;
+      const atBottom = formScroll && formScroll.scrollTop + formScroll.clientHeight >= formScroll.scrollHeight - 4;
+      const active = atBottom ? sections.at(-1) : (sections.filter((section) => section.getBoundingClientRect().top <= top + 90).at(-1) || sections[0]);
+      sectionLinks.forEach((link) => {
+        if (link.dataset.categorySectionLink === active?.dataset.categorySection) link.setAttribute('aria-current', 'step');
+        else link.removeAttribute('aria-current');
+      });
+    };
+    sectionLinks.forEach((link) => link.addEventListener('click', (event) => {
+      const section = sections.find((item) => item.dataset.categorySection === link.dataset.categorySectionLink);
+      if (!section || !formScroll) return;
+      event.preventDefault();
+      if (parentPicker?.open) closeAdminCategoryPicker(parentPicker);
+      formScroll.scrollTo({ top: formScroll.scrollTop + section.getBoundingClientRect().top - formScroll.getBoundingClientRect().top - 20, behavior: reducedMotion ? 'auto' : 'smooth' });
+    }));
+    formScroll?.addEventListener('scroll', updateActiveSection, { passive: true });
+    const statusInput = form.querySelector('[name="status"]');
+    const updateStatusHelp = () => {
+      const helper = form.querySelector('[data-admin-category-status-help]');
+      const labels = { draft: 'O ciornă este vizibilă doar în administrare.', published: 'Categoria este disponibilă în magazin.', archived: 'Categoria este retrasă din magazin.' };
+      if (helper) helper.textContent = labels[statusInput?.value] || '';
+    };
+    statusInput?.addEventListener('change', updateStatusHelp);
+    updateStatusHelp();
+
+    const updateSeoPreview = () => {
+      const fallbackName = nameInput?.value.trim() || 'Numele categoriei';
+      if (previewTitle) previewTitle.textContent = seoTitle?.value.trim() || fallbackName;
+      if (previewDescription) previewDescription.textContent = seoDescription?.value.trim() || fallbackName;
+      if (previewUrl) previewUrl.textContent = `la-mariuca.ro/categorie/${slugInput?.value.trim() || 'numele-categoriei'}/`;
+      const titleCount = form.querySelector('[data-admin-category-seo-title-count]');
+      const descriptionCount = form.querySelector('[data-admin-category-seo-description-count]');
+      if (titleCount) titleCount.textContent = String(seoTitle?.value.length || 0);
+      if (descriptionCount) descriptionCount.textContent = String(seoDescription?.value.length || 0);
+    };
+
+    const syncAutomaticFields = () => {
+      const name = nameInput?.value || '';
+      if (slugInput?.dataset.slugAuto === 'true') {
+        slugInput.value = slugifyProductName(name);
+        checkCategoryAvailability(slugInput, 'slug');
+      }
+      if (seoTitle?.dataset.seoAuto === 'true') seoTitle.value = name;
+      if (seoDescription?.dataset.seoAuto === 'true') seoDescription.value = name;
+      updateSeoPreview();
+    };
+
+    nameInput?.addEventListener('input', () => {
+      syncAutomaticFields();
+      checkCategoryAvailability(nameInput, 'name');
+    });
+    nameInput?.addEventListener('blur', () => checkCategoryAvailability(nameInput, 'name'));
+
+    slugInput?.addEventListener('input', () => {
+      slugInput.dataset.slugAuto = slugInput.value.trim() === '' ? 'true' : 'false';
+      if (slugInput.dataset.slugAuto === 'true' && nameInput) slugInput.value = slugifyProductName(nameInput.value);
+      updateSeoPreview();
+      checkCategoryAvailability(slugInput, 'slug');
+    });
+    slugInput?.addEventListener('blur', () => {
+      const normalized = slugifyProductName(slugInput.value || nameInput?.value || '');
+      if (normalized) slugInput.value = normalized;
+      updateSeoPreview();
+      checkCategoryAvailability(slugInput, 'slug');
+    });
+
+    [[seoTitle, 'title'], [seoDescription, 'description']].forEach(([input]) => {
+      input?.addEventListener('input', () => {
+        if (input.value.trim() === '') {
+          input.dataset.seoAuto = 'true';
+          input.value = nameInput?.value || '';
+        } else {
+          input.dataset.seoAuto = input.value === (nameInput?.value || '') ? 'true' : 'false';
+        }
+        updateSeoPreview();
+      });
+    });
+
+    const updateDescriptionCount = () => {
+      const counter = form.querySelector('[data-admin-category-description-count]');
+      if (!counter || !description) return;
+      counter.textContent = String(description.value.length);
+      counter.parentElement?.classList.toggle('is-near-limit', description.value.length >= 90);
+    };
+    description?.addEventListener('input', updateDescriptionCount);
+
+    const updatePlacement = () => {
+      const selected = form.querySelector('[data-admin-category-parent-radio]:checked');
+      const isRoot = !selected?.value;
+      const parentName = selected?.dataset.parentName || 'Categorie principală';
+      const level = isRoot ? 0 : Number(selected?.dataset.parentDepth || 0) + 1;
+      if (parentLabel) parentLabel.textContent = parentName;
+      if (parentPreview) parentPreview.textContent = isRoot ? 'Primul nivel al magazinului' : (level === 1 ? 'Părinte selectat în arbore' : `Părinte aflat la nivelul ${level}`);
+      if (parentStatus) parentStatus.textContent = parentName;
+      if (levelPreview) levelPreview.textContent = isRoot ? 'Principală' : (level === 1 ? 'Subcategorie' : `Nivel ${level + 1}`);
+      if (placementText) placementText.textContent = isRoot ? 'Categorie principală' : `Subcategorie în ${parentName}`;
+      if (positionInput) positionInput.disabled = !isRoot;
+      if (positionHelp) positionHelp.textContent = isRoot ? 'Numerele mici apar primele. Doar pentru categoriile principale.' : 'Ordinea este stabilită de categoria părinte.';
+    };
+    form.querySelectorAll('[data-admin-category-parent-radio]').forEach((radio) => {
+      radio.addEventListener('change', () => {
+        updatePlacement();
+      });
+    });
+
+    const parentSearch = form.querySelector('[data-admin-category-parent-search]');
+    parentSearch?.addEventListener('input', () => filterAdminCategoryPicker(parentPicker));
+    form.querySelector('[data-admin-category-parent-search-clear]')?.addEventListener('click', () => {
+      if (!parentSearch) return;
+      parentSearch.value = '';
+      filterAdminCategoryPicker(parentPicker);
+      parentSearch.focus({ preventScroll: true });
+    });
+    form.querySelectorAll('[data-admin-category-parent-close],[data-admin-category-parent-done]').forEach((button) => {
+      button.addEventListener('click', () => {
+        closeAdminCategoryPicker(parentPicker);
+        parentPicker.querySelector('[data-admin-category-parent-toggle]')?.focus({ preventScroll: true });
+      });
+    });
+    parentPicker?.addEventListener('toggle', () => {
+      parentPicker.querySelector('[data-admin-category-parent-toggle]')?.setAttribute('aria-expanded', parentPicker.open ? 'true' : 'false');
+      document.documentElement.classList.toggle('has-admin-category-picker', parentPicker.open || Boolean(document.querySelector('[data-admin-category-picker][open]')));
+      if (parentPicker.open) {
+        requestAnimationFrame(() => parentSearch?.focus({ preventScroll: true }));
+      }
+    });
+
+    const imageBox = form.querySelector('[data-admin-category-image]');
+    const imageInput = form.querySelector('[data-admin-category-image-input]');
+    const imagePreview = form.querySelector('[data-admin-category-image-preview]');
+    const imageEmpty = form.querySelector('[data-admin-category-image-empty]');
+    const imageRemove = form.querySelector('[data-admin-category-image-remove]');
+    const imageId = form.querySelector('[data-admin-category-image-id]');
+    const removeImage = form.querySelector('[data-admin-category-remove-image]');
+    imageInput?.addEventListener('change', () => {
+      const file = imageInput.files?.[0];
+      if (!file || !imagePreview) return;
+      const reader = new FileReader();
+      reader.addEventListener('load', () => {
+        imagePreview.src = String(reader.result || '');
+        imagePreview.hidden = false;
+        if (imageEmpty) imageEmpty.hidden = true;
+        if (imageRemove) imageRemove.hidden = false;
+        imageBox?.classList.add('has-image');
+        if (removeImage) removeImage.value = '0';
+      });
+      reader.readAsDataURL(file);
+    });
+    imageRemove?.addEventListener('click', () => {
+      if (imageInput) imageInput.value = '';
+      if (imagePreview) { imagePreview.src = ''; imagePreview.hidden = true; }
+      if (imageEmpty) imageEmpty.hidden = false;
+      imageRemove.hidden = true;
+      imageBox?.classList.remove('has-image');
+      if (imageId) imageId.value = '';
+      if (removeImage) removeImage.value = '1';
+    });
+
+    if (nameInput?.value) checkCategoryAvailability(nameInput, 'name');
+    if (slugInput?.value) checkCategoryAvailability(slugInput, 'slug');
+    updatePlacement();
+    filterAdminCategoryPicker(parentPicker);
+    updateDescriptionCount();
+    updateSeoPreview();
+  };
+
+  document.querySelectorAll('[data-admin-category-form]').forEach((form) => initializeCategoryForm(form));
+
+  const categoryEditorDialog = document.querySelector('[data-admin-category-editor-dialog]');
+  const categoryEditorContent = categoryEditorDialog?.querySelector('[data-admin-category-editor-content]');
+  const categoryEditorLoading = categoryEditorContent?.innerHTML || '';
+  let categoryEditorRequest = null;
+  let categoryEditorTrigger = null;
+
+  const closeCategoryEditor = () => {
+    if (!categoryEditorDialog?.open) return;
+    categoryEditorRequest?.abort();
+    categoryEditorRequest = null;
+    categoryEditorDialog.classList.remove('is-visible', 'is-success');
+    document.documentElement.classList.remove('has-admin-category-editor');
+    document.documentElement.classList.remove('has-admin-category-picker');
+    window.setTimeout(() => {
+      if (categoryEditorDialog.open) categoryEditorDialog.close();
+    }, reducedMotion ? 0 : 210);
+  };
+
+  const loadCategoryEditor = async (trigger) => {
+    if (!categoryEditorDialog || !categoryEditorContent) return;
+    categoryEditorRequest?.abort();
+    categoryEditorRequest = new AbortController();
+    categoryEditorContent.innerHTML = categoryEditorLoading;
+    try {
+      const response = await fetch(trigger.dataset.modalUrl, {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        signal: categoryEditorRequest.signal,
+      });
+      const markup = await response.text();
+      if (!response.ok || response.redirected || !markup.includes('data-admin-category-form')) {
+        throw new Error('Categoria nu mai este disponibilă sau sesiunea a expirat.');
+      }
+      categoryEditorContent.innerHTML = markup;
+      initializeCategoryForm(categoryEditorContent);
+      requestAnimationFrame(() => categoryEditorContent.querySelector('[data-admin-category-name]')?.focus({ preventScroll: true }));
+    } catch (error) {
+      if (error.name === 'AbortError') return;
+      categoryEditorContent.innerHTML = `<div class="admin-category-editor-dialog__loading"><strong>Nu am putut deschide editorul</strong><small>${error.message || 'A apărut o problemă temporară.'}</small></div>`;
+    } finally {
+      categoryEditorRequest = null;
+    }
+  };
+
+  document.querySelectorAll('[data-admin-category-editor-trigger]').forEach((trigger) => {
+    trigger.addEventListener('click', (event) => {
+      if (!categoryEditorDialog || typeof categoryEditorDialog.showModal !== 'function' || !window.fetch) return;
+      event.preventDefault();
+      categoryEditorTrigger = trigger;
+      categoryEditorDialog.showModal();
+      document.documentElement.classList.add('has-admin-category-editor');
+      requestAnimationFrame(() => categoryEditorDialog.classList.add('is-visible'));
+      loadCategoryEditor(trigger);
+    });
+  });
+  categoryEditorDialog?.addEventListener('click', (event) => {
+    if (event.target === categoryEditorDialog || event.target.closest('[data-admin-category-editor-close]')) {
+      event.preventDefault();
+      closeCategoryEditor();
+    }
+  });
+  categoryEditorDialog?.addEventListener('cancel', (event) => {
+    event.preventDefault();
+    closeCategoryEditor();
+  });
+  categoryEditorDialog?.addEventListener('close', () => {
+    document.documentElement.classList.remove('has-admin-category-editor');
+    document.documentElement.classList.remove('has-admin-category-picker');
+    categoryEditorDialog.classList.remove('is-visible', 'is-success');
+    if (categoryEditorContent) categoryEditorContent.innerHTML = categoryEditorLoading;
+    categoryEditorTrigger?.focus({ preventScroll: true });
+    categoryEditorTrigger = null;
+  });
+  categoryEditorContent?.addEventListener('submit', async (event) => {
+    const form = event.target.closest('[data-admin-category-form]');
+    if (!form) return;
+    event.preventDefault();
+    if (!form.reportValidity()) return;
+    const submit = form.querySelector('[data-admin-category-submit]');
+    const label = submit?.querySelector('span');
+    const feedback = form.querySelector('[data-admin-category-form-feedback]');
+    if (submit) submit.disabled = true;
+    if (label) label.textContent = 'Se salvează…';
+    if (feedback) feedback.hidden = true;
+    try {
+      const response = await fetch(form.action, {
+        method: 'POST',
+        body: new FormData(form),
+        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+      });
+      const contentType = response.headers.get('Content-Type') || '';
+      if (!contentType.includes('application/json')) throw new Error('Sesiunea a expirat. Reîncarcă pagina și încearcă din nou.');
+      const payload = await response.json();
+      if (!response.ok || !payload.ok) throw new Error(payload.message || 'Categoria nu a putut fi salvată.');
+      categoryEditorDialog.classList.add('is-success');
+      if (label) label.textContent = 'Salvat cu grijă';
+      window.setTimeout(() => {
+        closeCategoryEditor();
+        window.setTimeout(() => window.location.reload(), reducedMotion ? 0 : 220);
+      }, reducedMotion ? 80 : 620);
+    } catch (error) {
+      if (submit) submit.disabled = false;
+      if (label) label.textContent = 'Încearcă din nou';
+      if (feedback) {
+        feedback.textContent = error.message || 'Verifică datele și încearcă din nou.';
+        feedback.hidden = false;
+        feedback.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'center' });
+      }
+    }
+  });
+
+  const categoryDeleteDialog = document.querySelector('[data-admin-category-delete-dialog]');
+  const categoryDeleteName = categoryDeleteDialog?.querySelector('[data-admin-category-delete-name]');
+  const categoryDeleteTitle = categoryDeleteDialog?.querySelector('[data-admin-category-delete-title]');
+  const categoryDeleteMessage = categoryDeleteDialog?.querySelector('[data-admin-category-delete-message]');
+  const categoryDeleteNote = categoryDeleteDialog?.querySelector('[data-admin-category-delete-note]');
+  const categoryDeleteConfirm = categoryDeleteDialog?.querySelector('[data-admin-category-delete-confirm]');
+  let pendingCategoryDeleteForm = null;
+
+  const closeCategoryDeleteDialog = () => {
+    if (categoryDeleteDialog?.open) categoryDeleteDialog.close();
+  };
+  document.querySelectorAll('[data-admin-category-delete-form]').forEach((form) => {
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      pendingCategoryDeleteForm = form;
+      const blocked = form.dataset.categoryBlocked === '1';
+      const note = form.dataset.categoryDeleteNote?.trim() || '';
+      if (categoryDeleteName) categoryDeleteName.textContent = form.dataset.categoryName || 'Categoria';
+      if (categoryDeleteTitle) categoryDeleteTitle.textContent = blocked ? 'Categoria nu poate fi ștearsă încă' : 'Ștergi categoria?';
+      if (categoryDeleteMessage) categoryDeleteMessage.textContent = blocked ? 'trebuie eliberată înainte de ștergere.' : 'va fi eliminată definitiv din arbore.';
+      if (categoryDeleteNote) { categoryDeleteNote.textContent = note; categoryDeleteNote.hidden = !note; }
+      if (categoryDeleteConfirm) { categoryDeleteConfirm.disabled = blocked; categoryDeleteConfirm.textContent = blocked ? 'Mută elementele mai întâi' : 'Da, șterge categoria'; }
+      if (!categoryDeleteDialog || typeof categoryDeleteDialog.showModal !== 'function') {
+        if (blocked) window.alert(note || 'Categoria are elemente asociate.');
+        else if (window.confirm(`Ștergi categoria „${form.dataset.categoryName || ''}”?`)) form.submit();
+        return;
+      }
+      categoryDeleteDialog.showModal();
+    });
+  });
+  categoryDeleteDialog?.querySelector('[data-admin-category-delete-cancel]')?.addEventListener('click', closeCategoryDeleteDialog);
+  categoryDeleteDialog?.addEventListener('click', (event) => { if (event.target === categoryDeleteDialog) closeCategoryDeleteDialog(); });
+  categoryDeleteDialog?.addEventListener('cancel', (event) => { event.preventDefault(); closeCategoryDeleteDialog(); });
+  categoryDeleteDialog?.addEventListener('close', () => { pendingCategoryDeleteForm = null; });
+  categoryDeleteConfirm?.addEventListener('click', () => {
+    if (!pendingCategoryDeleteForm || pendingCategoryDeleteForm.dataset.categoryBlocked === '1') return;
+    categoryDeleteConfirm.disabled = true;
+    categoryDeleteConfirm.textContent = 'Se șterge…';
+    pendingCategoryDeleteForm.submit();
   });
 
   document.querySelectorAll('[data-admin-toast]').forEach((toast) => {

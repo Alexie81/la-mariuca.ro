@@ -98,27 +98,127 @@ final class AdminController
         return $this->rememberMe->withoutCookie($this->view->redirect($this->config->path('admin')));
     }
 
-    public function categories(): ResponseInterface
+    public function categories(ServerRequestInterface $request): ResponseInterface
     {
-        return $this->view->render('admin/pages/categories.twig', ['categories' => $this->catalog->allCategories(true)]);
+        $search = trim(mb_substr((string) ($request->getQueryParams()['cautare'] ?? ''), 0, 120));
+        $allCategories = $this->catalogAdmin->categoriesForAdmin();
+        $categories = $search === '' ? $allCategories : $this->catalogAdmin->categoriesForAdmin($search);
+        return $this->view->render('admin/pages/categories.twig', [
+            'categories' => $categories,
+            'category_total' => count($allCategories),
+            'root_total' => count(array_filter($allCategories, static fn(array $category): bool => $category['parent_id'] === null)),
+            'search' => $search,
+            'has_filters' => $search !== '',
+            'admin_section' => 'categories',
+            'admin_context' => 'Categorii',
+            'admin_unread_count' => $this->notificationService->unreadCount((int) ($this->auth->user()['id'] ?? 0)),
+        ]);
     }
 
     public function categoryForm(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
     {
         $id = isset($args['id']) ? (int) $args['id'] : null;
-        return $this->view->render('admin/pages/category-form.twig', ['category' => $id ? $this->catalog->categoryById($id) : null, 'categories' => $this->catalog->allCategories(true)]);
+        $category = $id === null ? null : $this->catalog->categoryById($id);
+        if ($id !== null && $category === null) {
+            Flash::set('error', 'Categoria solicitată nu mai există.');
+            return $this->view->redirect($this->config->path('admin/categorii/'));
+        }
+        return $this->view->render('admin/pages/category-form.twig', [
+            'category' => $category,
+            'parent_categories' => $this->catalogAdmin->categoryParentTree($id),
+            'suggested_position' => $category ? (int) $category['position'] : $this->catalogAdmin->nextRootCategoryPosition(),
+            'form_action' => $this->config->path($id === null ? 'admin/categorii/noua/' : 'admin/categorii/' . $id . '/editare/'),
+            'admin_section' => 'categories',
+            'admin_context' => $id === null ? 'Categorie nouă' : 'Editare categorie',
+            'admin_unread_count' => $this->notificationService->unreadCount((int) ($this->auth->user()['id'] ?? 0)),
+        ]);
+    }
+
+    public function categoryModalForm(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $id = isset($args['id']) ? (int) $args['id'] : null;
+        $category = $id === null ? null : $this->catalog->categoryById($id);
+        if ($id !== null && $category === null) {
+            return $this->view->render('admin/partials/product-form-error.twig', [], 404);
+        }
+        return $this->view->render('admin/partials/category-form-modal.twig', [
+            'category' => $category,
+            'parent_categories' => $this->catalogAdmin->categoryParentTree($id),
+            'suggested_position' => $category ? (int) $category['position'] : $this->catalogAdmin->nextRootCategoryPosition(),
+            'form_action' => $this->config->path($id === null ? 'admin/categorii/noua/' : 'admin/categorii/' . $id . '/editare/'),
+        ]);
+    }
+
+    public function categoryNameAvailability(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    {
+        $query = $request->getQueryParams();
+        $name = trim(mb_substr((string) ($query['nume'] ?? ''), 0, 190));
+        $excludeId = max(0, (int) ($query['exclude_id'] ?? 0));
+        $available = $name !== '' && $this->catalogAdmin->isCategoryNameAvailable($name, $excludeId > 0 ? $excludeId : null);
+        $response->getBody()->write((string) json_encode([
+            'ok' => true,
+            'available' => $available,
+            'message' => $name === '' ? 'Scrie denumirea pe care o va vedea clientul.' : ($available ? 'Denumirea este disponibilă.' : 'Există deja o categorie cu acest nume.'),
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        return $response->withHeader('Content-Type', 'application/json; charset=utf-8')->withHeader('Cache-Control', 'no-store');
+    }
+
+    public function categorySlugAvailability(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    {
+        $query = $request->getQueryParams();
+        $slug = $this->catalogAdmin->normalizeCategorySlug((string) ($query['slug'] ?? ''));
+        $excludeId = max(0, (int) ($query['exclude_id'] ?? 0));
+        $available = $slug !== '' && $this->catalogAdmin->isCategorySlugAvailable($slug, $excludeId > 0 ? $excludeId : null);
+        $response->getBody()->write((string) json_encode([
+            'ok' => true,
+            'available' => $available,
+            'slug' => $slug,
+            'message' => $slug === '' ? 'Slugul se generează automat din nume.' : ($available ? 'Slugul este disponibil.' : 'Acest slug este deja folosit.'),
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        return $response->withHeader('Content-Type', 'application/json; charset=utf-8')->withHeader('Cache-Control', 'no-store');
     }
 
     public function saveCategory(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
     {
+        $wantsJson = str_contains(strtolower($request->getHeaderLine('Accept')), 'application/json');
         try {
-            $id = $this->catalogAdmin->saveCategory((array) ($request->getParsedBody() ?? []), isset($args['id']) ? (int) $args['id'] : null);
-            Flash::set('success', 'Categoria a fost salvată.');
+            $data = (array) ($request->getParsedBody() ?? []);
+            $image = $request->getUploadedFiles()['image'] ?? null;
+            if ($image !== null && $image->getError() !== UPLOAD_ERR_NO_FILE) {
+                $altText = trim((string) ($data['image_alt'] ?? ''));
+                $data['image_media_id'] = $this->media->upload($image, $altText !== '' ? $altText : (string) ($data['name'] ?? 'Imagine categorie'));
+                $data['remove_image'] = '0';
+            }
+            $id = $this->catalogAdmin->saveCategory($data, isset($args['id']) ? (int) $args['id'] : null);
+            $savedImageId = (int) ($data['image_media_id'] ?? 0);
+            if ($savedImageId > 0 && !in_array((string) ($data['remove_image'] ?? ''), ['1', 'on'], true)) {
+                $this->media->updateAltText($savedImageId, trim((string) ($data['image_alt'] ?? '')) ?: (string) ($data['name'] ?? 'Imagine categorie'));
+            }
+            if ($wantsJson) {
+                $response->getBody()->write((string) json_encode(['ok' => true, 'id' => $id, 'message' => 'Categoria a fost salvată și arborele a fost actualizat.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+                return $response->withHeader('Content-Type', 'application/json; charset=utf-8')->withHeader('Cache-Control', 'no-store');
+            }
+            Flash::set('success', 'Categoria a fost salvată și arborele a fost actualizat.');
             return $this->view->redirect($this->config->path('admin/categorii/' . $id . '/editare/'));
         } catch (\Throwable $exception) {
+            if ($wantsJson) {
+                $response->getBody()->write((string) json_encode(['ok' => false, 'message' => $exception->getMessage()], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+                return $response->withStatus(422)->withHeader('Content-Type', 'application/json; charset=utf-8')->withHeader('Cache-Control', 'no-store');
+            }
             Flash::set('error', $exception->getMessage());
             return $this->view->redirect($request->getHeaderLine('Referer') ?: $this->config->path('admin/categorii/'));
         }
+    }
+
+    public function deleteCategory(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        try {
+            $name = $this->catalogAdmin->deleteCategory((int) ($args['id'] ?? 0));
+            Flash::set('success', 'Categoria „' . $name . '” a fost ștearsă.');
+        } catch (\Throwable $exception) {
+            Flash::set('error', $exception->getMessage());
+        }
+        return $this->view->redirect($this->config->path('admin/categorii/'));
     }
 
     public function products(ServerRequestInterface $request): ResponseInterface
@@ -382,7 +482,7 @@ final class AdminController
         try {
             $files = $request->getUploadedFiles();
             if (!isset($files['image'])) {
-                throw new \RuntimeException('Alege o imagine pentru descriere.');
+                throw new \RuntimeException('Alege o imagine pentru încărcare.');
             }
             $data = (array) ($request->getParsedBody() ?? []);
             $id = $this->media->upload($files['image'], (string) ($data['alt_text'] ?? ''));
@@ -392,6 +492,7 @@ final class AdminController
             }
             $payload = [
                 'ok' => true,
+                'id' => $id,
                 'url' => $this->config->path((string) $media['public_path']),
                 'alt' => (string) ($media['alt_text'] ?? ''),
                 'width' => (int) ($media['width'] ?? 0),

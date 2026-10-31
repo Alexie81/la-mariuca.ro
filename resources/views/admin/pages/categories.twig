@@ -1,1 +1,63 @@
-{% extends 'admin/layouts/base.twig' %}{% block title %}Categorii{% endblock %}{% block content %}<div class="admin-title"><div><h1>Categorii</h1><p>Taxonomie ierarhică independentă de meniul vizual.</p></div><a class="button" href="{{ url('admin/categorii/noua/') }}">Categorie nouă</a></div><div class="panel table-wrap"><table><thead><tr><th>Nume</th><th>Părinte</th><th>Slug</th><th>Stare</th><th>Indexare</th><th></th></tr></thead><tbody>{% for category in categories %}<tr><td>{{ category.name }}</td><td>{{ category.parent_name|default('—') }}</td><td>{{ category.slug }}</td><td>{{ category.status }}</td><td>{{ category.indexable ? 'Da' : 'Nu' }}</td><td><a href="{{ url('admin/categorii/' ~ category.id ~ '/editare/') }}">Editează</a></td></tr>{% else %}<tr><td colspan="6">Nu există categorii.</td></tr>{% endfor %}</tbody></table></div>{% endblock %}
+{% extends 'admin/layouts/base.twig' %}
+
+{% block title %}Categorii{% endblock %}
+
+{% block content %}
+  <section class="admin-categories-hero" aria-labelledby="admin-categories-title">
+    <div>
+      <span class="admin-eyebrow"><i aria-hidden="true"></i> Arhitectura catalogului</span>
+      <h1 id="admin-categories-title">Categorii</h1>
+      <p>Construiește arborele magazinului pas cu pas. Fiecare subcategorie își găsește locul alegând părintele potrivit.</p>
+      <div class="admin-categories-hero__stats" aria-label="Rezumat categorii"><span><strong>{{ category_total }}</strong> categorii</span><span><strong>{{ root_total }}</strong> principale</span></div>
+    </div>
+    <a class="admin-products-add" href="{{ url('admin/categorii/noua/') }}" data-admin-category-editor-trigger data-modal-url="{{ url('admin/categorii/noua/modal/') }}"><span>Adaugă categorie</span><i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></i></a>
+  </section>
+
+  <section class="admin-categories-card" aria-labelledby="admin-categories-tree-title">
+    <header class="admin-categories-card__head"><div><span class="admin-eyebrow">Hartă vizuală</span><h2 id="admin-categories-tree-title">Arborele categoriilor</h2></div><p><i aria-hidden="true"></i> Liniile și retragerile arată nivelurile</p></header>
+    <form class="admin-categories-search" action="{{ url('admin/categorii/') }}" method="get" role="search">
+      <label><span class="sr-only">Caută în categorii</span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m16.5 16.5 4 4"/></svg><input type="search" name="cautare" value="{{ search }}" placeholder="Caută după nume, slug sau traseu…" autocomplete="off"></label>
+      <button type="submit" aria-label="Caută"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m16.5 16.5 4 4"/></svg></button>
+      {% if has_filters %}<a href="{{ url('admin/categorii/') }}" aria-label="Șterge căutarea"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7l-10 10"/></svg></a>{% endif %}
+    </form>
+
+    {% if categories %}
+      <div class="admin-categories-table-wrap">
+        <table class="admin-categories-table">
+          <colgroup><col class="admin-category-col--identity"><col class="admin-category-col--slug"><col class="admin-category-col--order"><col class="admin-category-col--products"><col class="admin-category-col--status"><col class="admin-category-col--actions"></colgroup>
+          <thead><tr><th>Categorie</th><th>Slug</th><th>Ordine</th><th>Produse</th><th>Stare</th><th>Acțiuni</th></tr></thead>
+          <tbody>
+            {% for category in categories %}
+              {% set delete_blocked = category.child_count > 0 or category.product_count > 0 %}
+              <tr data-admin-category-row data-category-depth="{{ category.depth }}" style="--category-depth:{{ category.depth }}" class="{{ category.is_search_match|default(false) ? 'is-search-match' : '' }}">
+                <td data-label="Categorie" class="admin-categories-table__identity" title="{{ category.path_label }}">
+                  <div class="admin-category-tree-cell{{ category.image_path ? ' has-image' : '' }}">
+                    {% if category.depth > 0 %}<span class="admin-category-tree-branches" aria-hidden="true">{% for continues in category.ancestor_connectors %}<i class="admin-category-tree-branch {{ continues ? 'continues' : 'is-empty' }}"></i>{% endfor %}<i class="admin-category-tree-branch admin-category-tree-branch--elbow {{ category.is_last ? 'is-last' : '' }}"></i></span>{% endif %}
+                    {% if category.image_path %}<img src="{{ url(category.image_path) }}" width="48" height="48" alt="{{ category.image_alt ?: category.name }}" loading="lazy">{% endif %}
+                    <span class="admin-category-tree-cell__copy"><span><strong>{{ category.name }}</strong></span><small>{{ category.parent_id is null ? 'Categorie principală' : 'Subcategorie în ' ~ category.parent_name }}</small></span>
+                  </div>
+                </td>
+                <td data-label="Slug"><code class="admin-category-slug">{{ category.slug }}</code></td>
+                <td data-label="Ordine">{% if category.parent_id is null %}<span class="admin-category-order"><strong>{{ category.position }}</strong><small>principală</small></span>{% else %}<span class="admin-category-order is-inherited">—<small>din arbore</small></span>{% endif %}</td>
+                <td data-label="Produse"><span class="admin-category-products"><strong>{{ category.product_count }}</strong><small>{{ category.product_count == 1 ? 'produs direct' : 'produse directe' }}</small></span></td>
+                <td data-label="Stare"><span class="admin-category-status admin-category-status--{{ category.status }}">{{ category.status == 'published' ? 'Publicată' : (category.status == 'draft' ? 'Draft' : 'Arhivată') }}</span>{% if category.visibility == 'hidden' %}<small class="admin-category-hidden">ascunsă</small>{% endif %}</td>
+                <td data-label="Acțiuni" class="admin-categories-table__actions"><div>
+                  <a href="{{ url('admin/categorii/' ~ category.id ~ '/editare/') }}" data-admin-category-editor-trigger data-modal-url="{{ url('admin/categorii/' ~ category.id ~ '/editare/modal/') }}" aria-label="Editează {{ category.name }}" title="Editează"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 20 4.2-1 10.4-10.4a2 2 0 0 0-2.8-2.8L5.4 16.2 4 20Z"/><path d="m14.5 7.1 2.8 2.8"/></svg><span>Editează</span></a>
+                  <form action="{{ url('admin/categorii/' ~ category.id ~ '/sterge/') }}" method="post" data-admin-category-delete-form data-category-name="{{ category.name }}" data-category-blocked="{{ delete_blocked ? '1' : '0' }}" data-category-delete-note="{% if category.child_count > 0 %}Are {{ category.child_count }} {{ category.child_count == 1 ? 'subcategorie' : 'subcategorii' }}.{% endif %}{% if category.product_count > 0 %} Are {{ category.product_count }} {{ category.product_count == 1 ? 'produs asociat' : 'produse asociate' }}.{% endif %}">
+                    <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><button type="submit" aria-label="Șterge {{ category.name }}" title="{{ delete_blocked ? 'Categoria are elemente asociate' : 'Șterge categoria' }}" class="{{ delete_blocked ? 'is-blocked' : '' }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5"/></svg><span>Șterge</span></button>
+                  </form>
+                </div></td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="admin-categories-empty"><span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5h6v5H4zM14 14h6v5h-6zM4 14h6v5H4z"/><path d="M7 10v2h10v2M7 12v2"/></svg></span><strong>{{ has_filters ? 'Nu am găsit categoria căutată' : 'Arborele este încă gol' }}</strong><p>{{ has_filters ? 'Încearcă numele, slugul sau o categorie părinte.' : 'Începe cu o categorie principală, apoi așază subcategoriile sub ea.' }}</p><a href="{{ has_filters ? url('admin/categorii/') : url('admin/categorii/noua/') }}"{% if not has_filters %} data-admin-category-editor-trigger data-modal-url="{{ url('admin/categorii/noua/modal/') }}"{% endif %}>{{ has_filters ? 'Vezi întregul arbore' : 'Adaugă prima categorie' }}</a></div>
+    {% endif %}
+  </section>
+
+  <dialog class="admin-category-editor-dialog" data-admin-category-editor-dialog aria-labelledby="admin-category-editor-title"><div class="admin-category-editor-dialog__surface"><button class="admin-category-editor-dialog__close" type="button" aria-label="Închide editorul" data-admin-category-editor-close><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"/></svg></button><div class="admin-category-editor-dialog__content" data-admin-category-editor-content aria-live="polite"><div class="admin-category-editor-dialog__loading"><span aria-hidden="true"><i></i><i></i><i></i></span><strong>Pregătim atelierul categoriei…</strong><small>Încărcăm arborele și setările de afișare.</small></div></div></div></dialog>
+
+  <dialog class="admin-category-delete-dialog" data-admin-category-delete-dialog aria-labelledby="admin-category-delete-title"><div><span class="admin-category-delete-dialog__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13"/></svg></span><span class="admin-eyebrow" data-admin-category-delete-eyebrow>Confirmare necesară</span><h2 id="admin-category-delete-title" data-admin-category-delete-title>Ștergi categoria?</h2><p><strong data-admin-category-delete-name></strong> <span data-admin-category-delete-message>va fi eliminată definitiv din arbore.</span></p><p class="admin-category-delete-dialog__note" data-admin-category-delete-note hidden></p><footer><button type="button" data-admin-category-delete-cancel>Renunță</button><button type="button" data-admin-category-delete-confirm>Da, șterge categoria</button></footer></div></dialog>
+{% endblock %}
