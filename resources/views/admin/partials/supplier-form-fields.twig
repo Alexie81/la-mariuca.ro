@@ -1,5 +1,6 @@
 <form class="admin-supplier-form" action="{{ form_action }}" method="post" data-admin-supplier-form>
   <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  {% if supplier_modal|default(false) %}<div class="admin-supplier-form__scroll">{% endif %}
   <section>
     <header><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V6l8-3 8 3v14M8 8h2M14 8h2M8 12h2M14 12h2M10 20v-4h4v4"/></svg></span><div><small>Identitate</small><h2>Cum îl recunoști</h2></div></header>
     <div class="admin-supplier-form__grid">
@@ -28,6 +29,7 @@
   </section>
 
   <p class="admin-supplier-form__feedback" data-admin-supplier-form-feedback hidden></p>
+  {% if supplier_modal|default(false) %}</div>{% endif %}
   <footer class="admin-supplier-form__actions">
     <a href="{{ url('admin/furnizori/') }}" data-admin-supplier-editor-close>Renunță</a>
     <button type="submit" data-admin-supplier-submit><span>{{ supplier ? 'Salvează modificările' : 'Adaugă furnizorul' }}</span><i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></i></button>

@@ -43,6 +43,7 @@ final class SupplierAdminTest extends DatabaseTestCase
         $newModal = (string) $this->get('/admin/furnizori/nou/modal/')->getBody();
         self::assertStringContainsString('data-admin-supplier-form', $newModal);
         self::assertStringContainsString('Adaugă un furnizor', $newModal);
+        self::assertStringContainsString('admin-supplier-form__scroll', $newModal);
 
         $create = $this->post('/admin/furnizori/nou/', [
             '_csrf' => $_SESSION['_csrf'],
@@ -68,6 +69,8 @@ final class SupplierAdminTest extends DatabaseTestCase
         $list = (string) $this->get('/admin/furnizori/?cautare=Maria')->getBody();
         self::assertStringContainsString('ATELIER ROZ', $list);
         self::assertStringContainsString('Atelier Roz SRL', $list);
+        self::assertStringContainsString('class="admin-suppliers-table"', $list);
+        self::assertStringContainsString('<th>Furnizor</th>', $list);
         self::assertStringContainsString('data-admin-supplier-delete-form', $list);
 
         $modal = (string) $this->get('/admin/produse/nou/modal/')->getBody();

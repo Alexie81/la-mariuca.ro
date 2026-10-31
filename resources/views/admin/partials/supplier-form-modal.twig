@@ -6,4 +6,5 @@
     <p>{{ supplier ? supplier.alias ~ (supplier.company_name ? ' — ' ~ supplier.company_name : '') : 'Doar aliasul este obligatoriu. Restul poate fi completat oricând.' }}</p>
   </div>
 </header>
+{% set supplier_modal = true %}
 {% include 'admin/partials/supplier-form-fields.twig' %}
