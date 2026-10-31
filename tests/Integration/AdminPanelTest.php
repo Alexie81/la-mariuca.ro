@@ -140,6 +140,7 @@ final class AdminPanelTest extends DatabaseTestCase
         self::assertStringContainsString('data-product-slug-input', (string) $newModal->getBody());
         self::assertStringContainsString('/admin/produse/verifica-slug/', (string) $newModal->getBody());
         self::assertStringContainsString('Categorii <b>*</b>', (string) $newModal->getBody());
+        self::assertStringContainsString('data-admin-product-save-status-label>Up to date</span>', (string) $newModal->getBody());
         self::assertStringNotContainsString('Categoria principală', (string) $newModal->getBody());
         self::assertStringContainsString('data-admin-category-picker', (string) $newModal->getBody());
         self::assertStringContainsString('data-admin-category-search', (string) $newModal->getBody());

@@ -484,6 +484,19 @@
   const productNameRequests = new WeakMap();
   const productSkuRequests = new WeakMap();
   const productSlugRequests = new WeakMap();
+  const setProductFormSyncState = (form, state) => {
+    if (!form) return;
+    const status = form.querySelector('[data-admin-product-save-status]');
+    const label = status?.querySelector('[data-admin-product-save-status-label]');
+    form.classList.toggle('is-dirty', state === 'dirty');
+    form.classList.toggle('is-up-to-date', state === 'synced');
+    if (label) label.textContent = state === 'dirty' ? 'Unsaved' : 'Up to date';
+  };
+  const markProductFormDirty = (target) => {
+    const form = target?.closest?.('[data-admin-product-form]');
+    if (!form || form.classList.contains('is-saving')) return;
+    setProductFormSyncState(form, 'dirty');
+  };
   const updateProductSubmitState = (form) => {
     if (!form) return;
     const submit = form.querySelector('[data-admin-product-submit]');
@@ -768,6 +781,7 @@
   };
 
   const initializeProductAvailability = (root) => {
+    root.querySelectorAll('[data-admin-product-form]').forEach((form) => setProductFormSyncState(form, 'synced'));
     root.querySelectorAll('[data-product-name-input]').forEach((input) => {
       if (input.value.trim()) checkProductName(input);
       syncProductSlugFromName(input);
@@ -782,6 +796,7 @@
   };
 
   document.addEventListener('input', (event) => {
+    markProductFormDirty(event.target);
     const nameInput = event.target.closest?.('[data-product-name-input]');
     if (nameInput) {
       checkProductName(nameInput);
@@ -795,6 +810,8 @@
       checkProductSlug(slugInput);
     }
   });
+
+  document.addEventListener('change', (event) => markProductFormDirty(event.target));
 
   initializeProductAvailability(document);
 
@@ -912,9 +929,10 @@
     const submitLabel = submit?.querySelector('span');
     const feedback = form.querySelector('[data-admin-product-form-feedback]');
     const saveStatus = form.querySelector('[data-admin-product-save-status]');
+    const saveStatusLabel = saveStatus?.querySelector('[data-admin-product-save-status-label]');
     if (submit) submit.disabled = true;
     if (submitLabel) submitLabel.textContent = 'Se salvează…';
-    if (saveStatus) saveStatus.lastChild.textContent = ' Salvăm în siguranță…';
+    if (saveStatusLabel) saveStatusLabel.textContent = 'Saving…';
     if (feedback) feedback.hidden = true;
     form.classList.add('is-saving');
 
@@ -931,21 +949,21 @@
       productEditorDialog?.classList.add('is-success');
       form.classList.remove('is-saving');
       form.classList.add('is-saved');
+      setProductFormSyncState(form, 'synced');
       if (submitLabel) submitLabel.textContent = 'Salvat cu grijă';
-      if (saveStatus) saveStatus.lastChild.textContent = ` ${payload.message}`;
       window.setTimeout(() => {
         closeProductEditor();
         window.setTimeout(() => window.location.reload(), reducedMotion ? 0 : 250);
       }, reducedMotion ? 80 : 720);
     } catch (error) {
       form.classList.remove('is-saving');
+      setProductFormSyncState(form, 'dirty');
       if (submitLabel) submitLabel.textContent = 'Încearcă din nou';
       if (feedback) {
         feedback.textContent = error.message || 'A apărut o problemă temporară. Verifică datele și încearcă din nou.';
         feedback.hidden = false;
         feedback.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'center' });
       }
-      if (saveStatus) saveStatus.lastChild.textContent = ' Produsul nu a fost salvat';
       updateProductSubmitState(form);
     }
   });

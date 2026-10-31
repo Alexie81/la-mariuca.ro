@@ -164,7 +164,7 @@
   </div>
 
   <footer class="admin-product-editor__footer">
-    <span class="admin-product-editor__save-status" data-admin-product-save-status><i aria-hidden="true"></i> Modificările sunt verificate înainte de salvare</span>
+    <span class="admin-product-editor__save-status" data-admin-product-save-status role="status" aria-live="polite"><i aria-hidden="true"></i><span data-admin-product-save-status-label>Up to date</span></span>
     <div class="admin-product-editor__footer-actions">
       {% if is_modal %}<button type="button" class="admin-product-editor__cancel" data-admin-product-editor-close>Renunță</button>{% endif %}
       <button type="submit" class="admin-product-editor__submit" data-admin-product-submit>
