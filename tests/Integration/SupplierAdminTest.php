@@ -71,6 +71,8 @@ final class SupplierAdminTest extends DatabaseTestCase
         self::assertStringContainsString('Atelier Roz SRL', $list);
         self::assertStringContainsString('class="admin-suppliers-table"', $list);
         self::assertStringContainsString('<th>Furnizor</th>', $list);
+        self::assertStringContainsString('admin-suppliers-table__action-group', $list);
+        self::assertStringContainsString('admin-suppliers-table__link', $list);
         self::assertStringContainsString('data-admin-supplier-delete-form', $list);
 
         $modal = (string) $this->get('/admin/produse/nou/modal/')->getBody();

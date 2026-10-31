@@ -47,18 +47,20 @@
                   <span class="admin-suppliers-table__avatar" aria-hidden="true">{{ supplier.alias|slice(0, 1)|upper }}</span>
                   <span><strong>{{ supplier.alias }}</strong><small>{{ supplier.company_name ?: 'Firma nu este completată' }}</small>{% if supplier.website %}<a href="{{ supplier.website }}" target="_blank" rel="noopener">{{ supplier.website }}</a>{% endif %}</span>
                 </td>
-                <td data-label="Contact"><strong>{{ supplier.contact_name ?: '—' }}</strong></td>
-                <td data-label="Email">{% if supplier.email %}<a href="mailto:{{ supplier.email }}">{{ supplier.email }}</a>{% else %}—{% endif %}</td>
-                <td data-label="Telefon">{% if supplier.phone %}<a href="tel:{{ supplier.phone }}">{{ supplier.phone }}</a>{% else %}—{% endif %}</td>
-                <td data-label="CUI"><code>{{ supplier.tax_id ?: '—' }}</code></td>
+                <td data-label="Contact"><strong class="admin-suppliers-table__contact">{{ supplier.contact_name ?: '—' }}</strong></td>
+                <td data-label="Email">{% if supplier.email %}<a class="admin-suppliers-table__link" href="mailto:{{ supplier.email }}"><i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 5h18v14H3z"/><path d="m3 7 9 7 9-7"/></svg></i><span>{{ supplier.email }}</span></a>{% else %}—{% endif %}</td>
+                <td data-label="Telefon">{% if supplier.phone %}<a class="admin-suppliers-table__link" href="tel:{{ supplier.phone }}"><i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 3H4a1 1 0 0 0-1 1c0 9.4 7.6 17 17 17a1 1 0 0 0 1-1v-3l-4-2-2 2c-3.8-1.6-6.4-4.2-8-8l2-2-2-4Z"/></svg></i><span>{{ supplier.phone }}</span></a>{% else %}—{% endif %}</td>
+                <td data-label="CUI"><code class="admin-suppliers-table__tax">{{ supplier.tax_id ?: '—' }}</code></td>
                 <td data-label="Produse"><span class="admin-suppliers-table__count"><strong>{{ supplier.product_count }}</strong><small>{{ supplier.product_count == 1 ? 'produs' : 'produse' }}</small></span></td>
                 <td data-label="Status"><span class="admin-supplier-card__status{{ supplier.status == 'active' ? ' is-active' : '' }}">{{ supplier.status == 'active' ? 'Activ' : 'Inactiv' }}</span></td>
                 <td data-label="Acțiuni" class="admin-suppliers-table__actions">
-                  <a href="{{ url('admin/furnizori/' ~ supplier.id ~ '/editare/') }}" data-admin-supplier-editor-trigger data-modal-url="{{ url('admin/furnizori/' ~ supplier.id ~ '/editare/modal/') }}" aria-label="Editează {{ supplier.alias }}" title="Editează"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 20 4.2-1 10.4-10.4a2 2 0 0 0-2.8-2.8L5.4 16.2 4 20Z"/><path d="m14.5 7.1 2.8 2.8"/></svg></a>
-                  <form action="{{ url('admin/furnizori/' ~ supplier.id ~ '/sterge/') }}" method="post" data-admin-supplier-delete-form data-supplier-name="{{ supplier.alias }}">
-                    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-                    <button type="submit" aria-label="Șterge {{ supplier.alias }}" title="Șterge"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5"/></svg></button>
-                  </form>
+                  <div class="admin-suppliers-table__action-group">
+                    <a href="{{ url('admin/furnizori/' ~ supplier.id ~ '/editare/') }}" data-admin-supplier-editor-trigger data-modal-url="{{ url('admin/furnizori/' ~ supplier.id ~ '/editare/modal/') }}" aria-label="Editează {{ supplier.alias }}" title="Editează"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 20 4.2-1 10.4-10.4a2 2 0 0 0-2.8-2.8L5.4 16.2 4 20Z"/><path d="m14.5 7.1 2.8 2.8"/></svg></a>
+                    <form action="{{ url('admin/furnizori/' ~ supplier.id ~ '/sterge/') }}" method="post" data-admin-supplier-delete-form data-supplier-name="{{ supplier.alias }}">
+                      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                      <button type="submit" aria-label="Șterge {{ supplier.alias }}" title="Șterge"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5"/></svg></button>
+                    </form>
+                  </div>
                 </td>
               </tr>
             {% endfor %}
