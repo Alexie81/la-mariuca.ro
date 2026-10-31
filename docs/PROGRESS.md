@@ -841,3 +841,9 @@ atribute și filtre fără schimbarea contractelor existente.
 - Zona SEO din editorul produsului este acum ghidată și responsive: are recomandări și contoare de caractere, previzualizare Google actualizată în timp real din titlu/descriere/nume/slug și o stare explicită pentru indexare. Fără JavaScript rămân disponibile câmpurile și valorile inițiale randate de server.
 - Grila scrollabilă a modalului păstrează acum fiecare secțiune la înălțimea sa reală (`max-content`), astfel încât zona SEO nu mai poate fi comprimată la un rând subțire. Verificarea vizuală a confirmat înălțimea completă de 550 px pe desktop și 960 px la 390×844 px, cu headerul și footerul modalului fixe.
 - Verificarea din browser a confirmat animația desktop `350 → 1418 px` și înapoi, plus animația mobilă la 390×844 px `280 → 1066 px` și înapoi; „Îngrijire” nu mai apare în DOM. Lint-ul PHP, sintaxa JavaScript, 49 de template-uri Twig, PHPStan și suita PHPUnit cu 88 de teste / 833 de aserțiuni trec integral.
+
+### 2026-10-31 — SEO produse completat automat, cu suprascriere manuală
+- Titlul din Google se completează în timp real din numele produsului cât timp câmpul SEO nu a fost editat manual; descrierea din Google copiază integral descrierea scurtă, inclusiv peste recomandarea vizuală de 160 de caractere.
+- Golirea unui câmp SEO reactivează completarea automată, iar orice valoare introdusă manual rămâne independentă de numele sau descrierea produsului.
+- Salvarea pe server aplică aceleași reguli fără JavaScript: un titlu SEO gol devine numele produsului, iar o meta descriere goală devine descrierea scurtă.
+- Verificarea în browser a confirmat sincronizarea în timp real, păstrarea unei descrieri de 173 de caractere, suprascrierea manuală și revenirea la modul automat prin golire. Lint-ul PHP, 49 de template-uri Twig, PHPStan și întreaga suită PHPUnit cu 88 de teste / 841 de aserțiuni trec integral.

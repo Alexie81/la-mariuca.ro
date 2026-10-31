@@ -1221,6 +1221,39 @@
     output.classList.toggle('is-over-limit', count > recommendedLength);
   };
 
+  const updateProductSeoAutofillMessage = (section, input, type) => {
+    const message = section.querySelector(`[data-product-seo-${type}-mode]`);
+    if (!message || !input) return;
+    const automatic = input.dataset.productSeoAutomatic === 'true';
+    if (type === 'title') {
+      message.textContent = automatic
+        ? 'Completat automat din numele produsului. Îl poți modifica manual.'
+        : 'Editat manual. Golește câmpul pentru a reveni la numele produsului.';
+      return;
+    }
+    message.textContent = automatic
+      ? 'Completată automat, integral, din descrierea scurtă. O poți modifica manual.'
+      : 'Editată manual. Golește câmpul pentru a reveni la descrierea scurtă.';
+  };
+
+  const syncProductSeoAutomaticFields = (section) => {
+    const form = section?.closest('[data-admin-product-form]');
+    if (!form) return;
+    const seoTitle = section.querySelector('[data-product-seo-title]');
+    const seoDescription = section.querySelector('[data-product-seo-description]');
+    const productName = form.querySelector('[data-product-name-input]');
+    const shortDescription = form.querySelector('[data-product-short-description]');
+
+    if (seoTitle?.dataset.productSeoAutomatic === 'true' && productName) {
+      seoTitle.value = productName.value;
+    }
+    if (seoDescription?.dataset.productSeoAutomatic === 'true' && shortDescription) {
+      seoDescription.value = shortDescription.value;
+    }
+    updateProductSeoAutofillMessage(section, seoTitle, 'title');
+    updateProductSeoAutofillMessage(section, seoDescription, 'description');
+  };
+
   const productSeoPreviewUrl = (section, slug) => {
     const preview = section.querySelector('[data-product-seo-base-url]');
     const baseUrl = preview?.dataset.productSeoBaseUrl || '/produs/';
@@ -1264,7 +1297,18 @@
   };
 
   const initializeProductSeo = (root) => {
-    root.querySelectorAll('[data-product-seo]').forEach((section) => updateProductSeoPreview(section));
+    root.querySelectorAll('[data-product-seo]').forEach((section) => {
+      const seoTitle = section.querySelector('[data-product-seo-title]');
+      const seoDescription = section.querySelector('[data-product-seo-description]');
+      if (seoTitle && !seoTitle.dataset.productSeoAutomatic) {
+        seoTitle.dataset.productSeoAutomatic = seoTitle.value.trim() === '' ? 'true' : 'false';
+      }
+      if (seoDescription && !seoDescription.dataset.productSeoAutomatic) {
+        seoDescription.dataset.productSeoAutomatic = seoDescription.value.trim() === '' ? 'true' : 'false';
+      }
+      syncProductSeoAutomaticFields(section);
+      updateProductSeoPreview(section);
+    });
   };
 
   document.addEventListener('input', (event) => {
@@ -1301,7 +1345,14 @@
       checkProductSlug(slugInput);
     }
     if (productForm && event.target.matches?.('[data-product-seo-title],[data-product-seo-description],[data-product-name-input],[data-product-short-description],[data-product-slug-input]')) {
-      productForm.querySelectorAll('[data-product-seo]').forEach((section) => updateProductSeoPreview(section));
+      const seoSection = event.target.closest?.('[data-product-seo]');
+      if (seoSection && event.target.matches('[data-product-seo-title],[data-product-seo-description]')) {
+        event.target.dataset.productSeoAutomatic = event.target.value.trim() === '' ? 'true' : 'false';
+      }
+      productForm.querySelectorAll('[data-product-seo]').forEach((section) => {
+        syncProductSeoAutomaticFields(section);
+        updateProductSeoPreview(section);
+      });
     }
   });
 

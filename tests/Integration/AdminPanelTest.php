@@ -170,9 +170,12 @@ final class AdminPanelTest extends DatabaseTestCase
         self::assertCount(2, $categoryIds);
         $categoryId = $categoryIds[0];
         $secondaryCategoryId = $categoryIds[1];
+        $automaticMetaDescription = 'O descriere scurtă completată automat în prezentarea Google, păstrată integral chiar și atunci când depășește recomandarea de o sută șaizeci de caractere, fără nicio tăiere.';
+        self::assertGreaterThan(160, mb_strlen($automaticMetaDescription));
         $created = $this->request('POST', '/admin/produse/nou/', [
             '_csrf' => $_SESSION['_csrf'],
             'name' => 'Produs creat din modal',
+            'short_description' => $automaticMetaDescription,
             'sku' => 'LM-MODAL-001',
             'price' => '149,90',
             'stock' => '4',
@@ -191,6 +194,11 @@ final class AdminPanelTest extends DatabaseTestCase
         self::assertSame(1, (int) $this->pdo->query("SELECT p.featured FROM products p JOIN product_variants v ON v.product_id=p.id WHERE v.sku='LM-MODAL-001'")->fetchColumn());
         self::assertSame($categoryId, (int) $this->pdo->query('SELECT primary_category_id FROM products WHERE id=' . $createdId)->fetchColumn());
         self::assertSame(2, (int) $this->pdo->query('SELECT COUNT(*) FROM product_categories WHERE product_id=' . $createdId)->fetchColumn());
+        $createdSeo = $this->pdo->query('SELECT name,short_description,seo_title,meta_description FROM products WHERE id=' . $createdId)->fetch();
+        self::assertIsArray($createdSeo);
+        self::assertSame($createdSeo['name'], $createdSeo['seo_title']);
+        self::assertSame($automaticMetaDescription, $createdSeo['short_description']);
+        self::assertSame($automaticMetaDescription, $createdSeo['meta_description']);
         $createdEditModal = (string) $this->get('/admin/produse/' . $createdId . '/editare/modal/')->getBody();
         self::assertMatchesRegularExpression('/name="category_ids\[\]" value="' . $categoryId . '" checked/', $createdEditModal);
         self::assertMatchesRegularExpression('/name="category_ids\[\]" value="' . $secondaryCategoryId . '" checked/', $createdEditModal);
@@ -283,6 +291,9 @@ final class AdminPanelTest extends DatabaseTestCase
         $autoSkuCreated = $this->request('POST', '/admin/produse/nou/', [
             '_csrf' => $_SESSION['_csrf'],
             'name' => 'Produs cu SKU automat',
+            'short_description' => 'Descriere scurtă pentru produsul cu valori SEO manuale.',
+            'seo_title' => 'Titlu Google scris manual',
+            'meta_description' => 'Descriere Google scrisă manual.',
             'slug' => '',
             'sku' => '',
             'price' => '119,00',
@@ -295,6 +306,10 @@ final class AdminPanelTest extends DatabaseTestCase
         $autoSku = (string) $this->pdo->query('SELECT sku FROM product_variants WHERE product_id=' . (int) $autoSkuPayload['id'])->fetchColumn();
         self::assertMatchesRegularExpression('/^LM-\d{2}-\d{3,}$/', $autoSku);
         self::assertSame('produs-cu-sku-automat', (string) $this->pdo->query('SELECT slug FROM products WHERE id=' . (int) $autoSkuPayload['id'])->fetchColumn());
+        $manualSeo = $this->pdo->query('SELECT seo_title,meta_description FROM products WHERE id=' . (int) $autoSkuPayload['id'])->fetch();
+        self::assertIsArray($manualSeo);
+        self::assertSame('Titlu Google scris manual', $manualSeo['seo_title']);
+        self::assertSame('Descriere Google scrisă manual.', $manualSeo['meta_description']);
 
         $variantCreated = $this->request('POST', '/admin/produse/nou/', [
             '_csrf' => $_SESSION['_csrf'],

@@ -103,7 +103,7 @@ final class CatalogAdminService
         try {
             if ($id === null) {
                 $statement = $this->pdo->prepare('INSERT INTO products (name,slug,primary_sku,track_in_conta,short_description,description,brand,supplier_id,status,primary_category_id,seo_title,meta_description,composition,care_instructions,size_guide,package_contents,excluded_accessories,featured,indexable,published_at,created_at,updated_at) VALUES (:name,:slug,:primary_sku,:track_in_conta,:short_description,:description,:brand,:supplier_id,:status,:category,:seo_title,:meta_description,:composition,:care,:size_guide,:package_contents,:excluded_accessories,:featured,:indexable,:published_at,:now,:now)');
-                $statement->execute($this->productParams($data, $name, $slug, $primarySku, $trackInConta, $status, $categoryId, $supplierId, $now));
+                $statement->execute($this->productParams($data, $name, $slug, $primarySku, $trackInConta, $shortDescription, $status, $categoryId, $supplierId, $now));
                 $id = (int) $this->pdo->lastInsertId();
                 $this->saveProductCategories($id, $categoryIds);
             } else {
@@ -114,7 +114,7 @@ final class CatalogAdminService
                     throw new RuntimeException('Produsul nu există.');
                 }
                 $statement = $this->pdo->prepare('UPDATE products SET name=:name,slug=:slug,primary_sku=:primary_sku,track_in_conta=:track_in_conta,short_description=:short_description,description=:description,brand=:brand,supplier_id=:supplier_id,status=:status,primary_category_id=:category,seo_title=:seo_title,meta_description=:meta_description,composition=:composition,care_instructions=:care,size_guide=:size_guide,package_contents=:package_contents,excluded_accessories=:excluded_accessories,featured=:featured,indexable=:indexable,published_at=:published_at,updated_at=:now WHERE id=:id');
-                $statement->execute($this->productParams($data, $name, $slug, $primarySku, $trackInConta, $status, $categoryId, $supplierId, $now) + ['id' => $id]);
+                $statement->execute($this->productParams($data, $name, $slug, $primarySku, $trackInConta, $shortDescription, $status, $categoryId, $supplierId, $now) + ['id' => $id]);
                 $this->pdo->prepare('DELETE FROM product_categories WHERE product_id=:id')->execute(['id' => $id]);
                 $this->saveProductCategories($id, $categoryIds);
                 if ($oldSlug !== $slug) {
@@ -983,13 +983,16 @@ final class CatalogAdminService
     }
 
     /** @param array<string,mixed> $data @return array<string,mixed> */
-    private function productParams(array $data, string $name, string $slug, string $primarySku, bool $trackInConta, string $status, int $categoryId, ?int $supplierId, string $now): array
+    private function productParams(array $data, string $name, string $slug, string $primarySku, bool $trackInConta, string $shortDescription, string $status, int $categoryId, ?int $supplierId, string $now): array
     {
+        $seoTitle = trim((string) ($data['seo_title'] ?? ''));
+        $metaDescription = trim((string) ($data['meta_description'] ?? ''));
+
         return [
             'name' => $name, 'slug' => $slug, 'primary_sku' => $primarySku, 'track_in_conta' => $trackInConta ? 1 : 0,
-            'short_description' => trim((string) ($data['short_description'] ?? '')), 'description' => $this->descriptionSanitizer->sanitize((string) ($data['description'] ?? '')),
+            'short_description' => $shortDescription, 'description' => $this->descriptionSanitizer->sanitize((string) ($data['description'] ?? '')),
             'brand' => ($brand = trim(mb_substr((string) ($data['brand'] ?? ''), 0, 190))) === '' ? null : $brand, 'supplier_id' => $supplierId,
-            'status' => $status, 'category' => $categoryId, 'seo_title' => trim((string) ($data['seo_title'] ?? '')), 'meta_description' => trim((string) ($data['meta_description'] ?? '')),
+            'status' => $status, 'category' => $categoryId, 'seo_title' => $seoTitle !== '' ? $seoTitle : $name, 'meta_description' => $metaDescription !== '' ? $metaDescription : $shortDescription,
             'composition' => trim((string) ($data['composition'] ?? '')), 'care' => trim((string) ($data['care_instructions'] ?? '')), 'size_guide' => trim((string) ($data['size_guide'] ?? '')),
             'package_contents' => trim((string) ($data['package_contents'] ?? '')), 'excluded_accessories' => trim((string) ($data['excluded_accessories'] ?? '')),
             'featured' => isset($data['featured']) ? 1 : 0, 'indexable' => isset($data['indexable']) ? 1 : 0, 'published_at' => $status === 'published' ? $now : null, 'now' => $now,

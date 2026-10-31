@@ -418,7 +418,7 @@
             <span class="admin-product-seo__field-label"><span>Titlul din Google</span><em>recomandat: max. 60</em></span>
             <input name="seo_title" value="{{ seo_title_value }}" placeholder="Ex: Iepuraș textil «Nani» pentru copii" data-product-seo-title aria-describedby="product-seo-title-help{{ is_modal ? '-modal' : '' }}">
             <small class="admin-product-seo__field-help" id="product-seo-title-help{{ is_modal ? '-modal' : '' }}">
-              <span>Lasă-l gol pentru a folosi automat numele produsului.</span>
+              <span data-product-seo-title-mode>Se completează automat din numele produsului. Îl poți modifica manual.</span>
               <span class="admin-product-seo__counter" data-product-seo-title-count><strong>{{ seo_title_value|length }}</strong>/60</span>
             </small>
           </label>
@@ -427,7 +427,7 @@
             <span class="admin-product-seo__field-label"><span>Descrierea din Google</span><em>recomandat: max. 160</em></span>
             <textarea name="meta_description" rows="4" placeholder="Spune pe scurt ce face produsul special…" data-product-seo-description aria-describedby="product-seo-description-help{{ is_modal ? '-modal' : '' }}">{{ seo_description_value }}</textarea>
             <small class="admin-product-seo__field-help" id="product-seo-description-help{{ is_modal ? '-modal' : '' }}">
-              <span>Las-o goală pentru a folosi automat descrierea scurtă.</span>
+              <span data-product-seo-description-mode>Se completează automat, integral, din descrierea scurtă. O poți modifica manual.</span>
               <span class="admin-product-seo__counter" data-product-seo-description-count><strong>{{ seo_description_value|length }}</strong>/160</span>
             </small>
           </label>
