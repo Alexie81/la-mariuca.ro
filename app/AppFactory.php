@@ -28,7 +28,6 @@ use App\Modules\Customers\CustomerAccountService;
 use App\Modules\Customers\GoogleOAuthService;
 use App\Modules\Customers\TwoFactorController;
 use App\Modules\Media\MediaService;
-use App\Modules\Inventory\AccountingStockService;
 use App\Modules\Orders\OrderService;
 use App\Modules\Payments\StripeWebhookController;
 use App\Modules\Payments\StripeCheckoutService;
@@ -124,7 +123,7 @@ final class AppFactory
         $view = new View($twig);
         $rateLimiter = new RateLimiter($pdo);
         $content = new ContentRepository($pdo);
-        $orders = new OrderService($pdo, new AccountingStockService($pdo));
+        $orders = new OrderService($pdo);
 
         $storefront = new StorefrontController($catalog, $catalogSearch, $categoryPaths, new ProductRecommendationService($catalog), $content, $contactWhatsApp, $reviews, $rateLimiter, $auth, $view, $config);
         $cartController = new CartController($cart, $view, $config);

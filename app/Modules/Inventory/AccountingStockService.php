@@ -10,10 +10,13 @@ use RuntimeException;
 /**
  * Keeps the accounting stock separate from the online/reserved inventory.
  *
- * A sold unit is routed to exactly one accounting bucket:
+ * A line from a posted accounting document is routed to exactly one bucket:
  * - the variant snapshot, when that combination has its own accounting SKU;
  * - otherwise the parent product snapshot;
  * - nowhere, when accounting tracking was disabled at checkout.
+ *
+ * Orders, payments and shipments never call this service. Accounting stock is
+ * changed only by posted documents: an issued invoice or a received NIR.
  */
 final class AccountingStockService
 {
@@ -21,13 +24,25 @@ final class AccountingStockService
     {
     }
 
-    public function recordOrderShipment(int $orderId, int $actorId, ?string $occurredAt = null): void
+    public function recordInvoice(
+        int $orderId,
+        string $invoiceNumber,
+        int $actorId,
+        ?string $occurredAt = null,
+    ): void
     {
-        if ($orderId <= 0) {
-            throw new RuntimeException('Comanda pentru mișcarea contabilă nu este validă.');
+        $invoiceNumber = trim($invoiceNumber);
+        if ($orderId <= 0 || $invoiceNumber === '') {
+            throw new RuntimeException('Comanda și numărul facturii sunt obligatorii.');
         }
 
-        $this->transactional(function () use ($orderId, $actorId, $occurredAt): void {
+        $this->transactional(function () use ($orderId, $invoiceNumber, $actorId, $occurredAt): void {
+            $order = $this->pdo->prepare('SELECT 1 FROM orders WHERE id=:order_id LIMIT 1');
+            $order->execute(['order_id' => $orderId]);
+            if ($order->fetchColumn() === false) {
+                throw new RuntimeException('Comanda facturată nu există.');
+            }
+
             $statement = $this->pdo->prepare(
                 "SELECT accounting_scope_type,accounting_scope_id,product_id,
                         CASE WHEN accounting_scope_type='variant' THEN accounting_scope_id ELSE NULL END AS variant_id,
@@ -38,6 +53,7 @@ final class AccountingStockService
             );
             $statement->execute(['order_id' => $orderId]);
             $now = $occurredAt ?? gmdate('c');
+            $documentHash = hash('sha256', mb_strtolower($invoiceNumber, 'UTF-8'));
 
             foreach ($statement->fetchAll() as $row) {
                 $target = $this->targetFromSnapshot($row);
@@ -50,10 +66,10 @@ final class AccountingStockService
                     $target,
                     -$quantity,
                     'sale',
-                    'Vânzare prin expedierea comenzii',
-                    'order',
+                    'Ieșire din stoc prin factura ' . $invoiceNumber,
+                    'invoice',
                     $orderId,
-                    sprintf('order.ship:%d:%s:%d', $orderId, $target['scope_type'], $target['scope_id']),
+                    sprintf('invoice:%s:%s:%d', $documentHash, $target['scope_type'], $target['scope_id']),
                     $actorId,
                     $now,
                 );
@@ -62,8 +78,8 @@ final class AccountingStockService
     }
 
     /**
-     * Foundation for the future NIR workflow. The same routing rule is reused, so
-     * the receipt always restores the same accounting bucket used by a sale.
+     * Foundation for the NIR workflow. The same routing rule is reused, so the
+     * posted receipt restores the configured accounting bucket.
      */
     public function recordNir(
         int $productId,

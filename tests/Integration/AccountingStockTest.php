@@ -13,7 +13,7 @@ use Tests\DatabaseTestCase;
 
 final class AccountingStockTest extends DatabaseTestCase
 {
-    public function testSaleFallsBackToParentAndNirRestoresTheSameBucket(): void
+    public function testInvoiceFallsBackToParentAndNirRestoresTheSameBucket(): void
     {
         $this->seed();
         $variant = $this->variantWithOptions();
@@ -33,13 +33,24 @@ final class AccountingStockTest extends DatabaseTestCase
         $this->pdo->prepare('UPDATE product_variants SET track_in_conta=1 WHERE id=:id')->execute(['id' => $variantId]);
         $actorId = $this->adminActor();
         $accounting = new AccountingStockService($this->pdo);
-        $this->ship($orderId, $actorId, $accounting);
+        $this->ship($orderId, $actorId);
+
+        // Operational order transitions must never create accounting movements.
+        self::assertSame(0, (int) $this->pdo->query('SELECT COUNT(*) FROM accounting_stock_balances')->fetchColumn());
+        self::assertSame(0, (int) $this->pdo->query('SELECT COUNT(*) FROM accounting_stock_movements')->fetchColumn());
+
+        $accounting->recordInvoice($orderId, 'FACT-TEST-PARENT', $actorId);
 
         $balance = $this->pdo->query("SELECT * FROM accounting_stock_balances WHERE scope_type='product' AND scope_id={$productId}")->fetch();
         self::assertIsArray($balance);
         self::assertSame(-2, (int) $balance['quantity']);
         self::assertNull($balance['variant_id']);
         self::assertSame(0, (int) $this->pdo->query("SELECT COUNT(*) FROM accounting_stock_balances WHERE scope_type='variant'")->fetchColumn());
+
+        // Reposting the same fiscal document is idempotent.
+        $accounting->recordInvoice($orderId, 'FACT-TEST-PARENT', $actorId);
+        self::assertSame(-2, (int) $this->pdo->query("SELECT quantity FROM accounting_stock_balances WHERE scope_type='product' AND scope_id={$productId}")->fetchColumn());
+        self::assertSame(1, (int) $this->pdo->query('SELECT COUNT(*) FROM accounting_stock_movements')->fetchColumn());
 
         $this->pdo->prepare('UPDATE products SET track_in_conta=1 WHERE id=:id')->execute(['id' => $productId]);
         $accounting->recordNir($productId, null, 2, 'NIR-TEST-PARENT', $actorId);
@@ -70,7 +81,10 @@ final class AccountingStockTest extends DatabaseTestCase
 
         $actorId = $this->adminActor();
         $accounting = new AccountingStockService($this->pdo);
-        $this->ship($orderId, $actorId, $accounting);
+        $this->ship($orderId, $actorId);
+        self::assertSame(0, (int) $this->pdo->query('SELECT COUNT(*) FROM accounting_stock_movements')->fetchColumn());
+
+        $accounting->recordInvoice($orderId, 'FACT-TEST-VARIANT', $actorId);
         self::assertSame(-1, (int) $this->pdo->query("SELECT quantity FROM accounting_stock_balances WHERE scope_type='variant' AND scope_id={$variantId}")->fetchColumn());
         self::assertSame(0, (int) $this->pdo->query("SELECT COUNT(*) FROM accounting_stock_balances WHERE scope_type='product' AND scope_id={$productId}")->fetchColumn());
         self::assertSame(1, (int) $this->pdo->query('SELECT COUNT(*) FROM accounting_stock_movements')->fetchColumn());
@@ -98,7 +112,12 @@ final class AccountingStockTest extends DatabaseTestCase
             self::assertSame($productId, (int) $snapshot['accounting_scope_id']);
         }
 
-        $this->ship($orderId, $this->adminActor(), new AccountingStockService($this->pdo));
+        $actorId = $this->adminActor();
+        $accounting = new AccountingStockService($this->pdo);
+        $this->ship($orderId, $actorId);
+        self::assertSame(0, (int) $this->pdo->query('SELECT COUNT(*) FROM accounting_stock_movements')->fetchColumn());
+
+        $accounting->recordInvoice($orderId, 'FACT-TEST-AGGREGATE', $actorId);
         self::assertSame(-3, (int) $this->pdo->query("SELECT quantity FROM accounting_stock_balances WHERE scope_type='product' AND scope_id={$productId}")->fetchColumn());
         self::assertSame(1, (int) $this->pdo->query('SELECT COUNT(*) FROM accounting_stock_movements')->fetchColumn());
     }
@@ -118,7 +137,10 @@ final class AccountingStockTest extends DatabaseTestCase
         self::assertNull($snapshot['accounting_scope_id']);
         self::assertNull($snapshot['accounting_sku']);
 
-        $this->ship($orderId, $this->adminActor(), new AccountingStockService($this->pdo));
+        $actorId = $this->adminActor();
+        $accounting = new AccountingStockService($this->pdo);
+        $this->ship($orderId, $actorId);
+        $accounting->recordInvoice($orderId, 'FACT-TEST-NOT-TRACKED', $actorId);
         self::assertSame('shipped', $this->pdo->query('SELECT status FROM orders WHERE id=' . $orderId)->fetchColumn());
         self::assertSame(0, (int) $this->pdo->query('SELECT COUNT(*) FROM accounting_stock_balances')->fetchColumn());
         self::assertSame(0, (int) $this->pdo->query('SELECT COUNT(*) FROM accounting_stock_movements')->fetchColumn());
@@ -202,9 +224,9 @@ final class AccountingStockTest extends DatabaseTestCase
         return (int) $this->pdo->lastInsertId();
     }
 
-    private function ship(int $orderId, int $actorId, AccountingStockService $accounting): void
+    private function ship(int $orderId, int $actorId): void
     {
-        $orders = new OrderService($this->pdo, $accounting);
+        $orders = new OrderService($this->pdo);
         $orders->transition($orderId, 'confirm', null, $actorId);
         $orders->transition($orderId, 'ship', 'AWB-TEST', $actorId);
     }

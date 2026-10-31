@@ -4,13 +4,12 @@ declare(strict_types=1);
 
 namespace App\Modules\Orders;
 
-use App\Modules\Inventory\AccountingStockService;
 use PDO;
 use RuntimeException;
 
 final class OrderService
 {
-    public function __construct(private readonly PDO $pdo, private readonly AccountingStockService $accountingStock)
+    public function __construct(private readonly PDO $pdo)
     {
     }
 
@@ -267,7 +266,6 @@ final class OrderService
                         'variant' => $reservation['variant_id'], 'physical' => -((int) $reservation['quantity']), 'reserved' => -((int) $reservation['quantity']), 'order' => $orderId, 'actor' => $actorId, 'now' => $now,
                     ]);
                 }
-                $this->accountingStock->recordOrderShipment($orderId, $actorId, $now);
             } elseif ($action === 'cancel') {
                 $reservations = $this->pdo->prepare("SELECT * FROM inventory_reservations WHERE order_id = :id AND status = 'active'");
                 $reservations->execute(['id' => $orderId]);
