@@ -851,8 +851,15 @@
       if (number) number.textContent = String(groupIndex + 1);
       const name = group.querySelector('[data-product-option-group-name]');
       if (name) name.name = `option_groups[${groupIndex}][name]`;
-      group.querySelectorAll('[data-product-option-value]').forEach((input, valueIndex) => {
+      const values = group.querySelectorAll('[data-product-option-value]');
+      const count = group.querySelector('[data-product-option-value-count]');
+      if (count) count.textContent = `${values.length} ${values.length === 1 ? 'opțiune' : 'opțiuni'}`;
+      values.forEach((input, valueIndex) => {
         input.name = `option_groups[${groupIndex}][values][${valueIndex}]`;
+        const item = input.closest('.admin-product-option-value');
+        const valueNumber = item?.querySelector('[data-product-option-value-number]');
+        if (valueNumber) valueNumber.textContent = String(valueIndex + 1);
+        item?.style.setProperty('--option-value-index', String(valueIndex));
       });
     });
   };
@@ -1010,20 +1017,37 @@
 
   const createProductOptionValue = (value = '') => {
     const label = document.createElement('label');
-    label.className = 'admin-product-option-value';
-    label.innerHTML = '<input maxlength="100" placeholder="Ex: 3–6 luni" required data-product-option-value><button type="button" aria-label="Șterge această valoare" data-product-option-value-remove><svg viewBox="0 0 18 18"><path d="m5 5 8 8M13 5l-8 8"></path></svg></button>';
+    label.className = 'admin-product-option-value is-new';
+    label.innerHTML = '<span class="admin-product-option-value__number" aria-hidden="true" data-product-option-value-number>1</span><input maxlength="100" placeholder="Ex: 3–6 luni" required data-product-option-value><button type="button" aria-label="Șterge această valoare" data-product-option-value-remove><svg viewBox="0 0 18 18"><path d="m5 5 8 8M13 5l-8 8"></path></svg></button>';
     label.querySelector('input').value = value;
     return label;
   };
 
   const createProductOptionGroup = (name = '') => {
     const group = document.createElement('article');
-    group.className = 'admin-product-option-group';
+    group.className = 'admin-product-option-group is-new';
     group.dataset.productOptionGroup = '';
-    group.innerHTML = '<div class="admin-product-option-group__number" aria-hidden="true" data-product-option-group-number></div><div class="admin-product-option-group__content"><div class="admin-product-option-group__topline"><label class="admin-product-field"><span>Ce alege clientul? <b>*</b></span><input maxlength="80" placeholder="Ex: Mărime" required data-product-option-group-name><small>Un nume scurt și clar, precum „Mărime” sau „Culoare”.</small></label><button type="button" class="admin-product-option-group__remove" aria-label="Șterge această alegere" data-product-option-group-remove><svg viewBox="0 0 20 20"><path d="m6 6 8 8M14 6l-8 8"></path></svg></button></div><div class="admin-product-option-group__values-wrap"><span class="admin-product-option-group__values-label">Ce variante poate alege? <b>*</b></span><div class="admin-product-option-group__values" data-product-option-values></div><button type="button" class="admin-product-option-group__add-value" data-product-option-value-add><svg viewBox="0 0 18 18"><path d="M9 3v12M3 9h12"></path></svg><span>Adaugă o valoare</span></button></div></div>';
+    group.innerHTML = '<div class="admin-product-option-group__number" aria-hidden="true"><small>Alegerea</small><strong data-product-option-group-number></strong></div><div class="admin-product-option-group__content"><div class="admin-product-option-group__topline"><label class="admin-product-field"><span>Ce alege clientul? <b>*</b></span><input maxlength="80" placeholder="Ex: Mărime" required data-product-option-group-name><small>Un nume scurt și clar, precum „Mărime” sau „Culoare”.</small></label><button type="button" class="admin-product-option-group__remove" aria-label="Șterge această alegere" data-product-option-group-remove><svg viewBox="0 0 20 20"><path d="m6 6 8 8M14 6l-8 8"></path></svg></button></div><div class="admin-product-option-group__values-wrap"><div class="admin-product-option-group__values-head"><span class="admin-product-option-group__values-label">Ce variante poate alege? <b>*</b></span><span class="admin-product-option-group__values-count" data-product-option-value-count>1 opțiune</span></div><div class="admin-product-option-group__values" data-product-option-values></div><button type="button" class="admin-product-option-group__add-value" data-product-option-value-add><svg viewBox="0 0 18 18"><path d="M9 3v12M3 9h12"></path></svg><span>Adaugă o valoare</span></button></div></div>';
     group.querySelector('[data-product-option-group-name]').value = name;
     group.querySelector('[data-product-option-values]').append(createProductOptionValue());
     return group;
+  };
+
+  const animateProductOptionRemoval = (element, onComplete) => {
+    if (!element) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      onComplete();
+      return;
+    }
+    element.classList.add('is-removing');
+    let completed = false;
+    const finish = () => {
+      if (completed) return;
+      completed = true;
+      onComplete();
+    };
+    element.addEventListener('animationend', finish, { once: true });
+    window.setTimeout(finish, 320);
   };
 
   const initializeProductOptions = (root) => {
@@ -1098,6 +1122,7 @@
     const addGroup = event.target.closest('[data-product-option-group-add]');
     const preset = event.target.closest('[data-product-option-preset]');
     if (addGroup || preset) {
+      event.preventDefault();
       if (!groupsContainer) return;
       const groups = groupsContainer.querySelectorAll('[data-product-option-group]');
       if (groups.length >= 4) {
@@ -1120,6 +1145,7 @@
 
     const addValue = event.target.closest('[data-product-option-value-add]');
     if (addValue) {
+      event.preventDefault();
       const group = addValue.closest('[data-product-option-group]');
       const values = group?.querySelector('[data-product-option-values]');
       if (!group || !values) return;
@@ -1135,15 +1161,26 @@
 
     const removeValue = event.target.closest('[data-product-option-value-remove]');
     if (removeValue) {
+      event.preventDefault();
       const group = removeValue.closest('[data-product-option-group]');
       const value = removeValue.closest('.admin-product-option-value');
       const allValues = group?.querySelectorAll('.admin-product-option-value') || [];
       if (allValues.length <= 1) {
         const input = value?.querySelector('[data-product-option-value]');
         if (input) input.value = '';
+        value?.classList.remove('is-attention');
+        void value?.offsetWidth;
+        value?.classList.add('is-attention');
         input?.focus({ preventScroll: true });
       } else {
-        value?.remove();
+        removeValue.disabled = true;
+        markProductFormDirty(group);
+        animateProductOptionRemoval(value, () => {
+          value?.remove();
+          reindexProductOptionGroups(form);
+          rebuildProductVariants(form);
+        });
+        return;
       }
       reindexProductOptionGroups(form);
       rebuildProductVariants(form);
@@ -1153,11 +1190,15 @@
 
     const removeGroup = event.target.closest('[data-product-option-group-remove]');
     if (removeGroup) {
+      event.preventDefault();
       const group = removeGroup.closest('[data-product-option-group]');
-      group?.remove();
-      reindexProductOptionGroups(form);
-      rebuildProductVariants(form);
       markProductFormDirty(form);
+      removeGroup.disabled = true;
+      animateProductOptionRemoval(group, () => {
+        group?.remove();
+        reindexProductOptionGroups(form);
+        rebuildProductVariants(form);
+      });
     }
   });
 

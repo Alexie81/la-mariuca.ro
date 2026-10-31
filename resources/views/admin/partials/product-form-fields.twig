@@ -123,7 +123,7 @@
         {% for group in option_groups %}
           {% set group_index = loop.index0 %}
           <article class="admin-product-option-group" data-product-option-group>
-            <div class="admin-product-option-group__number" aria-hidden="true" data-product-option-group-number>{{ loop.index }}</div>
+            <div class="admin-product-option-group__number" aria-hidden="true"><small>Alegerea</small><strong data-product-option-group-number>{{ loop.index }}</strong></div>
             <div class="admin-product-option-group__content">
               <div class="admin-product-option-group__topline">
                 <label class="admin-product-field">
@@ -134,10 +134,14 @@
                 <button type="button" class="admin-product-option-group__remove" aria-label="Șterge această alegere" data-product-option-group-remove><svg viewBox="0 0 20 20"><path d="m6 6 8 8M14 6l-8 8"/></svg></button>
               </div>
               <div class="admin-product-option-group__values-wrap">
-                <span class="admin-product-option-group__values-label">Ce variante poate alege? <b>*</b></span>
+                <div class="admin-product-option-group__values-head">
+                  <span class="admin-product-option-group__values-label">Ce variante poate alege? <b>*</b></span>
+                  <span class="admin-product-option-group__values-count" data-product-option-value-count>{{ group.values|length }} {{ group.values|length == 1 ? 'opțiune' : 'opțiuni' }}</span>
+                </div>
                 <div class="admin-product-option-group__values" data-product-option-values>
                   {% for value in group.values %}
                     <label class="admin-product-option-value">
+                      <span class="admin-product-option-value__number" aria-hidden="true" data-product-option-value-number>{{ loop.index }}</span>
                       <input name="option_groups[{{ group_index }}][values][{{ loop.index0 }}]" value="{{ value }}" maxlength="100" placeholder="Ex: 3–6 luni" required data-product-option-value>
                       <button type="button" aria-label="Șterge opțiunea {{ value }}" data-product-option-value-remove><svg viewBox="0 0 18 18"><path d="m5 5 8 8M13 5l-8 8"/></svg></button>
                     </label>
