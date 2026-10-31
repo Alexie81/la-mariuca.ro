@@ -86,8 +86,13 @@
                 <td data-label="Categorie"><span class="admin-products-table__category">{{ product.category_name }}</span></td>
                 <td data-label="Preț"><strong class="admin-products-table__price">{{ money(product.price_bani) }}</strong></td>
                 <td data-label="Stoc online">
-                  <span class="admin-stock-pill{{ product.online_quantity <= 0 ? ' is-empty' : (product.online_quantity <= 3 ? ' is-low' : '') }}">{{ product.online_quantity }} buc.</span>
-                  <small class="admin-products-phone-label admin-products-phone-stock-note">{{ product.online_quantity <= 0 ? 'Stoc epuizat' : (product.online_quantity <= 3 ? 'Stoc redus' : 'Disponibile online') }}</small>
+                  {% if product.has_unlimited_stock %}
+                    <span class="admin-stock-pill">Nelimitat</span>
+                    <small class="admin-products-phone-label admin-products-phone-stock-note">Comenzile nu sunt limitate de stoc</small>
+                  {% else %}
+                    <span class="admin-stock-pill{{ product.online_quantity <= 0 ? ' is-empty' : (product.online_quantity <= 3 ? ' is-low' : '') }}">{{ product.online_quantity }} buc.</span>
+                    <small class="admin-products-phone-label admin-products-phone-stock-note">{{ product.online_quantity <= 0 ? 'Stoc epuizat' : (product.online_quantity <= 3 ? 'Stoc redus' : 'Disponibile online') }}</small>
+                  {% endif %}
                 </td>
                 <td data-label="Stoc efectiv (Conta)">
                   <span class="admin-physical-stock{{ product.physical_quantity <= 0 ? ' is-empty' : '' }}">
@@ -172,7 +177,7 @@
           <p id="admin-product-discard-description">Schimbările făcute în produs se vor pierde. Poți continua editarea sau poți ieși fără salvare.</p>
           <div class="admin-product-discard-confirm__actions">
             <button type="button" data-admin-product-discard-stay>Continuă editarea</button>
-            <button type="button" data-admin-product-discard-leave>Ieși fără salvare <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m7 4 6 6-6 6"></path></svg></button>
+            <button type="button" data-admin-product-discard-leave><span>Ieși fără salvare</span><i aria-hidden="true"><svg viewBox="0 0 20 20"><path d="m7 4 6 6-6 6"></path></svg></i></button>
           </div>
         </div>
       </div>

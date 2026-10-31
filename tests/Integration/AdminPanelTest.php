@@ -138,7 +138,11 @@ final class AdminPanelTest extends DatabaseTestCase
         self::assertStringContainsString('/admin/produse/verifica-nume/', (string) $newModal->getBody());
         self::assertStringContainsString('data-product-sku-input', (string) $newModal->getBody());
         self::assertStringContainsString('/admin/produse/verifica-sku/', (string) $newModal->getBody());
-        self::assertMatchesRegularExpression('/name="sku" value="LM-\d{2}-\d{3,}"/', (string) $newModal->getBody());
+        self::assertStringContainsString('name="variants[0][sku]" value=""', (string) $newModal->getBody());
+        self::assertStringContainsString('placeholder="Se generează automat"', (string) $newModal->getBody());
+        self::assertStringContainsString('Opțiunile produsului', (string) $newModal->getBody());
+        self::assertStringContainsString('data-product-options-editor', (string) $newModal->getBody());
+        self::assertStringContainsString('data-product-variants-editor', (string) $newModal->getBody());
         self::assertStringContainsString('Slug (numele linkului)', (string) $newModal->getBody());
         self::assertStringContainsString('data-product-slug-input', (string) $newModal->getBody());
         self::assertStringContainsString('/admin/produse/verifica-slug/', (string) $newModal->getBody());
@@ -267,6 +271,61 @@ final class AdminPanelTest extends DatabaseTestCase
         $autoSku = (string) $this->pdo->query('SELECT sku FROM product_variants WHERE product_id=' . (int) $autoSkuPayload['id'])->fetchColumn();
         self::assertMatchesRegularExpression('/^LM-\d{2}-\d{3,}$/', $autoSku);
         self::assertSame('produs-cu-sku-automat', (string) $this->pdo->query('SELECT slug FROM products WHERE id=' . (int) $autoSkuPayload['id'])->fetchColumn());
+
+        $variantCreated = $this->request('POST', '/admin/produse/nou/', [
+            '_csrf' => $_SESSION['_csrf'],
+            'name' => 'Produs ghidat cu variante',
+            'category_ids' => [(string) $categoryId],
+            'status' => 'published',
+            'option_groups' => [
+                ['name' => 'Mărime', 'values' => ['3-4 ani', '4-5 ani']],
+                ['name' => 'Culoare', 'values' => ['Roșu', 'Albastru']],
+            ],
+            'variants' => [
+                [
+                    'options_json' => json_encode(['Mărime' => '3-4 ani', 'Culoare' => 'Roșu'], JSON_UNESCAPED_UNICODE),
+                    'sku' => '', 'ean' => '5940000000001', 'full_price' => '150,00', 'stock' => '4',
+                    'stock_unlimited' => '0', 'track_in_conta' => '1', 'discount_enabled' => '1',
+                    'discount_type' => 'percent', 'discount_value' => '10',
+                ],
+                [
+                    'options_json' => json_encode(['Mărime' => '3-4 ani', 'Culoare' => 'Albastru'], JSON_UNESCAPED_UNICODE),
+                    'sku' => '', 'ean' => '5940000000002', 'full_price' => '150,00', 'stock' => '0',
+                    'stock_unlimited' => '1', 'track_in_conta' => '0', 'discount_enabled' => '1',
+                    'discount_type' => 'fixed', 'discount_value' => '20,00',
+                ],
+                [
+                    'options_json' => json_encode(['Mărime' => '4-5 ani', 'Culoare' => 'Roșu'], JSON_UNESCAPED_UNICODE),
+                    'sku' => 'LM-GHIDAT-ROSU', 'ean' => '', 'full_price' => '155,00', 'stock' => '3',
+                    'stock_unlimited' => '0', 'track_in_conta' => '1', 'discount_enabled' => '0',
+                ],
+                [
+                    'options_json' => json_encode(['Mărime' => '4-5 ani', 'Culoare' => 'Albastru'], JSON_UNESCAPED_UNICODE),
+                    'sku' => '', 'ean' => '', 'full_price' => '160,00', 'stock' => '2',
+                    'stock_unlimited' => '0', 'track_in_conta' => '1', 'discount_enabled' => '0',
+                ],
+            ],
+        ], '127.0.0.86', [], ['Accept' => 'application/json']);
+        self::assertSame(200, $variantCreated->getStatusCode(), (string) $variantCreated->getBody());
+        $variantPayload = json_decode((string) $variantCreated->getBody(), true, 512, JSON_THROW_ON_ERROR);
+        $variantProductId = (int) $variantPayload['id'];
+        $savedVariants = $this->pdo->query('SELECT * FROM product_variants WHERE product_id=' . $variantProductId . " AND status='active' ORDER BY is_default DESC,id")->fetchAll();
+        self::assertCount(4, $savedVariants);
+        self::assertSame(13500, (int) $savedVariants[0]['price_bani']);
+        self::assertSame(15000, (int) $savedVariants[0]['compare_price_bani']);
+        self::assertSame('percent', $savedVariants[0]['discount_type']);
+        self::assertSame(1000, (int) $savedVariants[0]['discount_value']);
+        self::assertSame(13000, (int) $savedVariants[1]['price_bani']);
+        self::assertSame('fixed', $savedVariants[1]['discount_type']);
+        self::assertSame(2000, (int) $savedVariants[1]['discount_value']);
+        self::assertSame(1, (int) $savedVariants[1]['stock_unlimited']);
+        self::assertSame(0, (int) $savedVariants[1]['track_in_conta']);
+        self::assertSame(4, count(array_unique(array_column($savedVariants, 'sku'))));
+        $variantEditModal = (string) $this->get('/admin/produse/' . $variantProductId . '/editare/modal/')->getBody();
+        self::assertStringContainsString('2 alegeri configurate', $variantEditModal);
+        self::assertStringContainsString('4 combinații', $variantEditModal);
+        self::assertStringContainsString('Sumă fixă (lei)', $variantEditModal);
+        self::assertStringContainsString('Preț final', $variantEditModal);
 
         $product = $this->pdo->query("SELECT p.id,p.name FROM products p JOIN product_variants v ON v.product_id=p.id WHERE v.sku='LM-SH-002' LIMIT 1")->fetch();
         self::assertIsArray($product);

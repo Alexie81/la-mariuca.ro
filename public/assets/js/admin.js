@@ -780,6 +780,265 @@
     });
   };
 
+  const productOptionRebuildTimers = new WeakMap();
+  const productOptionsKey = (options) => JSON.stringify(options || {});
+  const parseProductDecimal = (value) => {
+    const normalized = String(value || '').trim().replace(/\s+/g, '').replace(',', '.');
+    if (!/^\d+(?:\.\d{1,2})?$/.test(normalized)) return null;
+    return Number.parseFloat(normalized);
+  };
+  const formatProductMoney = (value) => new Intl.NumberFormat('ro-RO', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Math.max(0, value || 0));
+
+  const readProductOptionGroups = (form, validate = true) => {
+    const groups = [];
+    let complete = true;
+    let combinationCount = 1;
+    const seenGroups = new Set();
+    form.querySelectorAll('[data-product-option-group]').forEach((group) => {
+      const nameInput = group.querySelector('[data-product-option-group-name]');
+      const name = nameInput?.value.trim() || '';
+      const values = [];
+      const seenValues = new Set();
+      group.querySelectorAll('[data-product-option-value]').forEach((input) => {
+        const value = input.value.trim();
+        input.setCustomValidity('');
+        if (!value) {
+          complete = false;
+          return;
+        }
+        const key = value.toLocaleLowerCase('ro-RO');
+        if (seenValues.has(key)) {
+          input.setCustomValidity('Această valoare apare deja în același grup.');
+          complete = false;
+          return;
+        }
+        seenValues.add(key);
+        values.push(value);
+      });
+      nameInput?.setCustomValidity('');
+      const nameKey = name.toLocaleLowerCase('ro-RO');
+      if (!name || values.length === 0) complete = false;
+      if (name && seenGroups.has(nameKey)) {
+        nameInput?.setCustomValidity('Există deja o alegere cu acest nume.');
+        complete = false;
+      }
+      if (name) seenGroups.add(nameKey);
+      combinationCount *= Math.max(1, values.length);
+      groups.push({ name, values });
+    });
+    if (groups.length > 4 || combinationCount > 100) complete = false;
+    if (validate && combinationCount > 100) {
+      const last = form.querySelector('[data-product-option-group]:last-child [data-product-option-value]');
+      last?.setCustomValidity('Aceste alegeri creează peste 100 de combinații. Elimină o valoare.');
+    }
+    return { groups, complete, combinationCount: groups.length ? combinationCount : 1 };
+  };
+
+  const productOptionCombinations = (groups) => groups.reduce((combinations, group) => {
+    const next = [];
+    combinations.forEach((combination) => group.values.forEach((value) => {
+      next.push({ ...combination, [group.name]: value });
+    }));
+    return next;
+  }, [{}]);
+
+  const reindexProductOptionGroups = (form) => {
+    form.querySelectorAll('[data-product-option-group]').forEach((group, groupIndex) => {
+      const number = group.querySelector('[data-product-option-group-number]');
+      if (number) number.textContent = String(groupIndex + 1);
+      const name = group.querySelector('[data-product-option-group-name]');
+      if (name) name.name = `option_groups[${groupIndex}][name]`;
+      group.querySelectorAll('[data-product-option-value]').forEach((input, valueIndex) => {
+        input.name = `option_groups[${groupIndex}][values][${valueIndex}]`;
+      });
+    });
+  };
+
+  const resetClonedVariantIdentity = (card) => {
+    const id = card.querySelector('[data-product-variant-id]');
+    if (id) id.value = '';
+    const sku = card.querySelector('[data-product-sku-input]');
+    if (sku) {
+      sku.value = '';
+      sku.dataset.variantId = '';
+      sku.setCustomValidity('');
+    }
+    const skuField = card.querySelector('[data-product-sku-field]');
+    if (skuField) skuField.dataset.productAvailability = 'idle';
+    const skuStatus = card.querySelector('[data-product-sku-status]');
+    if (skuStatus) skuStatus.textContent = 'Lasă gol pentru generare automată.';
+    const ean = card.querySelector('input[name$="[ean]"]');
+    if (ean) ean.value = '';
+  };
+
+  const reindexProductVariant = (card, index, options) => {
+    card.dataset.optionsJson = productOptionsKey(options);
+    card.querySelectorAll('[name^="variants["]').forEach((field) => {
+      field.name = field.name.replace(/^variants\[\d+\]/, `variants[${index}]`);
+    });
+    const optionsInput = card.querySelector('[data-product-variant-options]');
+    if (optionsInput) optionsInput.value = productOptionsKey(options);
+    const number = card.querySelector('[data-product-variant-number]');
+    if (number) number.textContent = String(index + 1);
+    const header = card.querySelector('[data-product-variant-header]');
+    if (header) header.hidden = Object.keys(options).length === 0;
+    const chips = card.querySelector('[data-product-variant-chips]');
+    if (chips) {
+      chips.replaceChildren();
+      Object.entries(options).forEach(([name, value]) => {
+        const chip = document.createElement('i');
+        const label = document.createElement('small');
+        label.textContent = name;
+        chip.append(label, document.createTextNode(value));
+        chips.append(chip);
+      });
+    }
+  };
+
+  const updateProductDiscount = (discount) => {
+    if (!discount) return;
+    const toggle = discount.querySelector('[data-product-discount-toggle]');
+    const fields = discount.querySelector('[data-product-discount-fields]');
+    const type = discount.querySelector('[data-product-discount-type]');
+    const value = discount.querySelector('[data-product-discount-value]');
+    const unit = discount.querySelector('[data-product-discount-unit]');
+    const card = discount.closest('[data-product-variant]');
+    const fullPrice = parseProductDecimal(card?.querySelector('[data-product-variant-full-price]')?.value);
+    const enabled = Boolean(toggle?.checked);
+    if (fields) fields.hidden = !enabled;
+    if (type) type.disabled = !enabled;
+    if (value) {
+      value.disabled = !enabled;
+      value.required = enabled;
+      value.setCustomValidity('');
+    }
+    if (unit) unit.textContent = type?.value === 'fixed' ? 'LEI' : '%';
+    discount.classList.toggle('is-active', enabled);
+
+    let finalPrice = fullPrice ?? 0;
+    if (enabled && value) {
+      const reduction = parseProductDecimal(value.value);
+      if (reduction === null || reduction <= 0) {
+        value.setCustomValidity('Introdu o reducere mai mare decât zero.');
+      } else if (type?.value === 'fixed') {
+        if (fullPrice === null || reduction >= fullPrice) value.setCustomValidity('Reducerea trebuie să fie mai mică decât prețul întreg.');
+        else finalPrice = fullPrice - reduction;
+      } else if (reduction >= 100) {
+        value.setCustomValidity('Procentul trebuie să fie mai mic decât 100%.');
+      } else {
+        finalPrice = (fullPrice ?? 0) * (1 - reduction / 100);
+      }
+    }
+    const result = discount.querySelector('[data-product-discount-result]');
+    if (result) result.textContent = `${formatProductMoney(finalPrice)} RON`;
+  };
+
+  const updateProductUnlimitedStock = (card) => {
+    const toggle = card.querySelector('[data-product-stock-unlimited]');
+    const stock = card.querySelector('[data-product-variant-stock]');
+    if (!toggle || !stock) return;
+    stock.readOnly = toggle.checked;
+    stock.setAttribute('aria-readonly', toggle.checked ? 'true' : 'false');
+    card.classList.toggle('has-unlimited-stock', toggle.checked);
+  };
+
+  const updateProductOptionsSummary = (form, state) => {
+    const title = form.querySelector('[data-product-options-summary-title]');
+    const detail = form.querySelector('[data-product-options-summary-detail]');
+    const empty = form.querySelector('[data-product-options-empty]');
+    const notice = form.querySelector('[data-product-variants-notice]');
+    const count = form.querySelector('[data-product-variant-count]');
+    const groupCount = state.groups.length;
+    if (empty) empty.hidden = groupCount > 0;
+    if (notice) notice.hidden = groupCount === 0;
+    if (groupCount === 0) {
+      if (title) title.textContent = 'Produs simplu, fără opțiuni';
+      if (detail) detail.textContent = 'Clientul vede direct butonul de adăugare în coș.';
+      if (count) count.textContent = 'Un singur preț';
+      return;
+    }
+    if (!state.complete) {
+      if (title) title.textContent = 'Mai lipsește un mic pas';
+      if (detail) detail.textContent = 'Completează numele alegerii și toate valorile ei.';
+      if (count) count.textContent = 'Combinațiile apar după completare';
+      return;
+    }
+    if (title) title.textContent = `${groupCount} ${groupCount === 1 ? 'alegere configurată' : 'alegeri configurate'}`;
+    const equation = state.groups.map((group) => `${group.values.length} ${group.name.toLocaleLowerCase('ro-RO')}`).join(' × ');
+    if (detail) detail.textContent = `${equation} = ${state.combinationCount} ${state.combinationCount === 1 ? 'combinație' : 'combinații'}, create automat.`;
+    if (count) count.textContent = `${state.combinationCount} ${state.combinationCount === 1 ? 'combinație' : 'combinații'}`;
+  };
+
+  const rebuildProductVariants = (form) => {
+    const container = form.querySelector('[data-product-variants]');
+    if (!container) return;
+    const state = readProductOptionGroups(form);
+    updateProductOptionsSummary(form, state);
+    if (!state.complete) return;
+    const combinations = productOptionCombinations(state.groups);
+    const currentCards = Array.from(container.querySelectorAll('[data-product-variant]'));
+    const byOptions = new Map(currentCards.map((card) => [card.dataset.optionsJson || '{}', card]));
+    const base = currentCards[0];
+    if (!base) return;
+    const fragment = document.createDocumentFragment();
+    combinations.forEach((options, index) => {
+      const key = productOptionsKey(options);
+      let card = byOptions.get(key);
+      if (!card) {
+        card = base.cloneNode(true);
+        resetClonedVariantIdentity(card);
+      }
+      reindexProductVariant(card, index, options);
+      updateProductUnlimitedStock(card);
+      updateProductDiscount(card.querySelector('[data-product-discount]'));
+      fragment.append(card);
+    });
+    container.replaceChildren(fragment);
+  };
+
+  const scheduleProductVariantRebuild = (form) => {
+    const active = productOptionRebuildTimers.get(form);
+    if (active) window.clearTimeout(active);
+    productOptionRebuildTimers.set(form, window.setTimeout(() => {
+      productOptionRebuildTimers.delete(form);
+      rebuildProductVariants(form);
+    }, 180));
+  };
+
+  const createProductOptionValue = (value = '') => {
+    const label = document.createElement('label');
+    label.className = 'admin-product-option-value';
+    label.innerHTML = '<input maxlength="100" placeholder="Ex: 3–6 luni" required data-product-option-value><button type="button" aria-label="Șterge această valoare" data-product-option-value-remove><svg viewBox="0 0 18 18"><path d="m5 5 8 8M13 5l-8 8"></path></svg></button>';
+    label.querySelector('input').value = value;
+    return label;
+  };
+
+  const createProductOptionGroup = (name = '') => {
+    const group = document.createElement('article');
+    group.className = 'admin-product-option-group';
+    group.dataset.productOptionGroup = '';
+    group.innerHTML = '<div class="admin-product-option-group__number" aria-hidden="true" data-product-option-group-number></div><div class="admin-product-option-group__content"><div class="admin-product-option-group__topline"><label class="admin-product-field"><span>Ce alege clientul? <b>*</b></span><input maxlength="80" placeholder="Ex: Mărime" required data-product-option-group-name><small>Un nume scurt și clar, precum „Mărime” sau „Culoare”.</small></label><button type="button" class="admin-product-option-group__remove" aria-label="Șterge această alegere" data-product-option-group-remove><svg viewBox="0 0 20 20"><path d="m6 6 8 8M14 6l-8 8"></path></svg></button></div><div class="admin-product-option-group__values-wrap"><span class="admin-product-option-group__values-label">Ce variante poate alege? <b>*</b></span><div class="admin-product-option-group__values" data-product-option-values></div><button type="button" class="admin-product-option-group__add-value" data-product-option-value-add><svg viewBox="0 0 18 18"><path d="M9 3v12M3 9h12"></path></svg><span>Adaugă o valoare</span></button></div></div>';
+    group.querySelector('[data-product-option-group-name]').value = name;
+    group.querySelector('[data-product-option-values]').append(createProductOptionValue());
+    return group;
+  };
+
+  const initializeProductOptions = (root) => {
+    root.querySelectorAll('[data-admin-product-form]').forEach((form) => {
+      if (form.dataset.productOptionsEnhanced === 'true') return;
+      form.dataset.productOptionsEnhanced = 'true';
+      reindexProductOptionGroups(form);
+      form.querySelectorAll('[data-product-variant]').forEach((card) => {
+        updateProductUnlimitedStock(card);
+        updateProductDiscount(card.querySelector('[data-product-discount]'));
+      });
+      updateProductOptionsSummary(form, readProductOptionGroups(form, false));
+    });
+  };
+
   const initializeProductAvailability = (root) => {
     root.querySelectorAll('[data-admin-product-form]').forEach((form) => setProductFormSyncState(form, 'synced'));
     root.querySelectorAll('[data-product-name-input]').forEach((input) => {
@@ -793,10 +1052,23 @@
       if (input.value.trim()) checkProductSlug(input);
     });
     initializeAdminCategoryPickers(root);
+    initializeProductOptions(root);
   };
 
   document.addEventListener('input', (event) => {
     markProductFormDirty(event.target);
+    const productForm = event.target.closest?.('[data-admin-product-form]');
+    if (productForm && event.target.matches?.('[data-product-option-group-name],[data-product-option-value]')) {
+      reindexProductOptionGroups(productForm);
+      updateProductOptionsSummary(productForm, readProductOptionGroups(productForm));
+      scheduleProductVariantRebuild(productForm);
+    }
+    const discount = event.target.closest?.('[data-product-discount]');
+    if (discount && event.target.matches?.('[data-product-discount-value],[data-product-variant-full-price]')) {
+      updateProductDiscount(discount);
+    } else if (event.target.matches?.('[data-product-variant-full-price]')) {
+      updateProductDiscount(event.target.closest('[data-product-variant]')?.querySelector('[data-product-discount]'));
+    }
     const nameInput = event.target.closest?.('[data-product-name-input]');
     if (nameInput) {
       checkProductName(nameInput);
@@ -811,7 +1083,83 @@
     }
   });
 
-  document.addEventListener('change', (event) => markProductFormDirty(event.target));
+  document.addEventListener('change', (event) => {
+    markProductFormDirty(event.target);
+    const card = event.target.closest?.('[data-product-variant]');
+    if (event.target.matches?.('[data-product-stock-unlimited]') && card) updateProductUnlimitedStock(card);
+    const discount = event.target.closest?.('[data-product-discount]');
+    if (discount && event.target.matches?.('[data-product-discount-toggle],[data-product-discount-type]')) updateProductDiscount(discount);
+  });
+
+  document.addEventListener('click', (event) => {
+    const form = event.target.closest?.('[data-admin-product-form]');
+    if (!form) return;
+    const groupsContainer = form.querySelector('[data-product-option-groups]');
+    const addGroup = event.target.closest('[data-product-option-group-add]');
+    const preset = event.target.closest('[data-product-option-preset]');
+    if (addGroup || preset) {
+      if (!groupsContainer) return;
+      const groups = groupsContainer.querySelectorAll('[data-product-option-group]');
+      if (groups.length >= 4) {
+        const lastName = groups[groups.length - 1]?.querySelector('[data-product-option-group-name]');
+        lastName?.setCustomValidity('Poți adăuga cel mult 4 tipuri de alegeri.');
+        lastName?.reportValidity();
+        return;
+      }
+      const group = createProductOptionGroup(preset?.dataset.productOptionPreset || '');
+      groupsContainer.append(group);
+      reindexProductOptionGroups(form);
+      updateProductOptionsSummary(form, readProductOptionGroups(form));
+      markProductFormDirty(group);
+      requestAnimationFrame(() => {
+        const focusTarget = preset ? group.querySelector('[data-product-option-value]') : group.querySelector('[data-product-option-group-name]');
+        focusTarget?.focus({ preventScroll: false });
+      });
+      return;
+    }
+
+    const addValue = event.target.closest('[data-product-option-value-add]');
+    if (addValue) {
+      const group = addValue.closest('[data-product-option-group]');
+      const values = group?.querySelector('[data-product-option-values]');
+      if (!group || !values) return;
+      if (values.querySelectorAll('[data-product-option-value]').length >= 20) return;
+      const value = createProductOptionValue();
+      values.append(value);
+      reindexProductOptionGroups(form);
+      updateProductOptionsSummary(form, readProductOptionGroups(form));
+      markProductFormDirty(value);
+      value.querySelector('input')?.focus({ preventScroll: false });
+      return;
+    }
+
+    const removeValue = event.target.closest('[data-product-option-value-remove]');
+    if (removeValue) {
+      const group = removeValue.closest('[data-product-option-group]');
+      const value = removeValue.closest('.admin-product-option-value');
+      const allValues = group?.querySelectorAll('.admin-product-option-value') || [];
+      if (allValues.length <= 1) {
+        const input = value?.querySelector('[data-product-option-value]');
+        if (input) input.value = '';
+        input?.focus({ preventScroll: true });
+      } else {
+        value?.remove();
+      }
+      reindexProductOptionGroups(form);
+      rebuildProductVariants(form);
+      markProductFormDirty(group);
+      return;
+    }
+
+    const removeGroup = event.target.closest('[data-product-option-group-remove]');
+    if (removeGroup) {
+      const group = removeGroup.closest('[data-product-option-group]');
+      group?.remove();
+      reindexProductOptionGroups(form);
+      rebuildProductVariants(form);
+      markProductFormDirty(form);
+    }
+  });
 
   initializeProductAvailability(document);
 
