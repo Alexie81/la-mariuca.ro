@@ -155,6 +155,20 @@
           <small>Încărcăm toate detaliile în siguranță.</small>
         </div>
       </div>
+      <div class="admin-product-discard-confirm" data-admin-product-discard-layer role="alertdialog" aria-modal="true" aria-labelledby="admin-product-discard-title" aria-describedby="admin-product-discard-description" hidden>
+        <div class="admin-product-discard-confirm__card">
+          <span class="admin-product-discard-confirm__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M12 8v5M12 17h.01"></path><circle cx="12" cy="12" r="9"></circle></svg>
+          </span>
+          <span class="admin-eyebrow">Modificări nesalvate</span>
+          <h2 id="admin-product-discard-title">Ieși fără să salvezi?</h2>
+          <p id="admin-product-discard-description">Schimbările făcute în produs se vor pierde. Poți continua editarea sau poți ieși fără salvare.</p>
+          <div class="admin-product-discard-confirm__actions">
+            <button type="button" data-admin-product-discard-stay>Continuă editarea</button>
+            <button type="button" data-admin-product-discard-leave>Ieși fără salvare <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m7 4 6 6-6 6"></path></svg></button>
+          </div>
+        </div>
+      </div>
     </div>
   </dialog>
 

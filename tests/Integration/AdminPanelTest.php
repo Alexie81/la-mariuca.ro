@@ -114,6 +114,9 @@ final class AdminPanelTest extends DatabaseTestCase
         self::assertStringContainsString('/sterge/', $body);
         self::assertStringContainsString('data-admin-product-delete-dialog', $body);
         self::assertStringContainsString('data-admin-product-editor-dialog', $body);
+        self::assertStringContainsString('data-admin-product-discard-layer', $body);
+        self::assertStringContainsString('data-admin-product-discard-stay', $body);
+        self::assertStringContainsString('data-admin-product-discard-leave', $body);
         self::assertStringContainsString('data-admin-product-editor-trigger', $body);
         self::assertStringContainsString('/editare/modal/', $body);
         self::assertStringNotContainsString('1 variantă', $body);
@@ -139,6 +142,8 @@ final class AdminPanelTest extends DatabaseTestCase
         self::assertStringContainsString('Slug (numele linkului)', (string) $newModal->getBody());
         self::assertStringContainsString('data-product-slug-input', (string) $newModal->getBody());
         self::assertStringContainsString('/admin/produse/verifica-slug/', (string) $newModal->getBody());
+        self::assertStringContainsString('placeholder="0,00"', (string) $newModal->getBody());
+        self::assertStringContainsString('<option value="published" selected>Publicat</option>', (string) $newModal->getBody());
         self::assertStringContainsString('Categorii <b>*</b>', (string) $newModal->getBody());
         self::assertStringContainsString('data-admin-product-save-status-label>Up to date</span>', (string) $newModal->getBody());
         self::assertStringNotContainsString('Categoria principală', (string) $newModal->getBody());

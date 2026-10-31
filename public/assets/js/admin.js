@@ -832,12 +832,43 @@
 
   const productEditorDialog = document.querySelector('[data-admin-product-editor-dialog]');
   const productEditorContent = productEditorDialog?.querySelector('[data-admin-product-editor-content]');
+  const productDiscardLayer = productEditorDialog?.querySelector('[data-admin-product-discard-layer]');
   const productEditorLoading = productEditorContent?.innerHTML || '';
   let productEditorTrigger = null;
   let productEditorRequest = null;
+  let productDiscardReturnFocus = null;
+
+  const productEditorHasUnsavedChanges = () => {
+    const form = productEditorContent?.querySelector('[data-admin-product-form]');
+    return Boolean(form?.classList.contains('is-dirty') && !form.classList.contains('is-saving') && !form.classList.contains('is-saved'));
+  };
+
+  const hideProductDiscardConfirmation = (restoreFocus = true) => {
+    if (!productDiscardLayer || productDiscardLayer.hidden) return;
+    const focusTarget = productDiscardReturnFocus;
+    productDiscardReturnFocus = null;
+    productDiscardLayer.classList.remove('is-visible');
+    window.setTimeout(() => {
+      productDiscardLayer.hidden = true;
+      if (restoreFocus && focusTarget instanceof HTMLElement && productEditorDialog?.open) {
+        focusTarget.focus({ preventScroll: true });
+      }
+    }, reducedMotion ? 0 : 180);
+  };
+
+  const showProductDiscardConfirmation = (trigger = null) => {
+    if (!productDiscardLayer || !productEditorDialog?.open) return;
+    productDiscardReturnFocus = trigger instanceof HTMLElement ? trigger : productEditorContent?.querySelector('[data-admin-product-form]');
+    productDiscardLayer.hidden = false;
+    requestAnimationFrame(() => {
+      productDiscardLayer.classList.add('is-visible');
+      productDiscardLayer.querySelector('[data-admin-product-discard-stay]')?.focus({ preventScroll: true });
+    });
+  };
 
   const closeProductEditor = () => {
     if (!productEditorDialog?.open) return;
+    hideProductDiscardConfirmation(false);
     productEditorRequest?.abort();
     productEditorRequest = null;
     productEditorDialog.classList.remove('is-visible', 'is-success');
@@ -845,6 +876,14 @@
     window.setTimeout(() => {
       if (productEditorDialog.open) productEditorDialog.close();
     }, reducedMotion ? 0 : 230);
+  };
+
+  const requestProductEditorClose = (trigger = null) => {
+    if (productEditorHasUnsavedChanges()) {
+      showProductDiscardConfirmation(trigger);
+      return;
+    }
+    closeProductEditor();
   };
 
   const showProductEditorError = (message) => {
@@ -892,8 +931,19 @@
   });
 
   productEditorDialog?.addEventListener('click', (event) => {
-    if (event.target === productEditorDialog || event.target.closest('[data-admin-product-editor-close]')) {
+    const stayButton = event.target.closest('[data-admin-product-discard-stay]');
+    if (stayButton || event.target === productDiscardLayer) {
+      hideProductDiscardConfirmation();
+      return;
+    }
+    if (event.target.closest('[data-admin-product-discard-leave]')) {
+      hideProductDiscardConfirmation(false);
       closeProductEditor();
+      return;
+    }
+    const closeTrigger = event.target.closest('[data-admin-product-editor-close]');
+    if (event.target === productEditorDialog || closeTrigger) {
+      requestProductEditorClose(closeTrigger);
       return;
     }
     if (event.target.closest('[data-admin-product-editor-reload]')) window.location.reload();
@@ -901,9 +951,24 @@
   });
   productEditorDialog?.addEventListener('cancel', (event) => {
     event.preventDefault();
-    closeProductEditor();
+    if (productDiscardLayer && !productDiscardLayer.hidden) {
+      hideProductDiscardConfirmation();
+      return;
+    }
+    requestProductEditorClose(productEditorDialog.querySelector('[data-admin-product-editor-close]'));
   });
+  productEditorDialog?.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || !productDiscardLayer || productDiscardLayer.hidden) return;
+    event.preventDefault();
+    event.stopPropagation();
+    hideProductDiscardConfirmation();
+  }, true);
   productEditorDialog?.addEventListener('close', () => {
+    if (productDiscardLayer) {
+      productDiscardLayer.hidden = true;
+      productDiscardLayer.classList.remove('is-visible');
+    }
+    productDiscardReturnFocus = null;
     productEditorDialog.classList.remove('is-visible', 'is-success');
     document.documentElement.classList.remove('has-admin-product-editor');
     if (productEditorContent) productEditorContent.innerHTML = productEditorLoading;
