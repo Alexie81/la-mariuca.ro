@@ -272,7 +272,7 @@ final class AdminNotificationService
                 "SELECT v.id AS variant_id,v.product_id,v.sku,v.option_summary,p.name AS product_name,"
                 . '(i.physical_quantity-i.reserved_quantity) AS available_quantity,i.updated_at '
                 . "FROM inventory i JOIN product_variants v ON v.id=i.variant_id JOIN products p ON p.id=v.product_id "
-                . "WHERE v.status='active' AND (i.physical_quantity-i.reserved_quantity)<=3 ORDER BY i.updated_at DESC,v.id DESC LIMIT 100"
+                . "WHERE v.status='active' AND v.stock_unlimited=0 AND (i.physical_quantity-i.reserved_quantity)<=3 ORDER BY i.updated_at DESC,v.id DESC LIMIT 100"
             )->fetchAll();
             foreach ($rows as $row) {
                 $available = (int) $row['available_quantity'];

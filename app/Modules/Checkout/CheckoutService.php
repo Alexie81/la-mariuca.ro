@@ -121,26 +121,31 @@ final class CheckoutService
             }
 
             foreach ($cart['items'] as $item) {
-                $reserve = $this->pdo->prepare('UPDATE inventory SET reserved_quantity = reserved_quantity + :quantity_add, updated_at = :now WHERE variant_id = :variant AND physical_quantity - reserved_quantity >= :quantity_check');
-                $reserve->bindValue(':quantity_add', (int) $item['quantity'], PDO::PARAM_INT);
-                $reserve->bindValue(':quantity_check', (int) $item['quantity'], PDO::PARAM_INT);
-                $reserve->bindValue(':now', $now);
-                $reserve->bindValue(':variant', (int) $item['variant_id'], PDO::PARAM_INT);
-                $reserve->execute();
-                if ($reserve->rowCount() !== 1) {
-                    throw new RuntimeException('Stocul s-a modificat. Verifică din nou coșul.');
+                $stockUnlimited = (int) ($item['stock_unlimited'] ?? 0) === 1;
+                if (!$stockUnlimited) {
+                    $reserve = $this->pdo->prepare('UPDATE inventory SET reserved_quantity = reserved_quantity + :quantity_add, updated_at = :now WHERE variant_id = :variant AND physical_quantity - reserved_quantity >= :quantity_check');
+                    $reserve->bindValue(':quantity_add', (int) $item['quantity'], PDO::PARAM_INT);
+                    $reserve->bindValue(':quantity_check', (int) $item['quantity'], PDO::PARAM_INT);
+                    $reserve->bindValue(':now', $now);
+                    $reserve->bindValue(':variant', (int) $item['variant_id'], PDO::PARAM_INT);
+                    $reserve->execute();
+                    if ($reserve->rowCount() !== 1) {
+                        throw new RuntimeException('Stocul s-a modificat. Verifică din nou coșul.');
+                    }
                 }
                 $this->pdo->prepare("INSERT INTO order_items (order_id, product_id, variant_id, product_name, variant_summary, sku, quantity, unit_price_bani, personalization_bani, line_total_bani, tax_bani, personalization_json)
                     SELECT :order_id, p.id, v.id, p.name, v.option_summary, v.sku, :quantity, v.price_bani, 0, v.price_bani * :line_quantity, 0, :personalization FROM product_variants v JOIN products p ON p.id = v.product_id WHERE v.id = :variant")->execute([
                     'order_id' => $orderId, 'quantity' => $item['quantity'], 'line_quantity' => $item['quantity'], 'personalization' => $item['personalization_json'], 'variant' => $item['variant_id'],
                 ]);
-                $this->pdo->prepare("INSERT INTO inventory_reservations (order_id, variant_id, quantity, status, expires_at, created_at, updated_at) VALUES (:order_id, :variant, :quantity, 'active', :expires, :now, :now)")->execute([
-                    'order_id' => $orderId, 'variant' => $item['variant_id'], 'quantity' => $item['quantity'],
-                    'expires' => $method === 'stripe' ? gmdate('c', time() + 3600) : null, 'now' => $now,
-                ]);
-                $this->pdo->prepare("INSERT INTO inventory_movements (variant_id, type, physical_delta, reserved_delta, reason, reference_type, reference_id, created_at) VALUES (:variant, 'reserve', 0, :quantity, 'Rezervare la plasarea comenzii', 'order', :order_id, :now)")->execute([
-                    'variant' => $item['variant_id'], 'quantity' => $item['quantity'], 'order_id' => $orderId, 'now' => $now,
-                ]);
+                if (!$stockUnlimited) {
+                    $this->pdo->prepare("INSERT INTO inventory_reservations (order_id, variant_id, quantity, status, expires_at, created_at, updated_at) VALUES (:order_id, :variant, :quantity, 'active', :expires, :now, :now)")->execute([
+                        'order_id' => $orderId, 'variant' => $item['variant_id'], 'quantity' => $item['quantity'],
+                        'expires' => $method === 'stripe' ? gmdate('c', time() + 3600) : null, 'now' => $now,
+                    ]);
+                    $this->pdo->prepare("INSERT INTO inventory_movements (variant_id, type, physical_delta, reserved_delta, reason, reference_type, reference_id, created_at) VALUES (:variant, 'reserve', 0, :quantity, 'Rezervare la plasarea comenzii', 'order', :order_id, :now)")->execute([
+                        'variant' => $item['variant_id'], 'quantity' => $item['quantity'], 'order_id' => $orderId, 'now' => $now,
+                    ]);
+                }
             }
             $this->pdo->prepare("INSERT INTO payments (order_id, provider, amount_bani, refunded_bani, currency, status, created_at, updated_at) VALUES (:order_id, :provider, :amount, 0, 'RON', 'pending', :now, :now)")->execute([
                 'order_id' => $orderId, 'provider' => $method, 'amount' => $total, 'now' => $now,

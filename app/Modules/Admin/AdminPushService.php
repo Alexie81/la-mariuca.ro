@@ -140,7 +140,7 @@ final class AdminPushService
     {
         $statement = $this->pdo->prepare('SELECT DISTINCT v.id,p.id product_id,v.sku,p.name,(i.physical_quantity-i.reserved_quantity) available
             FROM order_items oi JOIN product_variants v ON v.id=oi.variant_id JOIN products p ON p.id=v.product_id JOIN inventory i ON i.variant_id=v.id
-            WHERE oi.order_id=:order AND (i.physical_quantity-i.reserved_quantity)<=3');
+            WHERE oi.order_id=:order AND v.stock_unlimited=0 AND (i.physical_quantity-i.reserved_quantity)<=3');
         $statement->execute(['order' => $orderId]);
         foreach ($statement->fetchAll() as $row) {
             $available = max(0, (int) $row['available']);

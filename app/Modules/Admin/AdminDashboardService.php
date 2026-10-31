@@ -41,7 +41,7 @@ final class AdminDashboardService
         $customerStatement->execute(['start' => $period['start_utc'], 'end' => $period['end_utc']]);
 
         $lowStock = (int) $this->pdo->query(
-            "SELECT COUNT(*) FROM inventory i JOIN product_variants v ON v.id=i.variant_id WHERE v.status='active' AND (i.physical_quantity-i.reserved_quantity)<=3"
+            "SELECT COUNT(*) FROM inventory i JOIN product_variants v ON v.id=i.variant_id WHERE v.status='active' AND v.stock_unlimited=0 AND (i.physical_quantity-i.reserved_quantity)<=3"
         )->fetchColumn();
 
         $recentOrders = $this->recentOrders();

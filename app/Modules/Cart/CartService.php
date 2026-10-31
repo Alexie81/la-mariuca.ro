@@ -107,7 +107,7 @@ final class CartService
         if ($quantity > 20) {
             throw new RuntimeException('Cantitatea maximă pe linie este 20.');
         }
-        $statement = $this->pdo->prepare('SELECT ci.variant_id, (i.physical_quantity - i.reserved_quantity) AS available_quantity FROM cart_items ci JOIN inventory i ON i.variant_id = ci.variant_id WHERE ci.id = :id AND ci.cart_id = :cart');
+        $statement = $this->pdo->prepare('SELECT ci.variant_id, CASE WHEN v.stock_unlimited=1 THEN 999999 ELSE (i.physical_quantity - i.reserved_quantity) END AS available_quantity FROM cart_items ci JOIN product_variants v ON v.id=ci.variant_id JOIN inventory i ON i.variant_id = ci.variant_id WHERE ci.id = :id AND ci.cart_id = :cart');
         $statement->execute(['id' => $itemId, 'cart' => $cartId]);
         $row = $statement->fetch();
         if (!is_array($row)) {
@@ -177,6 +177,7 @@ final class CartService
     {
         $statement = $this->pdo->prepare("SELECT ci.id, ci.variant_id, ci.quantity, ci.personalization_json,
                 p.name, p.slug, p.status AS product_status, v.sku, v.option_summary, v.options_json, v.price_bani,
+                v.stock_unlimited,
                 COALESCE(variant_media.public_path,
                     (SELECT product_media.public_path
                      FROM product_images pi
@@ -192,7 +193,7 @@ final class CartService
                      ORDER BY pi.position, pi.media_id LIMIT 1),
                     p.name
                 ) AS image_alt,
-                COALESCE(i.physical_quantity - i.reserved_quantity, 0) AS available_quantity
+                CASE WHEN v.stock_unlimited=1 THEN 999999 ELSE COALESCE(i.physical_quantity - i.reserved_quantity, 0) END AS available_quantity
             FROM cart_items ci
             JOIN product_variants v ON v.id = ci.variant_id
             JOIN products p ON p.id = v.product_id
@@ -220,7 +221,7 @@ final class CartService
     /** @return array<string, mixed>|null */
     private function variant(int $id): ?array
     {
-        $statement = $this->pdo->prepare("SELECT v.*, p.status AS product_status, COALESCE(i.physical_quantity - i.reserved_quantity, 0) AS available_quantity FROM product_variants v JOIN products p ON p.id = v.product_id LEFT JOIN inventory i ON i.variant_id = v.id WHERE v.id = :id");
+        $statement = $this->pdo->prepare("SELECT v.*, p.status AS product_status, CASE WHEN v.stock_unlimited=1 THEN 999999 ELSE COALESCE(i.physical_quantity - i.reserved_quantity, 0) END AS available_quantity FROM product_variants v JOIN products p ON p.id = v.product_id LEFT JOIN inventory i ON i.variant_id = v.id WHERE v.id = :id");
         $statement->execute(['id' => $id]);
         $row = $statement->fetch();
         return is_array($row) ? $row : null;
