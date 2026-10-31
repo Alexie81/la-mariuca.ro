@@ -128,11 +128,6 @@
           <i aria-hidden="true"><b></b></i>
           <span><strong>Ales cu drag</strong><small>Afișează produsul în selecția de pe homepage.</small></span>
         </label>
-        <label class="admin-product-switch">
-          <input type="checkbox" name="indexable" {{ not product or product.indexable ? 'checked' }}>
-          <i aria-hidden="true"><b></b></i>
-          <span><strong>Vizibil pentru Google</strong><small>Permite indexarea paginii produsului.</small></span>
-        </label>
       </div>
     </section>
 
@@ -176,6 +171,13 @@
       <div class="admin-product-editor__grid">
         <label class="admin-product-field"><span>Titlu SEO</span><input name="seo_title" value="{{ product.seo_title|default('') }}" placeholder="Titlul afișat în rezultatele căutării"></label>
         <label class="admin-product-field"><span>Meta description</span><textarea name="meta_description" rows="3" placeholder="O descriere scurtă și relevantă pentru căutare">{{ product.meta_description|default('') }}</textarea></label>
+      </div>
+      <div class="admin-product-editor__switches">
+        <label class="admin-product-switch">
+          <input type="checkbox" name="indexable" {{ not product or product.indexable ? 'checked' }}>
+          <i aria-hidden="true"><b></b></i>
+          <span><strong>Vizibil pentru Google</strong><small>Permite indexarea paginii produsului.</small></span>
+        </label>
       </div>
     </section>
   </div>
