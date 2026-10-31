@@ -244,12 +244,8 @@
           </header>
           <div class="product-description-body" id="product-description-content" data-product-description-body>
             {{ (product.description ?: product.short_description)|product_description_html }}
-            {% if product.package_contents %}
-              <h3>Ce conține pachetul</h3>
-              <p>{{ product.package_contents|nl2br }}</p>
-            {% endif %}
             {% if product.excluded_accessories %}
-              <p class="product-editorial-note"><strong>De reținut:</strong> {{ product.excluded_accessories }}</p>
+              <p class="product-editorial-note"><strong>Notă informativă:</strong> {{ product.excluded_accessories }}</p>
             {% endif %}
           </div>
           <button class="product-description-toggle" type="button" data-product-description-toggle aria-expanded="false" aria-controls="product-description-content" hidden>
