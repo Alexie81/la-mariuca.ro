@@ -332,6 +332,74 @@ html.has-admin-product-editor{overflow:hidden}
 .admin-suppliers-table__avatar.is-active:after{background:#4db384;box-shadow:0 0 0 3px rgba(77,179,132,.12),0 3px 7px rgba(45,126,87,.2)}.admin-suppliers-table__avatar.is-inactive:after{background:#b98438;box-shadow:0 0 0 3px rgba(185,132,56,.12),0 3px 7px rgba(132,86,31,.2)}
 .admin-suppliers-table .admin-supplier-card__status{text-transform:none;letter-spacing:.035em}
 
-/* Supplier cards: compact mobile composition, with no desktop cell heights inherited. */
-@media(max-width:1000px){.admin-suppliers-table td{height:auto;padding:0}.admin-suppliers-table .admin-supplier-card__status{justify-self:start}.admin-suppliers-table__action-group{align-self:start}}
-@media(max-width:600px){.admin-suppliers-card{padding-bottom:12px}.admin-suppliers-table tbody{gap:10px}.admin-suppliers-table tr{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"identity actions" "contact phone" "email email" "tax count" "status status";gap:13px 12px;padding:15px 14px 14px;border-radius:20px}.admin-suppliers-table td{min-height:0;padding:0;font-size:11px}.admin-suppliers-table td:before{margin-bottom:1px;font-size:7.5px}.admin-suppliers-table__identity{grid-template-columns:49px minmax(0,1fr);gap:10px}.admin-suppliers-table__identity a{max-width:190px}.admin-suppliers-table__link{min-height:22px}.admin-suppliers-table__tax{min-height:29px;padding:0 10px}.admin-suppliers-table__count{min-width:59px;padding:7px 9px;border-radius:14px}.admin-suppliers-table__count strong{font-size:19px}.admin-suppliers-table .admin-supplier-card__status{min-width:76px;min-height:28px;padding:0 10px}.admin-suppliers-table__actions{align-self:start!important}.admin-suppliers-table__action-group{gap:7px}.admin-suppliers-table__action-group>a,.admin-suppliers-table__action-group button{width:38px!important;height:38px!important}.admin-suppliers-table tr:after{right:-45px;bottom:-55px}}
+/* Touch supplier directory: identity, direct contact, details, then management. */
+.admin-suppliers-table__mobile-label{display:none}
+.admin-suppliers-table__missing{color:var(--admin-muted);font-size:12px}
+@media(max-width:1000px){
+  .admin-suppliers-card{padding-bottom:14px}
+  .admin-suppliers-table tbody{grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:16px;align-items:start}
+  .admin-suppliers-table tr{
+    grid-template-columns:repeat(4,minmax(0,1fr));
+    grid-template-areas:"identity identity identity status" "contact contact contact contact" "phone phone email email" "tax tax count count" "actions actions actions actions";
+    gap:12px 10px;padding:18px 16px 14px;border-radius:24px;
+    background:linear-gradient(150deg,#fff 55%,#fff8f5);box-shadow:0 8px 24px rgba(102,56,48,.045);
+  }
+  .admin-suppliers-table tr:after{display:none}
+  .admin-suppliers-table td,.admin-suppliers-table td:first-child{height:auto;min-height:0;min-width:0;padding:0;border:0;font-size:14px}
+  .admin-suppliers-table tbody tr:hover td{background:transparent}
+  .admin-suppliers-table td:before{margin:0;color:#8b6b62;font-size:10px;line-height:1.4;letter-spacing:.07em}
+  .admin-suppliers-table td.admin-suppliers-table__identity{grid-template-columns:46px minmax(0,1fr);align-items:start;gap:11px}
+  .admin-suppliers-table__avatar{width:46px;height:46px;font-size:19px;box-shadow:0 5px 12px rgba(178,61,75,.13),inset 0 0 0 4px rgba(255,255,255,.18)}
+  .admin-suppliers-table__identity>span:last-child{gap:4px}
+  .admin-suppliers-table__identity strong{overflow:visible;font-size:16px;line-height:1.3;white-space:normal;overflow-wrap:anywhere}
+  .admin-suppliers-table__identity small{overflow:visible;color:#856d65;font-size:12px;line-height:1.4;white-space:normal;overflow-wrap:anywhere}
+  .admin-suppliers-table__identity a{display:flex;align-items:center;justify-self:start;min-height:44px;max-width:100%;margin:-4px 0 -8px;font-size:13px;font-weight:750}
+  .admin-suppliers-table__identity .admin-suppliers-table__website-address{display:none}
+  .admin-suppliers-table__mobile-label{display:inline-flex;align-items:center;gap:6px}
+  .admin-suppliers-table__identity a svg{width:16px;height:16px}
+  .admin-suppliers-table td:nth-child(2){display:flex;flex-wrap:wrap;align-items:baseline;gap:5px 8px;margin-top:2px}
+  .admin-suppliers-table td:nth-child(2):before{content:"Contact";font-size:12px;font-weight:500;letter-spacing:0;text-transform:none}
+  .admin-suppliers-table__contact{font-size:14px;line-height:1.4;overflow-wrap:anywhere}
+  .admin-suppliers-table td:nth-child(3):before,.admin-suppliers-table td:nth-child(4):before,.admin-suppliers-table td:nth-child(6):before,.admin-suppliers-table td:nth-child(7):before{display:none}
+  .admin-suppliers-table td:nth-child(3),.admin-suppliers-table td:nth-child(4){align-content:stretch}
+  .admin-suppliers-table .admin-suppliers-table__link{
+    display:grid;grid-template-columns:22px minmax(0,1fr);grid-template-rows:auto auto;align-content:center;align-items:center;gap:5px 8px;
+    width:100%;max-width:none;min-height:82px;padding:13px 12px;border:1px solid #ebc9c3;border-radius:18px;
+    background:#fff8f5;color:#a43d49!important;text-decoration:none;touch-action:manipulation;
+    transition:background .18s ease,border-color .18s ease,transform .18s ease;
+  }
+  .admin-suppliers-table .admin-suppliers-table__link i{display:grid;width:22px;height:22px;padding:0;border:0;border-radius:0;background:transparent;color:inherit}
+  .admin-suppliers-table__link svg{width:21px;height:21px}
+  .admin-suppliers-table__link .admin-suppliers-table__mobile-label{font:800 15px/1.25 var(--admin-sans)}
+  .admin-suppliers-table__link .admin-suppliers-table__link-value{grid-column:1/-1;min-width:0;font-size:12px;font-weight:600;line-height:1.5}
+  .admin-suppliers-table__email .admin-suppliers-table__link-value{white-space:normal;overflow-wrap:anywhere}
+  .admin-suppliers-table .admin-suppliers-table__phone .admin-suppliers-table__link{border-color:#c5505c;background:linear-gradient(125deg,#d96370,#bd4754);color:#fff!important;box-shadow:0 5px 12px rgba(190,65,78,.12)}
+  .admin-suppliers-table .admin-suppliers-table__link:hover i{background:transparent;color:inherit}
+  .admin-suppliers-table .admin-suppliers-table__link:active{transform:scale(.98)}
+  .admin-suppliers-table .admin-suppliers-table__link:focus-visible,.admin-suppliers-table__identity a:focus-visible{outline:3px solid #bf4753;outline-offset:3px}
+  .admin-suppliers-table__missing{display:grid;place-items:center;min-height:82px;padding:12px;border:1px dashed #e7d8d3;border-radius:18px;background:#faf6f3;font-size:12px;line-height:1.4;text-align:center}
+  .admin-suppliers-table td:nth-child(5){display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-height:34px}
+  .admin-suppliers-table code.admin-suppliers-table__tax{min-height:0;padding:0;border:0;border-radius:0;background:transparent;font:700 12px/1.4 var(--admin-sans);overflow-wrap:anywhere}
+  .admin-suppliers-table td:nth-child(6){align-self:center;justify-self:end}
+  .admin-suppliers-table__count{display:inline-flex;align-items:baseline;gap:5px;min-width:0;padding:0;border:0;background:transparent}
+  .admin-suppliers-table__count strong{font:800 15px/1.4 var(--admin-sans)}
+  .admin-suppliers-table__count small{margin:0;color:#856d65;font-size:12px}
+  .admin-suppliers-table td:nth-child(7){align-self:start;justify-self:end;padding-top:4px}
+  .admin-suppliers-table .admin-supplier-card__status{min-height:27px;min-width:0;justify-self:start;padding:0 8px;font-size:10px;letter-spacing:0}
+  .admin-suppliers-table td.admin-suppliers-table__actions{align-self:stretch;justify-self:stretch;padding-top:12px;border-top:1px solid #f1dfda}
+  .admin-suppliers-table__action-group{display:grid;grid-template-columns:1fr 1fr;align-items:stretch;gap:10px;width:100%;line-height:1.3}
+  .admin-suppliers-table__action-group form{min-width:0;width:100%}
+  .admin-suppliers-table .admin-suppliers-table__action-group>a,.admin-suppliers-table .admin-suppliers-table__action-group button{
+    display:flex!important;align-items:center!important;justify-content:center!important;gap:8px;
+    width:100%!important;height:46px!important;padding:0 10px!important;border-radius:14px!important;
+    background:#fff!important;color:#755d57!important;box-shadow:none!important;font:750 13px/1.2 var(--admin-sans);text-decoration:none;touch-action:manipulation;
+  }
+  .admin-suppliers-table .admin-suppliers-table__action-group button{border-color:transparent!important;background:#fff1ef!important;color:#ad424e!important}
+  .admin-suppliers-table__action-group svg{flex:0 0 17px;width:17px;height:17px}
+  .admin-suppliers-table__action-group>a:hover,.admin-suppliers-table__action-group button:hover{transform:none}
+}
+@media(max-width:600px){
+  .admin-suppliers-search input{font-size:16px;min-height:48px}
+  .admin-suppliers-card__head .admin-eyebrow{font-size:10px;letter-spacing:.12em}
+}
+@media(prefers-reduced-motion:reduce){.admin-suppliers-table .admin-suppliers-table__link{transition:none}}
