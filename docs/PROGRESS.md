@@ -797,3 +797,4 @@ atribute și filtre fără schimbarea contractelor existente.
 - Inițialele furnizorilor sunt prezentate ca monograme circulare în identitatea La Măriuca, cu gradient roz, inel interior, accent auriu și interacțiune discretă la hover, în locul pătratelor generice.
 - Contorul produselor asociate folosește fontul sans al interfeței și cifre tabulare, eliminând aspectul decorativ nepotrivit al fontului editorial pentru valori numerice mici.
 - Literele monogramelor furnizorilor folosesc același font sans modern și o greutate clară; forma circulară, inelul și accentul auriu au fost păstrate.
+- Punctul de stare al monogramei este conectat la datele furnizorului: verde pentru furnizor activ și galben-maroniu pentru furnizor inactiv; etichetele `activ` / `inactiv` sunt afișate cu litere mici pentru un aspect mai calm.

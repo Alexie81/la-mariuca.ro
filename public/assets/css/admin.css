@@ -329,3 +329,5 @@ html.has-admin-product-editor{overflow:hidden}
 @media(prefers-reduced-motion:reduce){.admin-suppliers-table__avatar{transition:none!important}.admin-suppliers-table tbody tr:hover .admin-suppliers-table__avatar{transform:none}}
 .admin-suppliers-table__count strong{font:800 21px/1 var(--admin-sans);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
 .admin-suppliers-table__avatar{font:800 20px/1 var(--admin-sans);letter-spacing:-.02em;text-transform:uppercase}
+.admin-suppliers-table__avatar.is-active:after{background:#4db384;box-shadow:0 0 0 3px rgba(77,179,132,.12),0 3px 7px rgba(45,126,87,.2)}.admin-suppliers-table__avatar.is-inactive:after{background:#b98438;box-shadow:0 0 0 3px rgba(185,132,56,.12),0 3px 7px rgba(132,86,31,.2)}
+.admin-suppliers-table .admin-supplier-card__status{text-transform:none;letter-spacing:.035em}
