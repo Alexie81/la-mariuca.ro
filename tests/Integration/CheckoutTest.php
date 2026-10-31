@@ -6,6 +6,7 @@ namespace Tests\Integration;
 
 use App\Modules\Cart\CartService;
 use App\Modules\Checkout\CheckoutService;
+use App\Modules\Inventory\AccountingStockService;
 use App\Modules\Orders\OrderService;
 use App\Shared\Config\Config;
 use RuntimeException;
@@ -56,7 +57,7 @@ final class CheckoutTest extends DatabaseTestCase
         $userNow = gmdate('c');
         $this->pdo->prepare("INSERT INTO users (email,password_hash,first_name,last_name,role,status,email_verified_at,created_at,updated_at) VALUES ('admin@test.local',:password,'Admin','Test','administrator','active',:now,:now,:now)")->execute(['password' => password_hash('long-password-for-test', PASSWORD_DEFAULT), 'now' => $userNow]);
         $actor = (int) $this->pdo->lastInsertId();
-        $orders = new OrderService($this->pdo);
+        $orders = new OrderService($this->pdo, new AccountingStockService($this->pdo));
         $orders->transition($result['id'], 'cancel', null, $actor);
         self::assertSame(0, (int) $this->pdo->query('SELECT reserved_quantity FROM inventory WHERE variant_id=' . $variantId)->fetchColumn());
         $this->expectException(RuntimeException::class);

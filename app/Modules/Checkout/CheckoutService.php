@@ -133,9 +133,17 @@ final class CheckoutService
                         throw new RuntimeException('Stocul s-a modificat. Verifică din nou coșul.');
                     }
                 }
-                $this->pdo->prepare("INSERT INTO order_items (order_id, product_id, variant_id, product_name, variant_summary, sku, quantity, unit_price_bani, personalization_bani, line_total_bani, tax_bani, personalization_json)
-                    SELECT :order_id, p.id, v.id, p.name, v.option_summary, v.sku, :quantity, v.price_bani, 0, v.price_bani * :line_quantity, 0, :personalization FROM product_variants v JOIN products p ON p.id = v.product_id WHERE v.id = :variant")->execute([
-                    'order_id' => $orderId, 'quantity' => $item['quantity'], 'line_quantity' => $item['quantity'], 'personalization' => $item['personalization_json'], 'variant' => $item['variant_id'],
+                $accountingTarget = $this->accountingTargetForVariant((int) $item['variant_id']);
+                $this->pdo->prepare("INSERT INTO order_items (order_id, product_id, variant_id, product_name, variant_summary, sku, quantity, unit_price_bani, personalization_bani, line_total_bani, tax_bani, personalization_json, accounting_scope_type, accounting_scope_id, accounting_sku)
+                    SELECT :order_id, p.id, v.id, p.name, v.option_summary, v.sku, :quantity, v.price_bani, 0, v.price_bani * :line_quantity, 0, :personalization, :accounting_scope_type, :accounting_scope_id, :accounting_sku FROM product_variants v JOIN products p ON p.id = v.product_id WHERE v.id = :variant")->execute([
+                    'order_id' => $orderId,
+                    'quantity' => $item['quantity'],
+                    'line_quantity' => $item['quantity'],
+                    'personalization' => $item['personalization_json'],
+                    'variant' => $item['variant_id'],
+                    'accounting_scope_type' => $accountingTarget['scope_type'] ?? null,
+                    'accounting_scope_id' => $accountingTarget['scope_id'] ?? null,
+                    'accounting_sku' => $accountingTarget['sku'] ?? null,
                 ]);
                 if (!$stockUnlimited) {
                     $this->pdo->prepare("INSERT INTO inventory_reservations (order_id, variant_id, quantity, status, expires_at, created_at, updated_at) VALUES (:order_id, :variant, :quantity, 'active', :expires, :now, :now)")->execute([
@@ -170,5 +178,41 @@ final class CheckoutService
             }
             throw $exception;
         }
+    }
+
+    /** @return array{scope_type:'product'|'variant',scope_id:int,sku:string}|null */
+    private function accountingTargetForVariant(int $variantId): ?array
+    {
+        $statement = $this->pdo->prepare(
+            'SELECT v.id AS variant_id,v.product_id,v.sku AS variant_sku,v.options_json,v.track_in_conta AS variant_track,
+                    p.primary_sku,p.track_in_conta AS product_track
+             FROM product_variants v
+             JOIN products p ON p.id=v.product_id
+             WHERE v.id=:variant_id LIMIT 1'
+        );
+        $statement->execute(['variant_id' => $variantId]);
+        $row = $statement->fetch();
+        if (!is_array($row)) {
+            throw new RuntimeException('Combinația produsului nu mai există.');
+        }
+
+        $options = json_decode((string) $row['options_json'], true);
+        $hasCombination = is_array($options) && $options !== [];
+        if ($hasCombination && (int) $row['variant_track'] === 1) {
+            $sku = trim((string) $row['variant_sku']);
+            if ($sku === '') {
+                throw new RuntimeException('Combinația urmărită contabil nu are SKU.');
+            }
+            return ['scope_type' => 'variant', 'scope_id' => (int) $row['variant_id'], 'sku' => $sku];
+        }
+        if ((int) $row['product_track'] === 1) {
+            $sku = trim((string) $row['primary_sku']);
+            if ($sku === '') {
+                throw new RuntimeException('Produsul urmărit contabil nu are SKU principal.');
+            }
+            return ['scope_type' => 'product', 'scope_id' => (int) $row['product_id'], 'sku' => $sku];
+        }
+
+        return null;
     }
 }

@@ -62,7 +62,7 @@ final class ExpandedCatalogSeeder
         $this->pdo->beginTransaction();
         try {
             $existingStatement = $this->pdo->prepare('SELECT p.id FROM products p LEFT JOIN product_variants pv ON pv.product_id = p.id WHERE p.slug = :slug OR pv.sku = :sku LIMIT 1');
-            $productStatement = $this->pdo->prepare("INSERT INTO products (name,slug,short_description,description,status,primary_category_id,seo_title,meta_description,composition,care_instructions,size_guide,package_contents,excluded_accessories,featured,indexable,published_at,created_at,updated_at) VALUES (:name,:slug,:short,:description,'published',:category,:seo,:meta,:composition,:care,:size_guide,:package_contents,:excluded_accessories,:featured,1,:now,:now,:now)");
+            $productStatement = $this->pdo->prepare("INSERT INTO products (name,slug,primary_sku,short_description,description,status,primary_category_id,seo_title,meta_description,composition,care_instructions,size_guide,package_contents,excluded_accessories,featured,indexable,published_at,created_at,updated_at) VALUES (:name,:slug,:sku,:short,:description,'published',:category,:seo,:meta,:composition,:care,:size_guide,:package_contents,:excluded_accessories,:featured,1,:now,:now,:now)");
             $productCategoryStatement = $this->pdo->prepare('INSERT INTO product_categories (product_id,category_id) VALUES (:product,:category)');
             $variantStatement = $this->pdo->prepare("INSERT INTO product_variants (product_id,sku,option_summary,options_json,options_key,price_bani,compare_price_bani,status,is_default,created_at,updated_at) VALUES (:product,:sku,:option_summary,:options_json,:options_key,:price,:compare_price,'active',:is_default,:now,:now)");
             $inventoryStatement = $this->pdo->prepare('INSERT INTO inventory (variant_id,physical_quantity,reserved_quantity,updated_at) VALUES (:variant,:stock,0,:now)');
@@ -82,6 +82,7 @@ final class ExpandedCatalogSeeder
                 $productStatement->execute([
                     'name' => $product['name'],
                     'slug' => $slug,
+                    'sku' => $product['sku'],
                     'short' => $product['short'],
                     'description' => $product['description'],
                     'category' => $category['id'],

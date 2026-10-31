@@ -97,8 +97,8 @@ final class DemoSeeder
             $productIds = [];
             foreach ($products as [$name, $category, $sku, $price, $stock, $featured, $description]) {
                 $slug = Slugger::slug($name);
-                $statement = $this->pdo->prepare("INSERT INTO products (name,slug,short_description,description,status,primary_category_id,seo_title,meta_description,composition,care_instructions,size_guide,package_contents,excluded_accessories,featured,indexable,published_at,created_at,updated_at) VALUES (:name,:slug,:short,:description,'published',:category,:seo,:meta,'Materialele se completează înainte de lansare.','Respectă instrucțiunile de pe eticheta produsului.','Consultă ghidul de mărimi editabil.','','',:featured,1,:now,:now,:now)");
-                $statement->execute(['name' => $name, 'slug' => $slug, 'short' => $description, 'description' => $description . ' Acesta este un produs demonstrativ și nu reprezintă o ofertă comercială reală.', 'category' => $ids[$category], 'seo' => $name, 'meta' => $description, 'featured' => $featured ? 1 : 0, 'now' => $now]);
+                $statement = $this->pdo->prepare("INSERT INTO products (name,slug,primary_sku,short_description,description,status,primary_category_id,seo_title,meta_description,composition,care_instructions,size_guide,package_contents,excluded_accessories,featured,indexable,published_at,created_at,updated_at) VALUES (:name,:slug,:sku,:short,:description,'published',:category,:seo,:meta,'Materialele se completează înainte de lansare.','Respectă instrucțiunile de pe eticheta produsului.','Consultă ghidul de mărimi editabil.','','',:featured,1,:now,:now,:now)");
+                $statement->execute(['name' => $name, 'slug' => $slug, 'sku' => $sku, 'short' => $description, 'description' => $description . ' Acesta este un produs demonstrativ și nu reprezintă o ofertă comercială reală.', 'category' => $ids[$category], 'seo' => $name, 'meta' => $description, 'featured' => $featured ? 1 : 0, 'now' => $now]);
                 $productId = (int) $this->pdo->lastInsertId();
                 $productIds[$sku] = $productId;
                 $parents = [$category];
