@@ -256,6 +256,46 @@
       </label>
     </section>
 
+    <section class="admin-product-editor__section admin-product-global-discount" aria-labelledby="product-section-global-discount{{ is_modal ? '-modal' : '' }}" data-product-global-discount>
+      <div class="admin-product-global-discount__top">
+        <div class="admin-product-global-discount__copy">
+          <span>Ofertă specială</span>
+          <h3 id="product-section-global-discount{{ is_modal ? '-modal' : '' }}">Reducere generală</h3>
+          <p>Aplică aceeași reducere tuturor combinațiilor dintr-un singur pas. După aplicare, poți modifica separat orice combinație.</p>
+        </div>
+        <label class="admin-product-global-discount__switch">
+          <input type="checkbox" data-product-global-discount-toggle aria-controls="product-global-discount-fields{{ is_modal ? '-modal' : '' }}" aria-expanded="false">
+          <i aria-hidden="true"><b></b></i>
+          <span><strong>Aplică tuturor variantelor</strong><small>Deschide configurarea ghidată.</small></span>
+        </label>
+      </div>
+      <div class="admin-product-global-discount__fields" id="product-global-discount-fields{{ is_modal ? '-modal' : '' }}" data-product-global-discount-fields hidden>
+        <div class="admin-product-global-discount__guide">
+          <span aria-hidden="true">%</span>
+          <div><strong>Alege cum vrei să reduci prețurile</strong><small>Poți folosi un procent sau aceeași sumă în lei pentru toate combinațiile.</small></div>
+        </div>
+        <label class="admin-product-global-discount__field">
+          <span>Tipul reducerii</span>
+          <span class="admin-product-global-discount__select">
+            <select data-product-global-discount-type>
+              <option value="percent">Procent (%)</option>
+              <option value="fixed">Sumă fixă (lei)</option>
+            </select>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg>
+          </span>
+        </label>
+        <label class="admin-product-global-discount__field">
+          <span>Valoarea reducerii</span>
+          <span class="admin-product-global-discount__value"><input inputmode="decimal" placeholder="0,00" data-product-global-discount-value><em data-product-global-discount-unit>%</em></span>
+        </label>
+        <button type="button" class="admin-product-global-discount__apply" data-product-global-discount-apply>
+          <span>Aplică reducerea</span>
+          <i aria-hidden="true"><svg viewBox="0 0 20 20"><path d="m7 5 5 5-5 5"/></svg></i>
+        </button>
+        <p class="admin-product-global-discount__feedback" data-product-global-discount-feedback aria-live="polite">Reducerea va fi copiată în toate combinațiile după ce apeși „Aplică reducerea”.</p>
+      </div>
+    </section>
+
     <section class="admin-product-editor__section" aria-labelledby="product-section-story{{ is_modal ? '-modal' : '' }}">
       <header>
         <span class="admin-product-editor__section-icon is-rose" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 20s-7-4.3-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.7-7 10-7 10Z"/></svg></span>

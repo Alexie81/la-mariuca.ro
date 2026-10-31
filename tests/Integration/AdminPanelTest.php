@@ -468,6 +468,13 @@ final class AdminPanelTest extends DatabaseTestCase
             strpos($modal, 'admin-product-commerce__overview'),
             'Starea și selecția „Ales cu drag” trebuie să apară imediat sub antetul secțiunii comerciale.'
         );
+        self::assertStringContainsString('data-product-global-discount', $modal);
+        self::assertStringContainsString('Aplică tuturor variantelor', $modal);
+        self::assertTrue(
+            strpos($modal, 'data-product-variants-editor') < strpos($modal, 'data-product-global-discount')
+            && strpos($modal, 'data-product-global-discount') < strpos($modal, 'product-section-story'),
+            'Reducerea generală trebuie să apară imediat după secțiunea „Preț, stoc și stare”.'
+        );
     }
 
     public function testOrdersRegistryIsPaginatedAndShowsOperationalColumns(): void

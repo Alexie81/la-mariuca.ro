@@ -966,6 +966,106 @@
     if (result) result.textContent = `${formatProductMoney(finalPrice)} RON`;
   };
 
+  const setProductGlobalDiscountFeedback = (section, state, message) => {
+    const feedback = section?.querySelector('[data-product-global-discount-feedback]');
+    if (!feedback) return;
+    feedback.dataset.state = state;
+    feedback.textContent = message;
+  };
+
+  const updateProductGlobalDiscount = (section, resetFeedback = false) => {
+    if (!section) return;
+    const toggle = section.querySelector('[data-product-global-discount-toggle]');
+    const fields = section.querySelector('[data-product-global-discount-fields]');
+    const type = section.querySelector('[data-product-global-discount-type]');
+    const value = section.querySelector('[data-product-global-discount-value]');
+    const unit = section.querySelector('[data-product-global-discount-unit]');
+    const enabled = Boolean(toggle?.checked);
+    section.classList.toggle('is-active', enabled);
+    if (toggle) toggle.setAttribute('aria-expanded', enabled ? 'true' : 'false');
+    if (fields) fields.hidden = !enabled;
+    if (type) type.disabled = !enabled;
+    if (value) {
+      value.disabled = !enabled;
+      value.setCustomValidity('');
+    }
+    if (unit) unit.textContent = type?.value === 'fixed' ? 'LEI' : '%';
+    if (resetFeedback) {
+      setProductGlobalDiscountFeedback(
+        section,
+        'idle',
+        enabled
+          ? 'Reducerea va fi copiată în toate combinațiile după ce apeși „Aplică reducerea”.'
+          : 'Reducerile deja aplicate rămân salvate și pot fi modificate separat.'
+      );
+    }
+  };
+
+  const applyProductGlobalDiscount = (section) => {
+    const form = section?.closest('[data-admin-product-form]');
+    const type = section?.querySelector('[data-product-global-discount-type]');
+    const value = section?.querySelector('[data-product-global-discount-value]');
+    if (!section || !form || !type || !value) return;
+
+    value.setCustomValidity('');
+    const reduction = parseProductDecimal(value.value);
+    if (reduction === null || reduction <= 0) {
+      value.setCustomValidity('Introdu o reducere mai mare decât zero.');
+      value.reportValidity();
+      setProductGlobalDiscountFeedback(section, 'error', 'Completează o valoare validă pentru reducere.');
+      return;
+    }
+    if (type.value === 'percent' && reduction >= 100) {
+      value.setCustomValidity('Procentul trebuie să fie mai mic decât 100%.');
+      value.reportValidity();
+      setProductGlobalDiscountFeedback(section, 'error', 'Procentul trebuie să fie între 0 și 100%.');
+      return;
+    }
+
+    const cards = Array.from(form.querySelectorAll('[data-product-variant]'));
+    const prices = cards.map((card) => parseProductDecimal(card.querySelector('[data-product-variant-full-price]')?.value));
+    if (!cards.length || prices.some((price) => price === null || price <= 0)) {
+      value.setCustomValidity('Completează mai întâi prețul întreg pentru fiecare combinație.');
+      value.reportValidity();
+      setProductGlobalDiscountFeedback(section, 'error', 'Completează toate prețurile întregi înainte de aplicarea reducerii.');
+      return;
+    }
+    if (type.value === 'fixed' && prices.some((price) => reduction >= price)) {
+      value.setCustomValidity('Suma redusă trebuie să fie mai mică decât fiecare preț întreg.');
+      value.reportValidity();
+      setProductGlobalDiscountFeedback(section, 'error', 'Suma aleasă este prea mare pentru cel puțin una dintre combinații.');
+      return;
+    }
+
+    const normalizedValue = reduction.toFixed(2).replace('.', ',');
+    cards.forEach((card) => {
+      const discount = card.querySelector('[data-product-discount]');
+      const discountToggle = discount?.querySelector('[data-product-discount-toggle]');
+      const discountType = discount?.querySelector('[data-product-discount-type]');
+      const discountValue = discount?.querySelector('[data-product-discount-value]');
+      if (!discount || !discountToggle || !discountType || !discountValue) return;
+      discountToggle.checked = true;
+      discountType.value = type.value;
+      discountValue.value = normalizedValue;
+      updateProductDiscount(discount);
+    });
+
+    markProductFormDirty(section);
+    section.classList.remove('is-applied');
+    void section.offsetWidth;
+    section.classList.add('is-applied');
+    const count = cards.length;
+    const valueLabel = type.value === 'fixed' ? `${formatProductMoney(reduction)} lei` : `${formatProductMoney(reduction).replace(',00', '')}%`;
+    setProductGlobalDiscountFeedback(
+      section,
+      'success',
+      count === 1
+        ? `Reducerea de ${valueLabel} a fost aplicată produsului. O poți ajusta mai jos.`
+        : `Reducerea de ${valueLabel} a fost aplicată celor ${count} combinații. Poți ajusta separat oricare dintre ele.`
+    );
+    window.setTimeout(() => section.classList.remove('is-applied'), 700);
+  };
+
   const updateProductUnlimitedStock = (card) => {
     const toggle = card.querySelector('[data-product-stock-unlimited]');
     const stock = card.querySelector('[data-product-variant-stock]');
@@ -1083,6 +1183,7 @@
         updateProductUnlimitedStock(card);
         updateProductDiscount(card.querySelector('[data-product-discount]'));
       });
+      form.querySelectorAll('[data-product-global-discount]').forEach((section) => updateProductGlobalDiscount(section));
       updateProductOptionsSummary(form, readProductOptionGroups(form, false));
     });
   };
@@ -1104,7 +1205,12 @@
   };
 
   document.addEventListener('input', (event) => {
-    markProductFormDirty(event.target);
+    const globalDiscount = event.target.closest?.('[data-product-global-discount]');
+    if (!globalDiscount) markProductFormDirty(event.target);
+    if (globalDiscount && event.target.matches?.('[data-product-global-discount-value]')) {
+      event.target.setCustomValidity('');
+      setProductGlobalDiscountFeedback(globalDiscount, 'idle', 'Apasă „Aplică reducerea” pentru a copia această valoare în toate combinațiile.');
+    }
     const productForm = event.target.closest?.('[data-admin-product-form]');
     if (productForm && event.target.matches?.('[data-product-option-group-name],[data-product-option-value]')) {
       reindexProductOptionGroups(productForm);
@@ -1132,7 +1238,14 @@
   });
 
   document.addEventListener('change', (event) => {
-    markProductFormDirty(event.target);
+    const globalDiscount = event.target.closest?.('[data-product-global-discount]');
+    if (!globalDiscount) markProductFormDirty(event.target);
+    if (globalDiscount && event.target.matches?.('[data-product-global-discount-toggle],[data-product-global-discount-type]')) {
+      updateProductGlobalDiscount(globalDiscount, true);
+      if (event.target.matches('[data-product-global-discount-toggle]') && event.target.checked) {
+        requestAnimationFrame(() => globalDiscount.querySelector('[data-product-global-discount-value]')?.focus({ preventScroll: true }));
+      }
+    }
     const card = event.target.closest?.('[data-product-variant]');
     if (event.target.matches?.('[data-product-stock-unlimited]') && card) updateProductUnlimitedStock(card);
     const discount = event.target.closest?.('[data-product-discount]');
@@ -1142,6 +1255,12 @@
   document.addEventListener('click', (event) => {
     const form = event.target.closest?.('[data-admin-product-form]');
     if (!form) return;
+    const applyGlobalDiscount = event.target.closest('[data-product-global-discount-apply]');
+    if (applyGlobalDiscount) {
+      event.preventDefault();
+      applyProductGlobalDiscount(applyGlobalDiscount.closest('[data-product-global-discount]'));
+      return;
+    }
     const groupsContainer = form.querySelector('[data-product-option-groups]');
     const addGroup = event.target.closest('[data-product-option-group-add]');
     const preset = event.target.closest('[data-product-option-preset]');
