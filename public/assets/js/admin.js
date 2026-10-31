@@ -483,6 +483,7 @@
 
   const productNameRequests = new WeakMap();
   const productSkuRequests = new WeakMap();
+  const productSlugRequests = new WeakMap();
   const updateProductSubmitState = (form) => {
     if (!form) return;
     const submit = form.querySelector('[data-admin-product-submit]');
@@ -605,20 +606,106 @@
     productSkuRequests.set(input, { timer });
   };
 
+  const slugifyProductName = (value) => value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+
+  const setProductSlugState = (input, state, message) => {
+    const field = input.closest('[data-product-slug-field]');
+    const status = field?.querySelector('[data-product-slug-status]');
+    const form = input.closest('[data-admin-product-form]');
+    if (field) field.dataset.productAvailability = state;
+    if (status) status.textContent = message;
+    if (state === 'unavailable') input.setCustomValidity(message);
+    else if (state === 'pending') input.setCustomValidity('Așteaptă verificarea disponibilității numelui linkului.');
+    else input.setCustomValidity('');
+    updateProductSubmitState(form);
+  };
+
+  const checkProductSlug = (input) => {
+    const previous = productSlugRequests.get(input);
+    if (previous?.timer) window.clearTimeout(previous.timer);
+    previous?.controller?.abort();
+
+    const slug = input.value.trim();
+    if (!slug) {
+      productSlugRequests.delete(input);
+      setProductSlugState(input, 'idle', 'Numele linkului se generează automat din titlu.');
+      return;
+    }
+
+    setProductSlugState(input, 'pending', 'Verificăm disponibilitatea numelui linkului…');
+    const timer = window.setTimeout(async () => {
+      const controller = new AbortController();
+      productSlugRequests.set(input, { controller });
+      const endpoint = new URL(input.dataset.availabilityUrl || '', window.location.href);
+      endpoint.searchParams.set('slug', slug);
+      if (input.dataset.productId) endpoint.searchParams.set('exclude_id', input.dataset.productId);
+
+      try {
+        const response = await fetch(endpoint, {
+          headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+          signal: controller.signal,
+        });
+        const contentType = response.headers.get('Content-Type') || '';
+        if (!response.ok || !contentType.includes('application/json')) throw new Error('Verificarea nu este disponibilă momentan.');
+        const payload = await response.json();
+        if (input.value.trim() !== slug) return;
+        setProductSlugState(
+          input,
+          payload.available ? 'available' : 'unavailable',
+          payload.message || (payload.available ? 'Acest nume de link este disponibil!' : 'Acest nume de link există deja.')
+        );
+      } catch (error) {
+        if (error.name === 'AbortError' || input.value.trim() !== slug) return;
+        setProductSlugState(input, 'error', 'Nu am putut verifica acum; numele linkului va fi validat obligatoriu la salvare.');
+      } finally {
+        const active = productSlugRequests.get(input);
+        if (active?.controller === controller) productSlugRequests.delete(input);
+      }
+    }, 360);
+
+    productSlugRequests.set(input, { timer });
+  };
+
+  const syncProductSlugFromName = (nameInput) => {
+    const slugInput = nameInput.closest('[data-admin-product-form]')?.querySelector('[data-product-slug-input]');
+    if (!slugInput || slugInput.dataset.slugAutofill !== 'true' || slugInput.dataset.slugManuallyEdited === 'true') return;
+    const generatedSlug = slugifyProductName(nameInput.value);
+    if (slugInput.value === generatedSlug) return;
+    slugInput.value = generatedSlug;
+    checkProductSlug(slugInput);
+  };
+
   const initializeProductAvailability = (root) => {
     root.querySelectorAll('[data-product-name-input]').forEach((input) => {
       if (input.value.trim()) checkProductName(input);
+      syncProductSlugFromName(input);
     });
     root.querySelectorAll('[data-product-sku-input]').forEach((input) => {
       if (input.value.trim()) checkProductSku(input);
+    });
+    root.querySelectorAll('[data-product-slug-input]').forEach((input) => {
+      if (input.value.trim()) checkProductSlug(input);
     });
   };
 
   document.addEventListener('input', (event) => {
     const nameInput = event.target.closest?.('[data-product-name-input]');
-    if (nameInput) checkProductName(nameInput);
+    if (nameInput) {
+      checkProductName(nameInput);
+      syncProductSlugFromName(nameInput);
+    }
     const skuInput = event.target.closest?.('[data-product-sku-input]');
     if (skuInput) checkProductSku(skuInput);
+    const slugInput = event.target.closest?.('[data-product-slug-input]');
+    if (slugInput) {
+      slugInput.dataset.slugManuallyEdited = 'true';
+      checkProductSlug(slugInput);
+    }
   });
 
   initializeProductAvailability(document);

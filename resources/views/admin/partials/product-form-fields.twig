@@ -20,9 +20,10 @@
           <input name="sku" value="{{ product ? product.sku : suggested_sku|default('') }}" autocomplete="off" placeholder="Se generează automat" data-product-sku-input data-availability-url="{{ url('admin/produse/verifica-sku/') }}" data-variant-id="{{ product.variant_id|default('') }}" aria-describedby="product-sku-status{{ is_modal ? '-modal' : '' }}">
           <small id="product-sku-status{{ is_modal ? '-modal' : '' }}" data-product-sku-status data-product-availability-status aria-live="polite">Generat automat. Îl poți modifica manual.</small>
         </label>
-        <label class="admin-product-field">
-          <span>Slug</span>
-          <input name="slug" value="{{ product.slug|default('') }}" autocomplete="off" placeholder="Se generează din nume">
+        <label class="admin-product-field" data-product-slug-field data-product-availability="idle">
+          <span>Slug (numele linkului)</span>
+          <input name="slug" value="{{ product.slug|default('') }}" autocomplete="off" placeholder="Se generează din nume" data-product-slug-input data-slug-autofill="{{ product ? 'false' : 'true' }}" data-availability-url="{{ url('admin/produse/verifica-slug/') }}" data-product-id="{{ product.id|default('') }}" aria-describedby="product-slug-status{{ is_modal ? '-modal' : '' }}">
+          <small id="product-slug-status{{ is_modal ? '-modal' : '' }}" data-product-slug-status data-product-availability-status aria-live="polite">Se generează automat din titlu, dar îl poți modifica.</small>
         </label>
         <label class="admin-product-field admin-product-field--wide">
           <span>Categoria principală <b>*</b></span>

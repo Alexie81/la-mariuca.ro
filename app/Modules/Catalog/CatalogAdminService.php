@@ -62,6 +62,14 @@ final class CatalogAdminService
         if (!$this->isProductNameAvailable($name, $id)) {
             throw new RuntimeException('Acest titlu există deja. Alege o denumire unică pentru produs.');
         }
+        $slugInput = trim((string) ($data['slug'] ?? ''));
+        $slug = $this->normalizeProductSlug($slugInput !== '' ? $slugInput : $name);
+        if ($slug === '') {
+            throw new RuntimeException('Numele linkului nu a putut fi generat. Introdu manual un slug valid.');
+        }
+        if (!$this->isProductSlugAvailable($slug, $id)) {
+            throw new RuntimeException('Acest nume de link există deja. Alege un slug unic pentru produs.');
+        }
         if (!$this->isProductSkuAvailable($sku, $this->defaultVariantId($id))) {
             throw new RuntimeException('Acest SKU există deja. Alege un cod unic pentru produs.');
         }
@@ -75,7 +83,6 @@ final class CatalogAdminService
             throw new RuntimeException('Selectează categoria principală.');
         }
         $status = in_array(($data['status'] ?? ''), ['draft', 'published', 'archived'], true) ? (string) $data['status'] : 'draft';
-        $slug = Slugger::slug((string) ($data['slug'] ?? $name));
         $now = gmdate('c');
         $this->pdo->beginTransaction();
         try {
@@ -168,6 +175,30 @@ final class CatalogAdminService
         if ($excludeVariantId !== null && $excludeVariantId > 0) {
             $sql .= ' AND id<>:exclude_variant_id';
             $parameters['exclude_variant_id'] = $excludeVariantId;
+        }
+        $statement = $this->pdo->prepare($sql);
+        $statement->execute($parameters);
+
+        return (int) $statement->fetchColumn() === 0;
+    }
+
+    public function normalizeProductSlug(string $slug): string
+    {
+        return Slugger::slug(trim($slug));
+    }
+
+    public function isProductSlugAvailable(string $slug, ?int $excludeId = null): bool
+    {
+        $slug = $this->normalizeProductSlug($slug);
+        if ($slug === '') {
+            return false;
+        }
+
+        $sql = 'SELECT COUNT(*) FROM products WHERE LOWER(slug)=LOWER(:slug)';
+        $parameters = ['slug' => $slug];
+        if ($excludeId !== null && $excludeId > 0) {
+            $sql .= ' AND id<>:exclude_id';
+            $parameters['exclude_id'] = $excludeId;
         }
         $statement = $this->pdo->prepare($sql);
         $statement->execute($parameters);

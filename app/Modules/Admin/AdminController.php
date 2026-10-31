@@ -228,6 +228,29 @@ final class AdminController
             ->withHeader('Cache-Control', 'no-store');
     }
 
+    public function productSlugAvailability(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    {
+        $query = $request->getQueryParams();
+        $slugInput = trim(mb_substr((string) ($query['slug'] ?? ''), 0, 255));
+        $slug = $this->catalogAdmin->normalizeProductSlug($slugInput);
+        $excludeId = max(0, (int) ($query['exclude_id'] ?? 0));
+        $available = $slug !== '' && $this->catalogAdmin->isProductSlugAvailable($slug, $excludeId > 0 ? $excludeId : null);
+        $message = $slug === ''
+            ? 'Numele linkului se generează automat din titlu.'
+            : ($available ? 'Acest nume de link este disponibil!' : 'Acest nume de link există deja.');
+
+        $response->getBody()->write((string) json_encode([
+            'ok' => true,
+            'available' => $available,
+            'slug' => $slug,
+            'message' => $message,
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+
+        return $response
+            ->withHeader('Content-Type', 'application/json; charset=utf-8')
+            ->withHeader('Cache-Control', 'no-store');
+    }
+
     public function saveProduct(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
     {
         $wantsJson = str_contains(strtolower($request->getHeaderLine('Accept')), 'application/json');
