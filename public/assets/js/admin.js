@@ -1201,6 +1201,7 @@
     });
     initializeAdminCategoryPickers(root);
     initializeProductOptions(root);
+    initializeProductSeo(root);
   };
 
   const updateProductShortDescriptionCount = (input) => {
@@ -1209,6 +1210,61 @@
     if (!output) return;
     output.textContent = String(count);
     output.closest('.admin-product-field__character-count')?.classList.toggle('is-near-limit', count >= 180);
+  };
+
+  const updateProductSeoCounter = (input, output, recommendedLength) => {
+    if (!input || !output) return;
+    const count = Array.from(input.value || '').length;
+    const value = output.querySelector('strong');
+    if (value) value.textContent = String(count);
+    output.classList.toggle('is-near-limit', count >= Math.round(recommendedLength * .82) && count <= recommendedLength);
+    output.classList.toggle('is-over-limit', count > recommendedLength);
+  };
+
+  const productSeoPreviewUrl = (section, slug) => {
+    const preview = section.querySelector('[data-product-seo-base-url]');
+    const baseUrl = preview?.dataset.productSeoBaseUrl || '/produs/';
+    try {
+      const url = new URL(`${baseUrl.replace(/\/$/, '')}/${slug}/`, window.location.origin);
+      const path = url.pathname.split('/').filter(Boolean).join(' › ');
+      return `${url.host.replace(/^www\./, '')}${path ? ` › ${path}` : ''}`;
+    } catch (error) {
+      return slug;
+    }
+  };
+
+  const updateProductSeoPreview = (section) => {
+    if (!section) return;
+    const form = section.closest('[data-admin-product-form]');
+    if (!form) return;
+
+    const seoTitle = section.querySelector('[data-product-seo-title]');
+    const seoDescription = section.querySelector('[data-product-seo-description]');
+    const productName = form.querySelector('[data-product-name-input]');
+    const shortDescription = form.querySelector('[data-product-short-description]');
+    const slugInput = form.querySelector('[data-product-slug-input]');
+    const indexable = section.querySelector('[data-product-seo-indexable]');
+    const title = seoTitle?.value.trim() || productName?.value.trim() || 'Titlul produsului';
+    const description = seoDescription?.value.trim() || shortDescription?.value.trim() || 'Descrierea produsului va apărea aici pentru a ajuta familia să aleagă.';
+    const slug = slugInput?.value.trim().replace(/^\/+|\/+$/g, '') || 'numele-produsului';
+
+    const previewTitle = section.querySelector('[data-product-seo-preview-title]');
+    const previewDescription = section.querySelector('[data-product-seo-preview-description]');
+    const previewHost = section.querySelector('[data-product-seo-preview-host]');
+    const previewUrl = section.querySelector('[data-product-seo-preview-url]');
+    const visibilityStatus = section.querySelector('[data-product-seo-visibility-status] span');
+    if (previewTitle) previewTitle.textContent = title;
+    if (previewDescription) previewDescription.textContent = description;
+    if (previewHost) previewHost.textContent = window.location.host.replace(/^www\./, '') || 'La Măriuca Boutique';
+    if (previewUrl) previewUrl.textContent = productSeoPreviewUrl(section, slug);
+    if (visibilityStatus) visibilityStatus.textContent = indexable?.checked ? 'Vizibilitate activă' : 'Vizibilitate oprită';
+
+    updateProductSeoCounter(seoTitle, section.querySelector('[data-product-seo-title-count]'), 60);
+    updateProductSeoCounter(seoDescription, section.querySelector('[data-product-seo-description-count]'), 160);
+  };
+
+  const initializeProductSeo = (root) => {
+    root.querySelectorAll('[data-product-seo]').forEach((section) => updateProductSeoPreview(section));
   };
 
   document.addEventListener('input', (event) => {
@@ -1244,6 +1300,9 @@
       slugInput.dataset.slugManuallyEdited = 'true';
       checkProductSlug(slugInput);
     }
+    if (productForm && event.target.matches?.('[data-product-seo-title],[data-product-seo-description],[data-product-name-input],[data-product-short-description],[data-product-slug-input]')) {
+      productForm.querySelectorAll('[data-product-seo]').forEach((section) => updateProductSeoPreview(section));
+    }
   });
 
   document.addEventListener('change', (event) => {
@@ -1259,6 +1318,7 @@
     if (event.target.matches?.('[data-product-stock-unlimited]') && card) updateProductUnlimitedStock(card);
     const discount = event.target.closest?.('[data-product-discount]');
     if (discount && event.target.matches?.('[data-product-discount-toggle],[data-product-discount-type]')) updateProductDiscount(discount);
+    if (event.target.matches?.('[data-product-seo-indexable]')) updateProductSeoPreview(event.target.closest('[data-product-seo]'));
   });
 
   document.addEventListener('click', (event) => {
