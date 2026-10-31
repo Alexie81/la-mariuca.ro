@@ -242,7 +242,7 @@
             <span class="eyebrow">Povestea produsului</span>
             <h2>Descriere</h2>
           </header>
-          <div class="product-description-body" data-product-description-body>
+          <div class="product-description-body" id="product-description-content" data-product-description-body>
             {{ (product.description ?: product.short_description)|product_description_html }}
             {% if product.package_contents %}
               <h3>Ce conține pachetul</h3>
@@ -252,7 +252,7 @@
               <p class="product-editorial-note"><strong>De reținut:</strong> {{ product.excluded_accessories }}</p>
             {% endif %}
           </div>
-          <button class="product-description-toggle" type="button" data-product-description-toggle aria-expanded="false" hidden>
+          <button class="product-description-toggle" type="button" data-product-description-toggle aria-expanded="false" aria-controls="product-description-content" hidden>
             <span data-description-toggle-label>Vezi mai mult</span>
             <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5.5 7.5 4.5 4.5 4.5-4.5"></path></svg>
           </button>
@@ -268,7 +268,6 @@
             {% if product.category_name %}<div><dt>Categorie</dt><dd>{{ product.category_name }}</dd></div>{% endif %}
             {% for group in product.variant_groups|default([]) %}<div><dt>{{ group.name }}</dt><dd>{{ group.values|join(' · ') }}</dd></div>{% endfor %}
             {% if product.composition %}<div><dt>Compoziție</dt><dd>{{ product.composition }}</dd></div>{% endif %}
-            {% if product.care_instructions %}<div><dt>Îngrijire</dt><dd>{{ product.care_instructions }}</dd></div>{% endif %}
             {% if product.size_guide %}<div><dt>Dimensiuni</dt><dd>{{ product.size_guide|nl2br }}</dd></div>{% endif %}
           </dl>
         </article>
@@ -476,6 +475,6 @@
   </div>
 </main>
 <script type="module" src="{{ url('assets/js/storefront/product-gallery.js') }}?v=20261025-gallery5"></script>
-<script type="module" src="{{ url('assets/js/storefront/product-editorial.js') }}?v=20261025-editorial5"></script>
+<script type="module" src="{{ url('assets/js/storefront/product-editorial.js') }}?v=20261031-editorial6"></script>
 <script type="module" src="{{ url('assets/js/storefront/product-reviews.js') }}?v=20261025-review-modal4"></script>
 {% endblock %}
