@@ -45,6 +45,23 @@
           <input name="slug" value="{{ product.slug|default('') }}" autocomplete="off" placeholder="Se generează din nume" data-product-slug-input data-slug-autofill="{{ product ? 'false' : 'true' }}" data-availability-url="{{ url('admin/produse/verifica-slug/') }}" data-product-id="{{ product.id|default('') }}" aria-describedby="product-slug-status{{ is_modal ? '-modal' : '' }}">
           <small id="product-slug-status{{ is_modal ? '-modal' : '' }}" data-product-slug-status data-product-availability-status aria-live="polite">Se generează automat din titlu, dar îl poți modifica.</small>
         </label>
+        <label class="admin-product-field">
+          <span>Furnizor <em>opțional</em></span>
+          <select name="supplier_id">
+            <option value="">Fără furnizor asociat</option>
+            {% for supplier in suppliers|default([]) %}
+              <option value="{{ supplier.id }}" {{ product and product.supplier_id|default(0) == supplier.id ? 'selected' }}>
+                {{ supplier.alias }}{{ supplier.company_name ? ' — ' ~ supplier.company_name : '' }}
+              </option>
+            {% endfor %}
+          </select>
+          <small>Administrat din CRM-ul de furnizori.</small>
+        </label>
+        <label class="admin-product-field">
+          <span>Brand / Producător <em>opțional</em></span>
+          <input name="brand" value="{{ product.brand|default('') }}" maxlength="190" autocomplete="organization" placeholder="Ex: La Măriuca">
+          <small>Este vizibil clienților și este transmis către Google Merchant când este completat.</small>
+        </label>
         <div class="admin-product-field admin-product-field--wide">
           <span>Categorii <b>*</b></span>
           <details class="admin-category-picker" data-admin-category-picker>

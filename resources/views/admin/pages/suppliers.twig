@@ -1,0 +1,103 @@
+{% extends 'admin/layouts/base.twig' %}
+
+{% block title %}Furnizori{% endblock %}
+
+{% block content %}
+  <section class="admin-suppliers-hero" aria-labelledby="admin-suppliers-title">
+    <div>
+      <span class="admin-eyebrow"><i aria-hidden="true"></i> Relații comerciale</span>
+      <h1 id="admin-suppliers-title">Furnizori</h1>
+      <p>Contactele, firmele și produsele lor, așezate într-un CRM simplu și clar.</p>
+    </div>
+    <a class="admin-products-add" href="{{ url('admin/furnizori/nou/') }}" data-admin-supplier-editor-trigger data-modal-url="{{ url('admin/furnizori/nou/modal/') }}">
+      <span>Adaugă furnizor</span>
+      <i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></i>
+    </a>
+  </section>
+
+  <section class="admin-suppliers-card" aria-labelledby="admin-suppliers-list-title">
+    <header class="admin-suppliers-card__head">
+      <div>
+        <span class="admin-eyebrow">Agenda boutique-ului</span>
+        <h2 id="admin-suppliers-list-title">Partenerii tăi</h2>
+      </div>
+      {% if pagination.total > 0 %}<p><strong>{{ pagination.total }}</strong> {{ pagination.total == 1 ? 'furnizor' : 'furnizori' }}</p>{% endif %}
+    </header>
+
+    <form class="admin-suppliers-search" action="{{ url('admin/furnizori/') }}" method="get" role="search">
+      <label>
+        <span class="sr-only">Caută furnizori</span>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m16.5 16.5 4 4"/></svg>
+        <input type="search" name="cautare" value="{{ search }}" placeholder="Caută alias, firmă, CUI, contact, email sau telefon…" autocomplete="off">
+      </label>
+      <button type="submit" aria-label="Caută"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m16.5 16.5 4 4"/></svg></button>
+      {% if has_filters %}<a href="{{ url('admin/furnizori/') }}" aria-label="Șterge căutarea"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7l-10 10"/></svg></a>{% endif %}
+    </form>
+
+    {% if suppliers %}
+      <div class="admin-suppliers-grid">
+        {% for supplier in suppliers %}
+          <article class="admin-supplier-card">
+            <header>
+              <span class="admin-supplier-card__avatar" aria-hidden="true">{{ supplier.alias|slice(0, 1)|upper }}</span>
+              <div>
+                <span class="admin-supplier-card__status{{ supplier.status == 'active' ? ' is-active' : '' }}">{{ supplier.status == 'active' ? 'Activ' : 'Inactiv' }}</span>
+                <h3>{{ supplier.alias }}</h3>
+                <p>{{ supplier.company_name ?: 'Numele firmei nu este completat' }}</p>
+              </div>
+              <span class="admin-supplier-card__products"><strong>{{ supplier.product_count }}</strong><small>produse</small></span>
+            </header>
+            <dl>
+              <div><dt>Persoană de contact</dt><dd>{{ supplier.contact_name ?: '—' }}</dd></div>
+              <div><dt>Telefon</dt><dd>{% if supplier.phone %}<a href="tel:{{ supplier.phone }}">{{ supplier.phone }}</a>{% else %}—{% endif %}</dd></div>
+              <div><dt>Email</dt><dd>{% if supplier.email %}<a href="mailto:{{ supplier.email }}">{{ supplier.email }}</a>{% else %}—{% endif %}</dd></div>
+              <div><dt>CUI</dt><dd>{{ supplier.tax_id ?: '—' }}</dd></div>
+            </dl>
+            {% if supplier.website %}<a class="admin-supplier-card__website" href="{{ supplier.website }}" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></svg><span>{{ supplier.website }}</span></a>{% endif %}
+            <footer>
+              <a href="{{ url('admin/furnizori/' ~ supplier.id ~ '/editare/') }}" data-admin-supplier-editor-trigger data-modal-url="{{ url('admin/furnizori/' ~ supplier.id ~ '/editare/modal/') }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 20 4.2-1 10.4-10.4a2 2 0 0 0-2.8-2.8L5.4 16.2 4 20Z"/><path d="m14.5 7.1 2.8 2.8"/></svg>Editează</a>
+              <form action="{{ url('admin/furnizori/' ~ supplier.id ~ '/sterge/') }}" method="post" data-admin-supplier-delete-form data-supplier-name="{{ supplier.alias }}">
+                <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                <button type="submit"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5"/></svg>Șterge</button>
+              </form>
+            </footer>
+          </article>
+        {% endfor %}
+      </div>
+
+      {% if pagination.total_pages > 1 %}
+        <nav class="admin-pagination" aria-label="Paginarea furnizorilor">
+          {% if pagination.page > 1 %}<a class="admin-pagination__arrow" href="{{ url('admin/furnizori/?pagina=' ~ (pagination.page - 1) ~ (filters_query ? '&' ~ filters_query : '')) }}" aria-label="Pagina anterioară"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg></a>{% else %}<span class="admin-pagination__arrow is-disabled" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></svg></span>{% endif %}
+          <div class="admin-pagination__pages">{% for page_number in pagination.page_numbers %}<a href="{{ url('admin/furnizori/?pagina=' ~ page_number ~ (filters_query ? '&' ~ filters_query : '')) }}" class="{{ pagination.page == page_number ? 'is-active' : '' }}"{% if pagination.page == page_number %} aria-current="page"{% endif %}>{{ page_number }}</a>{% endfor %}</div>
+          {% if pagination.page < pagination.total_pages %}<a class="admin-pagination__arrow" href="{{ url('admin/furnizori/?pagina=' ~ (pagination.page + 1) ~ (filters_query ? '&' ~ filters_query : '')) }}" aria-label="Pagina următoare"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a>{% else %}<span class="admin-pagination__arrow is-disabled" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></span>{% endif %}
+        </nav>
+      {% endif %}
+    {% else %}
+      <div class="admin-suppliers-empty">
+        <span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8h11v9H3zM14 11h3l3 3v3h-6z"/><circle cx="7" cy="19" r="2"/><circle cx="17" cy="19" r="2"/></svg></span>
+        <strong>{{ has_filters ? 'Nu am găsit furnizori relevanți' : 'Agenda furnizorilor este goală' }}</strong>
+        <p>{{ has_filters ? 'Încearcă un alias, nume de firmă, CUI sau contact.' : 'Adaugă primul partener pentru a-l putea asocia produselor.' }}</p>
+        <a href="{{ has_filters ? url('admin/furnizori/') : url('admin/furnizori/nou/') }}"{% if not has_filters %} data-admin-supplier-editor-trigger data-modal-url="{{ url('admin/furnizori/nou/modal/') }}"{% endif %}>{{ has_filters ? 'Vezi toți furnizorii' : 'Adaugă furnizor' }}</a>
+      </div>
+    {% endif %}
+  </section>
+
+  <dialog class="admin-supplier-editor-dialog" data-admin-supplier-editor-dialog aria-labelledby="admin-supplier-editor-title">
+    <div class="admin-supplier-editor-dialog__surface">
+      <button class="admin-supplier-editor-dialog__close" type="button" aria-label="Închide editorul" data-admin-supplier-editor-close><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"/></svg></button>
+      <div class="admin-supplier-editor-dialog__content" data-admin-supplier-editor-content aria-live="polite">
+        <div class="admin-supplier-editor-dialog__loading"><span aria-hidden="true"><i></i><i></i><i></i></span><strong>Pregătim fișa furnizorului…</strong><small>Încărcăm contactele și datele comerciale.</small></div>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog class="admin-supplier-delete-dialog" data-admin-supplier-delete-dialog aria-labelledby="admin-supplier-delete-title">
+    <div>
+      <span class="admin-supplier-delete-dialog__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13"/></svg></span>
+      <span class="admin-eyebrow">Confirmare necesară</span>
+      <h2 id="admin-supplier-delete-title">Ștergi furnizorul?</h2>
+      <p><strong data-admin-supplier-delete-name></strong> va fi eliminat din CRM. Produsele rămân în catalog, fără furnizor asociat.</p>
+      <footer><button type="button" data-admin-supplier-delete-cancel>Renunță</button><button type="button" data-admin-supplier-delete-confirm>Da, șterge</button></footer>
+    </div>
+  </dialog>
+{% endblock %}

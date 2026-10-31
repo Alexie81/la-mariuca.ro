@@ -1,0 +1,35 @@
+<form class="admin-supplier-form" action="{{ form_action }}" method="post" data-admin-supplier-form>
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  <section>
+    <header><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V6l8-3 8 3v14M8 8h2M14 8h2M8 12h2M14 12h2M10 20v-4h4v4"/></svg></span><div><small>Identitate</small><h2>Cum îl recunoști</h2></div></header>
+    <div class="admin-supplier-form__grid">
+      <label><span>Alias <b>*</b></span><input name="alias" value="{{ supplier.alias|default('') }}" maxlength="100" autocomplete="organization-title" placeholder="Ex: Atelier Maria" required><small>Apare primul în selectorul produselor.</small></label>
+      <label><span>Numele firmei <em>opțional</em></span><input name="company_name" value="{{ supplier.company_name|default('') }}" maxlength="190" autocomplete="organization" placeholder="Ex: Atelier Maria SRL"></label>
+      <label><span>CUI / CIF <em>opțional</em></span><input name="tax_id" value="{{ supplier.tax_id|default('') }}" maxlength="60" placeholder="Ex: RO12345678"></label>
+      <label><span>Registrul Comerțului <em>opțional</em></span><input name="trade_register" value="{{ supplier.trade_register|default('') }}" maxlength="80" placeholder="Ex: J40/1234/2026"></label>
+      <label><span>Stare</span><select name="status"><option value="active" {{ supplier is not defined or not supplier or supplier.status == 'active' ? 'selected' }}>Activ</option><option value="inactive" {{ supplier and supplier.status == 'inactive' ? 'selected' }}>Inactiv</option></select><small>Furnizorii inactivi nu apar în selectorul produsului.</small></label>
+    </div>
+  </section>
+
+  <section>
+    <header><span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4.5 21a7.5 7.5 0 0 1 15 0M20 8v6M17 11h6"/></svg></span><div><small>Contact</small><h2>Cum luați legătura</h2></div></header>
+    <div class="admin-supplier-form__grid">
+      <label><span>Persoană de contact <em>opțional</em></span><input name="contact_name" value="{{ supplier.contact_name|default('') }}" maxlength="190" autocomplete="name" placeholder="Nume și prenume"></label>
+      <label><span>Telefon <em>opțional</em></span><input name="phone" value="{{ supplier.phone|default('') }}" maxlength="50" autocomplete="tel" inputmode="tel" placeholder="07xx xxx xxx"></label>
+      <label><span>Email <em>opțional</em></span><input type="email" name="email" value="{{ supplier.email|default('') }}" maxlength="254" autocomplete="email" placeholder="contact@furnizor.ro"></label>
+      <label><span>Website <em>dacă există</em></span><input type="text" inputmode="url" name="website" value="{{ supplier.website|default('') }}" maxlength="500" autocomplete="url" placeholder="https://furnizor.ro"><small>Poți introduce și fără https://; îl normalizăm la salvare.</small></label>
+      <label class="admin-supplier-form__wide"><span>Adresă <em>opțional</em></span><textarea name="address" rows="3" placeholder="Sediu, depozit sau adresă de corespondență">{{ supplier.address|default('') }}</textarea></label>
+    </div>
+  </section>
+
+  <section>
+    <header><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v16H5zM8 8h8M8 12h8M8 16h5"/></svg></span><div><small>Memorie internă</small><h2>Notițe despre colaborare</h2></div></header>
+    <label class="admin-supplier-form__notes"><span>Notițe <em>opțional</em></span><textarea name="notes" rows="5" placeholder="Condiții comerciale, termene, preferințe sau alte detalii utile…">{{ supplier.notes|default('') }}</textarea><small>Vizibile doar în panoul de administrare.</small></label>
+  </section>
+
+  <p class="admin-supplier-form__feedback" data-admin-supplier-form-feedback hidden></p>
+  <footer class="admin-supplier-form__actions">
+    <a href="{{ url('admin/furnizori/') }}" data-admin-supplier-editor-close>Renunță</a>
+    <button type="submit" data-admin-supplier-submit><span>{{ supplier ? 'Salvează modificările' : 'Adaugă furnizorul' }}</span><i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></i></button>
+  </footer>
+</form>

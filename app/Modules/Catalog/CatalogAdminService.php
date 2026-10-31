@@ -84,13 +84,21 @@ final class CatalogAdminService
         }
         $this->assertProductCategoriesExist($categoryIds);
         $categoryId = $this->primaryProductCategoryId($id, $categoryIds);
+        $supplierId = ($data['supplier_id'] ?? '') === '' ? null : (int) $data['supplier_id'];
+        if ($supplierId !== null) {
+            $supplier = $this->pdo->prepare("SELECT COUNT(*) FROM suppliers WHERE id=:id AND status='active'");
+            $supplier->execute(['id' => $supplierId]);
+            if ((int) $supplier->fetchColumn() !== 1) {
+                throw new RuntimeException('Furnizorul selectat nu mai este disponibil.');
+            }
+        }
         $status = in_array(($data['status'] ?? ''), ['draft', 'published', 'archived'], true) ? (string) $data['status'] : 'draft';
         $now = gmdate('c');
         $this->pdo->beginTransaction();
         try {
             if ($id === null) {
-                $statement = $this->pdo->prepare('INSERT INTO products (name,slug,short_description,description,status,primary_category_id,seo_title,meta_description,composition,care_instructions,size_guide,package_contents,excluded_accessories,featured,indexable,published_at,created_at,updated_at) VALUES (:name,:slug,:short_description,:description,:status,:category,:seo_title,:meta_description,:composition,:care,:size_guide,:package_contents,:excluded_accessories,:featured,:indexable,:published_at,:now,:now)');
-                $statement->execute($this->productParams($data, $name, $slug, $status, $categoryId, $now));
+                $statement = $this->pdo->prepare('INSERT INTO products (name,slug,short_description,description,brand,supplier_id,status,primary_category_id,seo_title,meta_description,composition,care_instructions,size_guide,package_contents,excluded_accessories,featured,indexable,published_at,created_at,updated_at) VALUES (:name,:slug,:short_description,:description,:brand,:supplier_id,:status,:category,:seo_title,:meta_description,:composition,:care,:size_guide,:package_contents,:excluded_accessories,:featured,:indexable,:published_at,:now,:now)');
+                $statement->execute($this->productParams($data, $name, $slug, $status, $categoryId, $supplierId, $now));
                 $id = (int) $this->pdo->lastInsertId();
                 $this->saveProductCategories($id, $categoryIds);
                 $this->pdo->prepare("INSERT INTO product_variants (product_id, sku, option_summary, options_json, options_key, price_bani, status, is_default, created_at, updated_at) VALUES (:product,:sku,'','{}',:options_key,:price,'active',1,:now,:now)")->execute(['product' => $id, 'sku' => $sku, 'options_key' => hash('sha256', '{}'), 'price' => $price, 'now' => $now]);
@@ -104,8 +112,8 @@ final class CatalogAdminService
                 if ($oldSlug === false) {
                     throw new RuntimeException('Produsul nu există.');
                 }
-                $statement = $this->pdo->prepare('UPDATE products SET name=:name,slug=:slug,short_description=:short_description,description=:description,status=:status,primary_category_id=:category,seo_title=:seo_title,meta_description=:meta_description,composition=:composition,care_instructions=:care,size_guide=:size_guide,package_contents=:package_contents,excluded_accessories=:excluded_accessories,featured=:featured,indexable=:indexable,published_at=:published_at,updated_at=:now WHERE id=:id');
-                $statement->execute($this->productParams($data, $name, $slug, $status, $categoryId, $now) + ['id' => $id]);
+                $statement = $this->pdo->prepare('UPDATE products SET name=:name,slug=:slug,short_description=:short_description,description=:description,brand=:brand,supplier_id=:supplier_id,status=:status,primary_category_id=:category,seo_title=:seo_title,meta_description=:meta_description,composition=:composition,care_instructions=:care,size_guide=:size_guide,package_contents=:package_contents,excluded_accessories=:excluded_accessories,featured=:featured,indexable=:indexable,published_at=:published_at,updated_at=:now WHERE id=:id');
+                $statement->execute($this->productParams($data, $name, $slug, $status, $categoryId, $supplierId, $now) + ['id' => $id]);
                 $this->pdo->prepare('DELETE FROM product_categories WHERE product_id=:id')->execute(['id' => $id]);
                 $this->saveProductCategories($id, $categoryIds);
                 $variant = $this->pdo->prepare('SELECT id FROM product_variants WHERE product_id=:id ORDER BY is_default DESC,id LIMIT 1');
@@ -471,10 +479,11 @@ final class CatalogAdminService
     }
 
     /** @param array<string,mixed> $data @return array<string,mixed> */
-    private function productParams(array $data, string $name, string $slug, string $status, int $categoryId, string $now): array
+    private function productParams(array $data, string $name, string $slug, string $status, int $categoryId, ?int $supplierId, string $now): array
     {
         return [
             'name' => $name, 'slug' => $slug, 'short_description' => trim((string) ($data['short_description'] ?? '')), 'description' => trim((string) ($data['description'] ?? '')),
+            'brand' => ($brand = trim(mb_substr((string) ($data['brand'] ?? ''), 0, 190))) === '' ? null : $brand, 'supplier_id' => $supplierId,
             'status' => $status, 'category' => $categoryId, 'seo_title' => trim((string) ($data['seo_title'] ?? '')), 'meta_description' => trim((string) ($data['meta_description'] ?? '')),
             'composition' => trim((string) ($data['composition'] ?? '')), 'care' => trim((string) ($data['care_instructions'] ?? '')), 'size_guide' => trim((string) ($data['size_guide'] ?? '')),
             'package_contents' => trim((string) ($data['package_contents'] ?? '')), 'excluded_accessories' => trim((string) ($data['excluded_accessories'] ?? '')),

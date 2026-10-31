@@ -256,10 +256,21 @@ final class StorefrontController
                 'sku' => $variant['sku'], 'url' => $this->config->rootUrl() . '/produs/' . $product['slug'] . '/',
             ];
         }
+        $productStructuredData = [
+            '@type' => 'Product',
+            'name' => $product['name'],
+            'description' => $product['short_description'],
+            'sku' => $variants[0]['sku'] ?? '',
+            'offers' => $offers,
+        ];
+        $brand = trim((string) ($product['brand'] ?? ''));
+        if ($brand !== '') {
+            $productStructuredData['brand'] = ['@type' => 'Brand', 'name' => $brand];
+        }
         $structured = [
             '@context' => 'https://schema.org',
             '@graph' => [
-                ['@type' => 'Product', 'name' => $product['name'], 'description' => $product['short_description'], 'sku' => $variants[0]['sku'] ?? '', 'offers' => $offers],
+                $productStructuredData,
                 $this->breadcrumbStructuredData($categoryTrail, (string) $product['name'], '/produs/' . $product['slug'] . '/', false),
             ],
         ];

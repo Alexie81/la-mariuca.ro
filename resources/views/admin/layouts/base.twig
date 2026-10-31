@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>{% block title %}Dashboard{% endblock %} · Administrare La Măriuca</title>
-  <link rel="stylesheet" href="{{ url('assets/css/admin.css?v=20261031-product-unsaved-confirm-v1') }}">
+  <link rel="stylesheet" href="{{ url('assets/css/admin.css?v=20261031-suppliers-crm-v1') }}">
 </head>
 {% set operator = admin_user|default(current_user()) %}
 {% set first_name = operator.first_name|default('Administrator') %}
@@ -83,6 +83,10 @@
           <span class="admin-nav__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4.5 7.5 7.5-4 7.5 4v9L12 21l-7.5-4.5v-9Z"/><path d="m4.8 7.7 7.2 4.1 7.2-4.1M12 11.8V21"/></svg></span>
           <span><strong>Produse</strong><small>Catalog, preț și stoc</small></span>
         </a>
+        <a class="admin-nav__item{{ active_admin_section == 'suppliers' ? ' is-active' : '' }}" href="{{ url('admin/furnizori/') }}"{% if active_admin_section == 'suppliers' %} aria-current="page"{% endif %}>
+          <span class="admin-nav__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8h11v9H3zM14 11h3l3 3v3h-6z"/><circle cx="7" cy="19" r="2"/><circle cx="17" cy="19" r="2"/><path d="M6 5h8M8 3h6"/></svg></span>
+          <span><strong>Furnizori</strong><small>Parteneri și contacte</small></span>
+        </a>
       </nav>
 
       <div class="admin-sidebar__spacer"></div>
@@ -125,6 +129,6 @@
     </main>
   </div>
 
-  <script src="{{ url('assets/js/admin.js?v=20261031-product-unsaved-confirm-v1') }}" defer></script>
+  <script src="{{ url('assets/js/admin.js?v=20261031-suppliers-crm-v1') }}" defer></script>
 </body>
 </html>

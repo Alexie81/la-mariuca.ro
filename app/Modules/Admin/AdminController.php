@@ -9,6 +9,7 @@ use App\Modules\Catalog\CatalogRepository;
 use App\Modules\Media\MediaService;
 use App\Modules\Orders\OrderService;
 use App\Modules\Reviews\ProductReviewService;
+use App\Modules\Suppliers\SupplierAdminService;
 use App\Modules\Content\ContentAdminService;
 use App\Shared\Config\Config;
 use App\Shared\Http\RateLimiter;
@@ -23,7 +24,7 @@ use Psr\Http\Message\ServerRequestInterface;
 
 final class AdminController
 {
-    public function __construct(private readonly PDO $pdo, private readonly AdminDashboardService $dashboardService, private readonly AdminNotificationService $notificationService, private readonly AdminPushService $push, private readonly CatalogRepository $catalog, private readonly CatalogAdminService $catalogAdmin, private readonly OrderService $orders, private readonly ProductReviewService $reviews, private readonly MediaService $media, private readonly ContentAdminService $contentAdmin, private readonly Auth $auth, private readonly AdminRememberMe $rememberMe, private readonly RateLimiter $limiter, private readonly View $view, private readonly Config $config)
+    public function __construct(private readonly PDO $pdo, private readonly AdminDashboardService $dashboardService, private readonly AdminNotificationService $notificationService, private readonly AdminPushService $push, private readonly CatalogRepository $catalog, private readonly CatalogAdminService $catalogAdmin, private readonly SupplierAdminService $suppliers, private readonly OrderService $orders, private readonly ProductReviewService $reviews, private readonly MediaService $media, private readonly ContentAdminService $contentAdmin, private readonly Auth $auth, private readonly AdminRememberMe $rememberMe, private readonly RateLimiter $limiter, private readonly View $view, private readonly Config $config)
     {
     }
 
@@ -151,6 +152,97 @@ final class AdminController
         ]);
     }
 
+    public function suppliers(ServerRequestInterface $request): ResponseInterface
+    {
+        $query = $request->getQueryParams();
+        $search = trim(mb_substr((string) ($query['cautare'] ?? ''), 0, 120));
+        $pagination = $this->suppliers->paginate(max(1, (int) ($query['pagina'] ?? 1)), 12, $search);
+        $firstPage = max(1, $pagination['page'] - 2);
+        $lastPage = min($pagination['total_pages'], $pagination['page'] + 2);
+        $pagination['page_numbers'] = range($firstPage, $lastPage);
+
+        return $this->view->render('admin/pages/suppliers.twig', [
+            'suppliers' => $pagination['items'],
+            'pagination' => $pagination,
+            'search' => $search,
+            'filters_query' => $search !== '' ? http_build_query(['cautare' => $search]) : '',
+            'has_filters' => $search !== '',
+            'admin_section' => 'suppliers',
+            'admin_context' => 'Furnizori',
+            'admin_unread_count' => $this->notificationService->unreadCount((int) ($this->auth->user()['id'] ?? 0)),
+        ]);
+    }
+
+    public function supplierForm(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $id = isset($args['id']) ? (int) $args['id'] : null;
+        $supplier = $id === null ? null : $this->suppliers->find($id);
+        if ($id !== null && $supplier === null) {
+            Flash::set('error', 'Furnizorul solicitat nu mai există.');
+            return $this->view->redirect($this->config->path('admin/furnizori/'));
+        }
+
+        return $this->view->render('admin/pages/supplier-form.twig', [
+            'supplier' => $supplier,
+            'form_action' => $this->config->path($id === null ? 'admin/furnizori/nou/' : 'admin/furnizori/' . $id . '/editare/'),
+            'admin_section' => 'suppliers',
+            'admin_context' => $id === null ? 'Furnizor nou' : 'Editare furnizor',
+            'admin_unread_count' => $this->notificationService->unreadCount((int) ($this->auth->user()['id'] ?? 0)),
+        ]);
+    }
+
+    public function supplierModalForm(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $id = isset($args['id']) ? (int) $args['id'] : null;
+        $supplier = $id === null ? null : $this->suppliers->find($id);
+        if ($id !== null && $supplier === null) {
+            return $this->view->render('admin/partials/product-form-error.twig', [], 404);
+        }
+        return $this->view->render('admin/partials/supplier-form-modal.twig', [
+            'supplier' => $supplier,
+            'form_action' => $this->config->path($id === null ? 'admin/furnizori/nou/' : 'admin/furnizori/' . $id . '/editare/'),
+        ]);
+    }
+
+    public function saveSupplier(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $wantsJson = str_contains(strtolower($request->getHeaderLine('Accept')), 'application/json');
+        try {
+            $id = $this->suppliers->save((array) ($request->getParsedBody() ?? []), isset($args['id']) ? (int) $args['id'] : null);
+            if ($wantsJson) {
+                $response->getBody()->write((string) json_encode([
+                    'ok' => true,
+                    'id' => $id,
+                    'message' => 'Furnizorul a fost salvat.',
+                ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+                return $response->withHeader('Content-Type', 'application/json; charset=utf-8')->withHeader('Cache-Control', 'no-store');
+            }
+            Flash::set('success', 'Furnizorul a fost salvat și poate fi selectat pe produse.');
+            return $this->view->redirect($this->config->path('admin/furnizori/' . $id . '/editare/'));
+        } catch (\Throwable $exception) {
+            if ($wantsJson) {
+                $response->getBody()->write((string) json_encode([
+                    'ok' => false,
+                    'message' => $exception->getMessage(),
+                ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+                return $response->withStatus(422)->withHeader('Content-Type', 'application/json; charset=utf-8')->withHeader('Cache-Control', 'no-store');
+            }
+            Flash::set('error', $exception->getMessage());
+            return $this->view->redirect($request->getHeaderLine('Referer') ?: $this->config->path('admin/furnizori/'));
+        }
+    }
+
+    public function deleteSupplier(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        try {
+            $this->suppliers->delete((int) ($args['id'] ?? 0));
+            Flash::set('success', 'Furnizorul a fost șters. Produsele asociate au fost păstrate.');
+        } catch (\Throwable $exception) {
+            Flash::set('error', $exception->getMessage());
+        }
+        return $this->view->redirect($this->config->path('admin/furnizori/'));
+    }
+
     public function productForm(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
     {
         $id = isset($args['id']) ? (int) $args['id'] : null;
@@ -163,6 +255,7 @@ final class AdminController
             'product' => $product,
             'suggested_sku' => $product ? null : $this->catalogAdmin->generateProductSku(),
             'categories' => $this->catalog->allCategoryTree(true),
+            'suppliers' => $this->suppliers->allForSelect(),
             'form_action' => $this->config->path($id ? 'admin/produse/' . $id . '/editare/' : 'admin/produse/nou/'),
             'admin_section' => 'products',
             'admin_context' => $id ? 'Editare produs' : 'Produs nou',
@@ -182,6 +275,7 @@ final class AdminController
             'product' => $product,
             'suggested_sku' => $product ? null : $this->catalogAdmin->generateProductSku(),
             'categories' => $this->catalog->allCategoryTree(true),
+            'suppliers' => $this->suppliers->allForSelect(),
             'form_action' => $this->config->path($id ? 'admin/produse/' . $id . '/editare/' : 'admin/produse/nou/'),
         ]);
     }

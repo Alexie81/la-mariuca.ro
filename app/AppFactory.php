@@ -33,6 +33,7 @@ use App\Modules\Payments\StripeWebhookController;
 use App\Modules\Payments\StripeCheckoutService;
 use App\Modules\Reviews\ProductReviewRepository;
 use App\Modules\Reviews\ProductReviewService;
+use App\Modules\Suppliers\SupplierAdminService;
 use App\Shared\Config\Config;
 use App\Shared\Database\ConnectionFactory;
 use App\Shared\Http\AdminMiddleware;
@@ -131,7 +132,7 @@ final class AppFactory
         $checkoutController = new CheckoutController(new CheckoutService($pdo, $cart, $config, $romanianLocations, $push), $cart, $orders, new StripeCheckoutService($pdo, $config), $auth, $customerAccount, $rateLimiter, $view, $config);
         $authController = new AuthController($pdo, $auth, new GoogleOAuthService($pdo, $config), $customerAccount, $rateLimiter, $view, $config);
         $twoFactorController = new TwoFactorController($pdo, $auth, new TotpService($config), $adminRememberMe, $rateLimiter, $view, $config);
-        $adminController = new AdminController($pdo, new AdminDashboardService($pdo), new AdminNotificationService($pdo), $push, $catalog, new CatalogAdminService($pdo), $orders, $reviews, new MediaService($pdo, $root), new ContentAdminService($pdo), $auth, $adminRememberMe, $rateLimiter, $view, $config);
+        $adminController = new AdminController($pdo, new AdminDashboardService($pdo), new AdminNotificationService($pdo), $push, $catalog, new CatalogAdminService($pdo), new SupplierAdminService($pdo), $orders, $reviews, new MediaService($pdo, $root), new ContentAdminService($pdo), $auth, $adminRememberMe, $rateLimiter, $view, $config);
         $adminPushController = new AdminPushController($push, $auth, $view, $config);
 
         $app = SlimAppFactory::create();
@@ -202,6 +203,14 @@ final class AppFactory
             $group->get('/produse/{id:[0-9]+}/editare/modal/', [$adminController, 'productModalForm']);
             $group->post('/produse/{id:[0-9]+}/editare/', [$adminController, 'saveProduct']);
             $group->post('/produse/{id:[0-9]+}/sterge/', [$adminController, 'deleteProduct']);
+            $group->get('/furnizori/', [$adminController, 'suppliers']);
+            $group->get('/furnizori/nou/', [$adminController, 'supplierForm']);
+            $group->get('/furnizori/nou/modal/', [$adminController, 'supplierModalForm']);
+            $group->post('/furnizori/nou/', [$adminController, 'saveSupplier']);
+            $group->get('/furnizori/{id:[0-9]+}/editare/', [$adminController, 'supplierForm']);
+            $group->get('/furnizori/{id:[0-9]+}/editare/modal/', [$adminController, 'supplierModalForm']);
+            $group->post('/furnizori/{id:[0-9]+}/editare/', [$adminController, 'saveSupplier']);
+            $group->post('/furnizori/{id:[0-9]+}/sterge/', [$adminController, 'deleteSupplier']);
             $group->get('/comenzi/', [$adminController, 'orders']);
             $group->get('/comenzi/{id:[0-9]+}/', [$adminController, 'orderDetail']);
             $group->post('/comenzi/{id:[0-9]+}/actiune/', [$adminController, 'transitionOrder']);

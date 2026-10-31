@@ -1079,6 +1079,150 @@
     pendingProductDeleteForm.submit();
   });
 
+  const supplierEditorDialog = document.querySelector('[data-admin-supplier-editor-dialog]');
+  const supplierEditorContent = supplierEditorDialog?.querySelector('[data-admin-supplier-editor-content]');
+  const supplierEditorLoading = supplierEditorContent?.innerHTML || '';
+  let supplierEditorRequest = null;
+  let supplierEditorTrigger = null;
+
+  const closeSupplierEditor = () => {
+    if (!supplierEditorDialog?.open) return;
+    supplierEditorRequest?.abort();
+    supplierEditorRequest = null;
+    supplierEditorDialog.classList.remove('is-visible', 'is-success');
+    document.documentElement.classList.remove('has-admin-supplier-editor');
+    window.setTimeout(() => {
+      if (supplierEditorDialog.open) supplierEditorDialog.close();
+    }, reducedMotion ? 0 : 210);
+  };
+
+  const loadSupplierEditor = async (trigger) => {
+    if (!supplierEditorDialog || !supplierEditorContent) return;
+    supplierEditorRequest?.abort();
+    supplierEditorRequest = new AbortController();
+    supplierEditorContent.innerHTML = supplierEditorLoading;
+    try {
+      const response = await fetch(trigger.dataset.modalUrl, {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        signal: supplierEditorRequest.signal,
+      });
+      const markup = await response.text();
+      if (!response.ok || response.redirected || !markup.includes('data-admin-supplier-form')) {
+        throw new Error('Furnizorul nu mai este disponibil sau sesiunea a expirat.');
+      }
+      supplierEditorContent.innerHTML = markup;
+      requestAnimationFrame(() => supplierEditorContent.querySelector('input:not([type="hidden"])')?.focus({ preventScroll: true }));
+    } catch (error) {
+      if (error.name === 'AbortError') return;
+      supplierEditorContent.innerHTML = `<div class="admin-supplier-editor-dialog__error"><strong>Nu am putut deschide fișa</strong><p>${error.message || 'A apărut o problemă temporară.'}</p></div>`;
+    } finally {
+      supplierEditorRequest = null;
+    }
+  };
+
+  document.querySelectorAll('[data-admin-supplier-editor-trigger]').forEach((trigger) => {
+    trigger.addEventListener('click', (event) => {
+      if (!supplierEditorDialog || typeof supplierEditorDialog.showModal !== 'function' || !window.fetch) return;
+      event.preventDefault();
+      supplierEditorTrigger = trigger;
+      supplierEditorDialog.showModal();
+      document.documentElement.classList.add('has-admin-supplier-editor');
+      requestAnimationFrame(() => supplierEditorDialog.classList.add('is-visible'));
+      loadSupplierEditor(trigger);
+    });
+  });
+  supplierEditorDialog?.addEventListener('click', (event) => {
+    if (event.target === supplierEditorDialog || event.target.closest('[data-admin-supplier-editor-close]')) {
+      event.preventDefault();
+      closeSupplierEditor();
+    }
+  });
+  supplierEditorDialog?.addEventListener('cancel', (event) => {
+    event.preventDefault();
+    closeSupplierEditor();
+  });
+  supplierEditorDialog?.addEventListener('close', () => {
+    document.documentElement.classList.remove('has-admin-supplier-editor');
+    supplierEditorDialog.classList.remove('is-visible', 'is-success');
+    if (supplierEditorContent) supplierEditorContent.innerHTML = supplierEditorLoading;
+    supplierEditorTrigger?.focus({ preventScroll: true });
+    supplierEditorTrigger = null;
+  });
+  supplierEditorContent?.addEventListener('submit', async (event) => {
+    const form = event.target.closest('[data-admin-supplier-form]');
+    if (!form) return;
+    event.preventDefault();
+    if (!form.reportValidity()) return;
+    const submit = form.querySelector('[data-admin-supplier-submit]');
+    const label = submit?.querySelector('span');
+    const feedback = form.querySelector('[data-admin-supplier-form-feedback]');
+    if (submit) submit.disabled = true;
+    if (label) label.textContent = 'Se salvează…';
+    if (feedback) feedback.hidden = true;
+    try {
+      const response = await fetch(form.action, {
+        method: 'POST',
+        body: new FormData(form),
+        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload.ok) throw new Error(payload.message || 'Furnizorul nu a putut fi salvat.');
+      supplierEditorDialog.classList.add('is-success');
+      if (label) label.textContent = 'Salvat cu grijă';
+      window.setTimeout(() => {
+        closeSupplierEditor();
+        window.setTimeout(() => window.location.reload(), reducedMotion ? 0 : 220);
+      }, reducedMotion ? 80 : 620);
+    } catch (error) {
+      if (submit) submit.disabled = false;
+      if (label) label.textContent = 'Încearcă din nou';
+      if (feedback) {
+        feedback.textContent = error.message || 'Verifică datele și încearcă din nou.';
+        feedback.hidden = false;
+      }
+    }
+  });
+
+  const supplierDeleteDialog = document.querySelector('[data-admin-supplier-delete-dialog]');
+  const supplierDeleteName = supplierDeleteDialog?.querySelector('[data-admin-supplier-delete-name]');
+  const supplierDeleteConfirm = supplierDeleteDialog?.querySelector('[data-admin-supplier-delete-confirm]');
+  let pendingSupplierDeleteForm = null;
+
+  const closeSupplierDeleteDialog = () => {
+    if (!supplierDeleteDialog?.open) return;
+    supplierDeleteDialog.close();
+  };
+
+  document.querySelectorAll('[data-admin-supplier-delete-form]').forEach((form) => {
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      pendingSupplierDeleteForm = form;
+      if (supplierDeleteName) supplierDeleteName.textContent = form.dataset.supplierName || 'Furnizorul';
+      if (!supplierDeleteDialog || typeof supplierDeleteDialog.showModal !== 'function') {
+        if (window.confirm(`Ștergi furnizorul „${form.dataset.supplierName || ''}”?`)) form.submit();
+        return;
+      }
+      supplierDeleteDialog.showModal();
+    });
+  });
+  supplierDeleteDialog?.querySelector('[data-admin-supplier-delete-cancel]')?.addEventListener('click', closeSupplierDeleteDialog);
+  supplierDeleteDialog?.addEventListener('click', (event) => {
+    if (event.target === supplierDeleteDialog) closeSupplierDeleteDialog();
+  });
+  supplierDeleteDialog?.addEventListener('cancel', (event) => {
+    event.preventDefault();
+    closeSupplierDeleteDialog();
+  });
+  supplierDeleteDialog?.addEventListener('close', () => {
+    pendingSupplierDeleteForm = null;
+  });
+  supplierDeleteConfirm?.addEventListener('click', () => {
+    if (!pendingSupplierDeleteForm) return;
+    supplierDeleteConfirm.disabled = true;
+    supplierDeleteConfirm.textContent = 'Se șterge…';
+    pendingSupplierDeleteForm.submit();
+  });
+
   document.querySelectorAll('[data-admin-toast]').forEach((toast) => {
     const remove = () => {
       toast.style.opacity = '0';

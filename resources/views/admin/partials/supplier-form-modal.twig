@@ -1,0 +1,9 @@
+<header class="admin-supplier-modal__header">
+  <span class="admin-supplier-modal__mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 8h11v9H3zM14 11h3l3 3v3h-6z"/><circle cx="7" cy="19" r="2"/><circle cx="17" cy="19" r="2"/></svg></span>
+  <div>
+    <span class="admin-eyebrow">{{ supplier ? 'Fișă partener' : 'Partener nou' }}</span>
+    <h2 id="admin-supplier-editor-title">{{ supplier ? 'Actualizează relația' : 'Adaugă un furnizor' }}</h2>
+    <p>{{ supplier ? supplier.alias ~ (supplier.company_name ? ' — ' ~ supplier.company_name : '') : 'Doar aliasul este obligatoriu. Restul poate fi completat oricând.' }}</p>
+  </div>
+</header>
+{% include 'admin/partials/supplier-form-fields.twig' %}

@@ -1,0 +1,19 @@
+{% extends 'admin/layouts/base.twig' %}
+
+{% block title %}{{ supplier ? 'Editare furnizor' : 'Furnizor nou' }}{% endblock %}
+
+{% block content %}
+  <section class="admin-supplier-editor">
+    <header class="admin-supplier-editor__hero">
+      <div>
+        <a href="{{ url('admin/furnizori/') }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg>CRM furnizori</a>
+        <span class="admin-eyebrow"><i aria-hidden="true"></i> {{ supplier ? 'Fișă partener' : 'Partener nou' }}</span>
+        <h1>{{ supplier ? 'Actualizează relația' : 'Adaugă un furnizor' }}</h1>
+        <p>Doar aliasul este obligatoriu. Completează restul datelor pe măsură ce le primești.</p>
+      </div>
+      {% if supplier %}<span class="admin-supplier-editor__count"><strong>{{ supplier.product_count }}</strong><small>{{ supplier.product_count == 1 ? 'produs asociat' : 'produse asociate' }}</small></span>{% endif %}
+    </header>
+
+    {% include 'admin/partials/supplier-form-fields.twig' %}
+  </section>
+{% endblock %}
