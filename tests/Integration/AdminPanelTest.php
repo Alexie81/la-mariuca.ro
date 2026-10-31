@@ -163,6 +163,8 @@ final class AdminPanelTest extends DatabaseTestCase
         self::assertStringNotContainsString('data-admin-category-done>Gata', (string) $newModal->getBody());
         self::assertStringContainsString('name="category_ids[]"', (string) $newModal->getBody());
         self::assertStringNotContainsString('Subcategorie · nivel', (string) $newModal->getBody());
+        self::assertStringContainsString('name="short_description" rows="3" maxlength="200"', (string) $newModal->getBody());
+        self::assertStringContainsString('data-product-short-description-count>0</strong>/200 caractere', (string) $newModal->getBody());
 
         $categoryIds = array_map('intval', $this->pdo->query('SELECT id FROM categories ORDER BY id LIMIT 2')->fetchAll(PDO::FETCH_COLUMN));
         self::assertCount(2, $categoryIds);
@@ -234,6 +236,22 @@ final class AdminPanelTest extends DatabaseTestCase
         self::assertFalse((bool) $duplicatePayload['ok']);
         self::assertStringContainsString('Acest titlu există deja', (string) $duplicatePayload['message']);
         self::assertSame(0, (int) $this->pdo->query("SELECT COUNT(*) FROM product_variants WHERE sku='LM-MODAL-DUPLICAT'")->fetchColumn());
+
+        $longDescriptionSave = $this->request('POST', '/admin/produse/nou/', [
+            '_csrf' => $_SESSION['_csrf'],
+            'name' => 'Produs cu descriere prea lungă',
+            'sku' => 'LM-DESCRIERE-LUNGA',
+            'short_description' => str_repeat('ă', 201),
+            'price' => '129,00',
+            'stock' => '2',
+            'category_id' => (string) $categoryId,
+            'status' => 'draft',
+        ], '127.0.0.86', [], ['Accept' => 'application/json']);
+        self::assertSame(422, $longDescriptionSave->getStatusCode());
+        $longDescriptionPayload = json_decode((string) $longDescriptionSave->getBody(), true, 512, JSON_THROW_ON_ERROR);
+        self::assertFalse((bool) $longDescriptionPayload['ok']);
+        self::assertStringContainsString('maximum 200 de caractere', (string) $longDescriptionPayload['message']);
+        self::assertSame(0, (int) $this->pdo->query("SELECT COUNT(*) FROM product_variants WHERE sku='LM-DESCRIERE-LUNGA'")->fetchColumn());
 
         $duplicateSkuSave = $this->request('POST', '/admin/produse/nou/', [
             '_csrf' => $_SESSION['_csrf'],

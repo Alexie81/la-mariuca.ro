@@ -58,6 +58,10 @@ final class CatalogAdminService
         if (!$this->isProductNameAvailable($name, $id)) {
             throw new RuntimeException('Acest titlu există deja. Alege o denumire unică pentru produs.');
         }
+        $shortDescription = trim((string) ($data['short_description'] ?? ''));
+        if (mb_strlen($shortDescription) > 200) {
+            throw new RuntimeException('Descrierea scurtă poate avea maximum 200 de caractere.');
+        }
         $slugInput = trim((string) ($data['slug'] ?? ''));
         $slug = $this->normalizeProductSlug($slugInput !== '' ? $slugInput : $name);
         if ($slug === '') {

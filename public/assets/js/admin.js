@@ -1188,6 +1188,7 @@
 
   const initializeProductAvailability = (root) => {
     root.querySelectorAll('[data-admin-product-form]').forEach((form) => setProductFormSyncState(form, 'synced'));
+    root.querySelectorAll('[data-product-short-description]').forEach((input) => updateProductShortDescriptionCount(input));
     root.querySelectorAll('[data-product-name-input]').forEach((input) => {
       if (input.value.trim()) checkProductName(input);
       syncProductSlugFromName(input);
@@ -1202,6 +1203,14 @@
     initializeProductOptions(root);
   };
 
+  const updateProductShortDescriptionCount = (input) => {
+    const count = Array.from(input.value || '').length;
+    const output = input.closest('.admin-product-field')?.querySelector('[data-product-short-description-count]');
+    if (!output) return;
+    output.textContent = String(count);
+    output.closest('.admin-product-field__character-count')?.classList.toggle('is-near-limit', count >= 180);
+  };
+
   document.addEventListener('input', (event) => {
     const globalDiscount = event.target.closest?.('[data-product-global-discount]');
     if (!globalDiscount) markProductFormDirty(event.target);
@@ -1210,6 +1219,8 @@
       setProductGlobalDiscountFeedback(globalDiscount, 'idle', 'Apasă „Aplică reducerea” pentru a copia această valoare în toate combinațiile.');
     }
     const productForm = event.target.closest?.('[data-admin-product-form]');
+    const shortDescription = event.target.closest?.('[data-product-short-description]');
+    if (shortDescription) updateProductShortDescriptionCount(shortDescription);
     if (productForm && event.target.matches?.('[data-product-option-group-name],[data-product-option-value]')) {
       reindexProductOptionGroups(productForm);
       updateProductOptionsSummary(productForm, readProductOptionGroups(productForm));

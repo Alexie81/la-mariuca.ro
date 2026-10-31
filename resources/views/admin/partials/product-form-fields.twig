@@ -304,8 +304,11 @@
       <div class="admin-product-editor__grid">
         <label class="admin-product-field admin-product-field--full">
           <span>Descriere scurtă</span>
-          <textarea name="short_description" rows="3" placeholder="O frază caldă și clară despre produs…">{{ product.short_description|default('') }}</textarea>
-          <small>Apare în zona editorială de lângă titlul produsului.</small>
+          <textarea name="short_description" rows="3" maxlength="200" placeholder="O frază caldă și clară despre produs…" data-product-short-description aria-describedby="product-short-description-help{{ is_modal ? '-modal' : '' }}">{{ product.short_description|default('') }}</textarea>
+          <small class="admin-product-field__hint-row" id="product-short-description-help{{ is_modal ? '-modal' : '' }}">
+            <span>Apare în zona editorială de lângă titlul produsului.</span>
+            <span class="admin-product-field__character-count"><strong data-product-short-description-count>{{ product.short_description|default('')|length }}</strong>/200 caractere</span>
+          </small>
         </label>
         <label class="admin-product-field admin-product-field--full">
           <span>Descriere completă</span>
