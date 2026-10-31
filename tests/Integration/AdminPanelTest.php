@@ -144,6 +144,8 @@ final class AdminPanelTest extends DatabaseTestCase
         self::assertStringNotContainsString('Categoria principală', (string) $newModal->getBody());
         self::assertStringContainsString('data-admin-category-picker', (string) $newModal->getBody());
         self::assertStringContainsString('data-admin-category-search', (string) $newModal->getBody());
+        self::assertStringContainsString('data-admin-category-done aria-label="Închide selectorul de categorii"', (string) $newModal->getBody());
+        self::assertStringNotContainsString('data-admin-category-done>Gata', (string) $newModal->getBody());
         self::assertStringContainsString('name="category_ids[]"', (string) $newModal->getBody());
         self::assertStringNotContainsString('Subcategorie · nivel', (string) $newModal->getBody());
 
