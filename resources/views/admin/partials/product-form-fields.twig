@@ -40,6 +40,11 @@
           <input name="slug" value="{{ product.slug|default('') }}" autocomplete="off" placeholder="Se generează din nume" data-product-slug-input data-slug-autofill="{{ product ? 'false' : 'true' }}" data-availability-url="{{ url('admin/produse/verifica-slug/') }}" data-product-id="{{ product.id|default('') }}" aria-describedby="product-slug-status{{ is_modal ? '-modal' : '' }}">
           <small id="product-slug-status{{ is_modal ? '-modal' : '' }}" data-product-slug-status data-product-availability-status aria-live="polite">Se generează automat din titlu, dar îl poți modifica.</small>
         </label>
+        <label class="admin-product-field" data-product-sku-field data-product-availability="idle">
+          <span>SKU principal <em>opțional</em></span>
+          <input name="primary_sku" value="{{ product.primary_sku|default('') }}" autocomplete="off" placeholder="Se generează automat" data-product-sku-input data-product-primary-sku-input data-sku-scope="primary" data-availability-url="{{ url('admin/produse/verifica-sku/') }}" data-product-id="{{ product.id|default('') }}">
+          <small data-product-sku-status data-product-availability-status aria-live="polite">Codul stabil al produsului-mamă. Lasă gol pentru generare automată.</small>
+        </label>
         <label class="admin-product-field">
           <span>Furnizor <em>opțional</em></span>
           <select name="supplier_id">
@@ -157,13 +162,27 @@
 
     {% set form_variants = product.variants|default([]) %}
     {% if form_variants is empty %}
-      {% set form_variants = [{id: '', sku: '', ean: '', options_json: '{}', options: {}, full_price_bani: 0, price_bani: 0, stock: 0, stock_unlimited: 0, track_in_conta: 1, discount_enabled: false, discount_type: 'percent', discount_value: 0}] %}
+      {% set form_variants = [{id: '', sku: '', ean: '', options_json: '{}', options: {}, full_price_bani: 0, price_bani: 0, stock: 0, stock_unlimited: 0, track_in_conta: 0, discount_enabled: false, discount_type: 'percent', discount_value: 0}] %}
     {% endif %}
     <section class="admin-product-editor__section admin-product-commerce" aria-labelledby="product-section-commerce{{ is_modal ? '-modal' : '' }}" data-product-variants-editor>
       <header>
         <span class="admin-product-editor__section-icon is-gold" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 7h14l-1 13H6L5 7Z"/><path d="M9 7V5a3 3 0 0 1 6 0v2M9 12h6"/></svg></span>
         <div><span>Comercial</span><h3 id="product-section-commerce{{ is_modal ? '-modal' : '' }}">Preț, stoc și stare</h3><small data-product-variant-count>{{ option_groups is empty ? 'Un singur preț' : form_variants|length ~ (form_variants|length == 1 ? ' combinație' : ' combinații') }}</small></div>
       </header>
+      <div class="admin-product-commerce__overview">
+        <label class="admin-product-field">
+          <span>Stare</span>
+          <span class="admin-product-field__select">
+            <select name="status"><option value="draft" {{ product.status|default('published') == 'draft' ? 'selected' }}>Draft</option><option value="published" {{ product.status|default('published') == 'published' ? 'selected' }}>Publicat</option><option value="archived" {{ product.status|default('') == 'archived' ? 'selected' }}>Arhivat</option></select>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg>
+          </span>
+        </label>
+        <label class="admin-product-switch">
+          <input type="checkbox" name="featured" {{ product.featured|default(false) ? 'checked' }}>
+          <i aria-hidden="true"><b></b></i>
+          <span><strong>Ales cu drag</strong><small>Afișează produsul în selecția de pe homepage.</small></span>
+        </label>
+      </div>
       <div class="admin-product-commerce__notice" data-product-variants-notice {{ option_groups is empty ? 'hidden' }}>
         <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="8"/><path d="M10 9v5M10 6h.01"/></svg>
         <span>Combinațiile sunt generate automat. Completează prețul și stocul pentru fiecare.</span>
@@ -180,7 +199,7 @@
               </div>
             </header>
             <div class="admin-product-variant__body">
-              <label class="admin-product-field admin-product-variant__sku" data-product-sku-field data-product-availability="idle">
+              <label class="admin-product-field admin-product-variant__sku" data-product-variant-sku-field data-product-sku-field data-product-availability="idle" {{ option_groups is empty ? 'hidden' }}>
                 <span>SKU <em>opțional</em></span>
                 <input name="variants[{{ loop.index0 }}][sku]" value="{{ variant.sku|default('') }}" autocomplete="off" placeholder="Se generează automat" data-product-sku-input data-availability-url="{{ url('admin/produse/verifica-sku/') }}" data-variant-id="{{ variant.id|default('') }}">
                 <small data-product-sku-status data-product-availability-status aria-live="polite">Lasă gol pentru generare automată.</small>
@@ -203,12 +222,12 @@
               </div>
               <label class="admin-product-field admin-product-variant__ean">
                 <span>EAN / cod de bare <em>opțional</em></span>
-                <input name="variants[{{ loop.index0 }}][ean]" value="{{ variant.ean|default('') }}" inputmode="numeric" maxlength="14" placeholder="Ex: 5941234567890">
-                <small>Între 8 și 14 cifre.</small>
+                <input name="variants[{{ loop.index0 }}][ean]" value="{{ variant.ean|default('') }}" placeholder="Ex: 5941234567890">
+                <small>Poți introduce codul exact așa cum este furnizat.</small>
               </label>
-              <label class="admin-product-track-switch">
+              <label class="admin-product-track-switch" data-product-variant-track {{ option_groups is empty ? 'hidden' }}>
                 <input type="hidden" name="variants[{{ loop.index0 }}][track_in_conta]" value="0">
-                <input type="checkbox" name="variants[{{ loop.index0 }}][track_in_conta]" value="1" {{ variant.track_in_conta|default(true) ? 'checked' }}>
+                <input type="checkbox" name="variants[{{ loop.index0 }}][track_in_conta]" value="1" {{ variant.track_in_conta|default(false) ? 'checked' }} data-product-variant-track-input>
                 <i aria-hidden="true"><b></b></i>
                 <span><strong>Urmărit în stocurile Conta</strong><small>Independent de stocul online.</small></span>
               </label>
@@ -229,20 +248,12 @@
           </article>
         {% endfor %}
       </div>
-      <div class="admin-product-commerce__bottom">
-        <label class="admin-product-field">
-          <span>Stare</span>
-          <span class="admin-product-field__select">
-            <select name="status"><option value="draft" {{ product.status|default('published') == 'draft' ? 'selected' }}>Draft</option><option value="published" {{ product.status|default('published') == 'published' ? 'selected' }}>Publicat</option><option value="archived" {{ product.status|default('') == 'archived' ? 'selected' }}>Arhivat</option></select>
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg>
-          </span>
-        </label>
-        <label class="admin-product-switch">
-          <input type="checkbox" name="featured" {{ product.featured|default(false) ? 'checked' }}>
-          <i aria-hidden="true"><b></b></i>
-          <span><strong>Ales cu drag</strong><small>Afișează produsul în selecția de pe homepage.</small></span>
-        </label>
-      </div>
+      <label class="admin-product-track-switch admin-product-parent-track" data-product-parent-track {{ option_groups is not empty ? 'hidden' }}>
+        <input type="hidden" name="track_in_conta" value="0">
+        <input type="checkbox" name="track_in_conta" value="1" {{ (product.track_in_conta is defined ? product.track_in_conta : true) ? 'checked' }}>
+        <i aria-hidden="true"><b></b></i>
+        <span><strong>Urmărit în stocurile Conta</strong><small>Setarea produsului-mamă rămâne salvată chiar dacă adaugi sau ștergi combinații.</small></span>
+      </label>
     </section>
 
     <section class="admin-product-editor__section" aria-labelledby="product-section-story{{ is_modal ? '-modal' : '' }}">

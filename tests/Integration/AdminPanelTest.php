@@ -366,6 +366,110 @@ final class AdminPanelTest extends DatabaseTestCase
         self::assertArrayNotHasKey('user_id', $_SESSION);
     }
 
+    public function testPrimaryCommerceDataSurvivesVariantTransitions(): void
+    {
+        $this->seed();
+        $this->get('/admin');
+        $login = $this->post('/admin', [
+            '_csrf' => $_SESSION['_csrf'],
+            'email' => 'admin.panel@example.test',
+            'password' => self::PASSWORD,
+        ], '127.0.0.89');
+        self::assertSame(303, $login->getStatusCode());
+
+        $categoryId = (int) $this->pdo->query('SELECT id FROM categories ORDER BY id LIMIT 1')->fetchColumn();
+        $created = $this->request('POST', '/admin/produse/nou/', [
+            '_csrf' => $_SESSION['_csrf'],
+            'name' => 'Produs cu identitate comercială stabilă',
+            'primary_sku' => 'LM-PARINTE-STABIL',
+            'category_ids' => [(string) $categoryId],
+            'status' => 'published',
+            'track_in_conta' => '0',
+            'variants' => [[
+                'options_json' => '{}',
+                'sku' => '',
+                'ean' => 'EAN liber / furnizor 2026',
+                'full_price' => '159,00',
+                'stock' => '12',
+                'stock_unlimited' => '0',
+                'discount_enabled' => '0',
+            ]],
+        ], '127.0.0.89', [], ['Accept' => 'application/json']);
+        self::assertSame(200, $created->getStatusCode(), (string) $created->getBody());
+        $productId = (int) json_decode((string) $created->getBody(), true, 512, JSON_THROW_ON_ERROR)['id'];
+
+        $product = $this->pdo->query('SELECT primary_sku,track_in_conta FROM products WHERE id=' . $productId)->fetch();
+        self::assertSame('LM-PARINTE-STABIL', $product['primary_sku']);
+        self::assertSame(0, (int) $product['track_in_conta']);
+        $simpleVariant = $this->pdo->query("SELECT id,sku,ean,track_in_conta FROM product_variants WHERE product_id={$productId} AND status='active'")->fetch();
+        self::assertSame('LM-PARINTE-STABIL', $simpleVariant['sku']);
+        self::assertSame('EAN liber / furnizor 2026', $simpleVariant['ean']);
+        self::assertSame(0, (int) $simpleVariant['track_in_conta']);
+
+        $withOptions = $this->request('POST', '/admin/produse/' . $productId . '/editare/', [
+            '_csrf' => $_SESSION['_csrf'],
+            'name' => 'Produs cu identitate comercială stabilă',
+            'slug' => 'produs-cu-identitate-comerciala-stabila',
+            'primary_sku' => 'LM-PARINTE-STABIL',
+            'category_ids' => [(string) $categoryId],
+            'status' => 'published',
+            'track_in_conta' => '0',
+            'option_groups' => [['name' => 'Mărime', 'values' => ['Mică', 'Mare']]],
+            'variants' => [
+                [
+                    'id' => (string) $simpleVariant['id'],
+                    'options_json' => json_encode(['Mărime' => 'Mică'], JSON_UNESCAPED_UNICODE),
+                    // Simulează produsul vechi al cărui SKU implicit a devenit SKU principal.
+                    'sku' => 'LM-PARINTE-STABIL', 'ean' => '', 'full_price' => '159,00', 'stock' => '5',
+                    'stock_unlimited' => '0', 'discount_enabled' => '0',
+                ],
+                [
+                    'options_json' => json_encode(['Mărime' => 'Mare'], JSON_UNESCAPED_UNICODE),
+                    'sku' => '', 'ean' => '', 'full_price' => '169,00', 'stock' => '4',
+                    'stock_unlimited' => '0', 'discount_enabled' => '0',
+                ],
+            ],
+        ], '127.0.0.89', [], ['Accept' => 'application/json']);
+        self::assertSame(200, $withOptions->getStatusCode(), (string) $withOptions->getBody());
+        self::assertSame(0, (int) $this->pdo->query('SELECT track_in_conta FROM products WHERE id=' . $productId)->fetchColumn());
+        self::assertSame(2, (int) $this->pdo->query("SELECT COUNT(*) FROM product_variants WHERE product_id={$productId} AND status='active'")->fetchColumn());
+        self::assertSame(0, (int) $this->pdo->query("SELECT SUM(track_in_conta) FROM product_variants WHERE product_id={$productId} AND status='active'")->fetchColumn());
+        self::assertSame(0, (int) $this->pdo->query("SELECT COUNT(*) FROM product_variants WHERE product_id={$productId} AND status='active' AND LOWER(sku)=LOWER('LM-PARINTE-STABIL')")->fetchColumn());
+
+        $activeVariantId = (int) $this->pdo->query("SELECT id FROM product_variants WHERE product_id={$productId} AND status='active' ORDER BY is_default DESC,id LIMIT 1")->fetchColumn();
+        $withoutOptions = $this->request('POST', '/admin/produse/' . $productId . '/editare/', [
+            '_csrf' => $_SESSION['_csrf'],
+            'name' => 'Produs cu identitate comercială stabilă',
+            'slug' => 'produs-cu-identitate-comerciala-stabila',
+            'primary_sku' => 'LM-PARINTE-STABIL',
+            'category_ids' => [(string) $categoryId],
+            'status' => 'published',
+            'track_in_conta' => '0',
+            'variants' => [[
+                'id' => (string) $activeVariantId,
+                'options_json' => '{}',
+                'sku' => '', 'ean' => 'cod fără limită numerică', 'full_price' => '159,00', 'stock' => '9',
+                'stock_unlimited' => '0', 'discount_enabled' => '0',
+            ]],
+        ], '127.0.0.89', [], ['Accept' => 'application/json']);
+        self::assertSame(200, $withoutOptions->getStatusCode(), (string) $withoutOptions->getBody());
+        $restored = $this->pdo->query("SELECT sku,ean,track_in_conta FROM product_variants WHERE product_id={$productId} AND status='active'")->fetch();
+        self::assertSame('LM-PARINTE-STABIL', $restored['sku']);
+        self::assertSame('cod fără limită numerică', $restored['ean']);
+        self::assertSame(0, (int) $restored['track_in_conta']);
+        self::assertSame(1, (int) $this->pdo->query("SELECT COUNT(*) FROM product_variants WHERE product_id={$productId} AND status='active'")->fetchColumn());
+
+        $modal = (string) $this->get('/admin/produse/' . $productId . '/editare/modal/')->getBody();
+        self::assertMatchesRegularExpression('/name="primary_sku" value="LM-PARINTE-STABIL"/', $modal);
+        self::assertMatchesRegularExpression('/name="track_in_conta" value="1"(?! checked)/', $modal);
+        self::assertStringNotContainsString('Între 8 și 14 cifre', $modal);
+        self::assertLessThan(
+            strpos($modal, 'data-product-variants-notice'),
+            strpos($modal, 'admin-product-commerce__overview'),
+            'Starea și selecția „Ales cu drag” trebuie să apară imediat sub antetul secțiunii comerciale.'
+        );
+    }
+
     public function testOrdersRegistryIsPaginatedAndShowsOperationalColumns(): void
     {
         $this->seedOrders(16);

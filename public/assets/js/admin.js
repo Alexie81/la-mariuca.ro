@@ -592,6 +592,10 @@
       const endpoint = new URL(input.dataset.availabilityUrl || '', window.location.href);
       endpoint.searchParams.set('sku', sku);
       if (input.dataset.variantId) endpoint.searchParams.set('exclude_variant_id', input.dataset.variantId);
+      if (input.dataset.skuScope === 'primary') {
+        endpoint.searchParams.set('scope', 'primary');
+        if (input.dataset.productId) endpoint.searchParams.set('exclude_product_id', input.dataset.productId);
+      }
 
       try {
         const response = await fetch(endpoint, {
@@ -879,6 +883,23 @@
     if (skuStatus) skuStatus.textContent = 'Lasă gol pentru generare automată.';
     const ean = card.querySelector('input[name$="[ean]"]');
     if (ean) ean.value = '';
+    const trackInConta = card.querySelector('[data-product-variant-track-input]');
+    if (trackInConta) trackInConta.checked = false;
+  };
+
+  const setProductVariantCommerceMode = (card, hasCombinations) => {
+    card.classList.toggle('is-simple-product', !hasCombinations);
+    const sku = card.querySelector('[data-product-variant-sku-field]');
+    const track = card.querySelector('[data-product-variant-track]');
+    if (sku) sku.hidden = !hasCombinations;
+    if (track) track.hidden = !hasCombinations;
+  };
+
+  const updateProductCommerceMode = (form, hasCombinations) => {
+    form.classList.toggle('has-product-combinations', hasCombinations);
+    const parentTrack = form.querySelector('[data-product-parent-track]');
+    if (parentTrack) parentTrack.hidden = hasCombinations;
+    form.querySelectorAll('[data-product-variant]').forEach((card) => setProductVariantCommerceMode(card, hasCombinations));
   };
 
   const reindexProductVariant = (card, index, options) => {
@@ -891,7 +912,8 @@
     const number = card.querySelector('[data-product-variant-number]');
     if (number) number.textContent = String(index + 1);
     const header = card.querySelector('[data-product-variant-header]');
-    if (header) header.hidden = Object.keys(options).length === 0;
+    const hasOptions = Object.keys(options).length > 0;
+    if (header) header.hidden = !hasOptions;
     const chips = card.querySelector('[data-product-variant-chips]');
     if (chips) {
       chips.replaceChildren();
@@ -903,6 +925,7 @@
         chips.append(chip);
       });
     }
+    setProductVariantCommerceMode(card, hasOptions);
   };
 
   const updateProductDiscount = (discount) => {
@@ -959,6 +982,7 @@
     const notice = form.querySelector('[data-product-variants-notice]');
     const count = form.querySelector('[data-product-variant-count]');
     const groupCount = state.groups.length;
+    updateProductCommerceMode(form, groupCount > 0 && state.complete);
     if (empty) empty.hidden = groupCount > 0;
     if (notice) notice.hidden = groupCount === 0;
     if (groupCount === 0) {
