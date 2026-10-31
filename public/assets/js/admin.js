@@ -897,8 +897,6 @@
 
   const updateProductCommerceMode = (form, hasCombinations) => {
     form.classList.toggle('has-product-combinations', hasCombinations);
-    const parentTrack = form.querySelector('[data-product-parent-track]');
-    if (parentTrack) parentTrack.hidden = hasCombinations;
     form.querySelectorAll('[data-product-variant]').forEach((card) => setProductVariantCommerceMode(card, hasCombinations));
   };
 

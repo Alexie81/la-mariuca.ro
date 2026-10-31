@@ -413,7 +413,7 @@ final class AdminPanelTest extends DatabaseTestCase
             'primary_sku' => 'LM-PARINTE-STABIL',
             'category_ids' => [(string) $categoryId],
             'status' => 'published',
-            'track_in_conta' => '0',
+            'track_in_conta' => '1',
             'option_groups' => [['name' => 'Mărime', 'values' => ['Mică', 'Mare']]],
             'variants' => [
                 [
@@ -431,7 +431,7 @@ final class AdminPanelTest extends DatabaseTestCase
             ],
         ], '127.0.0.89', [], ['Accept' => 'application/json']);
         self::assertSame(200, $withOptions->getStatusCode(), (string) $withOptions->getBody());
-        self::assertSame(0, (int) $this->pdo->query('SELECT track_in_conta FROM products WHERE id=' . $productId)->fetchColumn());
+        self::assertSame(1, (int) $this->pdo->query('SELECT track_in_conta FROM products WHERE id=' . $productId)->fetchColumn());
         self::assertSame(2, (int) $this->pdo->query("SELECT COUNT(*) FROM product_variants WHERE product_id={$productId} AND status='active'")->fetchColumn());
         self::assertSame(0, (int) $this->pdo->query("SELECT SUM(track_in_conta) FROM product_variants WHERE product_id={$productId} AND status='active'")->fetchColumn());
         self::assertSame(0, (int) $this->pdo->query("SELECT COUNT(*) FROM product_variants WHERE product_id={$productId} AND status='active' AND LOWER(sku)=LOWER('LM-PARINTE-STABIL')")->fetchColumn());
@@ -462,6 +462,10 @@ final class AdminPanelTest extends DatabaseTestCase
         $modal = (string) $this->get('/admin/produse/' . $productId . '/editare/modal/')->getBody();
         self::assertMatchesRegularExpression('/name="primary_sku" value="LM-PARINTE-STABIL"/', $modal);
         self::assertMatchesRegularExpression('/name="track_in_conta" value="1"(?! checked)/', $modal);
+        self::assertMatchesRegularExpression('/data-product-parent-track(?![^>]*hidden)/', $modal);
+        self::assertStringContainsString('Urmărește SKU-ul principal în Conta', $modal);
+        self::assertStringContainsString('Folosește SKU-ul acestei combinații în Conta', $modal);
+        self::assertStringContainsString('Stocul nu se scade de două ori.', $modal);
         self::assertStringNotContainsString('Între 8 și 14 cifre', $modal);
         self::assertLessThan(
             strpos($modal, 'data-product-variants-notice'),

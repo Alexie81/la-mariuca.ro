@@ -182,6 +182,12 @@
           <i aria-hidden="true"><b></b></i>
           <span><strong>Ales cu drag</strong><small>Afișează produsul în selecția de pe homepage.</small></span>
         </label>
+        <label class="admin-product-track-switch admin-product-parent-track" data-product-parent-track>
+          <input type="hidden" name="track_in_conta" value="0">
+          <input type="checkbox" name="track_in_conta" value="1" {{ (product.track_in_conta is defined ? product.track_in_conta : true) ? 'checked' }}>
+          <i aria-hidden="true"><b></b></i>
+          <span><strong>Urmărește SKU-ul principal în Conta</strong><small>Combinațiile fără un SKU contabil propriu vor scădea numai din acest stoc.</small></span>
+        </label>
       </div>
       <div class="admin-product-commerce__notice" data-product-variants-notice {{ option_groups is empty ? 'hidden' }}>
         <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="8"/><path d="M10 9v5M10 6h.01"/></svg>
@@ -229,7 +235,7 @@
                 <input type="hidden" name="variants[{{ loop.index0 }}][track_in_conta]" value="0">
                 <input type="checkbox" name="variants[{{ loop.index0 }}][track_in_conta]" value="1" {{ variant.track_in_conta|default(false) ? 'checked' }} data-product-variant-track-input>
                 <i aria-hidden="true"><b></b></i>
-                <span><strong>Urmărit în stocurile Conta</strong><small>Independent de stocul online.</small></span>
+                <span><strong>Folosește SKU-ul acestei combinații în Conta</strong><small>Înlocuiește SKU-ul principal numai pentru această combinație. Stocul nu se scade de două ori.</small></span>
               </label>
               <div class="admin-product-discount" data-product-discount>
                 <label class="admin-product-discount__toggle">
@@ -248,12 +254,6 @@
           </article>
         {% endfor %}
       </div>
-      <label class="admin-product-track-switch admin-product-parent-track" data-product-parent-track {{ option_groups is not empty ? 'hidden' }}>
-        <input type="hidden" name="track_in_conta" value="0">
-        <input type="checkbox" name="track_in_conta" value="1" {{ (product.track_in_conta is defined ? product.track_in_conta : true) ? 'checked' }}>
-        <i aria-hidden="true"><b></b></i>
-        <span><strong>Urmărit în stocurile Conta</strong><small>Setarea produsului-mamă rămâne salvată chiar dacă adaugi sau ștergi combinații.</small></span>
-      </label>
     </section>
 
     <section class="admin-product-editor__section admin-product-global-discount" aria-labelledby="product-section-global-discount{{ is_modal ? '-modal' : '' }}" data-product-global-discount>
