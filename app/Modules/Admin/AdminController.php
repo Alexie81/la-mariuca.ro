@@ -162,7 +162,7 @@ final class AdminController
         return $this->view->render('admin/pages/product-form.twig', [
             'product' => $product,
             'suggested_sku' => $product ? null : $this->catalogAdmin->generateProductSku(),
-            'categories' => $this->catalog->allCategories(true),
+            'categories' => $this->catalog->allCategoryTree(true),
             'form_action' => $this->config->path($id ? 'admin/produse/' . $id . '/editare/' : 'admin/produse/nou/'),
             'admin_section' => 'products',
             'admin_context' => $id ? 'Editare produs' : 'Produs nou',
@@ -181,7 +181,7 @@ final class AdminController
         return $this->view->render('admin/partials/product-form-modal.twig', [
             'product' => $product,
             'suggested_sku' => $product ? null : $this->catalogAdmin->generateProductSku(),
-            'categories' => $this->catalog->allCategories(true),
+            'categories' => $this->catalog->allCategoryTree(true),
             'form_action' => $this->config->path($id ? 'admin/produse/' . $id . '/editare/' : 'admin/produse/nou/'),
         ]);
     }

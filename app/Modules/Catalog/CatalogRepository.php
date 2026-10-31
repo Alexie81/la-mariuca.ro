@@ -49,6 +49,12 @@ final class CatalogRepository
     }
 
     /** @return list<array<string, mixed>> */
+    public function allCategoryTree(bool $includeDrafts = false): array
+    {
+        return $this->tree($this->allCategories($includeDrafts));
+    }
+
+    /** @return list<array<string, mixed>> */
     public function homepageCategories(): array
     {
         return $this->pdo->query("SELECT c.id, c.parent_id, c.name, c.slug, c.description, c.position,

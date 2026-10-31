@@ -6,6 +6,7 @@ namespace Tests\Integration;
 
 use App\AppFactory;
 use App\Shared\Security\AdminRememberMe;
+use PDO;
 use Psr\Http\Message\ResponseInterface;
 use Slim\Psr7\Factory\ServerRequestFactory;
 use Tests\DatabaseTestCase;
@@ -138,15 +139,24 @@ final class AdminPanelTest extends DatabaseTestCase
         self::assertStringContainsString('Slug (numele linkului)', (string) $newModal->getBody());
         self::assertStringContainsString('data-product-slug-input', (string) $newModal->getBody());
         self::assertStringContainsString('/admin/produse/verifica-slug/', (string) $newModal->getBody());
+        self::assertStringContainsString('Categorii <b>*</b>', (string) $newModal->getBody());
+        self::assertStringNotContainsString('Categoria principală', (string) $newModal->getBody());
+        self::assertStringContainsString('data-admin-category-picker', (string) $newModal->getBody());
+        self::assertStringContainsString('data-admin-category-search', (string) $newModal->getBody());
+        self::assertStringContainsString('name="category_ids[]"', (string) $newModal->getBody());
+        self::assertStringNotContainsString('Subcategorie · nivel', (string) $newModal->getBody());
 
-        $categoryId = (int) $this->pdo->query('SELECT id FROM categories ORDER BY id LIMIT 1')->fetchColumn();
+        $categoryIds = array_map('intval', $this->pdo->query('SELECT id FROM categories ORDER BY id LIMIT 2')->fetchAll(PDO::FETCH_COLUMN));
+        self::assertCount(2, $categoryIds);
+        $categoryId = $categoryIds[0];
+        $secondaryCategoryId = $categoryIds[1];
         $created = $this->request('POST', '/admin/produse/nou/', [
             '_csrf' => $_SESSION['_csrf'],
             'name' => 'Produs creat din modal',
             'sku' => 'LM-MODAL-001',
             'price' => '149,90',
             'stock' => '4',
-            'category_id' => (string) $categoryId,
+            'category_ids' => [(string) $categoryId, (string) $secondaryCategoryId],
             'status' => 'draft',
             'featured' => 'on',
             'indexable' => 'on',
@@ -159,6 +169,11 @@ final class AdminPanelTest extends DatabaseTestCase
         $createdId = (int) $createdPayload['id'];
         self::assertSame(1, (int) $this->pdo->query("SELECT COUNT(*) FROM product_variants WHERE sku='LM-MODAL-001'")->fetchColumn());
         self::assertSame(1, (int) $this->pdo->query("SELECT p.featured FROM products p JOIN product_variants v ON v.product_id=p.id WHERE v.sku='LM-MODAL-001'")->fetchColumn());
+        self::assertSame($categoryId, (int) $this->pdo->query('SELECT primary_category_id FROM products WHERE id=' . $createdId)->fetchColumn());
+        self::assertSame(2, (int) $this->pdo->query('SELECT COUNT(*) FROM product_categories WHERE product_id=' . $createdId)->fetchColumn());
+        $createdEditModal = (string) $this->get('/admin/produse/' . $createdId . '/editare/modal/')->getBody();
+        self::assertMatchesRegularExpression('/name="category_ids\[\]" value="' . $categoryId . '" checked/', $createdEditModal);
+        self::assertMatchesRegularExpression('/name="category_ids\[\]" value="' . $secondaryCategoryId . '" checked/', $createdEditModal);
         $createdVariantId = (int) $this->pdo->query("SELECT id FROM product_variants WHERE sku='LM-MODAL-001'")->fetchColumn();
 
         $duplicateAvailability = json_decode((string) $this->get('/admin/produse/verifica-nume/?nume=PRODUS%20CREAT%20DIN%20MODAL')->getBody(), true, 512, JSON_THROW_ON_ERROR);

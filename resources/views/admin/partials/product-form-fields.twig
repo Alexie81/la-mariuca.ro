@@ -1,4 +1,24 @@
+{% macro category_nodes(nodes, selected_ids, depth) %}
+  {% for category in nodes %}
+    <div class="admin-category-node" data-admin-category-node data-category-search="{{ (category.name ~ ' ' ~ category.slug)|lower }}" style="--category-depth:{{ depth }}">
+      <label class="admin-category-option">
+        <input type="checkbox" name="category_ids[]" value="{{ category.id }}" {{ category.id in selected_ids ? 'checked' }} data-admin-category-checkbox>
+        <span class="admin-category-option__check" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="m3.2 8.2 3 3 6.6-6.5"></path></svg></span>
+        <span class="admin-category-option__copy">
+          <strong>{{ category.name }}</strong>
+          {% if category.status != 'published' %}<small>{{ category.status == 'draft' ? 'Draft' : 'Arhivată' }}</small>{% endif %}
+        </span>
+        {% if category.children is not empty %}<span class="admin-category-option__branch" aria-label="{{ category.children|length }} subcategorii">{{ category.children|length }}</span>{% endif %}
+      </label>
+      {% if category.children is not empty %}
+        <div class="admin-category-children" data-admin-category-children>{{ _self.category_nodes(category.children, selected_ids, depth + 1) }}</div>
+      {% endif %}
+    </div>
+  {% endfor %}
+{% endmacro %}
+
 {% set is_modal = modal_form|default(false) %}
+{% set selected_category_ids = product.category_ids|default([]) %}
 <form class="admin-product-editor__form{{ is_modal ? ' is-modal' : '' }}" action="{{ form_action }}" method="post" data-admin-product-form>
   <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
   <div class="admin-product-editor__feedback" data-admin-product-form-feedback role="alert" hidden></div>
@@ -25,16 +45,41 @@
           <input name="slug" value="{{ product.slug|default('') }}" autocomplete="off" placeholder="Se generează din nume" data-product-slug-input data-slug-autofill="{{ product ? 'false' : 'true' }}" data-availability-url="{{ url('admin/produse/verifica-slug/') }}" data-product-id="{{ product.id|default('') }}" aria-describedby="product-slug-status{{ is_modal ? '-modal' : '' }}">
           <small id="product-slug-status{{ is_modal ? '-modal' : '' }}" data-product-slug-status data-product-availability-status aria-live="polite">Se generează automat din titlu, dar îl poți modifica.</small>
         </label>
-        <label class="admin-product-field admin-product-field--wide">
-          <span>Categoria principală <b>*</b></span>
-          <span class="admin-product-field__select">
-            <select name="category_id" required>
-              <option value="">Alege categoria potrivită</option>
-              {% for category in categories %}<option value="{{ category.id }}" {{ product and product.primary_category_id == category.id ? 'selected' }}>{{ category.name }}</option>{% endfor %}
-            </select>
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg>
-          </span>
-        </label>
+        <div class="admin-product-field admin-product-field--wide">
+          <span>Categorii <b>*</b></span>
+          <details class="admin-category-picker" data-admin-category-picker>
+            <summary data-admin-category-toggle>
+              <span class="admin-category-picker__summary-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 7.5h6l1.6 2H20v9.5H4z"></path><path d="M4 10h16"></path></svg></span>
+              <span class="admin-category-picker__summary-copy">
+                <strong data-admin-category-summary>{{ selected_category_ids is empty ? 'Alege una sau mai multe categorii' : selected_category_ids|length ~ (selected_category_ids|length == 1 ? ' categorie selectată' : ' categorii selectate') }}</strong>
+                <small data-admin-category-preview>Structură pe categorii și subcategorii</small>
+              </span>
+              <span class="admin-category-picker__summary-count" data-admin-category-count>{{ selected_category_ids|length }}</span>
+              <svg class="admin-category-picker__chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"></path></svg>
+            </summary>
+            <button class="admin-category-picker__backdrop" type="button" aria-label="Închide selectorul de categorii" data-admin-category-close></button>
+            <div class="admin-category-picker__panel">
+              <header class="admin-category-picker__header">
+                <span><small>Catalog</small><strong>Alege categoriile</strong></span>
+                <button type="button" aria-label="Închide" data-admin-category-close><svg viewBox="0 0 24 24"><path d="m6.5 6.5 11 11M17.5 6.5l-11 11"></path></svg></button>
+              </header>
+              <div class="admin-category-picker__search">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"></circle><path d="m16 16 5 5"></path></svg>
+                <input type="search" aria-label="Caută o categorie sau subcategorie" placeholder="Caută o categorie sau subcategorie…" autocomplete="off" data-admin-category-search>
+                <button type="button" class="admin-category-picker__search-clear" aria-label="Șterge căutarea" data-admin-category-search-clear hidden><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 6 8 8M14 6l-8 8"></path></svg></button>
+              </div>
+              <div class="admin-category-picker__tree" role="group" aria-label="Categorii disponibile" data-admin-category-tree>
+                {{ _self.category_nodes(categories, selected_category_ids, 0) }}
+                <p class="admin-category-picker__empty" data-admin-category-empty hidden>Nu am găsit nicio categorie potrivită.</p>
+              </div>
+              <footer class="admin-category-picker__footer">
+                <span data-admin-category-status>{{ selected_category_ids is empty ? 'Selectează cel puțin o categorie.' : selected_category_ids|length ~ ' selectate' }}</span>
+                <button type="button" data-admin-category-done>Gata <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m7 4 6 6-6 6"></path></svg></button>
+              </footer>
+            </div>
+          </details>
+          <small>Poți asocia produsul cu mai multe categorii și subcategorii.</small>
+        </div>
       </div>
     </section>
 

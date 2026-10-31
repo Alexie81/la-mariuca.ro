@@ -680,6 +680,93 @@
     checkProductSlug(slugInput);
   };
 
+  const normalizeCategorySearch = (value) => value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+
+  const categoryChildNodes = (node) => Array.from(
+    node.querySelector(':scope > [data-admin-category-children]')?.children || []
+  ).filter((child) => child.matches('[data-admin-category-node]'));
+
+  const filterCategoryNode = (node, term, ancestorMatches = false) => {
+    const ownMatches = term === '' || normalizeCategorySearch(node.dataset.categorySearch || '').includes(term);
+    const children = categoryChildNodes(node);
+    let childMatches = false;
+    children.forEach((child) => {
+      if (filterCategoryNode(child, term, ancestorMatches || ownMatches)) childMatches = true;
+    });
+    const visible = ancestorMatches || ownMatches || childMatches;
+    node.hidden = !visible;
+    return visible;
+  };
+
+  const filterAdminCategoryPicker = (picker) => {
+    const search = picker.querySelector('[data-admin-category-search]');
+    const term = normalizeCategorySearch(search?.value || '');
+    const clear = picker.querySelector('[data-admin-category-search-clear]');
+    if (clear) clear.hidden = term === '';
+    const tree = picker.querySelector('[data-admin-category-tree]');
+    if (!tree) return;
+    const roots = Array.from(tree.children).filter((child) => child.matches('[data-admin-category-node]'));
+    const visibleCount = roots.reduce((count, node) => count + (filterCategoryNode(node, term) ? 1 : 0), 0);
+    const empty = picker.querySelector('[data-admin-category-empty]');
+    if (empty) empty.hidden = visibleCount > 0;
+  };
+
+  const updateAdminCategoryPicker = (picker) => {
+    const inputs = Array.from(picker.querySelectorAll('[data-admin-category-checkbox]'));
+    const selected = inputs.filter((input) => input.checked);
+    const summary = picker.querySelector('[data-admin-category-summary]');
+    const preview = picker.querySelector('[data-admin-category-preview]');
+    const count = picker.querySelector('[data-admin-category-count]');
+    const status = picker.querySelector('[data-admin-category-status]');
+    const names = selected.map((input) => input.closest('[data-admin-category-node]')?.querySelector('.admin-category-option__copy strong')?.textContent.trim()).filter(Boolean);
+    const selectionLabel = selected.length === 1 ? '1 categorie selectată' : `${selected.length} categorii selectate`;
+    if (summary) summary.textContent = selected.length ? selectionLabel : 'Alege una sau mai multe categorii';
+    if (preview) preview.textContent = names.length ? `${names.slice(0, 2).join(' · ')}${names.length > 2 ? ` +${names.length - 2}` : ''}` : 'Structură pe categorii și subcategorii';
+    if (count) count.textContent = String(selected.length);
+    if (status) status.textContent = selected.length ? selectionLabel : 'Selectează cel puțin o categorie.';
+    if (inputs[0]) inputs[0].setCustomValidity(selected.length ? '' : 'Selectează cel puțin o categorie.');
+    picker.classList.toggle('has-selection', selected.length > 0);
+    picker.classList.toggle('is-invalid', picker.closest('form')?.classList.contains('was-validated') && selected.length === 0);
+  };
+
+  const closeAdminCategoryPicker = (picker) => {
+    picker.removeAttribute('open');
+    picker.querySelector('[data-admin-category-toggle]')?.setAttribute('aria-expanded', 'false');
+    document.documentElement.classList.remove('has-admin-category-picker');
+  };
+
+  const initializeAdminCategoryPickers = (root) => {
+    root.querySelectorAll('[data-admin-category-picker]').forEach((picker) => {
+      if (picker.dataset.enhanced === 'true') return;
+      picker.dataset.enhanced = 'true';
+      const search = picker.querySelector('[data-admin-category-search]');
+      search?.addEventListener('input', () => filterAdminCategoryPicker(picker));
+      picker.querySelector('[data-admin-category-search-clear]')?.addEventListener('click', () => {
+        if (!search) return;
+        search.value = '';
+        filterAdminCategoryPicker(picker);
+        search.focus({ preventScroll: true });
+      });
+      picker.querySelectorAll('[data-admin-category-checkbox]').forEach((input) => {
+        input.addEventListener('change', () => updateAdminCategoryPicker(picker));
+      });
+      picker.querySelectorAll('[data-admin-category-close],[data-admin-category-done]').forEach((button) => {
+        button.addEventListener('click', () => closeAdminCategoryPicker(picker));
+      });
+      picker.addEventListener('toggle', () => {
+        picker.querySelector('[data-admin-category-toggle]')?.setAttribute('aria-expanded', picker.open ? 'true' : 'false');
+        document.documentElement.classList.toggle('has-admin-category-picker', picker.open);
+        if (picker.open) requestAnimationFrame(() => search?.focus({ preventScroll: true }));
+      });
+      updateAdminCategoryPicker(picker);
+      filterAdminCategoryPicker(picker);
+    });
+  };
+
   const initializeProductAvailability = (root) => {
     root.querySelectorAll('[data-product-name-input]').forEach((input) => {
       if (input.value.trim()) checkProductName(input);
@@ -691,6 +778,7 @@
     root.querySelectorAll('[data-product-slug-input]').forEach((input) => {
       if (input.value.trim()) checkProductSlug(input);
     });
+    initializeAdminCategoryPickers(root);
   };
 
   document.addEventListener('input', (event) => {
@@ -709,6 +797,21 @@
   });
 
   initializeProductAvailability(document);
+
+  document.addEventListener('click', (event) => {
+    document.querySelectorAll('[data-admin-category-picker][open]').forEach((picker) => {
+      if (!picker.contains(event.target)) closeAdminCategoryPicker(picker);
+    });
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return;
+    const picker = document.querySelector('[data-admin-category-picker][open]');
+    if (!picker) return;
+    event.preventDefault();
+    closeAdminCategoryPicker(picker);
+    picker.querySelector('[data-admin-category-toggle]')?.focus({ preventScroll: true });
+  });
 
   const productEditorDialog = document.querySelector('[data-admin-product-editor-dialog]');
   const productEditorContent = productEditorDialog?.querySelector('[data-admin-product-editor-content]');
@@ -796,6 +899,10 @@
     if (!form) return;
     event.preventDefault();
     form.classList.add('was-validated');
+    form.querySelectorAll('[data-admin-category-picker]').forEach((picker) => {
+      updateAdminCategoryPicker(picker);
+      if (!picker.querySelector('[data-admin-category-checkbox]:checked')) picker.setAttribute('open', '');
+    });
     if (!form.reportValidity()) {
       form.querySelector(':invalid')?.focus({ preventScroll: false });
       return;

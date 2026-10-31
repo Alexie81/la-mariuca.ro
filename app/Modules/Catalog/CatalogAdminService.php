@@ -78,10 +78,12 @@ final class CatalogAdminService
         if ($stock === false || $stock < 0) {
             throw new RuntimeException('Stocul trebuie să fie un număr întreg pozitiv sau zero.');
         }
-        $categoryId = (int) ($data['category_id'] ?? 0);
-        if ($categoryId <= 0) {
-            throw new RuntimeException('Selectează categoria principală.');
+        $categoryIds = $this->productCategoryIds($data);
+        if ($categoryIds === []) {
+            throw new RuntimeException('Selectează cel puțin o categorie.');
         }
+        $this->assertProductCategoriesExist($categoryIds);
+        $categoryId = $this->primaryProductCategoryId($id, $categoryIds);
         $status = in_array(($data['status'] ?? ''), ['draft', 'published', 'archived'], true) ? (string) $data['status'] : 'draft';
         $now = gmdate('c');
         $this->pdo->beginTransaction();
@@ -90,7 +92,7 @@ final class CatalogAdminService
                 $statement = $this->pdo->prepare('INSERT INTO products (name,slug,short_description,description,status,primary_category_id,seo_title,meta_description,composition,care_instructions,size_guide,package_contents,excluded_accessories,featured,indexable,published_at,created_at,updated_at) VALUES (:name,:slug,:short_description,:description,:status,:category,:seo_title,:meta_description,:composition,:care,:size_guide,:package_contents,:excluded_accessories,:featured,:indexable,:published_at,:now,:now)');
                 $statement->execute($this->productParams($data, $name, $slug, $status, $categoryId, $now));
                 $id = (int) $this->pdo->lastInsertId();
-                $this->pdo->prepare('INSERT INTO product_categories (product_id, category_id) VALUES (:product, :category)')->execute(['product' => $id, 'category' => $categoryId]);
+                $this->saveProductCategories($id, $categoryIds);
                 $this->pdo->prepare("INSERT INTO product_variants (product_id, sku, option_summary, options_json, options_key, price_bani, status, is_default, created_at, updated_at) VALUES (:product,:sku,'','{}',:options_key,:price,'active',1,:now,:now)")->execute(['product' => $id, 'sku' => $sku, 'options_key' => hash('sha256', '{}'), 'price' => $price, 'now' => $now]);
                 $variantId = (int) $this->pdo->lastInsertId();
                 $this->pdo->prepare('INSERT INTO inventory (variant_id, physical_quantity, reserved_quantity, updated_at) VALUES (:variant,:stock,0,:now)')->execute(['variant' => $variantId, 'stock' => $stock, 'now' => $now]);
@@ -105,7 +107,7 @@ final class CatalogAdminService
                 $statement = $this->pdo->prepare('UPDATE products SET name=:name,slug=:slug,short_description=:short_description,description=:description,status=:status,primary_category_id=:category,seo_title=:seo_title,meta_description=:meta_description,composition=:composition,care_instructions=:care,size_guide=:size_guide,package_contents=:package_contents,excluded_accessories=:excluded_accessories,featured=:featured,indexable=:indexable,published_at=:published_at,updated_at=:now WHERE id=:id');
                 $statement->execute($this->productParams($data, $name, $slug, $status, $categoryId, $now) + ['id' => $id]);
                 $this->pdo->prepare('DELETE FROM product_categories WHERE product_id=:id')->execute(['id' => $id]);
-                $this->pdo->prepare('INSERT INTO product_categories (product_id, category_id) VALUES (:product, :category)')->execute(['product' => $id, 'category' => $categoryId]);
+                $this->saveProductCategories($id, $categoryIds);
                 $variant = $this->pdo->prepare('SELECT id FROM product_variants WHERE product_id=:id ORDER BY is_default DESC,id LIMIT 1');
                 $variant->execute(['id' => $id]);
                 $variantId = (int) $variant->fetchColumn();
@@ -379,7 +381,69 @@ final class CatalogAdminService
         $statement = $this->pdo->prepare('SELECT p.*,v.id AS variant_id,v.sku,v.price_bani,i.physical_quantity AS stock FROM products p JOIN product_variants v ON v.product_id=p.id AND v.is_default=1 LEFT JOIN inventory i ON i.variant_id=v.id WHERE p.id=:id');
         $statement->execute(['id' => $id]);
         $row = $statement->fetch();
-        return is_array($row) ? $row : null;
+        if (!is_array($row)) {
+            return null;
+        }
+        $categories = $this->pdo->prepare('SELECT category_id FROM product_categories WHERE product_id=:product_id ORDER BY category_id');
+        $categories->execute(['product_id' => $id]);
+        $row['category_ids'] = array_map('intval', $categories->fetchAll(PDO::FETCH_COLUMN));
+        if ($row['category_ids'] === [] && (int) ($row['primary_category_id'] ?? 0) > 0) {
+            $row['category_ids'] = [(int) $row['primary_category_id']];
+        }
+
+        return $row;
+    }
+
+    /** @param array<string,mixed> $data @return list<int> */
+    private function productCategoryIds(array $data): array
+    {
+        $values = $data['category_ids'] ?? [];
+        if (!is_array($values)) {
+            $values = [$values];
+        }
+        if ($values === [] && isset($data['category_id'])) {
+            $values = [$data['category_id']];
+        }
+
+        return array_values(array_unique(array_filter(
+            array_map('intval', $values),
+            static fn(int $categoryId): bool => $categoryId > 0
+        )));
+    }
+
+    /** @param list<int> $categoryIds */
+    private function assertProductCategoriesExist(array $categoryIds): void
+    {
+        $placeholders = implode(',', array_fill(0, count($categoryIds), '?'));
+        $statement = $this->pdo->prepare('SELECT COUNT(*) FROM categories WHERE id IN (' . $placeholders . ')');
+        $statement->execute($categoryIds);
+        if ((int) $statement->fetchColumn() !== count($categoryIds)) {
+            throw new RuntimeException('Una dintre categoriile selectate nu mai există. Reîncarcă formularul.');
+        }
+    }
+
+    /** @param list<int> $categoryIds */
+    private function primaryProductCategoryId(?int $productId, array $categoryIds): int
+    {
+        if ($productId !== null && $productId > 0) {
+            $statement = $this->pdo->prepare('SELECT primary_category_id FROM products WHERE id=:id');
+            $statement->execute(['id' => $productId]);
+            $current = (int) $statement->fetchColumn();
+            if ($current > 0 && in_array($current, $categoryIds, true)) {
+                return $current;
+            }
+        }
+
+        return $categoryIds[0];
+    }
+
+    /** @param list<int> $categoryIds */
+    private function saveProductCategories(int $productId, array $categoryIds): void
+    {
+        $statement = $this->pdo->prepare('INSERT INTO product_categories (product_id, category_id) VALUES (:product, :category)');
+        foreach ($categoryIds as $categoryId) {
+            $statement->execute(['product' => $productId, 'category' => $categoryId]);
+        }
     }
 
     private function defaultVariantId(?int $productId): ?int
