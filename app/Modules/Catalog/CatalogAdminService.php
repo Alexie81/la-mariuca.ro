@@ -81,13 +81,21 @@ final class CatalogAdminService
             }
         }
         $status = in_array(($data['status'] ?? ''), ['draft', 'published', 'archived'], true) ? (string) $data['status'] : 'draft';
-        $variants = $this->submittedProductVariants($data, $id);
+        $primarySku = trim(mb_substr((string) ($data['primary_sku'] ?? $data['sku'] ?? ''), 0, 100));
+        if ($primarySku === '') {
+            $primarySku = $this->generateProductSku();
+        }
+        if (!$this->isProductPrimarySkuAvailable($primarySku, $id)) {
+            throw new RuntimeException('Acest SKU există deja ca SKU principal. Alege alt cod pentru produs.');
+        }
+        $trackInConta = (string) ($data['track_in_conta'] ?? '1') === '1';
+        $variants = $this->submittedProductVariants($data, $id, $primarySku, $trackInConta);
         $now = gmdate('c');
         $this->pdo->beginTransaction();
         try {
             if ($id === null) {
-                $statement = $this->pdo->prepare('INSERT INTO products (name,slug,short_description,description,brand,supplier_id,status,primary_category_id,seo_title,meta_description,composition,care_instructions,size_guide,package_contents,excluded_accessories,featured,indexable,published_at,created_at,updated_at) VALUES (:name,:slug,:short_description,:description,:brand,:supplier_id,:status,:category,:seo_title,:meta_description,:composition,:care,:size_guide,:package_contents,:excluded_accessories,:featured,:indexable,:published_at,:now,:now)');
-                $statement->execute($this->productParams($data, $name, $slug, $status, $categoryId, $supplierId, $now));
+                $statement = $this->pdo->prepare('INSERT INTO products (name,slug,primary_sku,track_in_conta,short_description,description,brand,supplier_id,status,primary_category_id,seo_title,meta_description,composition,care_instructions,size_guide,package_contents,excluded_accessories,featured,indexable,published_at,created_at,updated_at) VALUES (:name,:slug,:primary_sku,:track_in_conta,:short_description,:description,:brand,:supplier_id,:status,:category,:seo_title,:meta_description,:composition,:care,:size_guide,:package_contents,:excluded_accessories,:featured,:indexable,:published_at,:now,:now)');
+                $statement->execute($this->productParams($data, $name, $slug, $primarySku, $trackInConta, $status, $categoryId, $supplierId, $now));
                 $id = (int) $this->pdo->lastInsertId();
                 $this->saveProductCategories($id, $categoryIds);
             } else {
@@ -97,8 +105,8 @@ final class CatalogAdminService
                 if ($oldSlug === false) {
                     throw new RuntimeException('Produsul nu există.');
                 }
-                $statement = $this->pdo->prepare('UPDATE products SET name=:name,slug=:slug,short_description=:short_description,description=:description,brand=:brand,supplier_id=:supplier_id,status=:status,primary_category_id=:category,seo_title=:seo_title,meta_description=:meta_description,composition=:composition,care_instructions=:care,size_guide=:size_guide,package_contents=:package_contents,excluded_accessories=:excluded_accessories,featured=:featured,indexable=:indexable,published_at=:published_at,updated_at=:now WHERE id=:id');
-                $statement->execute($this->productParams($data, $name, $slug, $status, $categoryId, $supplierId, $now) + ['id' => $id]);
+                $statement = $this->pdo->prepare('UPDATE products SET name=:name,slug=:slug,primary_sku=:primary_sku,track_in_conta=:track_in_conta,short_description=:short_description,description=:description,brand=:brand,supplier_id=:supplier_id,status=:status,primary_category_id=:category,seo_title=:seo_title,meta_description=:meta_description,composition=:composition,care_instructions=:care,size_guide=:size_guide,package_contents=:package_contents,excluded_accessories=:excluded_accessories,featured=:featured,indexable=:indexable,published_at=:published_at,updated_at=:now WHERE id=:id');
+                $statement->execute($this->productParams($data, $name, $slug, $primarySku, $trackInConta, $status, $categoryId, $supplierId, $now) + ['id' => $id]);
                 $this->pdo->prepare('DELETE FROM product_categories WHERE product_id=:id')->execute(['id' => $id]);
                 $this->saveProductCategories($id, $categoryIds);
                 if ($oldSlug !== $slug) {
@@ -119,7 +127,7 @@ final class CatalogAdminService
     /** @return list<array<string,mixed>> */
     public function products(): array
     {
-        return $this->pdo->query("SELECT p.*, c.name AS category_name, v.sku, v.price_bani, i.physical_quantity, i.reserved_quantity FROM products p LEFT JOIN categories c ON c.id=p.primary_category_id LEFT JOIN product_variants v ON v.product_id=p.id AND v.is_default=1 LEFT JOIN inventory i ON i.variant_id=v.id ORDER BY p.id DESC")->fetchAll();
+        return $this->pdo->query("SELECT p.*, c.name AS category_name, COALESCE(p.primary_sku,v.sku) AS sku, v.price_bani, i.physical_quantity, i.reserved_quantity FROM products p LEFT JOIN categories c ON c.id=p.primary_category_id LEFT JOIN product_variants v ON v.product_id=p.id AND v.is_default=1 LEFT JOIN inventory i ON i.variant_id=v.id ORDER BY p.id DESC")->fetchAll();
     }
 
     public function isProductNameAvailable(string $name, ?int $excludeId = null): bool
@@ -163,6 +171,37 @@ final class CatalogAdminService
         return (int) $statement->fetchColumn() === 0;
     }
 
+    public function isProductPrimarySkuAvailable(string $sku, ?int $excludeProductId = null): bool
+    {
+        $sku = trim($sku);
+        if ($sku === '') {
+            return false;
+        }
+
+        $productSql = 'SELECT COUNT(*) FROM products WHERE LOWER(primary_sku)=LOWER(:sku)';
+        $productParameters = ['sku' => $sku];
+        if ($excludeProductId !== null && $excludeProductId > 0) {
+            $productSql .= ' AND id<>:exclude_product_id';
+            $productParameters['exclude_product_id'] = $excludeProductId;
+        }
+        $product = $this->pdo->prepare($productSql);
+        $product->execute($productParameters);
+        if ((int) $product->fetchColumn() > 0) {
+            return false;
+        }
+
+        $variantSql = 'SELECT COUNT(*) FROM product_variants WHERE LOWER(sku)=LOWER(:sku)';
+        $variantParameters = ['sku' => $sku];
+        if ($excludeProductId !== null && $excludeProductId > 0) {
+            $variantSql .= ' AND product_id<>:exclude_product_id';
+            $variantParameters['exclude_product_id'] = $excludeProductId;
+        }
+        $variant = $this->pdo->prepare($variantSql);
+        $variant->execute($variantParameters);
+
+        return (int) $variant->fetchColumn() === 0;
+    }
+
     public function normalizeProductSlug(string $slug): string
     {
         return Slugger::slug(trim($slug));
@@ -192,8 +231,8 @@ final class CatalogAdminService
     {
         $year = (new \DateTimeImmutable('now', new \DateTimeZone('Europe/Bucharest')))->format('y');
         $prefix = 'LM-' . $year . '-';
-        $statement = $this->pdo->prepare('SELECT sku FROM product_variants WHERE sku LIKE :prefix');
-        $statement->execute(['prefix' => $prefix . '%']);
+        $statement = $this->pdo->prepare("SELECT sku FROM product_variants WHERE sku LIKE :variant_prefix UNION SELECT primary_sku AS sku FROM products WHERE primary_sku LIKE :product_prefix");
+        $statement->execute(['variant_prefix' => $prefix . '%', 'product_prefix' => $prefix . '%']);
         $maximum = 0;
         $pattern = '/^' . preg_quote($prefix, '/') . '(\d+)$/i';
         foreach ($statement->fetchAll(PDO::FETCH_COLUMN) as $existingSku) {
@@ -206,7 +245,7 @@ final class CatalogAdminService
         do {
             ++$maximum;
             $candidate = $prefix . str_pad((string) $maximum, 3, '0', STR_PAD_LEFT);
-        } while (!$this->isProductSkuAvailable($candidate) || isset($reserved[mb_strtolower($candidate)]));
+        } while (!$this->isProductPrimarySkuAvailable($candidate) || isset($reserved[mb_strtolower($candidate)]));
 
         return $candidate;
     }
@@ -266,6 +305,7 @@ final class CatalogAdminService
             $needle = '%' . mb_strtolower($search) . '%';
             $where .= " AND (LOWER(p.name) LIKE :name_search
                 OR LOWER(p.slug) LIKE :slug_search
+                OR LOWER(COALESCE(p.primary_sku, '')) LIKE :primary_sku_search
                 OR LOWER(COALESCE(c.name, '')) LIKE :category_search
                 OR LOWER(p.status) LIKE :status_search
                 OR EXISTS (
@@ -277,6 +317,7 @@ final class CatalogAdminService
             $parameters = [
                 ':name_search' => $needle,
                 ':slug_search' => $needle,
+                ':primary_sku_search' => $needle,
                 ':category_search' => $needle,
                 ':status_search' => $needle,
                 ':sku_search' => $needle,
@@ -294,7 +335,7 @@ final class CatalogAdminService
         $statement = $this->pdo->prepare("SELECT
                 p.id,p.name,p.slug,p.status,p.featured,p.updated_at,
                 COALESCE(c.name, 'Fără categorie') AS category_name,
-                COALESCE((
+                COALESCE(p.primary_sku, (
                     SELECT default_variant.sku FROM product_variants default_variant
                     WHERE default_variant.product_id = p.id
                     ORDER BY default_variant.is_default DESC, default_variant.id ASC LIMIT 1
@@ -436,7 +477,9 @@ final class CatalogAdminService
         if ($row['variants'] !== []) {
             $default = $row['variants'][0];
             $row['variant_id'] = (int) $default['id'];
-            $row['sku'] = (string) $default['sku'];
+            if (trim((string) ($row['primary_sku'] ?? '')) === '') {
+                $row['primary_sku'] = (string) $default['sku'];
+            }
             $row['price_bani'] = (int) $default['price_bani'];
             $row['stock'] = (int) $default['stock'];
         }
@@ -512,7 +555,7 @@ final class CatalogAdminService
      * @param array<string,mixed> $data
      * @return list<array<string,mixed>>
      */
-    private function submittedProductVariants(array $data, ?int $productId): array
+    private function submittedProductVariants(array $data, ?int $productId, string $primarySku, bool $parentTrackInConta): array
     {
         $groups = $this->normalizeOptionGroups($data['option_groups'] ?? []);
         $combinations = $this->optionCombinations($groups);
@@ -521,12 +564,12 @@ final class CatalogAdminService
             $submitted = [[
                 'id' => $this->defaultVariantId($productId),
                 'options_json' => '{}',
-                'sku' => $data['sku'] ?? '',
+                'sku' => $primarySku,
                 'ean' => $data['ean'] ?? '',
                 'full_price' => $data['price'] ?? '',
                 'stock' => $data['stock'] ?? 0,
                 'stock_unlimited' => $data['stock_unlimited'] ?? 0,
-                'track_in_conta' => $data['track_in_conta'] ?? 1,
+                'track_in_conta' => $parentTrackInConta ? 1 : 0,
                 'discount_enabled' => $data['discount_enabled'] ?? 0,
                 'discount_type' => $data['discount_type'] ?? 'percent',
                 'discount_value' => $data['discount_value'] ?? '',
@@ -562,7 +605,7 @@ final class CatalogAdminService
 
         $result = [];
         $usedIds = [];
-        $reservedSkus = [];
+        $reservedSkus = $groups === [] ? [] : [$primarySku];
         $reservedEans = [];
         foreach ($combinations as $position => $options) {
             $optionsKey = $this->canonicalOptionsKey($options);
@@ -582,7 +625,15 @@ final class CatalogAdminService
                 $usedIds[$variantId] = true;
             }
 
-            $sku = trim(mb_substr((string) ($rawVariant['sku'] ?? ''), 0, 100));
+            $sku = $groups === []
+                ? $primarySku
+                : trim(mb_substr((string) ($rawVariant['sku'] ?? ''), 0, 100));
+            // Older products used the default variant SKU as the product SKU. Once the
+            // parent identity is separated, migrate that inherited value transparently
+            // instead of blocking the first save with a duplicate-SKU error.
+            if ($groups !== [] && mb_strtolower($sku) === mb_strtolower($primarySku)) {
+                $sku = '';
+            }
             if ($sku === '') {
                 $sku = $this->generateProductSku($reservedSkus);
             }
@@ -596,13 +647,17 @@ final class CatalogAdminService
             if ($ownerId !== false && (int) $ownerId !== $variantId) {
                 throw new RuntimeException('Acest SKU există deja. Alege alt cod pentru varianta „' . ((string) ($rawVariant['option_summary'] ?? '') ?: $sku) . '”.');
             }
+            if ($groups !== []) {
+                $primaryOwner = $this->pdo->prepare('SELECT id FROM products WHERE LOWER(primary_sku)=LOWER(:sku) LIMIT 1');
+                $primaryOwner->execute(['sku' => $sku]);
+                if ($primaryOwner->fetchColumn() !== false) {
+                    throw new RuntimeException('Acest SKU este rezervat unui produs principal. Alege alt cod pentru combinație.');
+                }
+            }
             $reservedSkus[] = $sku;
 
-            $ean = preg_replace('/\s+/', '', trim((string) ($rawVariant['ean'] ?? '')));
+            $ean = trim((string) ($rawVariant['ean'] ?? ''));
             $ean = $ean === '' ? null : $ean;
-            if ($ean !== null && preg_match('/^\d{8,14}$/', $ean) !== 1) {
-                throw new RuntimeException('Codul EAN trebuie să conțină între 8 și 14 cifre.');
-            }
             if ($ean !== null) {
                 if (isset($reservedEans[$ean])) {
                     throw new RuntimeException('Fiecare variantă trebuie să aibă un cod EAN unic.');
@@ -622,7 +677,9 @@ final class CatalogAdminService
                 throw new RuntimeException('Stocul trebuie să fie un număr întreg pozitiv sau zero.');
             }
             $stockUnlimited = (string) ($rawVariant['stock_unlimited'] ?? '0') === '1';
-            $trackInConta = (string) ($rawVariant['track_in_conta'] ?? '1') === '1';
+            $trackInConta = $groups === []
+                ? $parentTrackInConta
+                : (string) ($rawVariant['track_in_conta'] ?? '0') === '1';
             $discountEnabled = (string) ($rawVariant['discount_enabled'] ?? '0') === '1';
             $discountType = null;
             $discountValue = null;
@@ -904,10 +961,11 @@ final class CatalogAdminService
     }
 
     /** @param array<string,mixed> $data @return array<string,mixed> */
-    private function productParams(array $data, string $name, string $slug, string $status, int $categoryId, ?int $supplierId, string $now): array
+    private function productParams(array $data, string $name, string $slug, string $primarySku, bool $trackInConta, string $status, int $categoryId, ?int $supplierId, string $now): array
     {
         return [
-            'name' => $name, 'slug' => $slug, 'short_description' => trim((string) ($data['short_description'] ?? '')), 'description' => trim((string) ($data['description'] ?? '')),
+            'name' => $name, 'slug' => $slug, 'primary_sku' => $primarySku, 'track_in_conta' => $trackInConta ? 1 : 0,
+            'short_description' => trim((string) ($data['short_description'] ?? '')), 'description' => trim((string) ($data['description'] ?? '')),
             'brand' => ($brand = trim(mb_substr((string) ($data['brand'] ?? ''), 0, 190))) === '' ? null : $brand, 'supplier_id' => $supplierId,
             'status' => $status, 'category' => $categoryId, 'seo_title' => trim((string) ($data['seo_title'] ?? '')), 'meta_description' => trim((string) ($data['meta_description'] ?? '')),
             'composition' => trim((string) ($data['composition'] ?? '')), 'care' => trim((string) ($data['care_instructions'] ?? '')), 'size_guide' => trim((string) ($data['size_guide'] ?? '')),

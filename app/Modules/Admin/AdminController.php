@@ -306,7 +306,11 @@ final class AdminController
         $query = $request->getQueryParams();
         $sku = trim(mb_substr((string) ($query['sku'] ?? ''), 0, 100));
         $excludeVariantId = max(0, (int) ($query['exclude_variant_id'] ?? 0));
-        $available = $sku !== '' && $this->catalogAdmin->isProductSkuAvailable($sku, $excludeVariantId > 0 ? $excludeVariantId : null);
+        $excludeProductId = max(0, (int) ($query['exclude_product_id'] ?? 0));
+        $primary = ($query['scope'] ?? '') === 'primary';
+        $available = $sku !== '' && ($primary
+            ? $this->catalogAdmin->isProductPrimarySkuAvailable($sku, $excludeProductId > 0 ? $excludeProductId : null)
+            : $this->catalogAdmin->isProductSkuAvailable($sku, $excludeVariantId > 0 ? $excludeVariantId : null));
         $message = $sku === ''
             ? 'SKU-ul va fi generat automat.'
             : ($available ? 'Acest SKU este disponibil!' : 'Acest SKU este deja folosit.');
