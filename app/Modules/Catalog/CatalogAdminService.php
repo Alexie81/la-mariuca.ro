@@ -346,6 +346,20 @@ final class CatalogAdminService
                     ORDER BY default_variant.is_default DESC, default_variant.id ASC LIMIT 1
                 ), 0) AS price_bani,
                 COALESCE((
+                    SELECT default_variant.compare_price_bani FROM product_variants default_variant
+                    WHERE default_variant.product_id = p.id
+                    ORDER BY default_variant.is_default DESC, default_variant.id ASC LIMIT 1
+                ), 0) AS compare_price_bani,
+                (SELECT default_variant.discount_type FROM product_variants default_variant
+                    WHERE default_variant.product_id = p.id
+                    ORDER BY default_variant.is_default DESC, default_variant.id ASC LIMIT 1
+                ) AS discount_type,
+                COALESCE((
+                    SELECT default_variant.discount_value FROM product_variants default_variant
+                    WHERE default_variant.product_id = p.id
+                    ORDER BY default_variant.is_default DESC, default_variant.id ASC LIMIT 1
+                ), 0) AS discount_value,
+                COALESCE((
                     SELECT SUM(stock.physical_quantity - stock.reserved_quantity)
                     FROM product_variants stock_variant
                     LEFT JOIN inventory stock ON stock.variant_id = stock_variant.id

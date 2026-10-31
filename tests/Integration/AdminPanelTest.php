@@ -104,12 +104,18 @@ final class AdminPanelTest extends DatabaseTestCase
         ], '127.0.0.86');
         self::assertSame(303, $login->getStatusCode());
 
+        $this->pdo->exec("UPDATE product_variants SET price_bani=10710,compare_price_bani=11900,discount_type='percent',discount_value=1000 WHERE sku='LM-NB-001'");
         $body = (string) $this->get('/admin/produse/')->getBody();
         self::assertStringContainsString('Registrul catalogului', $body);
         self::assertStringContainsString('Stoc online', $body);
         self::assertStringContainsString('Stoc efectiv (Conta)', $body);
         self::assertStringContainsString('href="/admin/produse/" aria-current="page"', $body);
         self::assertStringContainsString('LM-NB-001', $body);
+        self::assertStringContainsString('107,10 Lei', $body);
+        self::assertStringContainsString('119,00 Lei', $body);
+        self::assertStringContainsString('data-discount-type="percent"', $body);
+        self::assertStringContainsString('10%', $body);
+        self::assertStringContainsString('admin-products-table__compare-price', $body);
         self::assertStringContainsString('8 buc.', $body);
         self::assertStringContainsString('/sterge/', $body);
         self::assertStringContainsString('data-admin-product-delete-dialog', $body);

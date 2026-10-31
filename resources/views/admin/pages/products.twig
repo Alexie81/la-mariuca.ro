@@ -84,7 +84,25 @@
                 </td>
                 <td data-label="SKU"><code>{{ product.sku ?: '—' }}</code></td>
                 <td data-label="Categorie"><span class="admin-products-table__category">{{ product.category_name }}</span></td>
-                <td data-label="Preț"><strong class="admin-products-table__price">{{ money(product.price_bani) }}</strong></td>
+                <td data-label="Preț">
+                  <span class="admin-products-table__price-wrap">
+                    <strong class="admin-products-table__price{{ product.compare_price_bani > product.price_bani ? ' is-discounted' : '' }}">{{ money(product.price_bani) }}</strong>
+                    {% if product.compare_price_bani > product.price_bani %}
+                      <span class="admin-products-table__discount" data-discount-type="{{ product.discount_type ?: 'fixed' }}">(
+                        {%- if product.discount_type == 'percent' and product.discount_value > 0 -%}
+                          {%- set discount_percent_whole = product.discount_value // 100 -%}
+                          {%- set discount_percent_fraction = product.discount_value % 100 -%}
+                          {{- discount_percent_whole -}}{% if discount_percent_fraction > 0 %},{{ discount_percent_fraction % 10 == 0 ? discount_percent_fraction // 10 : '%02d'|format(discount_percent_fraction) }}{% endif %}%
+                        {%- elseif product.discount_type == 'fixed' and product.discount_value > 0 -%}
+                          {{- money(product.discount_value) -}}
+                        {%- else -%}
+                          {{- money(product.compare_price_bani - product.price_bani) -}}
+                        {%- endif -%}
+                      )</span>
+                      <del class="admin-products-table__compare-price" aria-label="Preț întreg {{ money(product.compare_price_bani) }}">{{ money(product.compare_price_bani) }}</del>
+                    {% endif %}
+                  </span>
+                </td>
                 <td data-label="Stoc online">
                   {% if product.has_unlimited_stock %}
                     <span class="admin-stock-pill">Nelimitat</span>
