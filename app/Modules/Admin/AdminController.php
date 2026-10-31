@@ -377,6 +377,39 @@ final class AdminController
         }
     }
 
+    public function uploadProductDescriptionImage(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    {
+        try {
+            $files = $request->getUploadedFiles();
+            if (!isset($files['image'])) {
+                throw new \RuntimeException('Alege o imagine pentru descriere.');
+            }
+            $data = (array) ($request->getParsedBody() ?? []);
+            $id = $this->media->upload($files['image'], (string) ($data['alt_text'] ?? ''));
+            $media = $this->media->find($id);
+            if ($media === null) {
+                throw new \RuntimeException('Imaginea a fost încărcată, dar nu a putut fi regăsită.');
+            }
+            $payload = [
+                'ok' => true,
+                'url' => $this->config->path((string) $media['public_path']),
+                'alt' => (string) ($media['alt_text'] ?? ''),
+                'width' => (int) ($media['width'] ?? 0),
+                'height' => (int) ($media['height'] ?? 0),
+            ];
+            $status = 200;
+        } catch (\Throwable $exception) {
+            $payload = ['ok' => false, 'message' => $exception->getMessage()];
+            $status = 422;
+        }
+
+        $response->getBody()->write((string) json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        return $response
+            ->withStatus($status)
+            ->withHeader('Content-Type', 'application/json; charset=utf-8')
+            ->withHeader('Cache-Control', 'no-store');
+    }
+
     public function deleteProduct(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
     {
         try {

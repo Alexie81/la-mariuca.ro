@@ -87,6 +87,8 @@ final class ProductRecommendationService
     /** @return list<string> */
     private function terms(string $value): array
     {
+        $value = preg_replace('/<[^>]*>/', ' ', $value) ?? $value;
+        $value = html_entity_decode(strip_tags($value), ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $value = mb_strtolower($value);
         $value = strtr($value, ['ă' => 'a', 'â' => 'a', 'î' => 'i', 'ș' => 's', 'ş' => 's', 'ț' => 't', 'ţ' => 't']);
         $parts = preg_split('/[^a-z0-9]+/u', $value, -1, PREG_SPLIT_NO_EMPTY) ?: [];

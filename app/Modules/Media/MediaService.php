@@ -90,4 +90,14 @@ final class MediaService
         ]);
         return (int) $this->pdo->lastInsertId();
     }
+
+    /** @return array<string,mixed>|null */
+    public function find(int $id): ?array
+    {
+        $statement = $this->pdo->prepare('SELECT * FROM media WHERE id=:id');
+        $statement->execute(['id' => $id]);
+        $row = $statement->fetch();
+
+        return is_array($row) ? $row : null;
+    }
 }

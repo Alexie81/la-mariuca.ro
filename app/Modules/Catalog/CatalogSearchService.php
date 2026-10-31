@@ -303,6 +303,8 @@ final class CatalogSearchService
 
     private function normalize(string $value): string
     {
+        $value = preg_replace('/<[^>]*>/', ' ', $value) ?? $value;
+        $value = html_entity_decode(strip_tags($value), ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $value = mb_strtolower(trim($value), 'UTF-8');
         $value = strtr($value, [
             'ă' => 'a', 'â' => 'a', 'î' => 'i', 'ș' => 's', 'ş' => 's', 'ț' => 't', 'ţ' => 't',

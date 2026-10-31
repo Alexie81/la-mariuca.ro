@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Catalog;
 
+use App\Shared\Security\ProductDescriptionSanitizer;
 use App\Shared\Support\Money;
 use App\Shared\Support\Slugger;
 use PDO;
@@ -11,8 +12,11 @@ use RuntimeException;
 
 final class CatalogAdminService
 {
-    public function __construct(private readonly PDO $pdo)
+    private ProductDescriptionSanitizer $descriptionSanitizer;
+
+    public function __construct(private readonly PDO $pdo, ?ProductDescriptionSanitizer $descriptionSanitizer = null)
     {
+        $this->descriptionSanitizer = $descriptionSanitizer ?? new ProductDescriptionSanitizer();
     }
 
     /** @param array<string,mixed> $data */
@@ -983,7 +987,7 @@ final class CatalogAdminService
     {
         return [
             'name' => $name, 'slug' => $slug, 'primary_sku' => $primarySku, 'track_in_conta' => $trackInConta ? 1 : 0,
-            'short_description' => trim((string) ($data['short_description'] ?? '')), 'description' => trim((string) ($data['description'] ?? '')),
+            'short_description' => trim((string) ($data['short_description'] ?? '')), 'description' => $this->descriptionSanitizer->sanitize((string) ($data['description'] ?? '')),
             'brand' => ($brand = trim(mb_substr((string) ($data['brand'] ?? ''), 0, 190))) === '' ? null : $brand, 'supplier_id' => $supplierId,
             'status' => $status, 'category' => $categoryId, 'seo_title' => trim((string) ($data['seo_title'] ?? '')), 'meta_description' => trim((string) ($data['meta_description'] ?? '')),
             'composition' => trim((string) ($data['composition'] ?? '')), 'care' => trim((string) ($data['care_instructions'] ?? '')), 'size_guide' => trim((string) ($data['size_guide'] ?? '')),

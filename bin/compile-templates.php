@@ -16,6 +16,7 @@ foreach (['absolute_url', 'cart_summary', 'contact_email', 'contact_phone_displa
     $twig->addFunction(new TwigFunction($name, static fn(): null => null));
 }
 $twig->addFilter(new TwigFilter('json_decode', static fn(): array => []));
+$twig->addFilter(new TwigFilter('product_description_html', static fn(?string $value): string => (string) $value));
 
 $count = 0;
 $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root . '/resources/views', FilesystemIterator::SKIP_DOTS));

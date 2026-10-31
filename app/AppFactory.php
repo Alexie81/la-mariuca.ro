@@ -46,6 +46,7 @@ use App\Shared\Http\View;
 use App\Shared\Security\AdminRememberMe;
 use App\Shared\Security\Auth;
 use App\Shared\Security\Csrf;
+use App\Shared\Security\ProductDescriptionSanitizer;
 use App\Shared\Security\TotpService;
 use App\Shared\Support\Flash;
 use App\Shared\Support\RomanianLocations;
@@ -75,6 +76,7 @@ final class AppFactory
         $reviews = new ProductReviewService(new ProductReviewRepository($pdo), $push);
         $cart = new CartService($pdo);
         $contactWhatsApp = new ContactWhatsAppService($config);
+        $productDescriptions = new ProductDescriptionSanitizer();
 
         $twig = new Environment(new FilesystemLoader($root . '/resources/views'), [
             'cache' => false,
@@ -120,6 +122,11 @@ final class AppFactory
         $twig->addFunction(new TwigFunction('favorite_count', static fn(): int => count(array_unique(array_map('intval', (array) ($_SESSION['favorites'] ?? []))))));
         $twig->addFunction(new TwigFunction('is_favorite', static fn(int|string $productId): bool => in_array((int) $productId, array_unique(array_map('intval', (array) ($_SESSION['favorites'] ?? []))), true)));
         $twig->addFilter(new TwigFilter('json_decode', static fn(string $value): array => json_decode($value, true) ?: []));
+        $twig->addFilter(new TwigFilter(
+            'product_description_html',
+            static fn(?string $value): string => $productDescriptions->sanitize((string) $value),
+            ['is_safe' => ['html']]
+        ));
         $view = new View($twig);
         $rateLimiter = new RateLimiter($pdo);
         $content = new ContentRepository($pdo);
@@ -132,7 +139,7 @@ final class AppFactory
         $checkoutController = new CheckoutController(new CheckoutService($pdo, $cart, $config, $romanianLocations, $push), $cart, $orders, new StripeCheckoutService($pdo, $config), $auth, $customerAccount, $rateLimiter, $view, $config);
         $authController = new AuthController($pdo, $auth, new GoogleOAuthService($pdo, $config), $customerAccount, $rateLimiter, $view, $config);
         $twoFactorController = new TwoFactorController($pdo, $auth, new TotpService($config), $adminRememberMe, $rateLimiter, $view, $config);
-        $adminController = new AdminController($pdo, new AdminDashboardService($pdo), new AdminNotificationService($pdo), $push, $catalog, new CatalogAdminService($pdo), new SupplierAdminService($pdo), $orders, $reviews, new MediaService($pdo, $root), new ContentAdminService($pdo), $auth, $adminRememberMe, $rateLimiter, $view, $config);
+        $adminController = new AdminController($pdo, new AdminDashboardService($pdo), new AdminNotificationService($pdo), $push, $catalog, new CatalogAdminService($pdo, $productDescriptions), new SupplierAdminService($pdo), $orders, $reviews, new MediaService($pdo, $root), new ContentAdminService($pdo), $auth, $adminRememberMe, $rateLimiter, $view, $config);
         $adminPushController = new AdminPushController($push, $auth, $view, $config);
 
         $app = SlimAppFactory::create();
@@ -196,6 +203,7 @@ final class AppFactory
             $group->get('/produse/verifica-nume/', [$adminController, 'productNameAvailability']);
             $group->get('/produse/verifica-sku/', [$adminController, 'productSkuAvailability']);
             $group->get('/produse/verifica-slug/', [$adminController, 'productSlugAvailability']);
+            $group->post('/produse/descriere-imagine/', [$adminController, 'uploadProductDescriptionImage']);
             $group->get('/produse/nou/', [$adminController, 'productForm']);
             $group->get('/produse/nou/modal/', [$adminController, 'productModalForm']);
             $group->post('/produse/nou/', [$adminController, 'saveProduct']);

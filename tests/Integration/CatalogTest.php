@@ -128,6 +128,17 @@ final class CatalogTest extends DatabaseTestCase
         self::assertSame(['body-petrecut-liniste'], array_column($result['products'], 'slug'));
     }
 
+    public function testSemanticSearchReadsVisibleTextFromRichDescriptions(): void
+    {
+        $this->seed();
+        $this->pdo->exec("UPDATE products SET description = '<h2>Catifea regală</h2><p>Broderie lavandă delicată.</p>' WHERE slug = 'body-petrecut-liniste'");
+
+        $result = (new CatalogSearchService(new CatalogRepository($this->pdo)))->products('broderie');
+
+        self::assertNotEmpty($result['products']);
+        self::assertSame('body-petrecut-liniste', $result['products'][0]['slug']);
+    }
+
     public function testHomepageCollectionsContainOnlyPublishedMainCategories(): void
     {
         $this->seed();

@@ -27,6 +27,8 @@ final class MediaTest extends DatabaseTestCase
             self::assertMatchesRegularExpression('/\.(webp|jpg)$/', $row['public_path']);
             self::assertFileExists($mediaRoot . '/public/' . $row['public_path']);
             self::assertSame('Imagine de test', $row['alt_text']);
+            self::assertSame($row['public_path'], $service->find($id)['public_path']);
+            self::assertNull($service->find($id + 1000));
         } finally {
             $this->removeDirectory($mediaRoot);
         }

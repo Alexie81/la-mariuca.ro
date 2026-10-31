@@ -243,7 +243,7 @@
             <h2>Descriere</h2>
           </header>
           <div class="product-description-body" data-product-description-body>
-            <p>{{ (product.description ?: product.short_description)|nl2br }}</p>
+            {{ (product.description ?: product.short_description)|product_description_html }}
             {% if product.package_contents %}
               <h3>Ce conține pachetul</h3>
               <p>{{ product.package_contents|nl2br }}</p>

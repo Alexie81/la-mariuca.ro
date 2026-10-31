@@ -310,10 +310,78 @@
             <span class="admin-product-field__character-count"><strong data-product-short-description-count>{{ product.short_description|default('')|length }}</strong>/200 caractere</span>
           </small>
         </label>
-        <label class="admin-product-field admin-product-field--full">
-          <span>Descriere completă</span>
-          <textarea name="description" rows="7" placeholder="Materiale, beneficii, ocazii și toate detaliile care ajută familia să aleagă…">{{ product.description|default('') }}</textarea>
-        </label>
+        <div class="admin-product-field admin-product-field--full admin-product-rich-field">
+          <span id="product-description-label{{ is_modal ? '-modal' : '' }}">Descriere completă</span>
+          <small class="admin-product-rich-field__intro">Scrie povestea produsului, formatează ideile importante și așază imaginile exact unde dorești.</small>
+          <div
+            class="admin-rich-editor"
+            data-product-rich-editor
+            data-upload-url="{{ url('admin/produse/descriere-imagine/') }}"
+            aria-labelledby="product-description-label{{ is_modal ? '-modal' : '' }}"
+            hidden
+          >
+            <div class="admin-rich-editor__toolbar" role="toolbar" aria-label="Formatarea descrierii complete">
+              <div class="admin-rich-editor__format-actions">
+                <button type="button" data-rich-command="bold" aria-label="Text îngroșat" title="Text îngroșat"><strong>B</strong></button>
+                <button type="button" data-rich-command="italic" aria-label="Text cursiv" title="Text cursiv"><em>I</em></button>
+                <button type="button" data-rich-command="underline" aria-label="Text subliniat" title="Text subliniat"><u>U</u></button>
+                <span class="admin-rich-editor__divider" aria-hidden="true"></span>
+                <button type="button" class="admin-rich-editor__wide-action" data-rich-command="insertUnorderedList" aria-label="Listă cu buline">
+                  <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="3" cy="5" r="1"/><circle cx="3" cy="10" r="1"/><circle cx="3" cy="15" r="1"/><path d="M7 5h10M7 10h10M7 15h10"/></svg><span>Listă</span>
+                </button>
+                <button type="button" class="admin-rich-editor__wide-action" data-rich-command="insertOrderedList" aria-label="Listă numerotată">
+                  <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2 4h2v3M2 11c2-1 3 0 1 2l-1 2h3M8 5h9M8 10h9M8 15h9"/></svg><span>1. Listă</span>
+                </button>
+              </div>
+              <div class="admin-rich-editor__image-actions">
+                <button type="button" class="admin-rich-editor__add-image" data-rich-image-add>
+                  <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v14M3 10h14"/></svg><span>Imagine</span>
+                </button>
+                <button type="button" data-rich-image-up disabled aria-label="Mută imaginea mai sus" title="Mută imaginea mai sus"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 12 5-5 5 5"/></svg></button>
+                <button type="button" data-rich-image-down disabled aria-label="Mută imaginea mai jos" title="Mută imaginea mai jos"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 8 5 5 5-5"/></svg></button>
+                <button type="button" class="admin-rich-editor__image-settings" data-rich-image-settings disabled aria-expanded="false">
+                  <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 6h12M4 10h12M4 14h12M7 4v4M13 8v4M9 12v4"/></svg><span>Mărime</span>
+                </button>
+              </div>
+            </div>
+            <div class="admin-rich-editor__hint">
+              <span><i aria-hidden="true"></i> Poți lipi direct text și imagini</span>
+              <span data-rich-editor-status aria-live="polite">Totul este pregătit</span>
+            </div>
+            <div
+              class="admin-rich-editor__canvas"
+              contenteditable="true"
+              role="textbox"
+              aria-multiline="true"
+              aria-label="Descrierea completă a produsului"
+              data-placeholder="Începe cu materialul, beneficiile și povestea produsului…"
+              data-rich-editor-canvas
+            ></div>
+            <aside class="admin-rich-editor__image-panel" data-rich-image-panel hidden>
+              <header>
+                <div><span>Imagine selectată</span><strong>Așezare în descriere</strong></div>
+                <button type="button" data-rich-image-panel-close aria-label="Închide opțiunile imaginii"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 6 8 8M14 6l-8 8"/></svg></button>
+              </header>
+              <div class="admin-rich-editor__image-panel-grid">
+                <label class="admin-rich-editor__size-control">
+                  <span>Mărime <output data-rich-image-size-output>100%</output></span>
+                  <input type="range" min="30" max="100" step="1" value="100" data-rich-image-size>
+                </label>
+                <fieldset class="admin-rich-editor__alignment">
+                  <legend>Aliniere</legend>
+                  <button type="button" data-rich-image-align="left" aria-label="Aliniază la stânga"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 4h14M3 8h9M3 12h14M3 16h9"/></svg></button>
+                  <button type="button" data-rich-image-align="center" aria-label="Centrează"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 4h14M5 8h10M3 12h14M5 16h10"/></svg></button>
+                  <button type="button" data-rich-image-align="right" aria-label="Aliniază la dreapta"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 4h14M8 8h9M3 12h14M8 16h9"/></svg></button>
+                </fieldset>
+                <label class="admin-rich-editor__alt-control"><span>Descriere imagine <small>pentru accesibilitate</small></span><input type="text" maxlength="250" placeholder="Ex: Detaliu al rochiței roz" data-rich-image-alt></label>
+                <button type="button" class="admin-rich-editor__remove-image" data-rich-image-remove><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 6h12M8 6V4h4v2M6 6l1 10h6l1-10M9 9v4M11 9v4"/></svg><span>Șterge imaginea</span></button>
+              </div>
+            </aside>
+            <input type="file" accept="image/jpeg,image/png,image/webp" data-rich-image-input hidden>
+          </div>
+          <textarea name="description" rows="7" placeholder="Materiale, beneficii, ocazii și toate detaliile care ajută familia să aleagă…" data-rich-editor-source>{{ product.description|default('')|product_description_html|e }}</textarea>
+          <small class="admin-product-rich-field__help">Imaginile sunt optimizate automat. Apasă sau fă click dreapta pe o imagine pentru mărime, aliniere și descriere.</small>
+        </div>
       </div>
     </section>
 

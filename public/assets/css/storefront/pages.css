@@ -1455,6 +1455,146 @@
   }
 }
 
+/* Keep rich editorial typography authoritative after the legacy product rules. */
+.product-description-body {
+  max-width: 1120px;
+}
+
+.product-description-body h2,
+.product-description-body h3,
+.product-description-body h4 {
+  margin: clamp(1.5rem, 3vw, 2.35rem) 0 .65rem;
+  color: #493733;
+  font-family: var(--serif);
+  font-weight: 650;
+  letter-spacing: -.025em;
+  line-height: 1.12;
+  text-transform: none;
+}
+
+.product-description-body h2 { font-size: clamp(1.75rem, 3.1vw, 2.65rem); }
+.product-description-body h3 { font-size: clamp(1.4rem, 2.3vw, 2rem); }
+.product-description-body h4 { font-size: clamp(1.15rem, 1.7vw, 1.5rem); }
+
+/* Rich product stories authored in the boutique admin. */
+.product-description-body {
+  max-width: 1120px;
+}
+
+.product-description-body > :first-child {
+  margin-top: 0;
+}
+
+.product-description-body > :last-child {
+  margin-bottom: 0;
+}
+
+.product-description-body h2,
+.product-description-body h3,
+.product-description-body h4 {
+  margin: clamp(1.5rem, 3vw, 2.35rem) 0 .65rem;
+  color: #493733;
+  font-family: var(--serif);
+  font-weight: 650;
+  letter-spacing: -.025em;
+  line-height: 1.12;
+  text-transform: none;
+}
+
+.product-description-body h2 {
+  font-size: clamp(1.75rem, 3.1vw, 2.65rem);
+}
+
+.product-description-body h3 {
+  font-size: clamp(1.4rem, 2.3vw, 2rem);
+}
+
+.product-description-body h4 {
+  font-size: clamp(1.15rem, 1.7vw, 1.5rem);
+}
+
+.product-description-body ul,
+.product-description-body ol {
+  display: grid;
+  gap: .55rem;
+  margin: 1rem 0 1.35rem;
+  padding-left: 1.45rem;
+}
+
+.product-description-body li::marker {
+  color: #ca5b60;
+  font-weight: 800;
+}
+
+.product-description-body blockquote {
+  margin: 1.45rem 0;
+  padding: 1.05rem 1.2rem;
+  border-left: 3px solid #cb5e63;
+  border-radius: 0 18px 18px 0;
+  background: linear-gradient(110deg, rgba(255, 241, 236, .9), rgba(255, 250, 247, .62));
+  color: #5c4540;
+  font-family: var(--serif);
+  font-size: 1.08em;
+}
+
+.product-description-body a {
+  color: #a84e53;
+  font-weight: 750;
+  text-decoration-color: rgba(168, 78, 83, .35);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
+}
+
+.product-description-body .product-rich-image {
+  position: relative;
+  clear: both;
+  max-width: 100%;
+  margin-top: clamp(1.4rem, 3.2vw, 2.6rem);
+  margin-bottom: clamp(1.4rem, 3.2vw, 2.6rem);
+  padding: clamp(.35rem, .8vw, .65rem);
+  border: 1px solid rgba(224, 156, 145, .55);
+  border-radius: clamp(18px, 2.2vw, 30px);
+  background: linear-gradient(145deg, #fff, #fff8f5);
+  box-shadow: 0 18px 50px rgba(95, 54, 47, .11);
+}
+
+.product-description-body .product-rich-image--center {
+  margin-right: auto;
+  margin-left: auto;
+}
+
+.product-description-body .product-rich-image--left {
+  margin-right: auto;
+  margin-left: 0;
+}
+
+.product-description-body .product-rich-image--right {
+  margin-right: 0;
+  margin-left: auto;
+}
+
+.product-description-body .product-rich-image img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: clamp(14px, 1.7vw, 23px);
+  object-fit: contain;
+}
+
+@media (max-width: 600px) {
+  .product-description-body .product-rich-image {
+    width: 100% !important;
+    margin: 1.35rem 0;
+    padding: .32rem;
+    border-radius: 19px;
+    box-shadow: 0 12px 30px rgba(95, 54, 47, .09);
+  }
+
+  .product-description-body .product-rich-image img {
+    border-radius: 15px;
+  }
+}
+
 /* Login — editorial account experience */
 .login-page-body,
 .register-page-body {
@@ -18959,3 +19099,20 @@ a.shop-pagination-arrow:hover {
     transition: none !important;
   }
 }
+
+/* Final cascade guard for product stories (legacy rules above share these selectors). */
+.product-description-body { max-width: 1120px; }
+.product-description-body h2,
+.product-description-body h3,
+.product-description-body h4 {
+  margin: clamp(1.5rem, 3vw, 2.35rem) 0 .65rem;
+  color: #493733;
+  font-family: var(--serif);
+  font-weight: 650;
+  letter-spacing: -.025em;
+  line-height: 1.12;
+  text-transform: none;
+}
+.product-description-body h2 { font-size: clamp(1.75rem, 3.1vw, 2.65rem); }
+.product-description-body h3 { font-size: clamp(1.4rem, 2.3vw, 2rem); }
+.product-description-body h4 { font-size: clamp(1.15rem, 1.7vw, 1.5rem); }
