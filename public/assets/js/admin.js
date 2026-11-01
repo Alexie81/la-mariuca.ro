@@ -2811,6 +2811,17 @@
     });
   });
   customerContent?.addEventListener('click', (event) => {
+    const deleteDiscountTrigger = event.target.closest('[data-admin-customer-benefit-delete-open]');
+    if (deleteDiscountTrigger) {
+      const confirmation = deleteDiscountTrigger.parentElement?.querySelector('[data-admin-customer-benefit-delete-dialog]');
+      if (confirmation && typeof confirmation.showModal === 'function') confirmation.showModal();
+      return;
+    }
+    const deleteDiscountClose = event.target.closest('[data-admin-customer-benefit-delete-close]');
+    if (deleteDiscountClose) {
+      deleteDiscountClose.closest('[data-admin-customer-benefit-delete-dialog]')?.close();
+      return;
+    }
     const discountTrigger = event.target.closest('[data-admin-customer-discount-trigger]');
     if (discountTrigger && customerDiscountDialog && typeof customerDiscountDialog.showModal === 'function' && window.fetch) {
       event.preventDefault();
