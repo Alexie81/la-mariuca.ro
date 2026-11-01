@@ -24,6 +24,7 @@ final class CustomerAdminTest extends DatabaseTestCase
         $admin = $this->pdo->prepare("INSERT INTO users (email,password_hash,first_name,last_name,role,status,email_verified_at,created_at,updated_at) VALUES ('customers.admin@example.test',:password,'Maria','Admin','administrator','active',:now,:now,:now)");
         $admin->execute(['password' => password_hash(self::ADMIN_PASSWORD, PASSWORD_DEFAULT), 'now' => $now]);
         $this->seedCustomers();
+        $this->seedDiscountCatalog();
 
         $this->get('/admin');
         $login = $this->post('/admin', [
@@ -64,6 +65,8 @@ final class CustomerAdminTest extends DatabaseTestCase
 
         $modal = (string) $this->get('/admin/clienti/' . $this->featuredCustomerId . '/modal/')->getBody();
         self::assertStringContainsString('data-admin-customer-profile', $modal);
+        self::assertStringContainsString('data-admin-customer-sticky-summary', $modal);
+        self::assertStringContainsString('data-admin-customer-scroll-body', $modal);
         self::assertStringContainsString('Ștefania Popescu', $modal);
         self::assertStringContainsString('Abonat la noutăți', $modal);
         self::assertStringContainsString('Conectare prin Google', $modal);
@@ -85,6 +88,13 @@ final class CustomerAdminTest extends DatabaseTestCase
         self::assertStringContainsString('Toată comanda', $discountForm);
         self::assertStringContainsString('Livrare', $discountForm);
         self::assertStringContainsString('Fără termen', $discountForm);
+        self::assertStringContainsString('data-discount-product-status', $discountForm);
+        self::assertStringContainsString('data-product-name=', $discountForm);
+        self::assertStringContainsString('data-product-skus=', $discountForm);
+        self::assertStringContainsString('data-product-keywords=', $discountForm);
+        self::assertStringContainsString('Nicio potrivire relevantă', $discountForm);
+        self::assertStringContainsString('Rochie test semantic', $discountForm);
+        self::assertStringContainsString('CRM-EXACT-001|CRM-EXACT-001-ROZ', $discountForm);
         $csrf = (string) $_SESSION['_csrf'];
         $orderDiscount = $this->post('/admin/clienti/' . $this->featuredCustomerId . '/reduceri/noua/', [
             '_csrf' => $csrf, 'scope' => 'order', 'value_type' => 'percent', 'value' => '12,5', 'validity' => 'always',
@@ -155,6 +165,19 @@ final class CustomerAdminTest extends DatabaseTestCase
         }
         $this->pdo->prepare("INSERT INTO oauth_identities (user_id,provider,provider_subject,created_at,updated_at) VALUES (:user,'google','google-stefania',:now,:now)")->execute(['user' => $this->featuredCustomerId, 'now' => gmdate('c')]);
         $this->seedOrders();
+    }
+
+    private function seedDiscountCatalog(): void
+    {
+        $now = gmdate('c');
+        $categoryId = (int) $this->pdo->query("SELECT id FROM categories WHERE status='published' ORDER BY id LIMIT 1")->fetchColumn();
+        $product = $this->pdo->prepare("INSERT INTO products (name,slug,primary_sku,short_description,description,brand,status,primary_category_id,seo_title,meta_description,composition,care_instructions,size_guide,package_contents,excluded_accessories,featured,indexable,published_at,created_at,updated_at) VALUES ('Rochie test semantic','rochie-test-semantic','CRM-EXACT-001','Rochie roz pentru ocazii speciale.','Descriere de test pentru selectorul CRM.','Atelier Test','published',:category,'Rochie elegantă pentru copii','Model roz potrivit pentru evenimente.','','','','','',0,1,:now,:now,:now)");
+        $product->execute(['category' => $categoryId, 'now' => $now]);
+        $productId = (int) $this->pdo->lastInsertId();
+        $variant = $this->pdo->prepare("INSERT INTO product_variants (product_id,sku,option_summary,options_json,options_key,price_bani,status,is_default,created_at,updated_at) VALUES (:product,:sku,:summary,:options,:key,19900,'active',:default,:now,:now)");
+        $variant->execute(['product' => $productId, 'sku' => 'CRM-EXACT-001', 'summary' => 'Mărime standard', 'options' => '{}', 'key' => hash('sha256', '{}'), 'default' => 1, 'now' => $now]);
+        $options = json_encode(['Culoare' => 'Roz'], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+        $variant->execute(['product' => $productId, 'sku' => 'CRM-EXACT-001-ROZ', 'summary' => 'Culoare roz', 'options' => $options, 'key' => hash('sha256', $options), 'default' => 0, 'now' => $now]);
     }
 
     private function seedOrders(): void

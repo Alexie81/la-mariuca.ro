@@ -1,5 +1,6 @@
 <article class="admin-customer-profile" data-admin-customer-profile>
-  <header class="admin-customer-profile__hero">
+  <div class="admin-customer-profile__summary" data-admin-customer-sticky-summary>
+    <header class="admin-customer-profile__hero">
     <span class="admin-customer-profile__glow" aria-hidden="true"></span>
     <div class="admin-customer-profile__identity">
       <span class="admin-customer-profile__avatar">{{ customer.initials }}</span>
@@ -17,15 +18,17 @@
       </div>
       <p class="admin-customer-profile__member"><small>Client din</small><strong>{{ customer.display_created_at }}</strong></p>
     </div>
-  </header>
+    </header>
 
-  <section class="admin-customer-profile__metrics" aria-label="Rezumat comercial">
-    <article><i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 8h14l-1 12H6L5 8ZM9 9V6a3 3 0 0 1 6 0v3"/></svg></i><span><small>Comenzi</small><strong>{{ customer.order_count }}</strong><em>{{ customer.order_count == 1 ? 'comandă plasată' : 'comenzi plasate' }}</em></span></article>
-    <article><i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 7h16v12H4zM7 4h10v3M8 12h8M8 15h5"/></svg></i><span><small>Valoare totală</small><strong>{{ money(customer.total_spent_bani) }}</strong><em>comenzi valide</em></span></article>
-    <article><i aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/></svg></i><span><small>Coș mediu</small><strong>{{ money(customer.average_order_bani) }}</strong><em>per comandă</em></span></article>
-    <article><i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 4h14v16H5zM8 2v4M16 2v4M8 10h8M8 14h5"/></svg></i><span><small>Ultima comandă</small><strong class="is-date">{{ customer.display_last_order_at }}</strong><em>{{ customer.order_count ? 'activitate recentă' : 'încă nu a comandat' }}</em></span></article>
-  </section>
+    <section class="admin-customer-profile__metrics" aria-label="Rezumat comercial">
+      <article><i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 8h14l-1 12H6L5 8ZM9 9V6a3 3 0 0 1 6 0v3"/></svg></i><span><small>Comenzi</small><strong>{{ customer.order_count }}</strong><em>{{ customer.order_count == 1 ? 'comandă plasată' : 'comenzi plasate' }}</em></span></article>
+      <article><i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 7h16v12H4zM7 4h10v3M8 12h8M8 15h5"/></svg></i><span><small>Valoare totală</small><strong>{{ money(customer.total_spent_bani) }}</strong><em>comenzi valide</em></span></article>
+      <article><i aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/></svg></i><span><small>Coș mediu</small><strong>{{ money(customer.average_order_bani) }}</strong><em>per comandă</em></span></article>
+      <article><i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 4h14v16H5zM8 2v4M16 2v4M8 10h8M8 14h5"/></svg></i><span><small>Ultima comandă</small><strong class="is-date">{{ customer.display_last_order_at }}</strong><em>{{ customer.order_count ? 'activitate recentă' : 'încă nu a comandat' }}</em></span></article>
+    </section>
+  </div>
 
+  <div class="admin-customer-profile__body" data-admin-customer-scroll-body>
   <div class="admin-customer-profile__layout">
     <section class="admin-customer-profile__card admin-customer-profile__card--account" aria-labelledby="customer-account-title">
       <div class="admin-customer-profile__heading"><span><i aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></i><span><small>Date client</small><h3 id="customer-account-title">Cont și contact</h3></span></span><span class="admin-customer-profile__verified{{ customer.email_verified_at ? ' is-verified' : '' }}"><i></i>{{ customer.email_verified_at ? 'Email verificat' : 'Email neverificat' }}</span></div>
@@ -85,4 +88,5 @@
     {% if orders.items %}<div class="admin-customer-orders__list">{% for order in orders.items %}<article class="admin-customer-order"><div class="admin-customer-order__number"><span>{{ order.order_number ?: '#' ~ order.id }}</span><small>{{ order.display_created_at }}</small></div><div class="admin-customer-order__products"><strong>{{ order.product_quantity }} {{ order.product_quantity == 1 ? 'produs' : 'produse' }}</strong><small>{{ order.product_preview ?: 'Produse arhivate' }}{% if order.more_products %} +{{ order.more_products }}{% endif %}</small></div><div class="admin-customer-order__states"><span class="is-order">{{ order.status_label }}</span><span class="is-payment is-{{ order.payment_status }}">{{ order.payment_status_label }}</span></div><strong class="admin-customer-order__value">{{ money(order.total_bani) }}</strong><a href="{{ url('admin/comenzi/' ~ order.id ~ '/') }}" aria-label="Deschide comanda {{ order.order_number }}"><svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></a></article>{% endfor %}</div>{% else %}<div class="admin-customer-orders__empty"><span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 8h14l-1 12H6L5 8ZM9 9V6a3 3 0 0 1 6 0v3"/><path d="M9 14h6"/></svg></span><div><strong>Nicio comandă până acum</strong><p>Profilul este pregătit. Prima comandă va apărea automat aici, împreună cu plata și produsele.</p></div><i>0 comenzi</i></div>{% endif %}
     {% if orders.total_pages > 1 %}<nav class="admin-customer-orders__pagination" aria-label="Paginarea comenzilor clientului">{% if orders.page > 1 %}<a href="{{ url('admin/clienti/' ~ customer.id ~ '/?pagina_comenzi=' ~ (orders.page - 1)) }}" data-admin-customer-orders-page data-modal-url="{{ url('admin/clienti/' ~ customer.id ~ '/modal/?pagina_comenzi=' ~ (orders.page - 1)) }}" aria-label="Comenzi anterioare"><svg viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></svg></a>{% endif %}<span>Pagina <strong>{{ orders.page }}</strong> din {{ orders.total_pages }}</span>{% if orders.page < orders.total_pages %}<a href="{{ url('admin/clienti/' ~ customer.id ~ '/?pagina_comenzi=' ~ (orders.page + 1)) }}" data-admin-customer-orders-page data-modal-url="{{ url('admin/clienti/' ~ customer.id ~ '/modal/?pagina_comenzi=' ~ (orders.page + 1)) }}" aria-label="Mai multe comenzi"><svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></a>{% endif %}</nav>{% endif %}
   </section>
+  </div>
 </article>
