@@ -2599,10 +2599,136 @@
     scopeInputs.forEach((input) => input.addEventListener('change', updateScope));
     valueInputs.forEach((input) => input.addEventListener('change', updateValue));
     validityInputs.forEach((input) => input.addEventListener('change', updateValidity));
-    form.querySelector('[data-discount-product-search]')?.addEventListener('input', (event) => {
-      const query = event.target.value.trim().toLocaleLowerCase('ro');
-      form.querySelectorAll('[data-discount-product]').forEach((item) => { item.hidden = query !== '' && !item.dataset.search.includes(query); });
-    });
+    const productSearch = form.querySelector('[data-discount-product-search]');
+    const productList = form.querySelector('[data-discount-product-list]');
+    const productItems = [...form.querySelectorAll('[data-discount-product]')];
+    const productCount = form.querySelector('[data-discount-product-count]');
+    const productCountLabel = form.querySelector('[data-discount-product-count-label]');
+    const productExact = form.querySelector('[data-discount-product-exact]');
+    const productStatus = form.querySelector('[data-discount-product-status]');
+    const productEmpty = form.querySelector('[data-discount-product-empty]');
+    const originalProductOrder = new Map(productItems.map((item, index) => [item, index]));
+    const productAliases = new Map(Object.entries({
+      bebelus: 'bebe', bebelusi: 'bebe', bebe: 'bebe', fetita: 'fata', fetite: 'fata', fete: 'fata',
+      baietel: 'baiat', baieti: 'baiat', rochita: 'rochie', rochite: 'rochie', rochii: 'rochie',
+      balerini: 'balerin', bentite: 'bentita', caciulite: 'caciula', cardigane: 'cardigan',
+      jucarii: 'jucarie', pantaloni: 'pantalon', pantofiori: 'pantof', seturi: 'set', trusouri: 'trusou',
+    }));
+    const productStopWords = new Set(['a', 'al', 'ale', 'cu', 'de', 'din', 'la', 'o', 'pe', 'pentru', 'si', 'un']);
+    const normalizeProductSearch = (value) => String(value || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLocaleLowerCase('ro')
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim()
+      .replace(/\s+/g, ' ');
+    const productTokens = (value, removeStopWords = true) => [...new Set(normalizeProductSearch(value)
+      .split(' ')
+      .filter(Boolean)
+      .map((token) => productAliases.get(token) || token)
+      .filter((token) => !removeStopWords || !productStopWords.has(token)))];
+    const productTokenDistance = (left, right) => {
+      const previous = Array.from({ length: right.length + 1 }, (_, index) => index);
+      for (let leftIndex = 1; leftIndex <= left.length; leftIndex += 1) {
+        let diagonal = previous[0];
+        previous[0] = leftIndex;
+        for (let rightIndex = 1; rightIndex <= right.length; rightIndex += 1) {
+          const above = previous[rightIndex];
+          previous[rightIndex] = Math.min(
+            previous[rightIndex] + 1,
+            previous[rightIndex - 1] + 1,
+            diagonal + (left[leftIndex - 1] === right[rightIndex - 1] ? 0 : 1),
+          );
+          diagonal = above;
+        }
+      }
+      return previous[right.length];
+    };
+    const productTokenSimilarity = (left, right) => {
+      if (left === right) return 1;
+      const minimumLength = Math.min(left.length, right.length);
+      if (minimumLength < 4) return 0;
+      if ((left.startsWith(right) || right.startsWith(left)) && Math.abs(left.length - right.length) <= 3) return 0.84;
+      const distance = productTokenDistance(left, right);
+      if (distance === 1) return Math.max(0.88, 1 - (distance / Math.max(left.length, right.length)));
+      if (distance === 2 && minimumLength >= 7) return Math.max(0.74, 1 - (distance / Math.max(left.length, right.length)));
+      return 0;
+    };
+    const bestProductTokenMatch = (token, candidates) => candidates.reduce(
+      (best, candidate) => Math.max(best, productTokenSimilarity(token, candidate)), 0,
+    );
+    const scoreDiscountProduct = (item, query, queryTokens) => {
+      const name = normalizeProductSearch(item.dataset.productName);
+      const skus = normalizeProductSearch((item.dataset.productSkus || '').replaceAll('|', ' '));
+      const category = normalizeProductSearch(item.dataset.productCategory);
+      const keywords = normalizeProductSearch(item.dataset.productKeywords);
+      const fields = {
+        name: productTokens(name, false), sku: productTokens(skus, false),
+        category: productTokens(category, false), keywords: productTokens(keywords, false),
+      };
+      let score = 0;
+      for (const token of queryTokens) {
+        const matches = {
+          name: bestProductTokenMatch(token, fields.name), sku: bestProductTokenMatch(token, fields.sku),
+          category: bestProductTokenMatch(token, fields.category), keywords: bestProductTokenMatch(token, fields.keywords),
+        };
+        const best = Math.max(...Object.values(matches));
+        if (best < (token.length <= 3 ? 1 : 0.72)) return null;
+        score += Math.max(matches.name * 54, matches.sku * 50, matches.category * 32, matches.keywords * 18);
+      }
+      if (name.includes(query)) score += 42;
+      if (name.startsWith(query)) score += 24;
+      if (skus.includes(query)) score += 38;
+      if (category.includes(query)) score += 20;
+      return score;
+    };
+    const updateProductSearch = () => {
+      const rawQuery = productSearch?.value || '';
+      const query = normalizeProductSearch(rawQuery);
+      const compactQuery = query.replaceAll(' ', '');
+      const queryTokens = productTokens(query);
+      productItems.forEach((item) => item.classList.remove('is-exact-match'));
+      let exactKind = '';
+      let ranked = [];
+      if (query === '') {
+        ranked = productItems.map((item) => ({ item, score: 0 }));
+      } else {
+        const exactSku = productItems.filter((item) => (item.dataset.productSkus || '').split('|').some((sku) => {
+          const normalizedSku = normalizeProductSearch(sku);
+          return normalizedSku === query || normalizedSku.replaceAll(' ', '') === compactQuery;
+        }));
+        const exactName = productItems.filter((item) => normalizeProductSearch(item.dataset.productName) === query);
+        const exactItems = exactSku.length > 0 ? exactSku : exactName;
+        if (exactItems.length > 0) {
+          exactKind = exactSku.length > 0 ? 'SKU exact' : 'Nume exact';
+          ranked = exactItems.map((item) => ({ item, score: Number.MAX_SAFE_INTEGER }));
+          exactItems.forEach((item) => item.classList.add('is-exact-match'));
+        } else if (queryTokens.length > 0) {
+          ranked = productItems.map((item) => ({ item, score: scoreDiscountProduct(item, query, queryTokens) }))
+            .filter((entry) => entry.score !== null)
+            .sort((left, right) => right.score - left.score || originalProductOrder.get(left.item) - originalProductOrder.get(right.item));
+        }
+      }
+      const visibleItems = new Set(ranked.map((entry) => entry.item));
+      productItems.forEach((item) => { item.hidden = !visibleItems.has(item); });
+      if (productList) {
+        ranked.forEach((entry) => productList.append(entry.item));
+        if (productEmpty) productList.append(productEmpty);
+      }
+      const visibleCount = ranked.length;
+      if (productCount) productCount.textContent = String(visibleCount);
+      if (productCountLabel) productCountLabel.textContent = query === ''
+        ? (visibleCount === 1 ? 'produs disponibil' : 'produse disponibile')
+        : (visibleCount === 1 ? 'rezultat relevant' : 'rezultate relevante');
+      if (productExact) {
+        productExact.hidden = exactKind === '';
+        productExact.textContent = exactKind;
+      }
+      productStatus?.classList.toggle('is-exact', exactKind !== '');
+      if (productEmpty) productEmpty.hidden = visibleCount !== 0;
+    };
+    productSearch?.addEventListener('input', updateProductSearch);
+    updateProductSearch();
     updateScope();
     updateValidity();
   };

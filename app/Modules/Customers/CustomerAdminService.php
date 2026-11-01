@@ -183,10 +183,41 @@ final class CustomerAdminService
     /** @return array{products:list<array<string,mixed>>,categories:list<array<string,mixed>>} */
     public function discountCatalog(): array
     {
-        $products = $this->pdo->query("SELECT p.id,p.name,p.primary_sku,c.name AS category_name,
+        $products = $this->pdo->query("SELECT p.id,p.name,p.slug,p.primary_sku,p.short_description,p.brand,p.seo_title,p.meta_description,c.name AS category_name,
                 COALESCE((SELECT m.public_path FROM product_images pi JOIN media m ON m.id=pi.media_id WHERE pi.product_id=p.id AND m.public_path IS NOT NULL ORDER BY pi.position,pi.media_id LIMIT 1),'') AS image_path
             FROM products p LEFT JOIN categories c ON c.id=p.primary_category_id
             WHERE p.status='published' ORDER BY p.name,p.id")->fetchAll();
+        $variantSearch = $this->pdo->query("SELECT product_id,sku,option_summary FROM product_variants WHERE status='active' ORDER BY product_id,is_default DESC,id")->fetchAll();
+        $variantSkus = [];
+        $variantTerms = [];
+        foreach ($variantSearch as $variant) {
+            $productId = (int) $variant['product_id'];
+            $sku = trim((string) $variant['sku']);
+            if ($sku !== '') {
+                $variantSkus[$productId][] = $sku;
+            }
+            $summary = trim((string) $variant['option_summary']);
+            if ($summary !== '') {
+                $variantTerms[$productId][] = $summary;
+            }
+        }
+        foreach ($products as &$product) {
+            $productId = (int) $product['id'];
+            $skus = array_values(array_unique(array_filter([
+                trim((string) ($product['primary_sku'] ?? '')),
+                ...($variantSkus[$productId] ?? []),
+            ], static fn(string $sku): bool => $sku !== '')));
+            $product['search_skus'] = implode('|', $skus);
+            $product['search_terms'] = trim(implode(' ', [
+                (string) ($product['slug'] ?? ''),
+                (string) ($product['short_description'] ?? ''),
+                (string) ($product['brand'] ?? ''),
+                (string) ($product['seo_title'] ?? ''),
+                (string) ($product['meta_description'] ?? ''),
+                implode(' ', array_values(array_unique($variantTerms[$productId] ?? []))),
+            ]));
+        }
+        unset($product);
         $categories = $this->pdo->query("SELECT id,parent_id,name FROM categories WHERE status='published' ORDER BY position,name,id")->fetchAll();
         $byId = [];
         foreach ($categories as $category) {
