@@ -1,6 +1,6 @@
 # Progres
 
-Actualizat: 2026-10-26
+Actualizat: 2026-11-01
 
 ## VERIFIED
 
@@ -901,3 +901,20 @@ atribute și filtre fără schimbarea contractelor existente.
 - Formularul de adăugare preselectează „Publicată”, iar selectorul rămâne editabil. La editare se păstrează starea salvată a categoriei. Textul explicativ inițial corespunde selecției inclusiv fără JavaScript.
 - Verificări: 51 de template-uri Twig compilate și `CategoryAdminTest` trecut cu 89 de aserțiuni. Browserul intern a confirmat selecția implicită `published`, schimbarea manuală în `draft` și păstrarea stării `archived` la editarea unei categorii existente, fără salvarea datelor de probă.
 - Verificarea finală înainte de commit și push a trecut lint-ul PHP, PHPStan fără erori și întreaga suită PHPUnit: 89 de teste / 948 de aserțiuni.
+
+### 2026-11-01 — Dialog de ștergere categorii clarificat
+- Dialogul diferențiază vizual categoria ocupată de categoria care poate fi ștearsă. Pentru o categorie ocupată, subcategoriile și produsele asociate apar în carduri separate, cu numere și instrucțiuni scurte; acțiunea dezactivată fără utilitate a fost înlocuită cu un singur buton „Am înțeles”.
+- Pentru o categorie liberă rămân disponibile confirmarea explicită și renunțarea. Dialogul are acum închidere dedicată, focus inițial sigur, tipografie mai lizibilă și o așezare într-o singură coloană pe telefon.
+- Verificări: sintaxă JavaScript validă, 51 de template-uri Twig compilate și `CategoryAdminTest` trecut cu 89 de aserțiuni. Browserul intern a confirmat ambele stări pe desktop și la 390×844 px, fără erori în consolă și fără efectuarea vreunei ștergeri.
+
+### 2026-11-01 — CRM administrativ pentru clienți
+- Grupul „Produse și clienți” include acum tabul „Clienți”, după „Categorii”. Registrul are rezumat pentru conturi, abonați, autentificări Google și clienți cu comenzi, tabel responsive, căutare semantică și paginație. Căutarea combină termeni precum `Google`, `La Măriuca`, `abonat`, `neabonat`, starea contului, numele fără diacritice, emailul, telefonul și datele comenzilor.
+- Profilul se deschide într-un modal modern, cu fallback complet într-o pagină separată fără JavaScript. Sunt afișate tipul contului, starea, abonarea la noutăți, datele de contact, crearea contului, ultima conectare, prima și ultima comandă, ultima adresă de livrare, numărul comenzilor, valoarea validă totală și coșul mediu.
+- Indicatorul Google din tabel folosește sigla oficială locală într-un suport alb discret, cu fundal neutru și umbră fină; vechiul pătrat multicolor generat prin CSS a fost eliminat pentru a păstra aspectul elegant al registrului.
+- Istoricul comenzilor este paginat în interiorul aceluiași modal și prezintă numărul, data, produsele, starea comenzii, starea plății, totalul și legătura către detaliul complet. Comenzile anulate sau returnate nu intră în valoarea comercială totală.
+- Migrarea `024_user_last_login.sql` există separat pentru SQLite și MySQL. Autentificarea cu parolă și autentificarea Google actualizează `users.last_login_at`; migrarea `025_customer_admin_indexes.sql` adaugă indecșii necesari registrului și istoricului comenzilor. Variantele SQLite au fost aplicate local, iar variantele MySQL rămân de rulat și verificat pe un server MySQL real înainte de producție.
+- Verificări locale trecute: sintaxă JavaScript, 56 de template-uri Twig compilate, PHPStan fără erori și întreaga suită PHPUnit cu 90 de teste / 980 de aserțiuni. Testul dedicat acoperă căutarea semantică, normalizarea diacriticelor, paginația clienților și comenzilor, modalul, fallbackul fără JavaScript și memorarea ultimei conectări. Browserul intern a confirmat registrul și profilul modal pe desktop, fără modificarea datelor clientului.
+- Profilul clientului a fost modernizat cu o identitate vizuală compactă, indicatori comerciali, carduri clare pentru cont și adresă, stări goale coerente și rearanjare completă pe telefon. Administratorul poate dezactiva contul numai cu un motiv între 3 și 300 de caractere; motivul, data și administratorul sunt auditate, autentificarea este oprită imediat, iar starea apare în registru. Reactivarea șterge blocarea și redă accesul. Migrarea `026_customer_account_blocking.sql` a fost aplicată local în varianta SQLite; varianta MySQL rămâne de verificat pe MySQL real.
+- Profilul include acum „Reducerile clientului” și un configurator modal ghidat în trei pași. Avantajul poate viza întreaga comandă, un produs, o categorie sau livrarea; acceptă procent, sumă fixă și, pentru livrare, gratuitate. Produsele au căutare și fotografie, categoriile păstrează traseul din arbore, iar valabilitatea poate fi permanentă sau delimitată de două date. Reducerile active pot fi eliminate individual și au fallback complet fără JavaScript.
+- Reducerile personale se aplică automat numai clientului autentificat. Pentru marfă se alege cel mai avantajos beneficiu eligibil și nu se cumulează cu un cupon global; între cupon și reducerea personală câștigă valoarea mai mare. Avantajul de livrare se aplică separat după regula transportului gratuit. Identificatorii reducerilor și economia la livrare sunt salvați pe comandă și reverificați în tranzacția checkout. Migrarea `027_customer_discounts.sql` a fost aplicată local în varianta SQLite; varianta MySQL rămâne de rulat și verificat înainte de producție.
+- Verificarea finală a trecut lint-ul PHP, compilarea celor 58 de template-uri Twig, sintaxa JavaScript, `git diff --check`, PHPStan fără erori și întreaga suită PHPUnit cu 91 de teste / 1003 aserțiuni. Browserul intern a confirmat profilul, configuratorul, selecția dintre 42 de produse, livrarea gratuită și perioada pe desktop și la 390×844 px, fără erori în consolă și fără salvarea datelor de probă.
