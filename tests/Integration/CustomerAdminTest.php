@@ -118,6 +118,18 @@ final class CustomerAdminTest extends DatabaseTestCase
         self::assertStringContainsString('Spam repetat în formularele magazinului.', (string) $this->get('/admin/clienti/' . $this->featuredCustomerId . '/modal/')->getBody());
         $_SESSION = [];
         self::assertSame('invalid', (new Auth($this->pdo))->attempt('stefania@example.test', self::CUSTOMER_PASSWORD));
+
+        $_SESSION = $adminSession;
+        $reactivated = $this->post('/admin/clienti/' . $this->featuredCustomerId . '/stare/', ['_csrf' => $csrf, 'action' => 'activate']);
+        self::assertSame(303, $reactivated->getStatusCode());
+        self::assertSame('active', $this->pdo->query('SELECT status FROM users WHERE id=' . $this->featuredCustomerId)->fetchColumn());
+        self::assertSame(1, (int) $this->pdo->query('SELECT blocked_reason IS NULL FROM users WHERE id=' . $this->featuredCustomerId)->fetchColumn());
+        $reactivatedModal = (string) $this->get('/admin/clienti/' . $this->featuredCustomerId . '/modal/')->getBody();
+        self::assertStringContainsString('Cont activ', $reactivatedModal);
+        self::assertStringContainsString('Dezactivează contul', $reactivatedModal);
+        $_SESSION = [];
+        self::assertSame('authenticated', (new Auth($this->pdo))->attempt('stefania@example.test', self::CUSTOMER_PASSWORD));
+        $_SESSION = $adminSession;
     }
 
     private function seedCustomers(): void
