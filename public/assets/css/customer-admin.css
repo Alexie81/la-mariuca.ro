@@ -181,3 +181,64 @@
 .admin-customer-discount-dialog .admin-customer-discount-hero{position:relative;z-index:5;box-shadow:0 12px 28px rgba(68,39,33,.08)}
 .admin-customer-discount-dialog .admin-customer-discount-body{max-height:calc(100dvh - 156px);overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;scrollbar-color:#d39498 transparent;scrollbar-width:thin}
 @media(max-width:760px){.admin-customer-discount-dialog__content{height:auto}.admin-customer-discount-dialog .admin-customer-discount-form{max-height:100dvh}.admin-customer-discount-dialog .admin-customer-discount-hero{box-shadow:0 9px 22px rgba(68,39,33,.09)}.admin-customer-discount-dialog .admin-customer-discount-body{max-height:calc(100dvh - 179px)}}
+
+/* Configurator reducere: scară tipografică lizibilă și ierarhie vizuală premium. */
+.admin-customer-discount-form{--discount-ink:#4c3530;--discount-muted:#8e7169;--discount-line:#ead3cc;--discount-rose:#d95b69;--discount-soft:#fff7f4}
+.admin-customer-discount-hero{min-height:126px;padding:25px 82px 25px 30px;border-bottom-color:#ead2cb;background:radial-gradient(circle at 88% 2%,rgba(231,128,123,.2),transparent 36%),linear-gradient(135deg,#fff 0%,#fff9f6 54%,#ffefeb 100%)}
+.admin-customer-discount-hero__icon{flex-basis:62px;width:62px;height:62px;border-radius:21px;background:linear-gradient(145deg,#fff,#fff8f5);box-shadow:0 13px 30px rgba(116,61,52,.1),inset 0 0 0 1px rgba(238,181,177,.28)}
+.admin-customer-discount-hero__icon svg{width:27px}
+.admin-customer-discount-hero .admin-eyebrow{color:#c6535f;font-size:10.5px;font-weight:850;letter-spacing:.16em}
+.admin-customer-discount-hero h2{margin:3px 0 5px;color:#3f2c28;font-size:34px;line-height:1.05;letter-spacing:-.035em}
+.admin-customer-discount-hero p{color:#92736b;font-size:12px;line-height:1.45}
+.admin-customer-discount-hero__badge{min-height:34px;padding:8px 12px;border-color:#bfe2d4;background:rgba(239,249,244,.92);color:#2f7b61;font-size:10.5px;letter-spacing:.04em;box-shadow:0 6px 16px rgba(52,130,98,.08)}
+.admin-customer-discount-steps{gap:16px;padding:18px;background:linear-gradient(180deg,#faf6f3,#f7f2ef)}
+.admin-customer-discount-step{position:relative;padding:22px;border-color:#e8d4cd;border-radius:24px;background:linear-gradient(145deg,#fff,#fffdfc);box-shadow:0 12px 32px rgba(85,47,40,.065);overflow:hidden}
+.admin-customer-discount-step:before{position:absolute;top:0;right:0;left:0;height:3px;background:linear-gradient(90deg,#d95b69,#e9a170 48%,transparent 92%);content:"";opacity:.72}
+.admin-customer-discount-step>header{align-items:center;gap:14px;margin-bottom:20px}
+.admin-customer-discount-step>header>span{flex-basis:44px;width:44px;height:44px;border-color:#edc0bd;border-radius:15px;background:linear-gradient(145deg,#fff,#fff3ef);font-size:13px;box-shadow:0 8px 19px rgba(121,66,57,.08)}
+.admin-customer-discount-step>header small{color:#bf5962;font-size:10.5px;letter-spacing:.14em}
+.admin-customer-discount-step>header h3{margin:2px 0 3px;color:#47312c;font-size:23px;line-height:1.1;letter-spacing:-.02em}
+.admin-customer-discount-step>header p{color:#94786f;font-size:11.5px;line-height:1.45}
+.admin-customer-discount-scopes{gap:12px}
+.admin-customer-discount-scopes label>span{min-height:132px;padding:16px;border-color:#e8d5cf;border-radius:19px;background:linear-gradient(145deg,#fff,#fffaf7);box-shadow:0 6px 16px rgba(83,47,40,.035)}
+.admin-customer-discount-scopes label>span>i{width:41px;height:41px;margin-bottom:17px;border-radius:13px;background:linear-gradient(145deg,#fff0ed,#fff7f3);box-shadow:inset 0 0 0 1px rgba(221,125,128,.09)}
+.admin-customer-discount-scopes label>span>i svg{width:19px}
+.admin-customer-discount-scopes b{color:#533a34;font-size:13px;line-height:1.25}
+.admin-customer-discount-scopes small{margin-top:6px;color:#93766e;font-size:11px;line-height:1.45}
+.admin-customer-discount-scopes em,.admin-customer-discount-validity em{right:13px;top:13px;width:25px;height:25px}
+.admin-customer-discount-scopes label:hover>span,.admin-customer-discount-validity label:hover>span,.admin-customer-discount-value fieldset label:hover>span{border-color:#dcb7b0;box-shadow:0 11px 25px rgba(89,48,41,.075);transform:translateY(-1px)}
+.admin-customer-discount-scopes input:checked+span{border-color:#d85a67;background:linear-gradient(145deg,#fff9f7,#fff1ed);box-shadow:0 0 0 3px rgba(216,90,103,.1),0 13px 28px rgba(117,56,51,.09)}
+.admin-customer-discount-value{grid-template-columns:minmax(0,1.35fr) minmax(250px,.65fr);gap:16px}
+.admin-customer-discount-value legend,.admin-customer-discount-amount>span{margin-bottom:9px;color:#76554e;font-size:11px;letter-spacing:.02em}
+.admin-customer-discount-value fieldset{gap:10px}
+.admin-customer-discount-value fieldset label>span{min-height:72px;padding:13px;border-color:#e7d3cc;border-radius:15px;background:linear-gradient(145deg,#fff,#fffaf8);transition:border-color .18s ease,box-shadow .18s ease,transform .18s ease}
+.admin-customer-discount-value fieldset b{color:#543b35;font-size:12.5px}
+.admin-customer-discount-value fieldset small{margin-top:5px;color:#94776f;font-size:11px}
+.admin-customer-discount-value fieldset input:checked+span{border-color:#d85c68;background:linear-gradient(145deg,#fff9f7,#fff1ee);box-shadow:0 0 0 3px rgba(216,92,104,.1),0 9px 21px rgba(110,60,51,.065)}
+.admin-customer-discount-amount>span:nth-child(2){min-height:48px;border-color:#e4cbc4;border-radius:14px;box-shadow:inset 0 1px 2px rgba(83,49,42,.035)}
+.admin-customer-discount-amount input{min-height:46px;padding:0 14px;font-size:15px}
+.admin-customer-discount-amount b{min-width:48px;font-size:12px}
+.admin-customer-discount-amount>small{margin:7px 3px;color:#947a72;font-size:11px;line-height:1.4}
+.admin-customer-discount-validity{gap:12px}
+.admin-customer-discount-validity label>span{grid-template-columns:50px 1fr;min-height:82px;padding:12px 47px 12px 12px;border-color:#e7d3cc;border-radius:17px;background:linear-gradient(145deg,#fff,#fffaf8);box-shadow:0 6px 16px rgba(83,47,40,.03);transition:border-color .18s ease,box-shadow .18s ease,transform .18s ease}
+.admin-customer-discount-validity label>span>i{width:43px;height:43px;border-radius:13px;background:linear-gradient(145deg,#fff0ed,#fff7f3)}
+.admin-customer-discount-validity label>span>i svg{width:19px}
+.admin-customer-discount-validity b{color:#523a34;font-size:12.5px}
+.admin-customer-discount-validity small{color:#92766e;font-size:11px;line-height:1.4}
+.admin-customer-discount-validity input:checked+span{border-color:#d85c68;background:linear-gradient(145deg,#fff9f7,#fff1ee);box-shadow:0 0 0 3px rgba(216,92,104,.1),0 10px 23px rgba(110,60,51,.07)}
+.admin-customer-discount-dates{gap:13px;margin-top:14px;padding:15px;border:1px solid #f0ddd7;border-radius:17px;background:linear-gradient(145deg,#fff6f2,#fffaf8)}
+.admin-customer-discount-dates label span{margin-bottom:7px;color:#76574f;font-size:11px}
+.admin-customer-discount-dates input{min-height:48px;padding:0 13px;border-color:#e4cbc4;border-radius:13px;color:#513a34;font-size:12.5px;font-weight:650}
+.admin-customer-discount-footer{min-height:76px;padding:13px 20px;border-top-color:#e7d1ca;background:rgba(255,252,250,.97)}
+.admin-customer-discount-footer>div{gap:11px}.admin-customer-discount-footer>div>span{width:41px;height:41px;border-radius:13px}
+.admin-customer-discount-footer p strong{font-size:12px}.admin-customer-discount-footer p small{margin-top:3px;color:#947970;font-size:11px}
+.admin-customer-discount-footer>p{font-size:11px}
+.admin-customer-discount-footer>button{min-height:50px;padding-left:18px;border-radius:15px;font-size:12px;box-shadow:0 11px 25px rgba(199,72,86,.24)}
+.admin-customer-discount-footer>button svg{width:34px;height:34px}
+.admin-customer-discount-form .admin-customer-discount-search small,.admin-customer-discount-form .admin-customer-product-picker__status span{font-size:11px;line-height:1.4}
+.admin-customer-discount-form .admin-customer-product-picker__status em{font-size:10px}
+.admin-customer-discount-form .admin-customer-discount-products__copy small{font-size:11px;line-height:1.35}
+.admin-customer-discount-form .admin-customer-discount-products label code{font-size:10px}
+.admin-customer-discount-form .admin-customer-discount-categories b{font-size:11.5px;line-height:1.35}
+@media(max-width:760px){.admin-customer-discount-hero{grid-template-columns:54px minmax(0,1fr);gap:12px;padding:18px 58px 16px 14px}.admin-customer-discount-hero__icon{width:52px;height:52px;border-radius:17px}.admin-customer-discount-hero .admin-eyebrow{font-size:10.5px}.admin-customer-discount-hero h2{font-size:27px}.admin-customer-discount-hero p{font-size:11.5px}.admin-customer-discount-hero__badge{grid-column:1/-1;min-height:31px;margin-top:4px;font-size:10.5px}.admin-customer-discount-steps{gap:12px;padding:10px}.admin-customer-discount-step{padding:15px;border-radius:19px}.admin-customer-discount-step>header{align-items:flex-start;gap:11px;margin-bottom:16px}.admin-customer-discount-step>header>span{flex-basis:39px;width:39px;height:39px;border-radius:13px}.admin-customer-discount-step>header small{font-size:10.5px}.admin-customer-discount-step>header h3{font-size:21px}.admin-customer-discount-step>header p{font-size:11.5px}.admin-customer-discount-scopes{gap:9px}.admin-customer-discount-scopes label>span{min-height:135px;padding:13px}.admin-customer-discount-scopes label>span>i{width:38px;height:38px;margin-bottom:15px}.admin-customer-discount-scopes b{font-size:12.5px}.admin-customer-discount-scopes small{font-size:11px}.admin-customer-discount-value{grid-template-columns:1fr}.admin-customer-discount-value legend,.admin-customer-discount-amount>span{font-size:11px}.admin-customer-discount-validity b{font-size:12px}.admin-customer-discount-validity small{font-size:11px}.admin-customer-discount-dates label span{font-size:11px}.admin-customer-discount-footer{min-height:68px;padding:10px}.admin-customer-discount-footer>button{min-height:50px;font-size:12px}}
+@media(max-width:430px){.admin-customer-discount-form .admin-customer-discount-search small{font-size:10px}}
