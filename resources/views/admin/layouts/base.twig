@@ -15,7 +15,7 @@
   <title>{% block title %}Dashboard{% endblock %} · Administrare La Măriuca</title>
   <link rel="stylesheet" href="{{ url('assets/css/admin.css?v=20261031-category-tree-v17') }}">
   {% if admin_section|default('') == 'categories' %}<link rel="stylesheet" href="{{ url('assets/css/category-editor.css?v=20261101-v2') }}">{% endif %}
-  {% if admin_section|default('') == 'customers' %}<link rel="stylesheet" href="{{ url('assets/css/customer-admin.css?v=20261101-v12') }}">{% endif %}
+  {% if admin_section|default('') == 'customers' %}<link rel="stylesheet" href="{{ url('assets/css/customer-admin.css?v=20261101-v13') }}">{% endif %}
 </head>
 {% set operator = admin_user|default(current_user()) %}
 {% set first_name = operator.first_name|default('Administrator') %}
