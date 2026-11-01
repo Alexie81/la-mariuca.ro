@@ -121,8 +121,10 @@ final class CustomerAdminTest extends DatabaseTestCase
         self::assertNotSame('', $lastLogin);
         $_SESSION = $adminSession;
 
-        $blocked = $this->post('/admin/clienti/' . $this->featuredCustomerId . '/stare/', ['_csrf' => $csrf, 'action' => 'block', 'reason' => 'Spam repetat în formularele magazinului.']);
-        self::assertSame(303, $blocked->getStatusCode());
+        $blocked = $this->post('/admin/clienti/' . $this->featuredCustomerId . '/stare/', ['_csrf' => $csrf, 'action' => 'block', 'reason' => 'Spam repetat în formularele magazinului.'], ['Accept' => 'application/json', 'X-Requested-With' => 'XMLHttpRequest']);
+        self::assertSame(200, $blocked->getStatusCode());
+        self::assertSame('application/json; charset=utf-8', $blocked->getHeaderLine('Content-Type'));
+        self::assertSame(['ok' => true, 'message' => 'Contul lui Ștefania Popescu a fost dezactivat.'], json_decode((string) $blocked->getBody(), true, 512, JSON_THROW_ON_ERROR));
         self::assertSame('blocked', $this->pdo->query('SELECT status FROM users WHERE id=' . $this->featuredCustomerId)->fetchColumn());
         self::assertSame('Spam repetat în formularele magazinului.', $this->pdo->query('SELECT blocked_reason FROM users WHERE id=' . $this->featuredCustomerId)->fetchColumn());
         self::assertStringContainsString('Cont dezactivat', (string) $this->get('/admin/clienti/?cautare=stefania')->getBody());
@@ -131,8 +133,9 @@ final class CustomerAdminTest extends DatabaseTestCase
         self::assertSame('invalid', (new Auth($this->pdo))->attempt('stefania@example.test', self::CUSTOMER_PASSWORD));
 
         $_SESSION = $adminSession;
-        $reactivated = $this->post('/admin/clienti/' . $this->featuredCustomerId . '/stare/', ['_csrf' => $csrf, 'action' => 'activate']);
-        self::assertSame(303, $reactivated->getStatusCode());
+        $reactivated = $this->post('/admin/clienti/' . $this->featuredCustomerId . '/stare/', ['_csrf' => $csrf, 'action' => 'activate'], ['Accept' => 'application/json', 'X-Requested-With' => 'XMLHttpRequest']);
+        self::assertSame(200, $reactivated->getStatusCode());
+        self::assertSame(['ok' => true, 'message' => 'Contul lui Ștefania Popescu a fost reactivat.'], json_decode((string) $reactivated->getBody(), true, 512, JSON_THROW_ON_ERROR));
         self::assertSame('active', $this->pdo->query('SELECT status FROM users WHERE id=' . $this->featuredCustomerId)->fetchColumn());
         self::assertSame(1, (int) $this->pdo->query('SELECT blocked_reason IS NULL FROM users WHERE id=' . $this->featuredCustomerId)->fetchColumn());
         $reactivatedModal = (string) $this->get('/admin/clienti/' . $this->featuredCustomerId . '/modal/')->getBody();
@@ -216,16 +219,25 @@ final class CustomerAdminTest extends DatabaseTestCase
         return $this->request('GET', $path);
     }
 
-    /** @param array<string,mixed> $data */
-    private function post(string $path, array $data): ResponseInterface
+    /**
+     * @param array<string,mixed> $data
+     * @param array<string,string> $headers
+     */
+    private function post(string $path, array $data, array $headers = []): ResponseInterface
     {
-        return $this->request('POST', $path, $data);
+        return $this->request('POST', $path, $data, $headers);
     }
 
-    /** @param array<string,mixed> $data */
-    private function request(string $method, string $path, array $data = []): ResponseInterface
+    /**
+     * @param array<string,mixed> $data
+     * @param array<string,string> $headers
+     */
+    private function request(string $method, string $path, array $data = [], array $headers = []): ResponseInterface
     {
         $request = (new ServerRequestFactory())->createServerRequest($method, 'http://localhost' . $path, ['REMOTE_ADDR' => '127.0.0.97'])->withHeader('User-Agent', 'LaMariuca-CustomerAdmin-Test/1.0');
+        foreach ($headers as $name => $value) {
+            $request = $request->withHeader($name, $value);
+        }
         if ($data !== []) {
             $request = $request->withParsedBody($data);
         }

@@ -2861,7 +2861,11 @@
     if (submit) submit.disabled = true;
     if (feedback) feedback.hidden = true;
     try {
-      const response = await fetch(form.action, {
+      // The successful control named `action` shadows HTMLFormElement.action.
+      // Read the attribute directly so fetch always receives the route URL.
+      const endpoint = form.getAttribute('action');
+      if (!endpoint) throw new Error('Adresa pentru actualizarea contului lipsește. Reîncarcă pagina și încearcă din nou.');
+      const response = await fetch(endpoint, {
         method: 'POST',
         body: new FormData(form),
         headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
