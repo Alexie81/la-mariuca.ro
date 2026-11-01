@@ -13,7 +13,7 @@ final class AdminOrderDemoSeeder
     {
     }
 
-    public function run(int $count = 25): int
+    public function run(int $count = 25, ?int $userId = null): int
     {
         $count = max(1, min(100, $count));
         $products = $this->pdo->query(
@@ -23,6 +23,16 @@ final class AdminOrderDemoSeeder
         )->fetchAll();
         if ($products === []) {
             throw new RuntimeException('Catalogul nu conține produse publicate pentru comenzile demo.');
+        }
+
+        $targetCustomer = null;
+        if ($userId !== null) {
+            $customer = $this->pdo->prepare("SELECT id,email,first_name,last_name,phone FROM users WHERE id=:id AND role='customer' LIMIT 1");
+            $customer->execute(['id' => $userId]);
+            $targetCustomer = $customer->fetch();
+            if (!is_array($targetCustomer)) {
+                throw new RuntimeException('Clientul pentru comenzile demo nu a fost găsit.');
+            }
         }
 
         $customers = [
@@ -38,11 +48,11 @@ final class AdminOrderDemoSeeder
         ];
 
         $cartInsert = $this->pdo->prepare(
-            "INSERT INTO carts (token,user_id,status,coupon_code,created_at,updated_at,expires_at) VALUES (:token,NULL,'converted',NULL,:created,:created,:expires)"
+            "INSERT INTO carts (token,user_id,status,coupon_code,created_at,updated_at,expires_at) VALUES (:token,:user,'converted',NULL,:created,:created,:expires)"
         );
         $orderInsert = $this->pdo->prepare(
             'INSERT INTO orders (order_number,public_token_hash,idempotency_key,cart_id,user_id,email,first_name,last_name,phone,customer_type,company_json,shipping_address_json,billing_address_json,subtotal_bani,discount_bani,shipping_bani,tax_bani,total_bani,currency,status,payment_status,payment_method,shipping_method,awb,internal_notes,terms_accepted_at,marketing_consent,created_at,updated_at,shipped_at,cancelled_at) '
-            . "VALUES (:number,:token_hash,:idempotency,:cart,NULL,:email,:first_name,:last_name,:phone,'person','{}',:shipping,:billing,:subtotal,:discount,:shipping_cost,0,:total,'RON',:status,:payment_status,:payment_method,'curier',:awb,'Comandă demonstrativă pentru verificarea panoului administrativ.',:terms,0,:created,:created,:shipped_at,:cancelled_at)"
+            . "VALUES (:number,:token_hash,:idempotency,:cart,:user,:email,:first_name,:last_name,:phone,'person','{}',:shipping,:billing,:subtotal,:discount,:shipping_cost,0,:total,'RON',:status,:payment_status,:payment_method,'curier',:awb,'Comandă demonstrativă pentru verificarea panoului administrativ.',:terms,0,:created,:created,:shipped_at,:cancelled_at)"
         );
         $itemInsert = $this->pdo->prepare(
             'INSERT INTO order_items (order_id,product_id,variant_id,product_name,variant_summary,sku,quantity,unit_price_bani,personalization_bani,line_total_bani,tax_bani,personalization_json) '
@@ -57,7 +67,12 @@ final class AdminOrderDemoSeeder
         $this->pdo->beginTransaction();
         try {
             for ($index = 0; $index < $count; $index++) {
-                [$firstName, $lastName] = $customers[$index % count($customers)];
+                if (is_array($targetCustomer)) {
+                    $firstName = (string) $targetCustomer['first_name'];
+                    $lastName = (string) $targetCustomer['last_name'];
+                } else {
+                    [$firstName, $lastName] = $customers[$index % count($customers)];
+                }
                 [$city, $county, $postalCode] = $cities[$index % count($cities)];
                 $product = $products[$index % count($products)];
                 $status = $statuses[$index % count($statuses)];
@@ -86,6 +101,7 @@ final class AdminOrderDemoSeeder
 
                 $cartInsert->execute([
                     'token' => hash('sha256', 'admin-demo-cart-' . $createdAt . '-' . $index . '-' . random_bytes(6)),
+                    'user' => $targetCustomer['id'] ?? null,
                     'created' => $createdAt,
                     'expires' => $expiresAt,
                 ]);
@@ -97,10 +113,11 @@ final class AdminOrderDemoSeeder
                     'token_hash' => hash('sha256', 'admin-demo-public-' . $cartId),
                     'idempotency' => 'admin-demo-order-' . $cartId,
                     'cart' => $cartId,
-                    'email' => strtolower($firstName . '.' . $lastName . '+' . $cartId . '@example.test'),
+                    'user' => $targetCustomer['id'] ?? null,
+                    'email' => is_array($targetCustomer) ? (string) $targetCustomer['email'] : strtolower($firstName . '.' . $lastName . '+' . $cartId . '@example.test'),
                     'first_name' => $firstName,
                     'last_name' => $lastName,
-                    'phone' => '07' . str_pad((string) (30000000 + $cartId), 8, '0', STR_PAD_LEFT),
+                    'phone' => is_array($targetCustomer) && trim((string) ($targetCustomer['phone'] ?? '')) !== '' ? (string) $targetCustomer['phone'] : '07' . str_pad((string) (30000000 + $cartId), 8, '0', STR_PAD_LEFT),
                     'shipping' => $address,
                     'billing' => $address,
                     'subtotal' => $subtotal,

@@ -39,6 +39,21 @@ try {
             $inserted = (new AdminOrderDemoSeeder($pdo))->run($count);
             fwrite(STDOUT, "Comenzi demonstrative adăugate: {$inserted}.\n");
             break;
+        case 'seed:customer-orders-demo':
+            $email = mb_strtolower(trim((string) ($argv[2] ?? '')));
+            $count = max(1, min(100, (int) ($argv[3] ?? 5)));
+            if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                throw new RuntimeException('Folosește: seed:customer-orders-demo <email-client> [număr]');
+            }
+            $customer = $pdo->prepare("SELECT id FROM users WHERE role='customer' AND LOWER(email)=:email LIMIT 1");
+            $customer->execute(['email' => $email]);
+            $customerId = $customer->fetchColumn();
+            if ($customerId === false) {
+                throw new RuntimeException('Clientul nu a fost găsit.');
+            }
+            $inserted = (new AdminOrderDemoSeeder($pdo))->run($count, (int) $customerId);
+            fwrite(STDOUT, "Comenzi demonstrative asociate clientului: {$inserted}.\n");
+            break;
         case 'review:demo':
             $slug = trim((string) ($argv[2] ?? 'cuburi-moi-poveste'));
             $reviewId = (new ProductReviewRepository($pdo))->ensureDemoForProductSlug($slug);
@@ -173,7 +188,7 @@ try {
             break;
         case 'help':
         default:
-            fwrite(STDOUT, "Comenzi: migrate, seed:demo, seed:catalog, seed:orders-demo [număr], review:demo [slug], review:demo-pack [slug], admin:create, outbox:process, push:process [limită], reservations:expire, csv:export [fișier], csv:import <fișier> --dry-run\n");
+            fwrite(STDOUT, "Comenzi: migrate, seed:demo, seed:catalog, seed:orders-demo [număr], seed:customer-orders-demo <email-client> [număr], review:demo [slug], review:demo-pack [slug], admin:create, outbox:process, push:process [limită], reservations:expire, csv:export [fișier], csv:import <fișier> --dry-run\n");
     }
 } catch (Throwable $exception) {
     if ($pdo->inTransaction()) {
