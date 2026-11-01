@@ -66,7 +66,10 @@ final class CheckoutService
 
         $discount = $cart['discount_bani'];
         $discountedSubtotal = $cart['subtotal_bani'] - $discount;
-        $shipping = $discountedSubtotal >= $this->config->int('SHIPPING_FREE_THRESHOLD_BANI', 30000) ? 0 : $this->config->int('SHIPPING_FLAT_RATE_BANI', 1900);
+        $shippingBeforeDiscount = $discountedSubtotal >= $this->config->int('SHIPPING_FREE_THRESHOLD_BANI', 30000) ? 0 : $this->config->int('SHIPPING_FLAT_RATE_BANI', 1900);
+        $shippingBenefit = $this->cart->bestShippingDiscount($shippingBeforeDiscount, (array) ($cart['customer_shipping_discounts'] ?? []));
+        $shippingDiscount = (int) $shippingBenefit['discount_bani'];
+        $shipping = $shippingBeforeDiscount - $shippingDiscount;
         $tax = 0;
         $total = $cart['subtotal_bani'] - $discount + $shipping + $tax;
         $token = bin2hex(random_bytes(32));
@@ -78,17 +81,27 @@ final class CheckoutService
 
         $this->pdo->beginTransaction();
         try {
+            $userId = isset($_SESSION['user_id']) ? (int) $_SESSION['user_id'] : null;
+            $customerDiscountId = is_array($cart['customer_discount'] ?? null) ? (int) $cart['customer_discount']['id'] : null;
+            $customerShippingDiscountId = is_array($shippingBenefit['discount']) ? (int) $shippingBenefit['discount']['id'] : null;
+            if ($customerDiscountId !== null) {
+                $this->assertCustomerDiscountActive($customerDiscountId, (int) $userId, false);
+            }
+            if ($customerShippingDiscountId !== null) {
+                $this->assertCustomerDiscountActive($customerShippingDiscountId, (int) $userId, true);
+            }
             $insert = $this->pdo->prepare("INSERT INTO orders
-                (order_number, public_token_hash, idempotency_key, cart_id, user_id, email, first_name, last_name, phone, customer_type, company_json, shipping_address_json, billing_address_json, subtotal_bani, discount_bani, shipping_bani, tax_bani, total_bani, currency, status, payment_status, payment_method, shipping_method, internal_notes, terms_accepted_at, marketing_consent, created_at, updated_at)
-                VALUES (NULL, :token_hash, :idempotency, :cart_id, :user_id, :email, :first_name, :last_name, :phone, :customer_type, :company, :shipping_address, :billing_address, :subtotal, :discount, :shipping, :tax, :total, 'RON', 'new', 'pending', :payment_method, 'manual', '', :terms_at, :marketing, :created_at, :updated_at)");
+                (order_number, public_token_hash, idempotency_key, cart_id, user_id, email, first_name, last_name, phone, customer_type, company_json, shipping_address_json, billing_address_json, subtotal_bani, discount_bani, customer_discount_id, customer_shipping_discount_id, shipping_bani, shipping_discount_bani, tax_bani, total_bani, currency, status, payment_status, payment_method, shipping_method, internal_notes, terms_accepted_at, marketing_consent, created_at, updated_at)
+                VALUES (NULL, :token_hash, :idempotency, :cart_id, :user_id, :email, :first_name, :last_name, :phone, :customer_type, :company, :shipping_address, :billing_address, :subtotal, :discount, :customer_discount, :customer_shipping_discount, :shipping, :shipping_discount, :tax, :total, 'RON', 'new', 'pending', :payment_method, 'manual', '', :terms_at, :marketing, :created_at, :updated_at)");
             $insert->execute([
                 'token_hash' => hash('sha256', $token), 'idempotency' => $idempotencyKey, 'cart_id' => $this->cart->cartId(),
-                'user_id' => isset($_SESSION['user_id']) ? (int) $_SESSION['user_id'] : null,
+                'user_id' => $userId,
                 'email' => mb_strtolower(trim((string) $data['email'])), 'first_name' => trim((string) $data['first_name']), 'last_name' => trim((string) $data['last_name']), 'phone' => trim((string) $data['phone']),
                 'customer_type' => ($data['customer_type'] ?? 'person') === 'company' ? 'company' : 'person',
                 'company' => json_encode([], JSON_THROW_ON_ERROR), 'shipping_address' => json_encode($address, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
                 'billing_address' => json_encode($address, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR), 'subtotal' => $cart['subtotal_bani'],
-                'discount' => $discount, 'shipping' => $shipping, 'tax' => $tax, 'total' => $total, 'payment_method' => $method,
+                'discount' => $discount, 'customer_discount' => $customerDiscountId, 'customer_shipping_discount' => $customerShippingDiscountId,
+                'shipping' => $shipping, 'shipping_discount' => $shippingDiscount, 'tax' => $tax, 'total' => $total, 'payment_method' => $method,
                 'terms_at' => $now, 'marketing' => isset($data['marketing']) ? 1 : 0, 'created_at' => $now, 'updated_at' => $now,
             ]);
             $orderId = (int) $this->pdo->lastInsertId();
@@ -177,6 +190,22 @@ final class CheckoutService
                 $this->pdo->rollBack();
             }
             throw $exception;
+        }
+    }
+
+    private function assertCustomerDiscountActive(int $discountId, int $userId, bool $shipping): void
+    {
+        $sql = "SELECT id,scope FROM customer_discounts WHERE id=:id AND user_id=:user AND status='active' AND deleted_at IS NULL
+            AND (starts_at IS NULL OR starts_at<=:starts) AND (ends_at IS NULL OR ends_at>=:ends)";
+        if ($this->pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql') {
+            $sql .= ' FOR UPDATE';
+        }
+        $statement = $this->pdo->prepare($sql);
+        $now = gmdate('c');
+        $statement->execute(['id' => $discountId, 'user' => $userId, 'starts' => $now, 'ends' => $now]);
+        $discount = $statement->fetch();
+        if (!is_array($discount) || (($discount['scope'] === 'shipping') !== $shipping)) {
+            throw new RuntimeException('Reducerea personalizată nu mai este disponibilă. Reîncarcă pagina și încearcă din nou.');
         }
     }
 

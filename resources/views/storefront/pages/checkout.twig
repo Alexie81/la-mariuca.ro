@@ -51,7 +51,8 @@
         <h2>Sumar</h2>
         {% for item in cart.items %}<div><span>{{ item.name }} × {{ item.quantity }}</span><strong>{{ money(item.line_total_bani) }}</strong></div>{% endfor %}
         <hr><div><span>Subtotal</span><strong>{{ money(cart.subtotal_bani) }}</strong></div>
-        {% if cart.discount_bani %}<div><span>Reducere {{ cart.coupon.code }}</span><strong>−{{ money(cart.discount_bani) }}</strong></div><div><span>După reducere</span><strong>{{ money(cart.total_bani) }}</strong></div>{% endif %}
+        {% if cart.discount_bani %}<div><span>Reducere {{ cart.discount_label|default(cart.coupon.code|default('')) }}</span><strong>−{{ money(cart.discount_bani) }}</strong></div><div><span>După reducere</span><strong>{{ money(cart.total_bani) }}</strong></div>{% endif %}
+        {% if cart.customer_shipping_discounts|default([]) %}<div><span>Avantaj personal la livrare</span><strong>Se aplică automat</strong></div>{% endif %}
         <small>Transportul se adaugă server-side după reducere, conform pragului configurat.</small>
       </aside>
     </div>

@@ -148,7 +148,7 @@ final class CartService
         $this->pdo->prepare('UPDATE carts SET coupon_code=:code,updated_at=:now WHERE id=:id')->execute(['code' => $code, 'now' => $now, 'id' => $cartId]);
     }
 
-    /** @return array{items:list<array<string,mixed>>,subtotal_bani:int,discount_bani:int,total_bani:int,count:int,coupon:?array<string,mixed>} */
+    /** @return array<string,mixed> */
     public function summary(): array
     {
         $summary = $this->baseSummary();
@@ -169,14 +169,141 @@ final class CartService
                     : min($summary['subtotal_bani'], (int) $row['value']);
             }
         }
-        return $summary + ['discount_bani' => $discount, 'total_bani' => $summary['subtotal_bani'] - $discount, 'coupon' => $coupon];
+        $personal = $this->personalDiscounts($summary);
+        $customerDiscount = $personal['merchandise'];
+        if (is_array($customerDiscount) && (int) $customerDiscount['discount_bani'] > $discount) {
+            $discount = (int) $customerDiscount['discount_bani'];
+            $coupon = null;
+        } else {
+            $customerDiscount = null;
+        }
+        $discountLabel = is_array($customerDiscount)
+            ? 'personală · ' . (string) $customerDiscount['label']
+            : (is_array($coupon) ? (string) $coupon['code'] : '');
+        return $summary + [
+            'discount_bani' => $discount,
+            'total_bani' => $summary['subtotal_bani'] - $discount,
+            'coupon' => $coupon,
+            'customer_discount' => $customerDiscount,
+            'customer_shipping_discounts' => $personal['shipping'],
+            'discount_label' => $discountLabel,
+        ];
+    }
+
+    /** @param list<array<string,mixed>> $discounts @return array{discount_bani:int,discount:?array<string,mixed>} */
+    public function bestShippingDiscount(int $shippingBani, array $discounts): array
+    {
+        $best = 0;
+        $selected = null;
+        foreach ($discounts as $discount) {
+            $amount = match ((string) ($discount['value_type'] ?? '')) {
+                'free' => $shippingBani,
+                'percent' => intdiv(($shippingBani * (int) $discount['value']) + 5000, 10000),
+                'fixed' => min($shippingBani, (int) $discount['value']),
+                default => 0,
+            };
+            if ($amount > $best) {
+                $best = $amount;
+                $selected = $discount;
+            }
+        }
+        return ['discount_bani' => $best, 'discount' => $selected];
+    }
+
+    /** @param array{items:list<array<string,mixed>>,subtotal_bani:int,count:int} $summary @return array{merchandise:?array<string,mixed>,shipping:list<array<string,mixed>>} */
+    private function personalDiscounts(array $summary): array
+    {
+        $userId = (int) ($_SESSION['user_id'] ?? 0);
+        if ($userId < 1 || $summary['items'] === []) {
+            return ['merchandise' => null, 'shipping' => []];
+        }
+        $now = gmdate('c');
+        $statement = $this->pdo->prepare("SELECT d.* FROM customer_discounts d JOIN users u ON u.id=d.user_id
+            WHERE d.user_id=:user AND u.status='active' AND d.status='active' AND d.deleted_at IS NULL
+              AND (d.starts_at IS NULL OR d.starts_at<=:starts) AND (d.ends_at IS NULL OR d.ends_at>=:ends)
+            ORDER BY d.id");
+        $statement->execute(['user' => $userId, 'starts' => $now, 'ends' => $now]);
+        $discounts = $statement->fetchAll();
+        if ($discounts === []) {
+            return ['merchandise' => null, 'shipping' => []];
+        }
+
+        $categories = [];
+        $categoryParents = [];
+        $productIds = array_values(array_unique(array_map(static fn (array $item): int => (int) $item['product_id'], $summary['items'])));
+        if ($productIds !== []) {
+            $placeholders = implode(',', array_fill(0, count($productIds), '?'));
+            $categoryRows = $this->pdo->prepare("SELECT product_id,category_id FROM product_categories WHERE product_id IN ({$placeholders})");
+            $categoryRows->execute($productIds);
+            foreach ($categoryRows->fetchAll() as $row) {
+                $categories[(int) $row['product_id']][] = (int) $row['category_id'];
+            }
+        }
+        if (array_filter($discounts, static fn (array $discount): bool => $discount['scope'] === 'category') !== []) {
+            foreach ($this->pdo->query('SELECT id,parent_id FROM categories')->fetchAll() as $category) {
+                $categoryParents[(int) $category['id']] = (int) ($category['parent_id'] ?? 0);
+            }
+        }
+
+        $best = null;
+        $shipping = [];
+        foreach ($discounts as $discount) {
+            if ($discount['scope'] === 'shipping') {
+                $shipping[] = $discount;
+                continue;
+            }
+            $eligible = 0;
+            foreach ($summary['items'] as $item) {
+                $matches = $discount['scope'] === 'order'
+                    || ($discount['scope'] === 'product' && (int) $discount['target_id'] === (int) $item['product_id'])
+                    || ($discount['scope'] === 'category' && $this->productBelongsToCategory(
+                        $categories[(int) $item['product_id']] ?? [],
+                        (int) $discount['target_id'],
+                        $categoryParents,
+                    ));
+                if ($matches) {
+                    $eligible += (int) $item['line_total_bani'];
+                }
+            }
+            if ($eligible < 1) {
+                continue;
+            }
+            $amount = $discount['value_type'] === 'percent'
+                ? intdiv(($eligible * (int) $discount['value']) + 5000, 10000)
+                : min($eligible, (int) $discount['value']);
+            if ($amount > (int) ($best['discount_bani'] ?? 0)) {
+                $discount['discount_bani'] = $amount;
+                $discount['eligible_bani'] = $eligible;
+                $discount['label'] = match ((string) $discount['scope']) {
+                    'product' => 'produs', 'category' => 'categorie', default => 'comandă',
+                };
+                $best = $discount;
+            }
+        }
+        return ['merchandise' => $best, 'shipping' => $shipping];
+    }
+
+    /** @param list<int> $assignedCategoryIds @param array<int,int> $parents */
+    private function productBelongsToCategory(array $assignedCategoryIds, int $targetCategoryId, array $parents): bool
+    {
+        foreach ($assignedCategoryIds as $categoryId) {
+            $current = $categoryId;
+            $guard = 0;
+            while ($current > 0 && $guard++ < 30) {
+                if ($current === $targetCategoryId) {
+                    return true;
+                }
+                $current = $parents[$current] ?? 0;
+            }
+        }
+        return false;
     }
 
     /** @return array{items:list<array<string,mixed>>,subtotal_bani:int,count:int} */
     private function baseSummary(): array
     {
         $statement = $this->pdo->prepare("SELECT ci.id, ci.variant_id, ci.quantity, ci.personalization_json,
-                p.name, p.slug, p.status AS product_status, v.sku, v.option_summary, v.options_json, v.price_bani,
+                p.id AS product_id, p.name, p.slug, p.status AS product_status, v.sku, v.option_summary, v.options_json, v.price_bani,
                 v.stock_unlimited,
                 COALESCE(variant_media.public_path,
                     (SELECT product_media.public_path

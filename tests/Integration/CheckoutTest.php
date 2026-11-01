@@ -85,6 +85,34 @@ final class CheckoutTest extends DatabaseTestCase
         $cart->applyCoupon('TEST10');
     }
 
+    public function testPersonalDiscountAndFreeShippingApplyAutomaticallyAndAreAudited(): void
+    {
+        $this->seed();
+        $now = gmdate('c');
+        $this->pdo->prepare("INSERT INTO users (email,password_hash,first_name,last_name,role,status,email_verified_at,created_at,updated_at) VALUES ('personal@example.test',:password,'Ana','Personal','customer','active',:now,:now,:now)")->execute(['password' => password_hash('Personal-2026!', PASSWORD_DEFAULT), 'now' => $now]);
+        $customerId = (int) $this->pdo->lastInsertId();
+        $discount = $this->pdo->prepare("INSERT INTO customer_discounts (user_id,scope,value_type,value,target_id,starts_at,ends_at,status,created_by_user_id,created_at,updated_at,deleted_at) VALUES (:user,:scope,:type,:value,NULL,NULL,NULL,'active',NULL,:now,:now,NULL)");
+        $discount->execute(['user' => $customerId, 'scope' => 'order', 'type' => 'percent', 'value' => 1500, 'now' => $now]);
+        $orderDiscountId = (int) $this->pdo->lastInsertId();
+        $discount->execute(['user' => $customerId, 'scope' => 'shipping', 'type' => 'free', 'value' => 0, 'now' => $now]);
+        $shippingDiscountId = (int) $this->pdo->lastInsertId();
+        $_SESSION['user_id'] = $customerId;
+        $variant = $this->pdo->query("SELECT v.id,v.price_bani FROM product_variants v JOIN inventory i ON i.variant_id=v.id WHERE i.physical_quantity>1 ORDER BY v.price_bani ASC LIMIT 1")->fetch();
+        $cart = new CartService($this->pdo);
+        $cart->add((int) $variant['id'], 1);
+        $summary = $cart->summary();
+        self::assertSame(intdiv(((int) $variant['price_bani'] * 1500) + 5000, 10000), $summary['discount_bani']);
+        self::assertSame($orderDiscountId, (int) $summary['customer_discount']['id']);
+        self::assertCount(1, $summary['customer_shipping_discounts']);
+
+        $result = (new CheckoutService($this->pdo, $cart, Config::load($this->root)))->place($this->checkoutData('personal-discount-key'));
+        $order = $this->pdo->query('SELECT * FROM orders WHERE id=' . (int) $result['id'])->fetch();
+        self::assertSame($orderDiscountId, (int) $order['customer_discount_id']);
+        self::assertSame($shippingDiscountId, (int) $order['customer_shipping_discount_id']);
+        self::assertSame(0, (int) $order['shipping_bani']);
+        self::assertGreaterThan(0, (int) $order['shipping_discount_bani']);
+    }
+
     /** @return array<string,mixed> */
     private function checkoutData(string $key): array
     {

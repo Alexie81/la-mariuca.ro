@@ -110,7 +110,7 @@
             <div class="cart-order-lines">
               <span>Subtotal</span><strong data-cart-subtotal>{{ money(cart.subtotal_bani) }}</strong>
               {% if cart.discount_bani %}
-                <span>Reducere {{ cart.coupon.code }}</span><strong class="cart-order-discount" data-cart-discount>−{{ money(cart.discount_bani) }}</strong>
+                <span>Reducere {{ cart.discount_label|default(cart.coupon.code|default('')) }}</span><strong class="cart-order-discount" data-cart-discount>−{{ money(cart.discount_bani) }}</strong>
               {% endif %}
             </div>
             <div class="cart-order-total"><span>Total produse</span><strong data-cart-total>{{ money(cart.total_bani) }}</strong></div>
