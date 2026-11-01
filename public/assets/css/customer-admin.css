@@ -102,3 +102,11 @@
 .admin-customers-search>a{flex:0 0 42px;height:42px;align-self:center}
 .admin-customer-access button,.admin-customer-benefits>header>a,.admin-customer-discount-footer>button{white-space:nowrap}.admin-customer-access button svg,.admin-customer-benefits>header>a svg{flex:none}
 @media(max-width:760px){.admin-customers-search button{grid-template-columns:17px;width:45px;min-width:45px;padding:0}.admin-customers-search button span{display:none}.admin-customers-search button svg{grid-column:1}}
+
+/* Monogramă de client: sigiliu editorial, nu avatar generic. */
+.admin-customer-avatar,.admin-customer-profile__avatar{position:relative;isolation:isolate;overflow:visible;border:1px solid rgba(198,144,62,.55);border-radius:50% 46% 52% 44%;background:radial-gradient(circle at 31% 24%,rgba(255,255,255,.96) 0 13%,transparent 14%),linear-gradient(145deg,#fff9f2 0%,#f9e3df 56%,#f2d2d0 100%);color:#a84450;font-family:var(--admin-serif);font-size:18px;font-style:italic;font-variation-settings:"opsz" 60,"SOFT" 45,"WONK" 1;font-weight:680;letter-spacing:-.09em;line-height:1;text-indent:-.06em;text-shadow:0 1px 0 #fff,0 4px 11px rgba(150,64,72,.11);box-shadow:0 9px 20px rgba(111,64,54,.12),inset 0 0 0 3px rgba(255,255,255,.64);transition:border-radius .22s ease,transform .22s ease,box-shadow .22s ease}
+.admin-customer-avatar:before,.admin-customer-profile__avatar:before{position:absolute;z-index:-1;inset:4px;border:1px solid rgba(196,93,99,.24);border-radius:inherit;content:""}
+.admin-customer-avatar:after,.admin-customer-profile__avatar:after{position:absolute;z-index:2;right:-3px;top:7px;width:8px;height:8px;border:2px solid #fff9f5;border-radius:50%;background:#c6903e;box-shadow:0 3px 8px rgba(145,91,40,.24);content:""}
+.admin-customer-person:hover .admin-customer-avatar{border-radius:45% 53% 44% 52%;box-shadow:0 12px 25px rgba(111,64,54,.17),inset 0 0 0 3px rgba(255,255,255,.7);transform:translateY(-1px) rotate(-2deg)}
+.admin-customer-profile__avatar{font-size:26px;letter-spacing:-.11em}.admin-customer-profile__avatar:after{right:-2px;top:9px;width:10px;height:10px}
+@media(max-width:760px){.admin-customer-avatar{flex-basis:48px;width:48px;height:48px}.admin-customer-profile__avatar{font-size:22px}}
