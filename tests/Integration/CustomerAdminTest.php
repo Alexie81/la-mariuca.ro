@@ -85,6 +85,7 @@ final class CustomerAdminTest extends DatabaseTestCase
 
         $discountForm = (string) $this->get('/admin/clienti/' . $this->featuredCustomerId . '/reduceri/noua/modal/')->getBody();
         self::assertStringContainsString('data-admin-customer-discount-form', $discountForm);
+        self::assertStringContainsString('data-admin-customer-discount-scroll-body', $discountForm);
         self::assertStringContainsString('Toată comanda', $discountForm);
         self::assertStringContainsString('Livrare', $discountForm);
         self::assertStringContainsString('Fără termen', $discountForm);

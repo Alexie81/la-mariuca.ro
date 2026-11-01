@@ -173,3 +173,11 @@
 .admin-customer-dialog .admin-customer-profile__body{min-height:0;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;scrollbar-color:#d39498 transparent;scrollbar-width:thin}
 @media(max-width:760px){.admin-customer-dialog .admin-customer-profile__summary{box-shadow:0 9px 22px rgba(68,39,33,.1)}}
 @media(max-width:760px){.admin-customer-dialog__content{height:100dvh}}
+
+/* Configurator reducere: header fix, iar scrollul începe integral sub acesta. */
+.admin-customer-discount-dialog,.admin-customer-discount-dialog__surface,.admin-customer-discount-dialog__content,.admin-customer-discount-dialog .admin-customer-discount-form{overflow:clip}
+.admin-customer-discount-dialog__content{height:auto;overflow:clip}
+.admin-customer-discount-dialog .admin-customer-discount-form{display:block;height:auto;max-height:calc(100dvh - 30px);overflow:clip}
+.admin-customer-discount-dialog .admin-customer-discount-hero{position:relative;z-index:5;box-shadow:0 12px 28px rgba(68,39,33,.08)}
+.admin-customer-discount-dialog .admin-customer-discount-body{max-height:calc(100dvh - 156px);overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;scrollbar-color:#d39498 transparent;scrollbar-width:thin}
+@media(max-width:760px){.admin-customer-discount-dialog__content{height:auto}.admin-customer-discount-dialog .admin-customer-discount-form{max-height:100dvh}.admin-customer-discount-dialog .admin-customer-discount-hero{box-shadow:0 9px 22px rgba(68,39,33,.09)}.admin-customer-discount-dialog .admin-customer-discount-body{max-height:calc(100dvh - 179px)}}
