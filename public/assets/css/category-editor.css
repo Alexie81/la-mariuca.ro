@@ -145,6 +145,43 @@
 .admin-category-page-editor .admin-category-editor-nav{border-radius:20px 20px 0 0;margin-bottom:20px}
 .admin-category-page-editor .admin-category-form__section{margin:0 20px 20px}
 .admin-category-page-editor .admin-category-form__actions{margin:0;border-radius:0 0 20px 20px}
+.admin-category-delete-dialog{width:min(580px,calc(100vw - 32px));padding:0;border:0;border-radius:30px;background:transparent;box-shadow:none;overflow:visible;color:#503830}
+.admin-category-delete-dialog::backdrop{background:rgba(54,38,34,.56);backdrop-filter:blur(9px) saturate(.8)}
+.admin-category-delete-dialog>.admin-category-delete-dialog__surface{position:relative;display:block;padding:34px;border:1px solid rgba(224,196,186,.9);border-radius:30px;background:linear-gradient(145deg,#fffdfa 0%,#fff8f5 100%);box-shadow:0 30px 90px rgba(55,34,31,.3);text-align:left;overflow:hidden}
+.admin-category-delete-dialog__surface::before{content:"";position:absolute;inset:0 0 auto;height:5px;background:linear-gradient(90deg,#e7b86e,#d85e6c 48%,#ba4657)}
+.admin-category-delete-dialog__close{position:absolute;z-index:2;top:20px;right:20px;display:grid;place-items:center;width:40px;min-height:40px!important;padding:0!important;border:1px solid #ead7d0!important;border-radius:13px!important;background:#fff!important;color:#946f65!important;box-shadow:0 5px 14px rgba(95,60,50,.07)}
+.admin-category-delete-dialog__close svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round}
+.admin-category-delete-dialog__close:hover{border-color:#d8aaa3!important;background:#fff5f2!important;color:#ba4657!important;transform:translateY(-1px)}
+.admin-category-delete-dialog__header{display:grid;grid-template-columns:58px minmax(0,1fr);align-items:center;gap:17px;padding-right:42px}
+.admin-category-delete-dialog__icon{display:grid;place-items:center;width:58px;height:58px;border:1px solid #f0d2ca;border-radius:18px;background:linear-gradient(145deg,#fff3ef,#ffe7e7);color:#c74c5a;box-shadow:0 8px 20px rgba(190,70,86,.1)}
+.admin-category-delete-dialog__icon svg{width:26px;height:26px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.admin-category-delete-dialog__header .admin-eyebrow{display:block;margin:0 0 6px;color:#c34c5a;font-size:10px;line-height:1.2;letter-spacing:.17em}
+.admin-category-delete-dialog h2{margin:0;font:400 31px/1.06 var(--admin-serif);letter-spacing:-.025em;color:#432f29}
+.admin-category-delete-dialog__lead{margin:23px 0 0;padding:15px 17px;border:1px solid #eeddd6;border-radius:15px;background:rgba(255,255,255,.68);color:#816860;font-size:13px;line-height:1.6}
+.admin-category-delete-dialog__lead strong{color:#563d35;font-weight:800}
+.admin-category-delete-dialog__blockers{margin-top:14px;padding:17px;border:1px solid #ecd5bd;border-radius:18px;background:linear-gradient(135deg,#fffaf0,#fff5eb)}
+.admin-category-delete-dialog__blockers>p{margin:0 0 13px;color:#795d4e;font-size:12px;line-height:1.5}
+.admin-category-delete-dialog__blockers>div{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.admin-category-delete-dialog__blockers article{display:flex;align-items:center;gap:11px;min-width:0;padding:13px;border:1px solid #edd8c5;border-radius:14px;background:rgba(255,255,255,.78)}
+.admin-category-delete-dialog__blockers article>span{display:grid;place-items:center;flex:0 0 38px;width:38px;height:38px;border-radius:11px;background:#fff0e5;color:#b77636}
+.admin-category-delete-dialog__blockers article>span svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.55;stroke-linecap:round;stroke-linejoin:round}
+.admin-category-delete-dialog__blockers article div{display:grid;gap:3px;min-width:0}
+.admin-category-delete-dialog__blockers strong{color:#5c4035;font-size:12px;line-height:1.25}
+.admin-category-delete-dialog__blockers strong b{color:#bd5360;font-size:17px}
+.admin-category-delete-dialog__blockers strong i{font-style:normal;font-weight:750}
+.admin-category-delete-dialog__blockers small{color:#9a7a6c;font-size:10px;line-height:1.3}
+.admin-category-delete-dialog footer{display:flex;justify-content:flex-end;gap:10px;width:100%;margin-top:22px}
+.admin-category-delete-dialog footer button{display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:0 22px;border-radius:14px;font:800 12px var(--admin-sans);cursor:pointer;transition:transform .18s ease,box-shadow .18s ease,background .18s ease,border-color .18s ease}
+.admin-category-delete-dialog__cancel{border:1px solid #e6d2cb!important;background:#fff!important;color:#7d6259!important}
+.admin-category-delete-dialog__confirm{border:1px solid #bd4c5a!important;background:linear-gradient(120deg,#d45e6b,#bd4757)!important;color:#fff!important;box-shadow:0 9px 20px rgba(185,64,80,.2)}
+.admin-category-delete-dialog.is-blocked .admin-category-delete-dialog__cancel{width:100%;border-color:#c95866!important;background:linear-gradient(120deg,#d66572,#c24c5b)!important;color:#fff!important;box-shadow:0 9px 20px rgba(185,64,80,.18)}
+.admin-category-delete-dialog footer button:hover{transform:translateY(-1px)}
+.admin-category-delete-dialog__cancel:hover{border-color:#d4aaa1!important;background:#fff7f3!important}
+.admin-category-delete-dialog.is-blocked .admin-category-delete-dialog__cancel:hover,.admin-category-delete-dialog__confirm:hover{background:linear-gradient(120deg,#c95664,#ae3e4e)!important;box-shadow:0 12px 25px rgba(175,57,73,.24)}
+.admin-category-delete-dialog footer button:focus-visible,.admin-category-delete-dialog__close:focus-visible{outline:3px solid rgba(203,82,97,.24);outline-offset:3px}
+.admin-category-delete-dialog [hidden]{display:none!important}
+.admin-category-delete-dialog[open]>.admin-category-delete-dialog__surface{animation:admin-category-delete-in .22s ease-out both}
+@keyframes admin-category-delete-in{from{opacity:0;transform:translateY(12px) scale(.975)}to{opacity:1;transform:none}}
 @media(max-width:760px){
   .admin-category-editor-dialog{width:calc(100vw - 16px);height:calc(100dvh - 16px);border-radius:22px}
   .admin-category-editor-dialog__surface{border-radius:22px}
@@ -169,6 +206,22 @@
   .admin-category-form__actions .admin-category-save{font-size:13px;gap:8px}
   .admin-category-parent-picker__panel.admin-category-picker__panel{top:auto;left:7px;right:7px;bottom:7px;width:auto;height:min(680px,82dvh);max-height:82dvh;transform:none;border-radius:22px}
   .admin-category-parent-picker .admin-category-picker__header strong{font-size:24px}
+  .admin-category-delete-dialog{width:min(540px,calc(100vw - 20px));border-radius:24px}
+  .admin-category-delete-dialog>.admin-category-delete-dialog__surface{padding:25px 20px 20px;border-radius:24px}
+  .admin-category-delete-dialog__surface::before{height:4px}
+  .admin-category-delete-dialog__close{top:14px;right:14px;width:36px;min-height:36px!important;border-radius:12px!important}
+  .admin-category-delete-dialog__header{grid-template-columns:46px minmax(0,1fr);gap:13px;padding-right:35px}
+  .admin-category-delete-dialog__icon{width:46px;height:46px;border-radius:15px}
+  .admin-category-delete-dialog__icon svg{width:22px;height:22px}
+  .admin-category-delete-dialog__header .admin-eyebrow{margin-bottom:5px;font-size:9px}
+  .admin-category-delete-dialog h2{font-size:26px;line-height:1.08}
+  .admin-category-delete-dialog__lead{margin-top:18px;padding:13px 14px;font-size:12px}
+  .admin-category-delete-dialog__blockers{padding:14px}
+  .admin-category-delete-dialog__blockers>div{grid-template-columns:1fr}
+  .admin-category-delete-dialog__blockers article{padding:11px}
+  .admin-category-delete-dialog footer{display:grid;grid-template-columns:1fr;margin-top:16px}
+  .admin-category-delete-dialog footer button{width:100%;min-height:48px}
+  .admin-category-delete-dialog__confirm{order:-1}
 }
 @media(max-width:560px){
   .admin-category-editor-dialog{width:100vw;height:100dvh;border-radius:0}

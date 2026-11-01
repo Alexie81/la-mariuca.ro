@@ -43,7 +43,7 @@
                 <td data-label="Stare"><span class="admin-category-status admin-category-status--{{ category.status }}">{{ category.status == 'published' ? 'Publicată' : (category.status == 'draft' ? 'Draft' : 'Arhivată') }}</span>{% if category.visibility == 'hidden' %}<small class="admin-category-hidden">ascunsă</small>{% endif %}</td>
                 <td data-label="Acțiuni" class="admin-categories-table__actions"><div>
                   <a href="{{ url('admin/categorii/' ~ category.id ~ '/editare/') }}" data-admin-category-editor-trigger data-modal-url="{{ url('admin/categorii/' ~ category.id ~ '/editare/modal/') }}" aria-label="Editează {{ category.name }}" title="Editează"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 20 4.2-1 10.4-10.4a2 2 0 0 0-2.8-2.8L5.4 16.2 4 20Z"/><path d="m14.5 7.1 2.8 2.8"/></svg><span>Editează</span></a>
-                  <form action="{{ url('admin/categorii/' ~ category.id ~ '/sterge/') }}" method="post" data-admin-category-delete-form data-category-name="{{ category.name }}" data-category-blocked="{{ delete_blocked ? '1' : '0' }}" data-category-delete-note="{% if category.child_count > 0 %}Are {{ category.child_count }} {{ category.child_count == 1 ? 'subcategorie' : 'subcategorii' }}.{% endif %}{% if category.product_count > 0 %} Are {{ category.product_count }} {{ category.product_count == 1 ? 'produs asociat' : 'produse asociate' }}.{% endif %}">
+                  <form action="{{ url('admin/categorii/' ~ category.id ~ '/sterge/') }}" method="post" data-admin-category-delete-form data-category-name="{{ category.name }}" data-category-blocked="{{ delete_blocked ? '1' : '0' }}" data-category-child-count="{{ category.child_count }}" data-category-product-count="{{ category.product_count }}" data-category-delete-note="{% if category.child_count > 0 %}Are {{ category.child_count }} {{ category.child_count == 1 ? 'subcategorie' : 'subcategorii' }}.{% endif %}{% if category.product_count > 0 %} Are {{ category.product_count }} {{ category.product_count == 1 ? 'produs asociat' : 'produse asociate' }}.{% endif %}">
                     <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><button type="submit" aria-label="Șterge {{ category.name }}" title="{{ delete_blocked ? 'Categoria are elemente asociate' : 'Șterge categoria' }}" class="{{ delete_blocked ? 'is-blocked' : '' }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5"/></svg><span>Șterge</span></button>
                   </form>
                 </div></td>
@@ -59,5 +59,29 @@
 
   <dialog class="admin-category-editor-dialog" data-admin-category-editor-dialog aria-labelledby="admin-category-editor-title"><div class="admin-category-editor-dialog__surface"><button class="admin-category-editor-dialog__close" type="button" aria-label="Închide editorul" data-admin-category-editor-close><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"/></svg></button><div class="admin-category-editor-dialog__content" data-admin-category-editor-content aria-live="polite"><div class="admin-category-editor-dialog__loading"><span aria-hidden="true"><i></i><i></i><i></i></span><strong>Pregătim atelierul categoriei…</strong><small>Încărcăm arborele și setările de afișare.</small></div></div></div></dialog>
 
-  <dialog class="admin-category-delete-dialog" data-admin-category-delete-dialog aria-labelledby="admin-category-delete-title"><div><span class="admin-category-delete-dialog__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13"/></svg></span><span class="admin-eyebrow" data-admin-category-delete-eyebrow>Confirmare necesară</span><h2 id="admin-category-delete-title" data-admin-category-delete-title>Ștergi categoria?</h2><p><strong data-admin-category-delete-name></strong> <span data-admin-category-delete-message>va fi eliminată definitiv din arbore.</span></p><p class="admin-category-delete-dialog__note" data-admin-category-delete-note hidden></p><footer><button type="button" data-admin-category-delete-cancel>Renunță</button><button type="button" data-admin-category-delete-confirm>Da, șterge categoria</button></footer></div></dialog>
+  <dialog class="admin-category-delete-dialog" data-admin-category-delete-dialog aria-labelledby="admin-category-delete-title">
+    <div class="admin-category-delete-dialog__surface">
+      <button class="admin-category-delete-dialog__close" type="button" aria-label="Închide dialogul" data-admin-category-delete-close><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"/></svg></button>
+      <header class="admin-category-delete-dialog__header">
+        <span class="admin-category-delete-dialog__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13"/></svg></span>
+        <div><span class="admin-eyebrow" data-admin-category-delete-eyebrow>Confirmare necesară</span><h2 id="admin-category-delete-title" data-admin-category-delete-title>Ștergi categoria?</h2></div>
+      </header>
+      <p class="admin-category-delete-dialog__lead"><strong data-admin-category-delete-name></strong> <span data-admin-category-delete-message>va fi eliminată definitiv din arbore.</span></p>
+      <section class="admin-category-delete-dialog__blockers" data-admin-category-delete-blockers hidden>
+        <p>Mută mai întâi elementele de mai jos într-o altă categorie.</p>
+        <div>
+          <article data-admin-category-delete-children>
+            <span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 4h6v6H4zM14 14h6v6h-6zM4 14h6v6H4z"/><path d="M7 10v2h10v2M7 12v2"/></svg></span>
+            <div><strong><b data-admin-category-delete-child-count>0</b> <i data-admin-category-delete-child-label>subcategorii</i></strong><small>Mută-le sub alt părinte</small></div>
+          </article>
+          <article data-admin-category-delete-products>
+            <span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 7.5 12 3l8 4.5v9L12 21l-8-4.5z"/><path d="m4 7.5 8 4.5 8-4.5M12 12v9"/></svg></span>
+            <div><strong><b data-admin-category-delete-product-count>0</b> <i data-admin-category-delete-product-label>produse asociate</i></strong><small>Alege-le altă categorie</small></div>
+          </article>
+        </div>
+      </section>
+      <p class="sr-only" aria-live="polite" data-admin-category-delete-note></p>
+      <footer><button class="admin-category-delete-dialog__cancel" type="button" data-admin-category-delete-cancel>Renunță</button><button class="admin-category-delete-dialog__confirm" type="button" data-admin-category-delete-confirm>Da, șterge categoria</button></footer>
+    </div>
+  </dialog>
 {% endblock %}
