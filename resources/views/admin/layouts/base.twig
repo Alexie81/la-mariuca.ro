@@ -14,7 +14,8 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>{% block title %}Dashboard{% endblock %} · Administrare La Măriuca</title>
   <link rel="stylesheet" href="{{ url('assets/css/admin.css?v=20261031-category-tree-v17') }}">
-  {% if admin_section|default('') == 'categories' %}<link rel="stylesheet" href="{{ url('assets/css/category-editor.css?v=20261031-v1') }}">{% endif %}
+  {% if admin_section|default('') == 'categories' %}<link rel="stylesheet" href="{{ url('assets/css/category-editor.css?v=20261101-v2') }}">{% endif %}
+  {% if admin_section|default('') == 'customers' %}<link rel="stylesheet" href="{{ url('assets/css/customer-admin.css?v=20261101-v4') }}">{% endif %}
 </head>
 {% set operator = admin_user|default(current_user()) %}
 {% set first_name = operator.first_name|default('Administrator') %}
@@ -88,6 +89,10 @@
           <span class="admin-nav__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h6v5H4zM14 14h6v5h-6zM4 14h6v5H4z"/><path d="M7 10v2h10v2M7 12v2"/></svg></span>
           <span><strong>Categorii</strong><small>Arbore și organizare</small></span>
         </a>
+        <a class="admin-nav__item{{ active_admin_section == 'customers' ? ' is-active' : '' }}" href="{{ url('admin/clienti/') }}"{% if active_admin_section == 'customers' %} aria-current="page"{% endif %}>
+          <span class="admin-nav__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="4"/><path d="M2.5 21a6.5 6.5 0 0 1 13 0M16 8.5a3.5 3.5 0 0 1 0 6.8M17 17a5 5 0 0 1 4.5 4"/></svg></span>
+          <span><strong>Clienți</strong><small>Conturi și comenzi</small></span>
+        </a>
         <span class="admin-nav__label admin-nav__label--section">Stoc și achiziții</span>
         <a class="admin-nav__item{{ active_admin_section == 'suppliers' ? ' is-active' : '' }}" href="{{ url('admin/furnizori/') }}"{% if active_admin_section == 'suppliers' %} aria-current="page"{% endif %}>
           <span class="admin-nav__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m2 7 3-2 3 2-3 7-3-1V7ZM22 7l-3-2-3 2 3 7 3-1V7Z"/><path d="M8 7h3M16 7h-3.4a2 2 0 0 0-1.4.6l-2.6 2.5a1.5 1.5 0 0 0 2.1 2.1l1.3-1.3 5.4 4.8a1.5 1.5 0 0 1-2 2.2L12 15M5 14l5.4 5a1.5 1.5 0 0 0 2.1-2.1M14 17l.7.6a1.5 1.5 0 0 1-2 2.2L11 18.3M19 14l-1.6 1.7"/></svg></span>
@@ -136,6 +141,6 @@
   </div>
 
   <script src="{{ url('assets/js/admin-rich-editor.js?v=20261031-rich-description-v1') }}" defer></script>
-  <script src="{{ url('assets/js/admin.js?v=20261031-category-editor-v18') }}" defer></script>
+  <script src="{{ url('assets/js/admin.js?v=20261101-customers-v20') }}" defer></script>
 </body>
 </html>

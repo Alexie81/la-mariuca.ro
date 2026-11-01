@@ -1,0 +1,70 @@
+{% extends 'admin/layouts/base.twig' %}
+
+{% block title %}Clienți{% endblock %}
+
+{% block content %}
+  <section class="admin-customers-hero" aria-labelledby="admin-customers-title">
+    <div class="admin-customers-hero__copy">
+      <span class="admin-eyebrow"><i aria-hidden="true"></i> Relații cu clienții</span>
+      <h1 id="admin-customers-title">Clienți</h1>
+      <p>Conturile, preferințele și comenzile sunt reunite într-o singură imagine clară.</p>
+    </div>
+    <div class="admin-customers-summary" aria-label="Rezumat clienți">
+      <article><i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M16 20v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2M9.5 10a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM17 8h4M19 6v4"/></svg></i><span><strong>{{ customer_summary.total }}</strong><small>conturi</small></span></article>
+      <article><i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5h16v14H4zM4 7l8 6 8-6"/></svg></i><span><strong>{{ customer_summary.subscribed }}</strong><small>abonați</small></span></article>
+      <article><i aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M21 12h-8M13 5v14"/></svg></i><span><strong>{{ customer_summary.google }}</strong><small>prin Google</small></span></article>
+      <article><i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 8h14l-1 12H6L5 8ZM9 9V6a3 3 0 0 1 6 0v3"/></svg></i><span><strong>{{ customer_summary.with_orders }}</strong><small>au comandat</small></span></article>
+    </div>
+  </section>
+
+  <section class="admin-customers-panel" aria-labelledby="admin-customers-list-title">
+    <header class="admin-customers-panel__head">
+      <div><span class="admin-eyebrow">Registrul clienților</span><h2 id="admin-customers-list-title">Oameni, nu doar conturi</h2></div>
+      {% if pagination.total > 0 %}<p><strong>{{ pagination.from }}–{{ pagination.to }}</strong> din {{ pagination.total }}</p>{% endif %}
+    </header>
+
+    <form class="admin-customers-search" action="{{ url('admin/clienti/') }}" method="get" role="search">
+      <label>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m16.5 16.5 4 4"/></svg>
+        <span><small>Căutare inteligentă</small><input type="search" name="cautare" value="{{ search }}" placeholder="Ex: Google abonat, nume, email, telefon sau comandă…" autocomplete="off"></span>
+      </label>
+      {% if has_filters %}<a href="{{ url('admin/clienti/') }}" aria-label="Șterge căutarea"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7l-10 10"/></svg></a>{% endif %}
+      <button type="submit"><span>Caută</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
+    </form>
+    <div class="admin-customers-search-hints" aria-label="Exemple de căutare"><span>Încearcă:</span><a href="{{ url('admin/clienti/?cautare=Google+abonat') }}">Google abonat</a><a href="{{ url('admin/clienti/?cautare=La+Mariuca+activ') }}">La Măriuca activ</a><a href="{{ url('admin/clienti/?cautare=neabonat') }}">neabonat</a></div>
+
+    {% if customers %}
+      <div class="admin-customers-table-wrap">
+        <table class="admin-customers-table">
+          <thead><tr><th>Client</th><th>Contact</th><th>Tip cont</th><th>Noutăți</th><th>Comenzi</th><th>Valoare totală</th><th>Ultima comandă</th><th><span class="sr-only">Deschide</span></th></tr></thead>
+          <tbody>
+          {% for customer in customers %}
+            <tr class="{{ customer.status == 'blocked' ? 'is-customer-blocked' : '' }}" data-customer-row="{{ customer.id }}">
+              <td data-label="Client"><a class="admin-customer-person" href="{{ url('admin/clienti/' ~ customer.id ~ '/') }}" data-admin-customer-trigger data-modal-url="{{ url('admin/clienti/' ~ customer.id ~ '/modal/') }}"><span class="admin-customer-avatar">{{ customer.initials }}</span><span><strong>{{ customer.display_name }}</strong>{% if customer.status == 'blocked' %}<small class="admin-customer-row-state is-blocked" data-customer-row-status><i></i>Cont dezactivat</small>{% else %}<small data-customer-row-status>Client din {{ customer.display_created_at }}</small>{% endif %}</span></a></td>
+              <td data-label="Contact"><span class="admin-customer-contact"><a href="mailto:{{ customer.email }}">{{ customer.email }}</a><small>{{ customer.phone ?: 'Telefon necompletat' }}</small></span></td>
+              <td data-label="Tip cont"><span class="admin-customer-account admin-customer-account--{{ customer.uses_google ? 'google' : 'local' }}">{% if customer.uses_google %}<i class="admin-customer-account__google" aria-hidden="true"><img src="{{ url('assets/images/google-g.svg') }}" width="18" height="18" alt=""></i>{% else %}<i class="admin-customer-account__local" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.6 2.8 8.2 7 10 4.2-1.8 7-5.4 7-10V6l-7-3Z"/><path d="m9 12 2 2 4-4"/></svg></i>{% endif %}<span>{{ customer.account_type_label }}</span></span></td>
+              <td data-label="Noutăți"><span class="admin-customer-subscription{{ customer.is_subscribed ? ' is-subscribed' : '' }}"><i></i>{{ customer.is_subscribed ? 'Abonat' : 'Neabonat' }}</span></td>
+              <td data-label="Comenzi"><strong class="admin-customer-order-count">{{ customer.order_count }}</strong></td>
+              <td data-label="Valoare totală"><strong class="admin-customer-spend">{{ money(customer.total_spent_bani) }}</strong></td>
+              <td data-label="Ultima comandă"><span class="admin-customer-last-order">{{ customer.display_last_order_at }}</span></td>
+              <td class="admin-customers-table__action"><a href="{{ url('admin/clienti/' ~ customer.id ~ '/') }}" data-admin-customer-trigger data-modal-url="{{ url('admin/clienti/' ~ customer.id ~ '/modal/') }}" aria-label="Deschide profilul clientului {{ customer.display_name }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a></td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% if pagination.total_pages > 1 %}
+        <nav class="admin-pagination admin-customers-pagination" aria-label="Paginarea clienților">
+          {% if pagination.page > 1 %}<a class="admin-pagination__arrow" href="{{ url('admin/clienti/?pagina=' ~ (pagination.page - 1) ~ (filters_query ? '&' ~ filters_query : '')) }}" aria-label="Pagina anterioară"><svg viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></svg></a>{% else %}<span class="admin-pagination__arrow is-disabled"><svg viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></svg></span>{% endif %}
+          <div class="admin-pagination__pages">{% for page_number in pagination.page_numbers %}<a href="{{ url('admin/clienti/?pagina=' ~ page_number ~ (filters_query ? '&' ~ filters_query : '')) }}" class="{{ pagination.page == page_number ? 'is-active' : '' }}"{% if pagination.page == page_number %} aria-current="page"{% endif %}>{{ page_number }}</a>{% endfor %}</div>
+          {% if pagination.page < pagination.total_pages %}<a class="admin-pagination__arrow" href="{{ url('admin/clienti/?pagina=' ~ (pagination.page + 1) ~ (filters_query ? '&' ~ filters_query : '')) }}" aria-label="Pagina următoare"><svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></a>{% else %}<span class="admin-pagination__arrow is-disabled"><svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></span>{% endif %}
+        </nav>
+      {% endif %}
+    {% else %}
+      <div class="admin-customers-empty"><span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M16 20v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2M9.5 10a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z"/></svg></span><strong>{{ has_filters ? 'Niciun client nu corespunde căutării' : 'Nu există încă niciun cont de client' }}</strong><p>{{ has_filters ? 'Încearcă un nume, email, telefon sau expresii precum „Google abonat”.' : 'Conturile noi vor apărea automat aici.' }}</p>{% if has_filters %}<a href="{{ url('admin/clienti/') }}">Vezi toți clienții</a>{% endif %}</div>
+    {% endif %}
+  </section>
+
+  <dialog class="admin-customer-dialog" data-admin-customer-dialog aria-labelledby="admin-customer-dialog-title"><div class="admin-customer-dialog__surface"><button type="button" class="admin-customer-dialog__close" data-admin-customer-close aria-label="Închide profilul"><svg viewBox="0 0 24 24"><path d="m7 7 10 10M17 7 7 17"/></svg></button><div class="admin-customer-dialog__content" data-admin-customer-content aria-live="polite"><div class="admin-customer-loading"><span aria-hidden="true"><i></i><i></i><i></i></span><strong>Pregătim profilul clientului…</strong><small>Adunăm contul, preferințele și comenzile.</small></div></div></div></dialog>
+  <dialog class="admin-customer-discount-dialog" data-admin-customer-discount-dialog aria-labelledby="admin-customer-discount-title"><div class="admin-customer-discount-dialog__surface"><button type="button" class="admin-customer-discount-dialog__close" data-admin-customer-discount-close aria-label="Închide reducerea"><svg viewBox="0 0 24 24"><path d="m7 7 10 10M17 7 7 17"/></svg></button><div class="admin-customer-discount-dialog__content" data-admin-customer-discount-content><div class="admin-customer-loading"><span aria-hidden="true"><i></i><i></i><i></i></span><strong>Pregătim reducerea…</strong><small>Încărcăm produsele și categoriile.</small></div></div></div></dialog>
+{% endblock %}

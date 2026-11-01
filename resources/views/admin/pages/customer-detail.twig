@@ -1,0 +1,3 @@
+{% extends 'admin/layouts/base.twig' %}
+{% block title %}{{ customer.display_name }}{% endblock %}
+{% block content %}<div class="admin-customer-page"><a class="admin-customer-page__back" href="{{ url('admin/clienti/') }}"><svg viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></svg>Înapoi la clienți</a>{% include 'admin/partials/customer-detail-content.twig' %}</div>{% endblock %}

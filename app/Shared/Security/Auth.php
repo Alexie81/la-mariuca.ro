@@ -42,6 +42,9 @@ final class Auth
         }
         $_SESSION['user_id'] = (int) $user['id'];
         unset($_SESSION['pending_2fa_user_id']);
+        if (($user['role'] ?? 'customer') === 'customer') {
+            $this->recordCustomerLogin((int) $user['id']);
+        }
         return 'authenticated';
     }
 
@@ -84,6 +87,7 @@ final class Auth
         session_regenerate_id(true);
         $_SESSION['user_id'] = (int) $id;
         unset($_SESSION['pending_2fa_user_id']);
+        $this->recordCustomerLogin((int) $id);
         return true;
     }
 
@@ -143,5 +147,11 @@ final class Auth
     {
         $user = $this->user();
         return $user !== null && in_array((string) $user['role'], $roles, true);
+    }
+
+    private function recordCustomerLogin(int $userId): void
+    {
+        $statement = $this->pdo->prepare("UPDATE users SET last_login_at=:now WHERE id=:id AND role='customer'");
+        $statement->execute(['now' => gmdate('c'), 'id' => $userId]);
     }
 }

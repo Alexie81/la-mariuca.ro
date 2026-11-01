@@ -11,6 +11,7 @@ use App\Modules\Orders\OrderService;
 use App\Modules\Reviews\ProductReviewService;
 use App\Modules\Suppliers\SupplierAdminService;
 use App\Modules\Content\ContentAdminService;
+use App\Modules\Customers\CustomerAdminService;
 use App\Shared\Config\Config;
 use App\Shared\Http\RateLimiter;
 use App\Shared\Http\View;
@@ -24,7 +25,7 @@ use Psr\Http\Message\ServerRequestInterface;
 
 final class AdminController
 {
-    public function __construct(private readonly PDO $pdo, private readonly AdminDashboardService $dashboardService, private readonly AdminNotificationService $notificationService, private readonly AdminPushService $push, private readonly CatalogRepository $catalog, private readonly CatalogAdminService $catalogAdmin, private readonly SupplierAdminService $suppliers, private readonly OrderService $orders, private readonly ProductReviewService $reviews, private readonly MediaService $media, private readonly ContentAdminService $contentAdmin, private readonly Auth $auth, private readonly AdminRememberMe $rememberMe, private readonly RateLimiter $limiter, private readonly View $view, private readonly Config $config)
+    public function __construct(private readonly PDO $pdo, private readonly AdminDashboardService $dashboardService, private readonly AdminNotificationService $notificationService, private readonly AdminPushService $push, private readonly CatalogRepository $catalog, private readonly CatalogAdminService $catalogAdmin, private readonly CustomerAdminService $customers, private readonly SupplierAdminService $suppliers, private readonly OrderService $orders, private readonly ProductReviewService $reviews, private readonly MediaService $media, private readonly ContentAdminService $contentAdmin, private readonly Auth $auth, private readonly AdminRememberMe $rememberMe, private readonly RateLimiter $limiter, private readonly View $view, private readonly Config $config)
     {
     }
 
@@ -250,6 +251,152 @@ final class AdminController
             'admin_context' => 'Produse',
             'admin_unread_count' => $this->notificationService->unreadCount((int) ($this->auth->user()['id'] ?? 0)),
         ]);
+    }
+
+    public function customers(ServerRequestInterface $request): ResponseInterface
+    {
+        $query = $request->getQueryParams();
+        $search = trim(mb_substr((string) ($query['cautare'] ?? ''), 0, 120));
+        $pagination = $this->customers->paginate(max(1, (int) ($query['pagina'] ?? 1)), 15, $search);
+        foreach ($pagination['items'] as &$customer) {
+            $this->decorateCustomer($customer);
+        }
+        unset($customer);
+        $firstPage = max(1, $pagination['page'] - 2);
+        $lastPage = min($pagination['total_pages'], $pagination['page'] + 2);
+        $pagination['page_numbers'] = range($firstPage, $lastPage);
+
+        return $this->view->render('admin/pages/customers.twig', [
+            'customers' => $pagination['items'],
+            'pagination' => $pagination,
+            'customer_summary' => $this->customers->summary(),
+            'search' => $search,
+            'filters_query' => $search !== '' ? http_build_query(['cautare' => $search]) : '',
+            'has_filters' => $search !== '',
+            'admin_section' => 'customers',
+            'admin_context' => 'Clienți',
+            'admin_unread_count' => $this->notificationService->unreadCount((int) ($this->auth->user()['id'] ?? 0)),
+        ]);
+    }
+
+    public function customerDetail(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $data = $this->customerDetailData((int) ($args['id'] ?? 0), max(1, (int) ($request->getQueryParams()['pagina_comenzi'] ?? 1)));
+        if ($data === null) {
+            Flash::set('error', 'Clientul solicitat nu a fost găsit.');
+            return $this->view->redirect($this->config->path('admin/clienti/'));
+        }
+
+        return $this->view->render('admin/pages/customer-detail.twig', [
+            ...$data,
+            'admin_section' => 'customers',
+            'admin_context' => 'Profil client',
+            'admin_unread_count' => $this->notificationService->unreadCount((int) ($this->auth->user()['id'] ?? 0)),
+        ]);
+    }
+
+    public function customerModal(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $data = $this->customerDetailData((int) ($args['id'] ?? 0), max(1, (int) ($request->getQueryParams()['pagina_comenzi'] ?? 1)));
+        if ($data === null) {
+            return $this->view->render('admin/partials/customer-detail-error.twig', [], 404);
+        }
+        return $this->view->render('admin/partials/customer-detail-modal.twig', [...$data, 'customer_modal' => true]);
+    }
+
+    public function customerState(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $customerId = (int) ($args['id'] ?? 0);
+        $data = (array) ($request->getParsedBody() ?? []);
+        $wantsJson = str_contains(strtolower($request->getHeaderLine('Accept')), 'application/json');
+        try {
+            $message = $this->customers->updateAccountStatus(
+                $customerId,
+                (string) ($data['action'] ?? ''),
+                (string) ($data['reason'] ?? ''),
+                (int) ($this->auth->user()['id'] ?? 0),
+            );
+            if ($wantsJson) {
+                $response->getBody()->write((string) json_encode(['ok' => true, 'message' => $message], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+                return $response->withHeader('Content-Type', 'application/json; charset=utf-8')->withHeader('Cache-Control', 'no-store');
+            }
+            Flash::set('success', $message);
+        } catch (\Throwable $exception) {
+            if ($wantsJson) {
+                $response->getBody()->write((string) json_encode(['ok' => false, 'message' => $exception->getMessage()], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+                return $response->withStatus(422)->withHeader('Content-Type', 'application/json; charset=utf-8')->withHeader('Cache-Control', 'no-store');
+            }
+            Flash::set('error', $exception->getMessage());
+        }
+
+        return $this->view->redirect($this->config->path('admin/clienti/' . $customerId . '/'));
+    }
+
+    public function customerDiscountForm(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $data = $this->customerDiscountFormData((int) ($args['id'] ?? 0));
+        if ($data === null) {
+            Flash::set('error', 'Clientul solicitat nu a fost găsit.');
+            return $this->view->redirect($this->config->path('admin/clienti/'));
+        }
+        return $this->view->render('admin/pages/customer-discount-form.twig', [
+            ...$data,
+            'admin_section' => 'customers',
+            'admin_context' => 'Reducere client',
+            'admin_unread_count' => $this->notificationService->unreadCount((int) ($this->auth->user()['id'] ?? 0)),
+        ]);
+    }
+
+    public function customerDiscountModal(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $data = $this->customerDiscountFormData((int) ($args['id'] ?? 0));
+        if ($data === null) {
+            return $this->view->render('admin/partials/customer-detail-error.twig', [], 404);
+        }
+        return $this->view->render('admin/partials/customer-discount-form.twig', $data);
+    }
+
+    public function saveCustomerDiscount(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $customerId = (int) ($args['id'] ?? 0);
+        $wantsJson = str_contains(strtolower($request->getHeaderLine('Accept')), 'application/json');
+        try {
+            $message = $this->customers->createDiscount($customerId, (array) ($request->getParsedBody() ?? []), (int) ($this->auth->user()['id'] ?? 0));
+            if ($wantsJson) {
+                $response->getBody()->write((string) json_encode(['ok' => true, 'message' => $message], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+                return $response->withHeader('Content-Type', 'application/json; charset=utf-8')->withHeader('Cache-Control', 'no-store');
+            }
+            Flash::set('success', $message);
+            return $this->view->redirect($this->config->path('admin/clienti/' . $customerId . '/'));
+        } catch (\Throwable $exception) {
+            if ($wantsJson) {
+                $response->getBody()->write((string) json_encode(['ok' => false, 'message' => $exception->getMessage()], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+                return $response->withStatus(422)->withHeader('Content-Type', 'application/json; charset=utf-8')->withHeader('Cache-Control', 'no-store');
+            }
+            Flash::set('error', $exception->getMessage());
+            return $this->view->redirect($this->config->path('admin/clienti/' . $customerId . '/reduceri/noua/'));
+        }
+    }
+
+    public function deleteCustomerDiscount(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $customerId = (int) ($args['id'] ?? 0);
+        $wantsJson = str_contains(strtolower($request->getHeaderLine('Accept')), 'application/json');
+        try {
+            $message = $this->customers->deleteDiscount($customerId, (int) ($args['discount_id'] ?? 0));
+            if ($wantsJson) {
+                $response->getBody()->write((string) json_encode(['ok' => true, 'message' => $message], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+                return $response->withHeader('Content-Type', 'application/json; charset=utf-8')->withHeader('Cache-Control', 'no-store');
+            }
+            Flash::set('success', $message);
+        } catch (\Throwable $exception) {
+            if ($wantsJson) {
+                $response->getBody()->write((string) json_encode(['ok' => false, 'message' => $exception->getMessage()], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+                return $response->withStatus(422)->withHeader('Content-Type', 'application/json; charset=utf-8')->withHeader('Cache-Control', 'no-store');
+            }
+            Flash::set('error', $exception->getMessage());
+        }
+        return $this->view->redirect($this->config->path('admin/clienti/' . $customerId . '/'));
     }
 
     public function suppliers(ServerRequestInterface $request): ResponseInterface
@@ -876,5 +1023,101 @@ final class AdminController
             Flash::set('error', $exception->getMessage());
         }
         return $this->view->redirect($this->config->path('admin/cupoane/'));
+    }
+
+    /** @return array{customer:array<string,mixed>,discounts:list<array<string,mixed>>,orders:array<string,mixed>}|null */
+    private function customerDetailData(int $customerId, int $orderPage): ?array
+    {
+        $data = $this->customers->detail($customerId, $orderPage, 6);
+        if ($data === null) {
+            return null;
+        }
+
+        $this->decorateCustomer($data['customer']);
+        $statusLabels = [
+            'new' => 'Nouă', 'confirmed' => 'Confirmată', 'preparing' => 'În pregătire',
+            'shipped' => 'Expediată', 'delivered' => 'Livrată', 'cancelled' => 'Anulată',
+            'returned' => 'Returnată', 'manual_review' => 'De verificat',
+        ];
+        $paymentLabels = [
+            'pending' => 'În așteptare', 'paid' => 'Plătită', 'failed' => 'Eșuată',
+            'partially_refunded' => 'Rambursată parțial', 'refunded' => 'Rambursată',
+        ];
+        foreach ($data['orders']['items'] as &$order) {
+            $order['display_created_at'] = $this->localCustomerDate((string) ($order['created_at'] ?? ''));
+            $order['status_label'] = $statusLabels[(string) ($order['status'] ?? '')] ?? ucfirst((string) ($order['status'] ?? ''));
+            $order['payment_status_label'] = $paymentLabels[(string) ($order['payment_status'] ?? '')] ?? ucfirst((string) ($order['payment_status'] ?? ''));
+            $order['payment_method_label'] = (string) ($order['payment_method'] ?? '') === 'stripe' ? 'Card online' : 'Ramburs';
+            $names = array_values(array_filter(array_map('trim', explode(',', (string) ($order['product_names'] ?? '')))));
+            $order['product_preview'] = implode(', ', array_slice($names, 0, 2));
+            $order['more_products'] = max(0, count($names) - 2);
+        }
+        unset($order);
+        foreach ($data['discounts'] as &$discount) {
+            $discount['scope_label'] = match ((string) $discount['scope']) {
+                'order' => 'Toată comanda', 'product' => 'Produs', 'category' => 'Categorie', 'shipping' => 'Livrare', default => 'Reducere',
+            };
+            $discount['value_label'] = match ((string) $discount['value_type']) {
+                'free' => 'Livrare gratuită',
+                'percent' => rtrim(rtrim(number_format(((int) $discount['value']) / 100, 2, ',', ''), '0'), ',') . '% reducere',
+                default => Money::format((int) $discount['value']) . ' reducere',
+            };
+            $discount['validity_label'] = ($discount['starts_at'] ?? null) && ($discount['ends_at'] ?? null)
+                ? $this->localCustomerDate((string) $discount['starts_at']) . ' – ' . $this->localCustomerDate((string) $discount['ends_at'])
+                : 'Fără termen · mereu activă';
+        }
+        unset($discount);
+        $firstPage = max(1, $data['orders']['page'] - 2);
+        $lastPage = min($data['orders']['total_pages'], $data['orders']['page'] + 2);
+        $data['orders']['page_numbers'] = range($firstPage, $lastPage);
+
+        return $data;
+    }
+
+    /** @return array<string,mixed>|null */
+    private function customerDiscountFormData(int $customerId): ?array
+    {
+        $detail = $this->customers->detail($customerId, 1, 1);
+        if ($detail === null) {
+            return null;
+        }
+        $customer = $detail['customer'];
+        $this->decorateCustomer($customer);
+        return ['customer' => $customer, 'catalog' => $this->customers->discountCatalog()];
+    }
+
+    /** @param array<string,mixed> $customer */
+    private function decorateCustomer(array &$customer): void
+    {
+        $customer['display_name'] = trim((string) ($customer['first_name'] ?? '') . ' ' . (string) ($customer['last_name'] ?? '')) ?: 'Client fără nume';
+        $customer['initials'] = mb_strtoupper(mb_substr((string) ($customer['first_name'] ?? ''), 0, 1) . mb_substr((string) ($customer['last_name'] ?? ''), 0, 1));
+        $customer['initials'] = $customer['initials'] !== '' ? $customer['initials'] : 'CL';
+        $customer['display_created_at'] = $this->localCustomerDate((string) ($customer['created_at'] ?? ''));
+        $customer['display_last_login_at'] = $this->localCustomerDate((string) ($customer['last_login_at'] ?? ''), 'Nicio conectare înregistrată');
+        $customer['display_last_order_at'] = $this->localCustomerDate((string) ($customer['last_order_at'] ?? ''), 'Nicio comandă');
+        $customer['display_first_order_at'] = $this->localCustomerDate((string) ($customer['first_order_at'] ?? ''), 'Nicio comandă');
+        $customer['display_blocked_at'] = $this->localCustomerDate((string) ($customer['blocked_at'] ?? ''), '—');
+        $customer['account_type_label'] = (int) ($customer['uses_google'] ?? 0) === 1 ? 'Google' : 'La Măriuca';
+        $customer['subscription_label'] = (int) ($customer['is_subscribed'] ?? 0) === 1 ? 'Abonat la noutăți' : 'Neabonat';
+        $customer['status_label'] = match ((string) ($customer['status'] ?? '')) {
+            'active' => 'Cont activ',
+            'blocked' => 'Cont blocat',
+            'pending' => 'În așteptare',
+            default => ucfirst((string) ($customer['status'] ?? '')),
+        };
+    }
+
+    private function localCustomerDate(string $value, string $empty = '—'): string
+    {
+        if (trim($value) === '') {
+            return $empty;
+        }
+        try {
+            return (new \DateTimeImmutable($value, new \DateTimeZone('UTC')))
+                ->setTimezone(new \DateTimeZone('Europe/Bucharest'))
+                ->format('d.m.Y, H:i');
+        } catch (\Throwable) {
+            return $empty;
+        }
     }
 }

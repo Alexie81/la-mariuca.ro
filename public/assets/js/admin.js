@@ -2490,6 +2490,15 @@
   const categoryDeleteTitle = categoryDeleteDialog?.querySelector('[data-admin-category-delete-title]');
   const categoryDeleteMessage = categoryDeleteDialog?.querySelector('[data-admin-category-delete-message]');
   const categoryDeleteNote = categoryDeleteDialog?.querySelector('[data-admin-category-delete-note]');
+  const categoryDeleteEyebrow = categoryDeleteDialog?.querySelector('[data-admin-category-delete-eyebrow]');
+  const categoryDeleteBlockers = categoryDeleteDialog?.querySelector('[data-admin-category-delete-blockers]');
+  const categoryDeleteChildren = categoryDeleteDialog?.querySelector('[data-admin-category-delete-children]');
+  const categoryDeleteProducts = categoryDeleteDialog?.querySelector('[data-admin-category-delete-products]');
+  const categoryDeleteChildCount = categoryDeleteDialog?.querySelector('[data-admin-category-delete-child-count]');
+  const categoryDeleteProductCount = categoryDeleteDialog?.querySelector('[data-admin-category-delete-product-count]');
+  const categoryDeleteChildLabel = categoryDeleteDialog?.querySelector('[data-admin-category-delete-child-label]');
+  const categoryDeleteProductLabel = categoryDeleteDialog?.querySelector('[data-admin-category-delete-product-label]');
+  const categoryDeleteCancel = categoryDeleteDialog?.querySelector('[data-admin-category-delete-cancel]');
   const categoryDeleteConfirm = categoryDeleteDialog?.querySelector('[data-admin-category-delete-confirm]');
   let pendingCategoryDeleteForm = null;
 
@@ -2502,20 +2511,35 @@
       pendingCategoryDeleteForm = form;
       const blocked = form.dataset.categoryBlocked === '1';
       const note = form.dataset.categoryDeleteNote?.trim() || '';
+      const childCount = Math.max(0, Number.parseInt(form.dataset.categoryChildCount || '0', 10) || 0);
+      const productCount = Math.max(0, Number.parseInt(form.dataset.categoryProductCount || '0', 10) || 0);
+      categoryDeleteDialog?.classList.toggle('is-blocked', blocked);
+      categoryDeleteDialog?.classList.toggle('is-ready', !blocked);
       if (categoryDeleteName) categoryDeleteName.textContent = form.dataset.categoryName || 'Categoria';
-      if (categoryDeleteTitle) categoryDeleteTitle.textContent = blocked ? 'Categoria nu poate fi ștearsă încă' : 'Ștergi categoria?';
-      if (categoryDeleteMessage) categoryDeleteMessage.textContent = blocked ? 'trebuie eliberată înainte de ștergere.' : 'va fi eliminată definitiv din arbore.';
+      if (categoryDeleteTitle) categoryDeleteTitle.textContent = blocked ? 'Categoria este încă ocupată' : 'Ștergi această categorie?';
+      if (categoryDeleteEyebrow) categoryDeleteEyebrow.textContent = blocked ? 'Ștergere indisponibilă' : 'Confirmare necesară';
+      if (categoryDeleteMessage) categoryDeleteMessage.textContent = blocked ? 'nu poate fi ștearsă cât timp conține elemente.' : 'va fi eliminată definitiv din arbore.';
       if (categoryDeleteNote) { categoryDeleteNote.textContent = note; categoryDeleteNote.hidden = !note; }
-      if (categoryDeleteConfirm) { categoryDeleteConfirm.disabled = blocked; categoryDeleteConfirm.textContent = blocked ? 'Mută elementele mai întâi' : 'Da, șterge categoria'; }
+      if (categoryDeleteBlockers) categoryDeleteBlockers.hidden = !blocked;
+      if (categoryDeleteChildren) categoryDeleteChildren.hidden = childCount === 0;
+      if (categoryDeleteProducts) categoryDeleteProducts.hidden = productCount === 0;
+      if (categoryDeleteChildCount) categoryDeleteChildCount.textContent = String(childCount);
+      if (categoryDeleteProductCount) categoryDeleteProductCount.textContent = String(productCount);
+      if (categoryDeleteChildLabel) categoryDeleteChildLabel.textContent = childCount === 1 ? 'subcategorie' : 'subcategorii';
+      if (categoryDeleteProductLabel) categoryDeleteProductLabel.textContent = productCount === 1 ? 'produs asociat' : 'produse asociate';
+      if (categoryDeleteCancel) categoryDeleteCancel.textContent = blocked ? 'Am înțeles' : 'Renunță';
+      if (categoryDeleteConfirm) { categoryDeleteConfirm.hidden = blocked; categoryDeleteConfirm.disabled = false; categoryDeleteConfirm.textContent = 'Da, șterge categoria'; }
       if (!categoryDeleteDialog || typeof categoryDeleteDialog.showModal !== 'function') {
         if (blocked) window.alert(note || 'Categoria are elemente asociate.');
         else if (window.confirm(`Ștergi categoria „${form.dataset.categoryName || ''}”?`)) form.submit();
         return;
       }
       categoryDeleteDialog.showModal();
+      categoryDeleteCancel?.focus({ preventScroll: true });
     });
   });
-  categoryDeleteDialog?.querySelector('[data-admin-category-delete-cancel]')?.addEventListener('click', closeCategoryDeleteDialog);
+  categoryDeleteCancel?.addEventListener('click', closeCategoryDeleteDialog);
+  categoryDeleteDialog?.querySelector('[data-admin-category-delete-close]')?.addEventListener('click', closeCategoryDeleteDialog);
   categoryDeleteDialog?.addEventListener('click', (event) => { if (event.target === categoryDeleteDialog) closeCategoryDeleteDialog(); });
   categoryDeleteDialog?.addEventListener('cancel', (event) => { event.preventDefault(); closeCategoryDeleteDialog(); });
   categoryDeleteDialog?.addEventListener('close', () => { pendingCategoryDeleteForm = null; });
@@ -2524,6 +2548,256 @@
     categoryDeleteConfirm.disabled = true;
     categoryDeleteConfirm.textContent = 'Se șterge…';
     pendingCategoryDeleteForm.submit();
+  });
+
+  const customerDialog = document.querySelector('[data-admin-customer-dialog]');
+  const customerContent = customerDialog?.querySelector('[data-admin-customer-content]');
+  const customerDiscountDialog = document.querySelector('[data-admin-customer-discount-dialog]');
+  const customerDiscountContent = customerDiscountDialog?.querySelector('[data-admin-customer-discount-content]');
+  const customerDiscountLoading = customerDiscountContent?.innerHTML || '';
+  const customerLoading = customerContent?.innerHTML || '';
+  let customerRequest = null;
+  let customerDiscountRequest = null;
+  let customerTrigger = null;
+
+  const initializeCustomerDiscountForm = (root = document) => {
+    const form = root.querySelector?.('[data-admin-customer-discount-form]');
+    if (!form || form.dataset.ready === '1') return;
+    form.dataset.ready = '1';
+    const scopeInputs = [...form.querySelectorAll('input[name="scope"]')];
+    const valueInputs = [...form.querySelectorAll('input[name="value_type"]')];
+    const validityInputs = [...form.querySelectorAll('input[name="validity"]')];
+    const valueInput = form.querySelector('[data-discount-value]');
+    const valueUnit = form.querySelector('[data-discount-unit]');
+    const valueHelp = form.querySelector('[data-discount-value-help]');
+    const freeOption = form.querySelector('[data-discount-free-option]');
+    const dates = form.querySelector('[data-discount-dates]');
+    const updateScope = () => {
+      const scope = scopeInputs.find((input) => input.checked)?.value || 'order';
+      form.querySelectorAll('[data-discount-target]').forEach((panel) => { panel.hidden = panel.dataset.discountTarget !== scope; });
+      if (freeOption) freeOption.hidden = scope !== 'shipping';
+      const selectedType = valueInputs.find((input) => input.checked);
+      if (scope !== 'shipping' && selectedType?.value === 'free') valueInputs.find((input) => input.value === 'percent')?.click();
+      updateValue();
+    };
+    const updateValue = () => {
+      const type = valueInputs.find((input) => input.checked)?.value || 'percent';
+      if (valueInput) {
+        valueInput.disabled = type === 'free';
+        valueInput.required = type !== 'free';
+        if (type === 'free') valueInput.value = '';
+        else if (valueInput.value === '') valueInput.value = type === 'percent' ? '10' : '25';
+      }
+      if (valueUnit) valueUnit.textContent = type === 'percent' ? '%' : type === 'fixed' ? 'Lei' : '✓';
+      if (valueHelp) valueHelp.textContent = type === 'percent' ? 'Introdu un procent între 0,01 și 100.' : type === 'fixed' ? 'Suma se scade din valoarea eligibilă.' : 'Clientul nu va plăti livrarea.';
+    };
+    const updateValidity = () => {
+      const period = validityInputs.find((input) => input.checked)?.value === 'period';
+      if (dates) dates.hidden = !period;
+      dates?.querySelectorAll('input').forEach((input) => { input.required = period; });
+    };
+    scopeInputs.forEach((input) => input.addEventListener('change', updateScope));
+    valueInputs.forEach((input) => input.addEventListener('change', updateValue));
+    validityInputs.forEach((input) => input.addEventListener('change', updateValidity));
+    form.querySelector('[data-discount-product-search]')?.addEventListener('input', (event) => {
+      const query = event.target.value.trim().toLocaleLowerCase('ro');
+      form.querySelectorAll('[data-discount-product]').forEach((item) => { item.hidden = query !== '' && !item.dataset.search.includes(query); });
+    });
+    updateScope();
+    updateValidity();
+  };
+
+  const closeCustomerDiscountDialog = () => {
+    if (!customerDiscountDialog?.open) return;
+    customerDiscountRequest?.abort();
+    customerDiscountRequest = null;
+    customerDiscountDialog.classList.remove('is-visible');
+    window.setTimeout(() => { if (customerDiscountDialog.open) customerDiscountDialog.close(); }, reducedMotion ? 0 : 180);
+  };
+
+  const loadCustomerDiscountForm = async (url) => {
+    if (!customerDiscountContent || !url) return;
+    customerDiscountRequest?.abort();
+    customerDiscountRequest = new AbortController();
+    customerDiscountContent.innerHTML = customerDiscountLoading;
+    try {
+      const response = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' }, signal: customerDiscountRequest.signal });
+      const markup = await response.text();
+      if (!response.ok || response.redirected || !markup.includes('data-admin-customer-discount-form')) throw new Error();
+      customerDiscountContent.innerHTML = markup;
+      customerDiscountContent.scrollTop = 0;
+      initializeCustomerDiscountForm(customerDiscountContent);
+    } catch (error) {
+      if (error.name !== 'AbortError') customerDiscountContent.innerHTML = '<div class="admin-customer-error"><span aria-hidden="true">!</span><h2>Nu am putut deschide configuratorul</h2><p>Reîncarcă pagina și încearcă din nou.</p></div>';
+    } finally {
+      customerDiscountRequest = null;
+    }
+  };
+
+  const closeCustomerDialog = () => {
+    if (!customerDialog?.open) return;
+    customerRequest?.abort();
+    customerRequest = null;
+    customerDialog.classList.remove('is-visible');
+    document.documentElement.classList.remove('has-admin-customer-dialog');
+    window.setTimeout(() => {
+      if (customerDialog.open) customerDialog.close();
+    }, reducedMotion ? 0 : 180);
+  };
+
+  const showCustomerError = () => {
+    if (!customerContent) return;
+    customerContent.innerHTML = '<div class="admin-customer-error"><span aria-hidden="true">!</span><h2>Nu am putut deschide profilul</h2><p>Verifică legătura la internet și încearcă din nou.</p></div>';
+  };
+
+  const loadCustomerProfile = async (url, showLoading = true) => {
+    if (!customerContent || !url) return;
+    customerRequest?.abort();
+    customerRequest = new AbortController();
+    if (showLoading) customerContent.innerHTML = customerLoading;
+    customerContent.classList.toggle('is-changing-page', !showLoading);
+    try {
+      const response = await fetch(url, {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        signal: customerRequest.signal,
+      });
+      const markup = await response.text();
+      if (!response.ok || response.redirected || !markup.includes('data-admin-customer-profile')) throw new Error();
+      customerContent.innerHTML = markup;
+      customerContent.scrollTop = 0;
+    } catch (error) {
+      if (error.name !== 'AbortError') showCustomerError();
+    } finally {
+      customerContent.classList.remove('is-changing-page');
+      customerRequest = null;
+    }
+  };
+
+  document.querySelectorAll('[data-admin-customer-trigger]').forEach((trigger) => {
+    trigger.addEventListener('click', (event) => {
+      if (!customerDialog || typeof customerDialog.showModal !== 'function' || !window.fetch) return;
+      event.preventDefault();
+      customerTrigger = trigger;
+      customerDialog.showModal();
+      document.documentElement.classList.add('has-admin-customer-dialog');
+      requestAnimationFrame(() => customerDialog.classList.add('is-visible'));
+      loadCustomerProfile(trigger.dataset.modalUrl);
+    });
+  });
+  customerContent?.addEventListener('click', (event) => {
+    const discountTrigger = event.target.closest('[data-admin-customer-discount-trigger]');
+    if (discountTrigger && customerDiscountDialog && typeof customerDiscountDialog.showModal === 'function' && window.fetch) {
+      event.preventDefault();
+      customerDiscountDialog.showModal();
+      requestAnimationFrame(() => customerDiscountDialog.classList.add('is-visible'));
+      loadCustomerDiscountForm(discountTrigger.dataset.modalUrl);
+      return;
+    }
+    const paginationLink = event.target.closest('[data-admin-customer-orders-page]');
+    if (!paginationLink || !window.fetch) return;
+    event.preventDefault();
+    loadCustomerProfile(paginationLink.dataset.modalUrl, false);
+  });
+  customerContent?.addEventListener('submit', async (event) => {
+    const deleteDiscountForm = event.target.closest('[data-admin-customer-discount-delete]');
+    if (deleteDiscountForm) {
+      event.preventDefault();
+      const submit = deleteDiscountForm.querySelector('button[type="submit"]');
+      if (submit) { submit.disabled = true; submit.textContent = 'Se șterge…'; }
+      try {
+        const response = await fetch(deleteDiscountForm.action, { method: 'POST', body: new FormData(deleteDiscountForm), headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } });
+        const payload = await response.json();
+        if (!response.ok || !payload.ok) throw new Error(payload.message || 'Reducerea nu a putut fi ștearsă.');
+        await loadCustomerProfile(deleteDiscountForm.dataset.modalUrl, false);
+      } catch (error) {
+        if (submit) { submit.disabled = false; submit.textContent = 'Încearcă din nou'; }
+      }
+      return;
+    }
+    const form = event.target.closest('[data-admin-customer-state-form]');
+    if (!form) return;
+    event.preventDefault();
+    if (!form.reportValidity()) return;
+    const submit = form.querySelector('button[type="submit"]');
+    const feedback = form.querySelector('[data-admin-customer-state-feedback]');
+    const action = form.querySelector('input[name="action"]')?.value || '';
+    if (submit) submit.disabled = true;
+    if (feedback) feedback.hidden = true;
+    try {
+      const response = await fetch(form.action, {
+        method: 'POST',
+        body: new FormData(form),
+        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+      });
+      const contentType = response.headers.get('Content-Type') || '';
+      if (!contentType.includes('application/json')) throw new Error('Sesiunea a expirat. Reîncarcă pagina și încearcă din nou.');
+      const payload = await response.json();
+      if (!response.ok || !payload.ok) throw new Error(payload.message || 'Starea contului nu a putut fi actualizată.');
+      const row = document.querySelector(`[data-customer-row="${form.dataset.customerId}"]`);
+      const rowStatus = row?.querySelector('[data-customer-row-status]');
+      row?.classList.toggle('is-customer-blocked', action === 'block');
+      if (rowStatus) {
+        rowStatus.classList.toggle('admin-customer-row-state', action === 'block');
+        rowStatus.classList.toggle('is-blocked', action === 'block');
+        rowStatus.innerHTML = action === 'block' ? '<i></i>Cont dezactivat' : 'Cont activ';
+      }
+      if (feedback) {
+        feedback.textContent = payload.message;
+        feedback.hidden = false;
+        feedback.style.background = '#e8f6ef';
+        feedback.style.color = '#28785e';
+      }
+      window.setTimeout(() => loadCustomerProfile(form.dataset.modalUrl, false), reducedMotion ? 0 : 450);
+    } catch (error) {
+      if (submit) submit.disabled = false;
+      if (feedback) {
+        feedback.textContent = error.message || 'Verifică motivul și încearcă din nou.';
+        feedback.hidden = false;
+      }
+    }
+  });
+  customerDiscountContent?.addEventListener('submit', async (event) => {
+    const form = event.target.closest('[data-admin-customer-discount-form]');
+    if (!form) return;
+    event.preventDefault();
+    if (!form.reportValidity()) return;
+    const submit = form.querySelector('button[type="submit"]');
+    const feedback = form.querySelector('[data-admin-customer-discount-feedback]');
+    if (submit) submit.disabled = true;
+    if (feedback) feedback.hidden = true;
+    try {
+      const response = await fetch(form.action, { method: 'POST', body: new FormData(form), headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } });
+      const payload = await response.json();
+      if (!response.ok || !payload.ok) throw new Error(payload.message || 'Reducerea nu a putut fi salvată.');
+      closeCustomerDiscountDialog();
+      await loadCustomerProfile(form.dataset.customerModalUrl, false);
+    } catch (error) {
+      if (submit) submit.disabled = false;
+      if (feedback) { feedback.textContent = error.message || 'Verifică datele și încearcă din nou.'; feedback.hidden = false; }
+    }
+  });
+  customerDiscountDialog?.addEventListener('click', (event) => {
+    if (event.target === customerDiscountDialog || event.target.closest('[data-admin-customer-discount-close]')) { event.preventDefault(); closeCustomerDiscountDialog(); }
+  });
+  customerDiscountDialog?.addEventListener('cancel', (event) => { event.preventDefault(); closeCustomerDiscountDialog(); });
+  customerDiscountDialog?.addEventListener('close', () => { customerDiscountDialog.classList.remove('is-visible'); if (customerDiscountContent) customerDiscountContent.innerHTML = customerDiscountLoading; });
+  initializeCustomerDiscountForm(document);
+  customerDialog?.addEventListener('click', (event) => {
+    if (event.target === customerDialog || event.target.closest('[data-admin-customer-close]')) {
+      event.preventDefault();
+      closeCustomerDialog();
+    }
+  });
+  customerDialog?.addEventListener('cancel', (event) => {
+    event.preventDefault();
+    closeCustomerDialog();
+  });
+  customerDialog?.addEventListener('close', () => {
+    document.documentElement.classList.remove('has-admin-customer-dialog');
+    customerDialog.classList.remove('is-visible');
+    if (customerContent) customerContent.innerHTML = customerLoading;
+    customerTrigger?.focus({ preventScroll: true });
+    customerTrigger = null;
   });
 
   document.querySelectorAll('[data-admin-toast]').forEach((toast) => {

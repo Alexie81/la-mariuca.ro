@@ -1,0 +1,88 @@
+<article class="admin-customer-profile" data-admin-customer-profile>
+  <header class="admin-customer-profile__hero">
+    <span class="admin-customer-profile__glow" aria-hidden="true"></span>
+    <div class="admin-customer-profile__identity">
+      <span class="admin-customer-profile__avatar">{{ customer.initials }}</span>
+      <div>
+        <span class="admin-eyebrow">Profil client</span>
+        <h2 id="admin-customer-dialog-title">{{ customer.display_name }}</h2>
+        <a href="mailto:{{ customer.email }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4zM4 7l8 6 8-6"/></svg>{{ customer.email }}</a>
+      </div>
+    </div>
+    <div class="admin-customer-profile__hero-side">
+      <div class="admin-customer-profile__badges">
+        <span class="is-status"><i></i>{{ customer.status_label }}</span>
+        <span class="{{ customer.is_subscribed ? 'is-subscribed' : 'is-muted' }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4zM4 7l8 6 8-6"/></svg>{{ customer.subscription_label }}</span>
+        <span class="is-account">{% if customer.uses_google %}<img src="{{ url('assets/images/google-g.svg') }}" width="15" height="15" alt="">{% else %}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 5 6v5c0 4.6 2.8 8.2 7 10 4.2-1.8 7-5.4 7-10V6l-7-3Z"/></svg>{% endif %}{{ customer.account_type_label }}</span>
+      </div>
+      <p class="admin-customer-profile__member"><small>Client din</small><strong>{{ customer.display_created_at }}</strong></p>
+    </div>
+  </header>
+
+  <section class="admin-customer-profile__metrics" aria-label="Rezumat comercial">
+    <article><i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 8h14l-1 12H6L5 8ZM9 9V6a3 3 0 0 1 6 0v3"/></svg></i><span><small>Comenzi</small><strong>{{ customer.order_count }}</strong><em>{{ customer.order_count == 1 ? 'comandă plasată' : 'comenzi plasate' }}</em></span></article>
+    <article><i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 7h16v12H4zM7 4h10v3M8 12h8M8 15h5"/></svg></i><span><small>Valoare totală</small><strong>{{ money(customer.total_spent_bani) }}</strong><em>comenzi valide</em></span></article>
+    <article><i aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/></svg></i><span><small>Coș mediu</small><strong>{{ money(customer.average_order_bani) }}</strong><em>per comandă</em></span></article>
+    <article><i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 4h14v16H5zM8 2v4M16 2v4M8 10h8M8 14h5"/></svg></i><span><small>Ultima comandă</small><strong class="is-date">{{ customer.display_last_order_at }}</strong><em>{{ customer.order_count ? 'activitate recentă' : 'încă nu a comandat' }}</em></span></article>
+  </section>
+
+  <div class="admin-customer-profile__layout">
+    <section class="admin-customer-profile__card admin-customer-profile__card--account" aria-labelledby="customer-account-title">
+      <div class="admin-customer-profile__heading"><span><i aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></i><span><small>Date client</small><h3 id="customer-account-title">Cont și contact</h3></span></span><span class="admin-customer-profile__verified{{ customer.email_verified_at ? ' is-verified' : '' }}"><i></i>{{ customer.email_verified_at ? 'Email verificat' : 'Email neverificat' }}</span></div>
+      <dl class="admin-customer-profile__details">
+        <div><dt><i><svg viewBox="0 0 24 24"><path d="M4 5h16v14H4zM4 7l8 6 8-6"/></svg></i>Email</dt><dd><a href="mailto:{{ customer.email }}">{{ customer.email }}</a></dd></div>
+        <div><dt><i><svg viewBox="0 0 24 24"><path d="M7 3h4l2 5-3 2a16 16 0 0 0 4 4l2-3 5 2v4c0 2-2 4-4 4A17 17 0 0 1 3 7c0-2 2-4 4-4Z"/></svg></i>Telefon</dt><dd>{% if customer.phone %}<a href="tel:{{ customer.phone }}">{{ customer.phone }}</a>{% else %}<span class="is-empty">Necompletat</span>{% endif %}</dd></div>
+        <div><dt><i><svg viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.6 2.8 8.2 7 10 4.2-1.8 7-5.4 7-10V6l-7-3Z"/></svg></i>Tip cont</dt><dd><strong>{{ customer.account_type_label }}</strong><small>{{ customer.uses_google ? 'Conectare prin Google' : 'Conectare cu email și parolă' }}</small></dd></div>
+        <div><dt><i><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></i>Ultima conectare</dt><dd>{{ customer.display_last_login_at }}</dd></div>
+        <div><dt><i><svg viewBox="0 0 24 24"><path d="M5 4h14v16H5zM8 2v4M16 2v4M8 10h8"/></svg></i>Cont creat</dt><dd>{{ customer.display_created_at }}</dd></div>
+        <div><dt><i><svg viewBox="0 0 24 24"><path d="M5 8h14l-1 12H6L5 8ZM9 9V6a3 3 0 0 1 6 0v3"/></svg></i>Prima comandă</dt><dd>{{ customer.display_first_order_at }}</dd></div>
+      </dl>
+    </section>
+
+    <section class="admin-customer-profile__card admin-customer-profile__card--address" aria-labelledby="customer-address-title">
+      <div class="admin-customer-profile__heading"><span><i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg></i><span><small>Livrare</small><h3 id="customer-address-title">Ultima adresă</h3></span></span></div>
+      {% set address = customer.last_shipping_address|default({}) %}
+      {% if address.address|default('') %}
+        <address><span class="admin-customer-profile__address-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg></span><strong>{{ address.first_name|default(customer.first_name) }} {{ address.last_name|default(customer.last_name) }}</strong><span>{{ address.address }}</span><span>{{ address.postal_code|default('') }} {{ address.city|default('') }}{% if address.county|default('') %}, {{ address.county }}{% endif %}</span></address>
+        <p class="admin-customer-profile__privacy"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 5 6v5c0 4.6 2.8 8.2 7 10 4.2-1.8 7-5.4 7-10V6l-7-3Z"/></svg>Folosită doar pentru gestionarea comenzilor.</p>
+      {% else %}
+        <div class="admin-customer-profile__no-address"><span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg></span><strong>Adresă indisponibilă</strong><p>Va apărea automat după prima comandă asociată acestui cont.</p></div>
+      {% endif %}
+    </section>
+  </div>
+
+  <section class="admin-customer-access{{ customer.status == 'blocked' ? ' is-blocked' : '' }}" aria-labelledby="customer-access-title">
+    <header><span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.6 2.8 8.2 7 10 4.2-1.8 7-5.4 7-10V6l-7-3Z"/><path d="M9 9l6 6M15 9l-6 6"/></svg></span><div><small>Acces în magazin</small><h3 id="customer-access-title">{{ customer.status == 'blocked' ? 'Cont dezactivat' : 'Administrarea contului' }}</h3><p>{{ customer.status == 'blocked' ? 'Clientul nu se poate autentifica până la reactivarea contului.' : 'Folosește blocarea doar pentru spam, abuz sau activitate suspectă.' }}</p></div></header>
+    {% if customer.status == 'blocked' %}
+      <div class="admin-customer-access__blocked"><div><small>Motivul dezactivării</small><strong>{{ customer.blocked_reason ?: 'Motiv nespecificat' }}</strong><span>{{ customer.display_blocked_at }}{% if customer.blocked_by_name %} · de {{ customer.blocked_by_name }}{% endif %}</span></div><form action="{{ url('admin/clienti/' ~ customer.id ~ '/stare/') }}" method="post" data-admin-customer-state-form data-customer-id="{{ customer.id }}" data-modal-url="{{ url('admin/clienti/' ~ customer.id ~ '/modal/') }}"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="action" value="activate"><button type="submit"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>Reactivează contul</button><p data-admin-customer-state-feedback hidden></p></form></div>
+    {% else %}
+      <form class="admin-customer-access__form" action="{{ url('admin/clienti/' ~ customer.id ~ '/stare/') }}" method="post" data-admin-customer-state-form data-customer-id="{{ customer.id }}" data-modal-url="{{ url('admin/clienti/' ~ customer.id ~ '/modal/') }}"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="action" value="block"><label><span>Motivul dezactivării <b>obligatoriu</b></span><textarea name="reason" minlength="3" maxlength="300" rows="2" required placeholder="Ex: spam repetat, comportament abuziv sau activitate suspectă"></textarea><small>Motivul va rămâne vizibil administratorilor cât timp contul este blocat.</small></label><div><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 5 6v5c0 4.6 2.8 8.2 7 10 4.2-1.8 7-5.4 7-10V6l-7-3Z"/></svg>Autentificarea clientului va fi oprită imediat.</span><button type="submit"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 9v4M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg>Dezactivează contul</button></div><p data-admin-customer-state-feedback hidden></p></form>
+    {% endif %}
+  </section>
+
+  <section class="admin-customer-benefits" aria-labelledby="customer-benefits-title">
+    <header>
+      <div class="admin-customer-benefits__title"><span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20 12 12 20 4 12V4h8l8 8Z"/><circle cx="9" cy="9" r="1.5"/></svg></span><div><small>Avantaje personale</small><h3 id="customer-benefits-title">Reducerile clientului</h3><p>Se aplică automat la cumpărături, fără cod de cupon.</p></div></div>
+      <a href="{{ url('admin/clienti/' ~ customer.id ~ '/reduceri/noua/') }}" data-admin-customer-discount-trigger data-modal-url="{{ url('admin/clienti/' ~ customer.id ~ '/reduceri/noua/modal/') }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Adaugă reducere</a>
+    </header>
+    {% if discounts %}
+      <div class="admin-customer-benefits__list">
+        {% for discount in discounts %}
+          <article class="admin-customer-benefit admin-customer-benefit--{{ discount.scope }}">
+            <span class="admin-customer-benefit__icon" aria-hidden="true"><svg viewBox="0 0 24 24">{% if discount.scope == 'shipping' %}<path d="M3 6h11v11H3zM14 10h4l3 4v3h-7z"/><circle cx="7" cy="18" r="2"/><circle cx="18" cy="18" r="2"/>{% elseif discount.scope == 'product' %}<path d="M5 8h14l-1 12H6L5 8ZM9 9V6a3 3 0 0 1 6 0v3"/>{% elseif discount.scope == 'category' %}<path d="M3 7h7l2 2h9v10H3z"/>{% else %}<path d="M20 12 12 20 4 12V4h8l8 8Z"/><circle cx="9" cy="9" r="1.5"/>{% endif %}</svg></span>
+            <div class="admin-customer-benefit__copy"><span>{{ discount.scope_label }}</span><strong>{{ discount.value_label }}</strong>{% if discount.target_name %}<p>Pentru <b>{{ discount.target_name }}</b></p>{% endif %}<small><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>{{ discount.validity_label }}</small></div>
+            <details class="admin-customer-benefit__delete"><summary aria-label="Șterge reducerea"><svg viewBox="0 0 24 24"><path d="M5 7h14M9 7V4h6v3M8 10v9M12 10v9M16 10v9"/></svg></summary><div><strong>Ștergi reducerea?</strong><p>Nu va mai fi aplicată comenzilor viitoare.</p><form action="{{ url('admin/clienti/' ~ customer.id ~ '/reduceri/' ~ discount.id ~ '/sterge/') }}" method="post" data-admin-customer-discount-delete data-modal-url="{{ url('admin/clienti/' ~ customer.id ~ '/modal/') }}"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><button type="submit">Da, șterge</button></form></div></details>
+          </article>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="admin-customer-benefits__empty"><span aria-hidden="true">%</span><div><strong>Nicio reducere personală</strong><p>Poți oferi un avantaj pentru o comandă, un produs, o categorie sau livrare.</p></div></div>
+    {% endif %}
+  </section>
+
+  <section class="admin-customer-orders" aria-labelledby="customer-orders-title">
+    <header><div><span class="admin-eyebrow">Istoric comercial</span><h3 id="customer-orders-title">Comenzile clientului</h3><p>{% if orders.total %}Se afișează {{ orders.from }}–{{ orders.to }} din {{ orders.total }}.{% else %}Toate comenzile asociate contului vor apărea aici.{% endif %}</p></div>{% if orders.total %}<span class="admin-customer-orders__total">{{ money(customer.total_spent_bani) }}<small>valoare validă</small></span>{% endif %}</header>
+    {% if orders.items %}<div class="admin-customer-orders__list">{% for order in orders.items %}<article class="admin-customer-order"><div class="admin-customer-order__number"><span>{{ order.order_number ?: '#' ~ order.id }}</span><small>{{ order.display_created_at }}</small></div><div class="admin-customer-order__products"><strong>{{ order.product_quantity }} {{ order.product_quantity == 1 ? 'produs' : 'produse' }}</strong><small>{{ order.product_preview ?: 'Produse arhivate' }}{% if order.more_products %} +{{ order.more_products }}{% endif %}</small></div><div class="admin-customer-order__states"><span class="is-order">{{ order.status_label }}</span><span class="is-payment is-{{ order.payment_status }}">{{ order.payment_status_label }}</span></div><strong class="admin-customer-order__value">{{ money(order.total_bani) }}</strong><a href="{{ url('admin/comenzi/' ~ order.id ~ '/') }}" aria-label="Deschide comanda {{ order.order_number }}"><svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></a></article>{% endfor %}</div>{% else %}<div class="admin-customer-orders__empty"><span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 8h14l-1 12H6L5 8ZM9 9V6a3 3 0 0 1 6 0v3"/><path d="M9 14h6"/></svg></span><div><strong>Nicio comandă până acum</strong><p>Profilul este pregătit. Prima comandă va apărea automat aici, împreună cu plata și produsele.</p></div><i>0 comenzi</i></div>{% endif %}
+    {% if orders.total_pages > 1 %}<nav class="admin-customer-orders__pagination" aria-label="Paginarea comenzilor clientului">{% if orders.page > 1 %}<a href="{{ url('admin/clienti/' ~ customer.id ~ '/?pagina_comenzi=' ~ (orders.page - 1)) }}" data-admin-customer-orders-page data-modal-url="{{ url('admin/clienti/' ~ customer.id ~ '/modal/?pagina_comenzi=' ~ (orders.page - 1)) }}" aria-label="Comenzi anterioare"><svg viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></svg></a>{% endif %}<span>Pagina <strong>{{ orders.page }}</strong> din {{ orders.total_pages }}</span>{% if orders.page < orders.total_pages %}<a href="{{ url('admin/clienti/' ~ customer.id ~ '/?pagina_comenzi=' ~ (orders.page + 1)) }}" data-admin-customer-orders-page data-modal-url="{{ url('admin/clienti/' ~ customer.id ~ '/modal/?pagina_comenzi=' ~ (orders.page + 1)) }}" aria-label="Mai multe comenzi"><svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></a>{% endif %}</nav>{% endif %}
+  </section>
+</article>

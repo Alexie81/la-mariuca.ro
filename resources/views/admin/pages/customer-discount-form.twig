@@ -1,0 +1,3 @@
+{% extends 'admin/layouts/base.twig' %}
+{% block title %}Reducere pentru {{ customer.display_name }}{% endblock %}
+{% block content %}<div class="admin-customer-discount-page"><a class="admin-customer-page__back" href="{{ url('admin/clienti/' ~ customer.id ~ '/') }}"><svg viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></svg>Înapoi la profil</a>{% include 'admin/partials/customer-discount-form.twig' %}</div>{% endblock %}

@@ -1,0 +1,46 @@
+<form class="admin-customer-discount-form" action="{{ url('admin/clienti/' ~ customer.id ~ '/reduceri/noua/') }}" method="post" data-admin-customer-discount-form data-customer-modal-url="{{ url('admin/clienti/' ~ customer.id ~ '/modal/') }}">
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  <header class="admin-customer-discount-hero">
+    <span class="admin-customer-discount-hero__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20 12 12 20 4 12V4h8l8 8Z"/><circle cx="9" cy="9" r="1.5"/></svg></span>
+    <div><span class="admin-eyebrow">Avantaj personal</span><h2 id="admin-customer-discount-title">Creează o reducere</h2><p>Pentru <strong>{{ customer.display_name }}</strong> · o vom aplica automat, fără cod.</p></div>
+    <span class="admin-customer-discount-hero__badge"><i></i>Activă imediat</span>
+  </header>
+
+  <div class="admin-customer-discount-steps">
+    <section class="admin-customer-discount-step">
+      <header><span>1</span><div><small>Unde se aplică?</small><h3>Alege beneficiul</h3><p>O singură alegere, ca totul să rămână clar.</p></div></header>
+      <div class="admin-customer-discount-scopes">
+        {% set scopes = [
+          {value:'order', title:'Toată comanda', text:'Reducere din valoarea totală', icon:'tag'},
+          {value:'product', title:'Un produs', text:'Doar produsul ales', icon:'bag'},
+          {value:'category', title:'O categorie', text:'Produsele din categoria aleasă', icon:'folder'},
+          {value:'shipping', title:'Livrare', text:'Gratuită sau redusă', icon:'truck'}
+        ] %}
+        {% for scope in scopes %}<label><input type="radio" name="scope" value="{{ scope.value }}" {{ loop.first ? 'checked' : '' }}><span><i aria-hidden="true"><svg viewBox="0 0 24 24">{% if scope.icon == 'truck' %}<path d="M3 6h11v11H3zM14 10h4l3 4v3h-7z"/><circle cx="7" cy="18" r="2"/><circle cx="18" cy="18" r="2"/>{% elseif scope.icon == 'bag' %}<path d="M5 8h14l-1 12H6L5 8ZM9 9V6a3 3 0 0 1 6 0v3"/>{% elseif scope.icon == 'folder' %}<path d="M3 7h7l2 2h9v10H3z"/>{% else %}<path d="M20 12 12 20 4 12V4h8l8 8Z"/><circle cx="9" cy="9" r="1.5"/>{% endif %}</svg></i><b>{{ scope.title }}</b><small>{{ scope.text }}</small><em><svg viewBox="0 0 24 24"><path d="m6 12 4 4 8-9"/></svg></em></span></label>{% endfor %}
+      </div>
+    </section>
+
+    <section class="admin-customer-discount-step">
+      <header><span>2</span><div><small>Ce primește?</small><h3>Configurează reducerea</h3><p>Alege valoarea și, unde este cazul, produsul sau categoria.</p></div></header>
+      <div class="admin-customer-discount-target" data-discount-target="product" hidden>
+        <label class="admin-customer-discount-search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m16 16 4 4"/></svg><input type="search" placeholder="Caută produsul după nume sau SKU…" data-discount-product-search></label>
+        <div class="admin-customer-discount-products" data-discount-product-list>{% for product in catalog.products %}<label data-discount-product data-search="{{ (product.name ~ ' ' ~ product.primary_sku ~ ' ' ~ product.category_name)|lower }}"><input type="radio" name="target_id" value="{{ product.id }}"><span>{% if product.image_path %}<img src="{{ url(product.image_path) }}" width="48" height="48" alt="">{% else %}<i><svg viewBox="0 0 24 24"><path d="M5 8h14l-1 12H6L5 8ZM9 9V6a3 3 0 0 1 6 0v3"/></svg></i>{% endif %}<b>{{ product.name }}</b><small>{{ product.category_name ?: 'Fără categorie' }}{% if product.primary_sku %} · {{ product.primary_sku }}{% endif %}</small><em><svg viewBox="0 0 24 24"><path d="m6 12 4 4 8-9"/></svg></em></span></label>{% else %}<p>Niciun produs publicat disponibil.</p>{% endfor %}</div>
+      </div>
+      <div class="admin-customer-discount-target" data-discount-target="category" hidden>
+        <div class="admin-customer-discount-categories">{% for category in catalog.categories %}<label><input type="radio" name="target_id" value="{{ category.id }}"><span style="--depth:{{ category.depth }}"><i><svg viewBox="0 0 24 24"><path d="M3 7h7l2 2h9v10H3z"/></svg></i><b>{{ category.path }}</b><em><svg viewBox="0 0 24 24"><path d="m6 12 4 4 8-9"/></svg></em></span></label>{% else %}<p>Nicio categorie publicată disponibilă.</p>{% endfor %}</div>
+      </div>
+      <div class="admin-customer-discount-value">
+        <fieldset><legend>Tipul reducerii</legend><label><input type="radio" name="value_type" value="percent" checked><span><b>Procent</b><small>Ex: 10%</small></span></label><label><input type="radio" name="value_type" value="fixed"><span><b>Sumă fixă</b><small>Ex: 25 Lei</small></span></label><label data-discount-free-option hidden><input type="radio" name="value_type" value="free"><span><b>Gratuită</b><small>Doar pentru livrare</small></span></label></fieldset>
+        <label class="admin-customer-discount-amount"><span>Valoarea reducerii</span><span><input type="text" inputmode="decimal" name="value" value="10" required data-discount-value><b data-discount-unit>%</b></span><small data-discount-value-help>Introdu un procent între 0,01 și 100.</small></label>
+      </div>
+    </section>
+
+    <section class="admin-customer-discount-step">
+      <header><span>3</span><div><small>Cât timp?</small><h3>Stabilește valabilitatea</h3><p>Poate rămâne activă mereu sau numai într-o perioadă.</p></div></header>
+      <div class="admin-customer-discount-validity"><label><input type="radio" name="validity" value="always" checked><span><i><svg viewBox="0 0 24 24"><path d="M8 12c-3-4-6-1-6 1s3 5 6 1l8-8c3-4 6-1 6 1s-3 5-6 1l-8 8Z"/></svg></i><b>Fără termen</b><small>Rămâne activă până o ștergi</small><em><svg viewBox="0 0 24 24"><path d="m6 12 4 4 8-9"/></svg></em></span></label><label><input type="radio" name="validity" value="period"><span><i><svg viewBox="0 0 24 24"><path d="M5 4h14v16H5zM8 2v4M16 2v4M8 10h8"/></svg></i><b>Perioadă aleasă</b><small>Cu dată de început și sfârșit</small><em><svg viewBox="0 0 24 24"><path d="m6 12 4 4 8-9"/></svg></em></span></label></div>
+      <div class="admin-customer-discount-dates" data-discount-dates hidden><label><span>Începe la</span><input type="datetime-local" name="starts_at"></label><i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></i><label><span>Se încheie la</span><input type="datetime-local" name="ends_at"></label></div>
+    </section>
+  </div>
+
+  <footer class="admin-customer-discount-footer"><div><span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.6 2.8 8.2 7 10 4.2-1.8 7-5.4 7-10V6l-7-3Z"/><path d="m9 12 2 2 4-4"/></svg></span><p><strong>Totul este pregătit.</strong><small>Reducerea se va aplica automat numai acestui client.</small></p></div><p data-admin-customer-discount-feedback hidden></p><button type="submit"><span>Activează reducerea</span><svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></button></footer>
+</form>
