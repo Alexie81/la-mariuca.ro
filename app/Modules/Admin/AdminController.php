@@ -1028,7 +1028,7 @@ final class AdminController
     /** @return array{customer:array<string,mixed>,discounts:list<array<string,mixed>>,orders:array<string,mixed>}|null */
     private function customerDetailData(int $customerId, int $orderPage): ?array
     {
-        $data = $this->customers->detail($customerId, $orderPage, 6);
+        $data = $this->customers->detail($customerId, $orderPage, 4);
         if ($data === null) {
             return null;
         }

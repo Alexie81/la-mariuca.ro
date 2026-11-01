@@ -77,7 +77,7 @@ final class CustomerAdminService
     /**
      * @return array{customer:array<string,mixed>,discounts:list<array<string,mixed>>,orders:array{items:list<array<string,mixed>>,page:int,per_page:int,total:int,total_pages:int,from:int,to:int}}|null
      */
-    public function detail(int $customerId, int $orderPage = 1, int $ordersPerPage = 6): ?array
+    public function detail(int $customerId, int $orderPage = 1, int $ordersPerPage = 4): ?array
     {
         $latestConsent = $this->latestConsentSql();
         $statement = $this->pdo->prepare("SELECT u.id,u.email,u.first_name,u.last_name,u.phone,u.status,u.email_verified_at,u.created_at,u.updated_at,u.last_login_at,u.blocked_reason,u.blocked_at,u.blocked_by_user_id,
