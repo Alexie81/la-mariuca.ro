@@ -29,6 +29,8 @@ use App\Modules\Customers\CustomerAdminService;
 use App\Modules\Customers\GoogleOAuthService;
 use App\Modules\Customers\TwoFactorController;
 use App\Modules\Media\MediaService;
+use App\Modules\Newsletter\NewsletterAdminService;
+use App\Modules\Newsletter\NewsletterSubscriptionService;
 use App\Modules\Orders\OrderService;
 use App\Modules\Payments\StripeWebhookController;
 use App\Modules\Payments\StripeCheckoutService;
@@ -77,6 +79,7 @@ final class AppFactory
         $reviews = new ProductReviewService(new ProductReviewRepository($pdo), $push);
         $cart = new CartService($pdo);
         $contactWhatsApp = new ContactWhatsAppService($config);
+        $newsletterSubscriptions = new NewsletterSubscriptionService($pdo);
         $productDescriptions = new ProductDescriptionSanitizer();
 
         $twig = new Environment(new FilesystemLoader($root . '/resources/views'), [
@@ -133,14 +136,14 @@ final class AppFactory
         $content = new ContentRepository($pdo);
         $orders = new OrderService($pdo);
 
-        $storefront = new StorefrontController($catalog, $catalogSearch, $categoryPaths, new ProductRecommendationService($catalog), $content, $contactWhatsApp, $reviews, $rateLimiter, $auth, $view, $config);
+        $storefront = new StorefrontController($catalog, $catalogSearch, $categoryPaths, new ProductRecommendationService($catalog), $content, $contactWhatsApp, $newsletterSubscriptions, $reviews, $rateLimiter, $auth, $view, $config);
         $cartController = new CartController($cart, $view, $config);
         $romanianLocations = RomanianLocations::fromProjectRoot($root);
         $customerAccount = new CustomerAccountService(new CustomerAccountRepository($pdo), $romanianLocations);
         $checkoutController = new CheckoutController(new CheckoutService($pdo, $cart, $config, $romanianLocations, $push), $cart, $orders, new StripeCheckoutService($pdo, $config), $auth, $customerAccount, $rateLimiter, $view, $config);
         $authController = new AuthController($pdo, $auth, new GoogleOAuthService($pdo, $config), $customerAccount, $rateLimiter, $view, $config);
         $twoFactorController = new TwoFactorController($pdo, $auth, new TotpService($config), $adminRememberMe, $rateLimiter, $view, $config);
-        $adminController = new AdminController($pdo, new AdminDashboardService($pdo), new AdminNotificationService($pdo), $push, $catalog, new CatalogAdminService($pdo, $productDescriptions), new CustomerAdminService($pdo), new SupplierAdminService($pdo), $orders, $reviews, new MediaService($pdo, $root), new ContentAdminService($pdo), $auth, $adminRememberMe, $rateLimiter, $view, $config);
+        $adminController = new AdminController($pdo, new AdminDashboardService($pdo), new AdminNotificationService($pdo), $push, $catalog, new CatalogAdminService($pdo, $productDescriptions), new CustomerAdminService($pdo), new NewsletterAdminService($pdo), new SupplierAdminService($pdo), $orders, $reviews, new MediaService($pdo, $root), new ContentAdminService($pdo), $auth, $adminRememberMe, $rateLimiter, $view, $config);
         $adminPushController = new AdminPushController($push, $auth, $view, $config);
 
         $app = SlimAppFactory::create();
@@ -167,6 +170,7 @@ final class AppFactory
         $app->post('/finalizare-comanda/', [$checkoutController, 'place']);
         $app->get('/comanda/{token}/', [$checkoutController, 'confirmation']);
         $app->post('/contact/whatsapp/', [$storefront, 'contactWhatsApp']);
+        $app->post('/newsletter/abonare/', [$storefront, 'newsletterSubscribe']);
         $app->get('/pagina/{slug}/', [$storefront, 'page']);
         $app->get('/robots.txt', [$storefront, 'robots']);
         $app->get('/sitemap.xml', [$storefront, 'sitemap']);
@@ -226,6 +230,9 @@ final class AppFactory
             $group->get('/clienti/{id:[0-9]+}/reduceri/noua/modal/', [$adminController, 'customerDiscountModal']);
             $group->post('/clienti/{id:[0-9]+}/reduceri/noua/', [$adminController, 'saveCustomerDiscount']);
             $group->post('/clienti/{id:[0-9]+}/reduceri/{discount_id:[0-9]+}/sterge/', [$adminController, 'deleteCustomerDiscount']);
+            $group->get('/abonati-newsletter/', [$adminController, 'newsletterSubscribers']);
+            $group->get('/abonati-newsletter/{id:[0-9]+}/', [$adminController, 'newsletterSubscriberDetail']);
+            $group->get('/abonati-newsletter/{id:[0-9]+}/modal/', [$adminController, 'newsletterSubscriberModal']);
             $group->get('/furnizori/', [$adminController, 'suppliers']);
             $group->get('/furnizori/nou/', [$adminController, 'supplierForm']);
             $group->get('/furnizori/nou/modal/', [$adminController, 'supplierModalForm']);

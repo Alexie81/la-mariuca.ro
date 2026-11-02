@@ -8,6 +8,7 @@ use App\Shared\Database\Migrator;
 use Database\Seeders\DemoSeeder;
 use Database\Seeders\AdminOrderDemoSeeder;
 use Database\Seeders\ExpandedCatalogSeeder;
+use Database\Seeders\NewsletterDemoSeeder;
 use App\Modules\Reviews\ProductReviewRepository;
 use App\Modules\Admin\AdminPushService;
 use Symfony\Component\Mailer\Mailer;
@@ -53,6 +54,11 @@ try {
             }
             $inserted = (new AdminOrderDemoSeeder($pdo))->run($count, (int) $customerId);
             fwrite(STDOUT, "Comenzi demonstrative asociate clientului: {$inserted}.\n");
+            break;
+        case 'seed:newsletter-demo':
+            $count = max(1, min(60, (int) ($argv[2] ?? 18)));
+            $inserted = (new NewsletterDemoSeeder($pdo))->run($count);
+            fwrite(STDOUT, "Abonați newsletter demo adăugați: {$inserted}.\n");
             break;
         case 'review:demo':
             $slug = trim((string) ($argv[2] ?? 'cuburi-moi-poveste'));
@@ -188,7 +194,7 @@ try {
             break;
         case 'help':
         default:
-            fwrite(STDOUT, "Comenzi: migrate, seed:demo, seed:catalog, seed:orders-demo [număr], seed:customer-orders-demo <email-client> [număr], review:demo [slug], review:demo-pack [slug], admin:create, outbox:process, push:process [limită], reservations:expire, csv:export [fișier], csv:import <fișier> --dry-run\n");
+            fwrite(STDOUT, "Comenzi: migrate, seed:demo, seed:catalog, seed:orders-demo [număr], seed:customer-orders-demo <email-client> [număr], seed:newsletter-demo [număr], review:demo [slug], review:demo-pack [slug], admin:create, outbox:process, push:process [limită], reservations:expire, csv:export [fișier], csv:import <fișier> --dry-run\n");
     }
 } catch (Throwable $exception) {
     if ($pdo->inTransaction()) {

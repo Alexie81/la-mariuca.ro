@@ -291,19 +291,23 @@
         <span class="footer-newsletter-eyebrow">Fii primul care află</span>
         <h2 id="footer-newsletter-title">Noutăți, oferte și colecții speciale</h2>
         <p>Abonează-te la newsletter și primești inspirație, oferte exclusive și cele mai noi produse pentru cei mici.</p>
-        <div class="footer-newsletter-form" role="group" aria-label="Abonare la newsletter">
-          <label class="footer-newsletter-email" for="footer-newsletter-email">
-            <span class="sr-only">Adresa de email</span>
-            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="m4 7 8 6 8-6"></path></svg>
-            <input id="footer-newsletter-email" type="email" name="newsletter_email" autocomplete="email" placeholder="Introdu adresa ta de email">
+        <form action="{{ url('newsletter/abonare/') }}" method="post">
+          <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+          <label class="footer-newsletter-trap" aria-hidden="true">Nu completa acest câmp<input type="text" name="website" tabindex="-1" autocomplete="off"></label>
+          <div class="footer-newsletter-form" role="group" aria-label="Abonare la newsletter">
+            <label class="footer-newsletter-email" for="footer-newsletter-email">
+              <span class="sr-only">Adresa de email</span>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="m4 7 8 6 8-6"></path></svg>
+              <input id="footer-newsletter-email" type="email" name="newsletter_email" maxlength="254" autocomplete="email" placeholder="Introdu adresa ta de email" required>
+            </label>
+            <button type="submit" aria-label="Abonează-mă la newsletter">Mă abonez <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"></path></svg></button>
+          </div>
+          <label class="footer-newsletter-consent">
+            <input type="checkbox" name="newsletter_consent" value="1" required>
+            <span aria-hidden="true"><svg viewBox="0 0 20 20"><path d="m5 10 3 3 7-7"></path></svg></span>
+            <small>Sunt de acord să primesc noutăți și oferte pe email.</small>
           </label>
-          <button type="button" aria-label="Abonează-mă la newsletter">Mă abonez <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"></path></svg></button>
-        </div>
-        <label class="footer-newsletter-consent">
-          <input type="checkbox" name="newsletter_consent">
-          <span aria-hidden="true"><svg viewBox="0 0 20 20"><path d="m5 10 3 3 7-7"></path></svg></span>
-          <small>Sunt de acord să primesc noutăți și oferte pe email.</small>
-        </label>
+        </form>
       </div>
       <svg class="footer-newsletter-wave" viewBox="0 0 1600 48" preserveAspectRatio="none" aria-hidden="true">
         <path d="M0 25C135 43 239 7 376 25s252-13 390 0 248 12 388 0 253-16 446 1"></path>

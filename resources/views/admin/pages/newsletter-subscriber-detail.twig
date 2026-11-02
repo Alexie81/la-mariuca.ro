@@ -1,0 +1,3 @@
+{% extends 'admin/layouts/base.twig' %}
+{% block title %}{{ subscriber.display_name }}{% endblock %}
+{% block content %}<div class="admin-customer-page"><a class="admin-customer-page__back" href="{{ url('admin/abonati-newsletter/') }}"><svg viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></svg>Înapoi la abonați</a>{% include 'admin/partials/newsletter-subscriber-content.twig' %}</div>{% endblock %}

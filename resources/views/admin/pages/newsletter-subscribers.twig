@@ -1,0 +1,69 @@
+{% extends 'admin/layouts/base.twig' %}
+
+{% block title %}Abonați newsletter{% endblock %}
+
+{% block content %}
+  <section class="admin-customers-hero admin-newsletter-hero" aria-labelledby="admin-newsletter-title">
+    <div class="admin-customers-hero__copy">
+      <span class="admin-eyebrow"><i aria-hidden="true"></i> Comunitatea La Măriuca</span>
+      <h1 id="admin-newsletter-title">Abonați newsletter</h1>
+      <p>Vezi clar cine a ales să rămână aproape, de unde a venit și ce mesaje a primit.</p>
+    </div>
+    <div class="admin-customers-summary" aria-label="Rezumat newsletter">
+      <article><i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5h16v14H4zM4 7l8 6 8-6"/></svg></i><span><strong>{{ newsletter_summary.total }}</strong><small>în registru</small></span></article>
+      <article><i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12l4 4L19 6"/><circle cx="12" cy="12" r="9"/></svg></i><span><strong>{{ newsletter_summary.active }}</strong><small>abonați activi</small></span></article>
+      <article><i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5.5h16v11H9l-5 3v-14Z"/><path d="M8 9.5h8M8 12.5h5"/></svg></i><span><strong>{{ newsletter_summary.from_contact }}</strong><small>din contact</small></span></article>
+      <article><i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m3 11 18-8-6 18-3-7-9-3Z"/><path d="m12 14 4-4"/></svg></i><span><strong>{{ newsletter_summary.sent_messages }}</strong><small>mesaje trimise</small></span></article>
+    </div>
+  </section>
+
+  <section class="admin-customers-panel admin-newsletter-panel" aria-labelledby="admin-newsletter-list-title">
+    <header class="admin-customers-panel__head">
+      <div><span class="admin-eyebrow">Registrul newsletterului</span><h2 id="admin-newsletter-list-title">Fiecare abonare are o poveste</h2></div>
+      {% if pagination.total > 0 %}<p><strong>{{ pagination.from }}–{{ pagination.to }}</strong> din {{ pagination.total }}</p>{% endif %}
+    </header>
+
+    <form class="admin-customers-search" action="{{ url('admin/abonati-newsletter/') }}" method="get" role="search">
+      <label>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m16.5 16.5 4 4"/></svg>
+        <span><small>Căutare semantică</small><input type="search" name="cautare" value="{{ search }}" placeholder="Ex: contact activ, email, nume, campanie sau stare…" autocomplete="off"></span>
+      </label>
+      {% if has_filters %}<a href="{{ url('admin/abonati-newsletter/') }}" aria-label="Șterge căutarea"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7l-10 10"/></svg></a>{% endif %}
+      <button type="submit"><span>Caută</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
+    </form>
+    <div class="admin-customers-search-hints" aria-label="Exemple de căutare"><span>Încearcă:</span><a href="{{ url('admin/abonati-newsletter/?cautare=contact+activ') }}">contact activ</a><a href="{{ url('admin/abonati-newsletter/?cautare=newsletter+abonat') }}">formular newsletter</a><a href="{{ url('admin/abonati-newsletter/?cautare=dezabonat') }}">dezabonat</a></div>
+
+    {% if subscribers %}
+      <div class="admin-customers-table-wrap">
+        <table class="admin-customers-table admin-newsletter-table">
+          <thead><tr><th>Abonat</th><th>Stare</th><th>Sursa abonării</th><th>Abonat din</th><th>Mesaje</th><th>Ultima notificare</th><th>Dezabonare</th><th><span class="sr-only">Deschide</span></th></tr></thead>
+          <tbody>
+          {% for subscriber in subscribers %}
+            <tr class="{{ subscriber.status != 'subscribed' ? 'is-newsletter-inactive' : '' }}">
+              <td data-label="Abonat"><a class="admin-customer-person" href="{{ url('admin/abonati-newsletter/' ~ subscriber.id ~ '/') }}" data-admin-newsletter-trigger data-modal-url="{{ url('admin/abonati-newsletter/' ~ subscriber.id ~ '/modal/') }}"><span class="admin-customer-avatar admin-newsletter-avatar">{{ subscriber.initials }}</span><span><strong>{{ subscriber.display_name }}</strong><small>{{ subscriber.email }}</small></span></a></td>
+              <td data-label="Stare"><span class="admin-newsletter-status is-{{ subscriber.status }}"><i></i>{{ subscriber.status_label }}</span></td>
+              <td data-label="Sursa abonării"><span class="admin-newsletter-source is-{{ subscriber.subscribe_source }}"><svg viewBox="0 0 24 24" aria-hidden="true">{% if subscriber.subscribe_source == 'contact_form' %}<path d="M4 5.5h16v11H9l-5 3v-14Z"/><path d="M8 9.5h8M8 12.5h5"/>{% else %}<path d="M4 5h16v14H4zM4 7l8 6 8-6"/>{% endif %}</svg>{{ subscriber.source_label }}</span></td>
+              <td data-label="Abonat din"><span class="admin-newsletter-date">{{ subscriber.display_subscribed_at }}</span></td>
+              <td data-label="Mesaje"><strong class="admin-customer-order-count">{{ subscriber.message_count }}</strong></td>
+              <td data-label="Ultima notificare"><span class="admin-newsletter-last"><strong>{{ subscriber.display_last_notified_at }}</strong><small>{{ subscriber.last_message_subject ?: 'Niciun mesaj trimis' }}</small></span></td>
+              <td data-label="Dezabonare"><span class="admin-newsletter-unsubscribe">{{ subscriber.status == 'subscribed' ? '—' : subscriber.unsubscribe_source_label }}</span></td>
+              <td class="admin-customers-table__action"><a href="{{ url('admin/abonati-newsletter/' ~ subscriber.id ~ '/') }}" data-admin-newsletter-trigger data-modal-url="{{ url('admin/abonati-newsletter/' ~ subscriber.id ~ '/modal/') }}" aria-label="Deschide profilul abonatului {{ subscriber.email }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a></td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% if pagination.total_pages > 1 %}
+        <nav class="admin-pagination admin-customers-pagination" aria-label="Paginarea abonaților newsletter">
+          {% if pagination.page > 1 %}<a class="admin-pagination__arrow" href="{{ url('admin/abonati-newsletter/?pagina=' ~ (pagination.page - 1) ~ (filters_query ? '&' ~ filters_query : '')) }}" aria-label="Pagina anterioară"><svg viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></svg></a>{% else %}<span class="admin-pagination__arrow is-disabled"><svg viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></svg></span>{% endif %}
+          <div class="admin-pagination__pages">{% for page_number in pagination.page_numbers %}<a href="{{ url('admin/abonati-newsletter/?pagina=' ~ page_number ~ (filters_query ? '&' ~ filters_query : '')) }}" class="{{ pagination.page == page_number ? 'is-active' : '' }}"{% if pagination.page == page_number %} aria-current="page"{% endif %}>{{ page_number }}</a>{% endfor %}</div>
+          {% if pagination.page < pagination.total_pages %}<a class="admin-pagination__arrow" href="{{ url('admin/abonati-newsletter/?pagina=' ~ (pagination.page + 1) ~ (filters_query ? '&' ~ filters_query : '')) }}" aria-label="Pagina următoare"><svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></a>{% else %}<span class="admin-pagination__arrow is-disabled"><svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></span>{% endif %}
+        </nav>
+      {% endif %}
+    {% else %}
+      <div class="admin-customers-empty"><span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5h16v14H4zM4 7l8 6 8-6"/></svg></span><strong>{{ has_filters ? 'Niciun abonat nu corespunde căutării' : 'Registrul newsletterului este pregătit' }}</strong><p>{{ has_filters ? 'Încearcă un email, un nume sau expresii precum „contact activ”.' : 'Primele abonări din footer sau formularul de contact vor apărea automat aici.' }}</p>{% if has_filters %}<a href="{{ url('admin/abonati-newsletter/') }}">Vezi toți abonații</a>{% endif %}</div>
+    {% endif %}
+  </section>
+
+  <dialog class="admin-customer-dialog admin-newsletter-dialog" data-admin-newsletter-dialog aria-labelledby="admin-newsletter-dialog-title"><div class="admin-customer-dialog__surface"><button type="button" class="admin-customer-dialog__close" data-admin-newsletter-close aria-label="Închide profilul abonatului"><svg viewBox="0 0 24 24"><path d="m7 7 10 10M17 7 7 17"/></svg></button><div class="admin-customer-dialog__content" data-admin-newsletter-content aria-live="polite"><div class="admin-customer-loading"><span aria-hidden="true"><i></i><i></i><i></i></span><strong>Pregătim profilul abonatului…</strong><small>Adunăm sursele, istoricul și mesajele trimise.</small></div></div></div></dialog>
+{% endblock %}

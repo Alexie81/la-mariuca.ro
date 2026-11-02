@@ -6102,6 +6102,31 @@
   line-height: 1.5;
 }
 
+.contact-consent--newsletter {
+  margin-top: .65rem;
+  border: 1px solid #edd8d0;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #fffaf8, #fff4ef);
+  box-shadow: 0 8px 20px rgba(111, 67, 55, .045);
+}
+
+.contact-consent--newsletter .contact-consent__copy {
+  display: grid;
+  gap: 3px;
+}
+
+.contact-consent--newsletter .contact-consent__copy strong {
+  color: #674b44;
+  font-size: .82rem;
+}
+
+.contact-consent--newsletter .contact-consent__copy small {
+  color: #9f8077;
+  font-size: .7rem;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
 .contact-field__error--consent {
   margin-top: .42rem;
   display: block;

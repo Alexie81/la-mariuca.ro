@@ -1,0 +1,48 @@
+<article class="admin-customer-profile admin-newsletter-profile" data-admin-newsletter-profile>
+  <div class="admin-customer-profile__summary" data-admin-newsletter-sticky-summary>
+    <header class="admin-customer-profile__hero">
+      <span class="admin-customer-profile__glow" aria-hidden="true"></span>
+      <div class="admin-customer-profile__identity">
+        <span class="admin-customer-profile__avatar admin-newsletter-avatar">{{ subscriber.initials }}</span>
+        <div><span class="admin-eyebrow">Profil abonat</span><h2 id="admin-newsletter-dialog-title">{{ subscriber.display_name }}</h2><a href="mailto:{{ subscriber.email }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4zM4 7l8 6 8-6"/></svg>{{ subscriber.email }}</a></div>
+      </div>
+      <div class="admin-customer-profile__hero-side">
+        <div class="admin-customer-profile__badges"><span class="is-status {{ subscriber.status == 'subscribed' ? '' : 'is-muted' }}"><i></i>{{ subscriber.status_label }}</span><span class="is-subscribed"><svg viewBox="0 0 24 24"><path d="M4 5h16v14H4zM4 7l8 6 8-6"/></svg>{{ subscriber.source_label }}</span>{% if subscriber.user_id %}<span class="is-account"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>Are cont client</span>{% endif %}</div>
+        <p class="admin-customer-profile__member"><small>Abonat din</small><strong>{{ subscriber.display_subscribed_at }}</strong></p>
+      </div>
+    </header>
+    <section class="admin-customer-profile__metrics" aria-label="Rezumat newsletter">
+      <article><i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m3 11 18-8-6 18-3-7-9-3Z"/></svg></i><span><small>Mesaje</small><strong>{{ subscriber.message_count }}</strong><em>{{ subscriber.message_count == 1 ? 'mesaj înregistrat' : 'mesaje înregistrate' }}</em></span></article>
+      <article><i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12l4 4L19 6"/><circle cx="12" cy="12" r="9"/></svg></i><span><small>Livrate</small><strong>{{ subscriber.delivered_count }}</strong><em>ajunse la adresă</em></span></article>
+      <article><i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M2 12s4-6 10-6 10 6 10 6-4 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="2.5"/></svg></i><span><small>Deschise</small><strong>{{ subscriber.opened_count }}</strong><em>interacțiuni cunoscute</em></span></article>
+      <article><i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 4h14v16H5zM8 2v4M16 2v4M8 10h8"/></svg></i><span><small>Ultima notificare</small><strong class="is-date">{{ subscriber.display_last_notified_at }}</strong><em>{{ subscriber.last_message_subject ?: 'niciun mesaj trimis' }}</em></span></article>
+    </section>
+  </div>
+
+  <div class="admin-customer-profile__body" data-admin-newsletter-scroll-body>
+    <div class="admin-customer-profile__layout admin-newsletter-profile__layout">
+      <section class="admin-customer-profile__card admin-customer-profile__card--account" aria-labelledby="newsletter-identity-title">
+        <div class="admin-customer-profile__heading"><span><i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5h16v14H4zM4 7l8 6 8-6"/></svg></i><span><small>Identitate</small><h3 id="newsletter-identity-title">Datele abonatului</h3></span></span><span class="admin-newsletter-status is-{{ subscriber.status }}"><i></i>{{ subscriber.status_label }}</span></div>
+        <dl class="admin-customer-profile__details">
+          <div><dt><i><svg viewBox="0 0 24 24"><path d="M4 5h16v14H4zM4 7l8 6 8-6"/></svg></i>Email</dt><dd><a href="mailto:{{ subscriber.email }}">{{ subscriber.email }}</a></dd></div>
+          <div><dt><i><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></i>Nume</dt><dd>{{ subscriber.display_name }}</dd></div>
+          <div><dt><i><svg viewBox="0 0 24 24"><path d="M3 7h7l2 2h9v10H3z"/></svg></i>Sursa abonării</dt><dd><strong>{{ subscriber.source_label }}</strong><small>înregistrată automat</small></dd></div>
+          <div><dt><i><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></i>Data abonării</dt><dd>{{ subscriber.display_subscribed_at }}</dd></div>
+          <div><dt><i><svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></i>Sursa dezabonării</dt><dd>{{ subscriber.status == 'subscribed' ? 'Încă abonat' : subscriber.unsubscribe_source_label }}</dd></div>
+          <div><dt><i><svg viewBox="0 0 24 24"><path d="M5 4h14v16H5zM8 2v4M16 2v4"/></svg></i>Data dezabonării</dt><dd>{{ subscriber.display_unsubscribed_at }}</dd></div>
+        </dl>
+      </section>
+
+      <section class="admin-customer-profile__card admin-newsletter-journey" aria-labelledby="newsletter-journey-title">
+        <div class="admin-customer-profile__heading"><span><i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 4h14v16H5zM8 2v4M16 2v4M8 10h8"/></svg></i><span><small>Parcurs</small><h3 id="newsletter-journey-title">Istoricul abonării</h3></span></span></div>
+        {% if events %}<ol class="admin-newsletter-timeline">{% for event in events %}<li class="is-{{ event.event_type }}"><i aria-hidden="true"></i><div><strong>{{ event.event_label }}</strong><span>{{ event.source_label }}</span><small>{{ event.display_created_at }}</small></div></li>{% endfor %}</ol>{% else %}<div class="admin-newsletter-timeline__empty">Istoricul va apărea după prima schimbare de stare.</div>{% endif %}
+      </section>
+    </div>
+
+    <section class="admin-customer-orders admin-newsletter-messages" aria-labelledby="newsletter-messages-title">
+      <header><div><span class="admin-eyebrow">Comunicare</span><h3 id="newsletter-messages-title">Mesajele trimise</h3><p>{% if messages.total %}Se afișează {{ messages.from }}–{{ messages.to }} din {{ messages.total }}.{% else %}Campaniile trimise acestui abonat vor apărea aici.{% endif %}</p></div>{% if messages.total %}<span class="admin-customer-orders__total">{{ messages.total }} {{ messages.total == 1 ? 'mesaj' : 'mesaje' }}</span>{% endif %}</header>
+      {% if messages.items %}<div class="admin-customer-orders__list">{% for message in messages.items %}<article class="admin-customer-order admin-newsletter-message"><div class="admin-customer-order__number"><span>{{ message.subject }}</span><small>{{ message.display_sent_at }}</small></div><div class="admin-customer-order__products"><strong>{{ message.status_label }}</strong><small>{{ message.preview_text ?: 'Fără text de previzualizare' }}</small></div><div class="admin-customer-order__states"><span class="is-payment is-{{ message.status }}">{{ message.status_label }}</span></div></article>{% endfor %}</div>{% else %}<div class="admin-customer-orders__empty"><span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5h16v14H4zM4 7l8 6 8-6"/></svg></span><div><strong>Niciun mesaj până acum</strong><p>Profilul este pregătit. Prima notificare va apărea automat cu starea și data livrării.</p></div><i>0 mesaje</i></div>{% endif %}
+      {% if messages.total_pages > 1 %}<nav class="admin-customer-orders__pagination" aria-label="Paginarea mesajelor abonatului">{% if messages.page > 1 %}<a href="{{ url('admin/abonati-newsletter/' ~ subscriber.id ~ '/?pagina_mesaje=' ~ (messages.page - 1)) }}" data-admin-newsletter-messages-page data-modal-url="{{ url('admin/abonati-newsletter/' ~ subscriber.id ~ '/modal/?pagina_mesaje=' ~ (messages.page - 1)) }}" aria-label="Mesaje anterioare"><svg viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></svg></a>{% endif %}<span>Pagina <strong>{{ messages.page }}</strong> din {{ messages.total_pages }}</span>{% if messages.page < messages.total_pages %}<a href="{{ url('admin/abonati-newsletter/' ~ subscriber.id ~ '/?pagina_mesaje=' ~ (messages.page + 1)) }}" data-admin-newsletter-messages-page data-modal-url="{{ url('admin/abonati-newsletter/' ~ subscriber.id ~ '/modal/?pagina_mesaje=' ~ (messages.page + 1)) }}" aria-label="Mai multe mesaje"><svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></a>{% endif %}</nav>{% endif %}
+    </section>
+  </div>
+</article>

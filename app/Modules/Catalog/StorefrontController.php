@@ -6,6 +6,7 @@ namespace App\Modules\Catalog;
 
 use App\Modules\Content\ContentRepository;
 use App\Modules\Content\ContactWhatsAppService;
+use App\Modules\Newsletter\NewsletterSubscriptionService;
 use App\Modules\Reviews\ProductReviewService;
 use App\Modules\Reviews\ProductReviewValidationException;
 use App\Shared\Config\Config;
@@ -26,6 +27,7 @@ final class StorefrontController
         private readonly ProductRecommendationService $recommendations,
         private readonly ContentRepository $content,
         private readonly ContactWhatsAppService $contactWhatsApp,
+        private readonly NewsletterSubscriptionService $newsletterSubscriptions,
         private readonly ProductReviewService $reviews,
         private readonly RateLimiter $limiter,
         private readonly Auth $auth,
@@ -783,7 +785,47 @@ final class StorefrontController
             return $this->view->redirect($this->config->path('pagina/contact/#formular-contact'));
         }
 
+        if (($result['values']['newsletter_consent'] ?? '') === '1') {
+            try {
+                $this->newsletterSubscriptions->subscribe((string) $result['values']['email'], (string) $result['values']['name'], 'contact_form');
+            } catch (\InvalidArgumentException $exception) {
+                $result['errors']['newsletter_consent'] = $exception->getMessage();
+                $_SESSION['_contact_form'] = $result;
+                return $this->view->redirect($this->config->path('pagina/contact/#formular-contact'));
+            } catch (\Throwable) {
+                $result['errors']['newsletter_consent'] = 'Abonarea nu a putut fi salvată momentan. Încearcă din nou peste puțin timp.';
+                $_SESSION['_contact_form'] = $result;
+                return $this->view->redirect($this->config->path('pagina/contact/#formular-contact'));
+            }
+        }
+
         return $this->view->redirect($this->contactWhatsApp->url($result['values']));
+    }
+
+    public function newsletterSubscribe(ServerRequestInterface $request): ResponseInterface
+    {
+        $input = (array) ($request->getParsedBody() ?? []);
+        if (trim((string) ($input['website'] ?? '')) !== '') {
+            return $this->view->redirect($this->config->path('#footer-newsletter'));
+        }
+        $ip = (string) ($request->getServerParams()['REMOTE_ADDR'] ?? 'unknown');
+        if (!$this->limiter->allow('newsletter-subscribe', $ip, 8, 3600)) {
+            Flash::set('error', 'Ai făcut mai multe încercări într-un timp scurt. Revino peste puțin timp.');
+            return $this->view->redirect($this->config->path('#footer-newsletter'));
+        }
+        if ((string) ($input['newsletter_consent'] ?? '') !== '1') {
+            Flash::set('error', 'Confirmă acordul pentru a primi noutățile La Măriuca.');
+            return $this->view->redirect($this->config->path('#footer-newsletter'));
+        }
+        try {
+            $message = $this->newsletterSubscriptions->subscribe((string) ($input['newsletter_email'] ?? ''), '', 'footer_newsletter');
+            Flash::set('success', $message);
+        } catch (\InvalidArgumentException $exception) {
+            Flash::set('error', $exception->getMessage());
+        } catch (\Throwable) {
+            Flash::set('error', 'Abonarea nu a putut fi salvată momentan. Încearcă din nou peste puțin timp.');
+        }
+        return $this->view->redirect($this->config->path('#footer-newsletter'));
     }
 
     public function robots(): ResponseInterface

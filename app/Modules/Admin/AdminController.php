@@ -12,6 +12,7 @@ use App\Modules\Reviews\ProductReviewService;
 use App\Modules\Suppliers\SupplierAdminService;
 use App\Modules\Content\ContentAdminService;
 use App\Modules\Customers\CustomerAdminService;
+use App\Modules\Newsletter\NewsletterAdminService;
 use App\Shared\Config\Config;
 use App\Shared\Http\RateLimiter;
 use App\Shared\Http\View;
@@ -25,7 +26,7 @@ use Psr\Http\Message\ServerRequestInterface;
 
 final class AdminController
 {
-    public function __construct(private readonly PDO $pdo, private readonly AdminDashboardService $dashboardService, private readonly AdminNotificationService $notificationService, private readonly AdminPushService $push, private readonly CatalogRepository $catalog, private readonly CatalogAdminService $catalogAdmin, private readonly CustomerAdminService $customers, private readonly SupplierAdminService $suppliers, private readonly OrderService $orders, private readonly ProductReviewService $reviews, private readonly MediaService $media, private readonly ContentAdminService $contentAdmin, private readonly Auth $auth, private readonly AdminRememberMe $rememberMe, private readonly RateLimiter $limiter, private readonly View $view, private readonly Config $config)
+    public function __construct(private readonly PDO $pdo, private readonly AdminDashboardService $dashboardService, private readonly AdminNotificationService $notificationService, private readonly AdminPushService $push, private readonly CatalogRepository $catalog, private readonly CatalogAdminService $catalogAdmin, private readonly CustomerAdminService $customers, private readonly NewsletterAdminService $newsletter, private readonly SupplierAdminService $suppliers, private readonly OrderService $orders, private readonly ProductReviewService $reviews, private readonly MediaService $media, private readonly ContentAdminService $contentAdmin, private readonly Auth $auth, private readonly AdminRememberMe $rememberMe, private readonly RateLimiter $limiter, private readonly View $view, private readonly Config $config)
     {
     }
 
@@ -293,6 +294,56 @@ final class AdminController
             'admin_context' => 'Profil client',
             'admin_unread_count' => $this->notificationService->unreadCount((int) ($this->auth->user()['id'] ?? 0)),
         ]);
+    }
+
+    public function newsletterSubscribers(ServerRequestInterface $request): ResponseInterface
+    {
+        $query = $request->getQueryParams();
+        $search = trim(mb_substr((string) ($query['cautare'] ?? ''), 0, 120));
+        $pagination = $this->newsletter->paginate(max(1, (int) ($query['pagina'] ?? 1)), 15, $search);
+        foreach ($pagination['items'] as &$subscriber) {
+            $this->decorateNewsletterSubscriber($subscriber);
+        }
+        unset($subscriber);
+        $firstPage = max(1, $pagination['page'] - 2);
+        $lastPage = min($pagination['total_pages'], $pagination['page'] + 2);
+        $pagination['page_numbers'] = range($firstPage, $lastPage);
+
+        return $this->view->render('admin/pages/newsletter-subscribers.twig', [
+            'subscribers' => $pagination['items'],
+            'pagination' => $pagination,
+            'newsletter_summary' => $this->newsletter->summary(),
+            'search' => $search,
+            'filters_query' => $search !== '' ? http_build_query(['cautare' => $search]) : '',
+            'has_filters' => $search !== '',
+            'admin_section' => 'newsletter',
+            'admin_context' => 'Abonați newsletter',
+            'admin_unread_count' => $this->notificationService->unreadCount((int) ($this->auth->user()['id'] ?? 0)),
+        ]);
+    }
+
+    public function newsletterSubscriberDetail(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $data = $this->newsletterSubscriberData((int) ($args['id'] ?? 0), max(1, (int) ($request->getQueryParams()['pagina_mesaje'] ?? 1)));
+        if ($data === null) {
+            Flash::set('error', 'Abonatul solicitat nu a fost găsit.');
+            return $this->view->redirect($this->config->path('admin/abonati-newsletter/'));
+        }
+        return $this->view->render('admin/pages/newsletter-subscriber-detail.twig', [
+            ...$data,
+            'admin_section' => 'newsletter',
+            'admin_context' => 'Profil abonat',
+            'admin_unread_count' => $this->notificationService->unreadCount((int) ($this->auth->user()['id'] ?? 0)),
+        ]);
+    }
+
+    public function newsletterSubscriberModal(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $data = $this->newsletterSubscriberData((int) ($args['id'] ?? 0), max(1, (int) ($request->getQueryParams()['pagina_mesaje'] ?? 1)));
+        if ($data === null) {
+            return $this->view->render('admin/partials/newsletter-subscriber-error.twig', [], 404);
+        }
+        return $this->view->render('admin/partials/newsletter-subscriber-modal.twig', $data);
     }
 
     public function customerModal(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
@@ -1072,6 +1123,65 @@ final class AdminController
         $data['orders']['page_numbers'] = range($firstPage, $lastPage);
 
         return $data;
+    }
+
+    /** @return array{subscriber:array<string,mixed>,events:list<array<string,mixed>>,messages:array<string,mixed>}|null */
+    private function newsletterSubscriberData(int $subscriberId, int $messagePage): ?array
+    {
+        $data = $this->newsletter->detail($subscriberId, $messagePage, 4);
+        if ($data === null) {
+            return null;
+        }
+        $this->decorateNewsletterSubscriber($data['subscriber']);
+        $eventLabels = [
+            'subscribe' => 'Abonare inițială', 'resubscribe' => 'Reabonare', 'unsubscribe' => 'Dezabonare',
+            'bounce' => 'Adresă respinsă', 'complaint' => 'Raportare spam',
+        ];
+        foreach ($data['events'] as &$event) {
+            $event['event_label'] = $eventLabels[(string) ($event['event_type'] ?? '')] ?? 'Actualizare';
+            $event['source_label'] = $this->newsletterSourceLabel((string) ($event['source'] ?? ''));
+            $event['display_created_at'] = $this->localCustomerDate((string) ($event['created_at'] ?? ''));
+        }
+        unset($event);
+        $deliveryLabels = [
+            'queued' => 'În așteptare', 'sent' => 'Trimis', 'delivered' => 'Livrat', 'opened' => 'Deschis',
+            'clicked' => 'Accesat', 'bounced' => 'Respins', 'failed' => 'Eșuat',
+        ];
+        foreach ($data['messages']['items'] as &$message) {
+            $message['status_label'] = $deliveryLabels[(string) ($message['status'] ?? '')] ?? ucfirst((string) ($message['status'] ?? ''));
+            $message['display_sent_at'] = $this->localCustomerDate((string) ($message['sent_at'] ?? $message['created_at'] ?? ''), 'Încă netrimis');
+        }
+        unset($message);
+        $firstPage = max(1, $data['messages']['page'] - 2);
+        $lastPage = min($data['messages']['total_pages'], $data['messages']['page'] + 2);
+        $data['messages']['page_numbers'] = range($firstPage, $lastPage);
+        return $data;
+    }
+
+    /** @param array<string,mixed> $subscriber */
+    private function decorateNewsletterSubscriber(array &$subscriber): void
+    {
+        $linkedName = trim((string) ($subscriber['linked_first_name'] ?? $subscriber['customer_first_name'] ?? '') . ' ' . (string) ($subscriber['linked_last_name'] ?? $subscriber['customer_last_name'] ?? ''));
+        $subscriber['display_name'] = trim((string) ($subscriber['name'] ?? '')) ?: ($linkedName ?: 'Abonat newsletter');
+        $parts = preg_split('/\s+/u', $subscriber['display_name'], -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        $subscriber['initials'] = mb_strtoupper(mb_substr((string) ($parts[0] ?? 'N'), 0, 1) . mb_substr((string) ($parts[count($parts) - 1] ?? ''), 0, 1));
+        $subscriber['source_label'] = $this->newsletterSourceLabel((string) ($subscriber['subscribe_source'] ?? ''));
+        $subscriber['unsubscribe_source_label'] = $this->newsletterSourceLabel((string) ($subscriber['unsubscribe_source'] ?? ''));
+        $subscriber['status_label'] = match ((string) ($subscriber['status'] ?? '')) {
+            'subscribed' => 'Abonat activ', 'unsubscribed' => 'Dezabonat', 'bounced' => 'Adresă respinsă', 'complained' => 'Raportat spam', default => 'Stare necunoscută',
+        };
+        $subscriber['display_subscribed_at'] = $this->localCustomerDate((string) ($subscriber['subscribed_at'] ?? ''));
+        $subscriber['display_unsubscribed_at'] = $this->localCustomerDate((string) ($subscriber['unsubscribed_at'] ?? ''), 'Nu s-a dezabonat');
+        $subscriber['display_last_notified_at'] = $this->localCustomerDate((string) ($subscriber['last_notified_at'] ?? ''), 'Nicio notificare');
+    }
+
+    private function newsletterSourceLabel(string $source): string
+    {
+        return match ($source) {
+            'footer_newsletter' => 'Formular newsletter', 'contact_form' => 'Formular contact', 'checkout' => 'Finalizare comandă',
+            'admin_import' => 'Import administrativ', 'email_link' => 'Link din email', 'contact_request' => 'Cerere de contact',
+            'admin' => 'Administrator', 'bounce' => 'Adresă respinsă', 'complaint' => 'Raportare spam', default => 'Nespecificată',
+        };
     }
 
     /** @return array<string,mixed>|null */

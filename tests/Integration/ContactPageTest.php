@@ -35,6 +35,7 @@ final class ContactPageTest extends DatabaseTestCase
         self::assertStringContainsString('name="_csrf"', $body);
         self::assertStringContainsString('name="subject"', $body);
         self::assertStringContainsString('name="consent"', $body);
+        self::assertStringContainsString('name="newsletter_consent"', $body);
         self::assertStringContainsString('Continuă conversația pe WhatsApp', $body);
         self::assertStringContainsString('Mesajul nu este trimis automat.', $body);
         self::assertStringContainsString('https://wa.me/40763715974?', $body);
@@ -89,6 +90,7 @@ final class ContactPageTest extends DatabaseTestCase
             'subject' => 'marime',
             'message' => 'Aș avea nevoie de ajutor pentru alegerea mărimii potrivite.',
             'consent' => '1',
+            'newsletter_consent' => '1',
             'website' => '',
         ]);
 
@@ -103,6 +105,8 @@ final class ContactPageTest extends DatabaseTestCase
         self::assertStringContainsString('Email: maria@example.test', $message);
         self::assertStringContainsString('Telefon: 0763 715 974', $message);
         self::assertStringContainsString('Aș avea nevoie de ajutor', $message);
+        $subscriber = $this->pdo->query("SELECT status,subscribe_source,name FROM newsletter_subscribers WHERE email='maria@example.test'")->fetch(\PDO::FETCH_ASSOC);
+        self::assertSame(['status' => 'subscribed', 'subscribe_source' => 'contact_form', 'name' => 'Maria Pop'], $subscriber);
     }
 
     public function testInvalidContactFormReturnsFieldErrorsAndKeepsSafeValues(): void

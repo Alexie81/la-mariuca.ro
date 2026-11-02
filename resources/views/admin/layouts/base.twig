@@ -15,7 +15,8 @@
   <title>{% block title %}Dashboard{% endblock %} · Administrare La Măriuca</title>
   <link rel="stylesheet" href="{{ url('assets/css/admin.css?v=20261031-category-tree-v17') }}">
   {% if admin_section|default('') == 'categories' %}<link rel="stylesheet" href="{{ url('assets/css/category-editor.css?v=20261101-v2') }}">{% endif %}
-  {% if admin_section|default('') == 'customers' %}<link rel="stylesheet" href="{{ url('assets/css/customer-admin.css?v=20261101-v15') }}">{% endif %}
+  {% if admin_section|default('') in ['customers', 'newsletter'] %}<link rel="stylesheet" href="{{ url('assets/css/customer-admin.css?v=20261101-v15') }}">{% endif %}
+  {% if admin_section|default('') == 'newsletter' %}<link rel="stylesheet" href="{{ url('assets/css/newsletter-admin.css?v=20261102-v1') }}">{% endif %}
 </head>
 {% set operator = admin_user|default(current_user()) %}
 {% set first_name = operator.first_name|default('Administrator') %}
@@ -92,6 +93,10 @@
         <a class="admin-nav__item{{ active_admin_section == 'customers' ? ' is-active' : '' }}" href="{{ url('admin/clienti/') }}"{% if active_admin_section == 'customers' %} aria-current="page"{% endif %}>
           <span class="admin-nav__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="4"/><path d="M2.5 21a6.5 6.5 0 0 1 13 0M16 8.5a3.5 3.5 0 0 1 0 6.8M17 17a5 5 0 0 1 4.5 4"/></svg></span>
           <span><strong>Clienți</strong><small>Conturi și comenzi</small></span>
+        </a>
+        <a class="admin-nav__item{{ active_admin_section == 'newsletter' ? ' is-active' : '' }}" href="{{ url('admin/abonati-newsletter/') }}"{% if active_admin_section == 'newsletter' %} aria-current="page"{% endif %}>
+          <span class="admin-nav__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4zM4 7l8 6 8-6"/><path d="M16.5 3.5 18 2l1.5 1.5L21 5l-1.5 1.5L18 8l-1.5-1.5L15 5l1.5-1.5Z"/></svg></span>
+          <span><strong>Abonați newsletter</strong><small>Surse și mesaje</small></span>
         </a>
         <span class="admin-nav__label admin-nav__label--section">Stoc și achiziții</span>
         <a class="admin-nav__item{{ active_admin_section == 'suppliers' ? ' is-active' : '' }}" href="{{ url('admin/furnizori/') }}"{% if active_admin_section == 'suppliers' %} aria-current="page"{% endif %}>

@@ -41,6 +41,7 @@ final class ContactWhatsAppService
             'subject' => $this->singleLine($input['subject'] ?? ''),
             'message' => trim((string) ($input['message'] ?? '')),
             'consent' => (string) ($input['consent'] ?? ''),
+            'newsletter_consent' => (string) ($input['newsletter_consent'] ?? ''),
         ];
         $errors = [];
 
@@ -61,6 +62,9 @@ final class ContactWhatsAppService
         }
         if ($values['consent'] !== '1') {
             $errors['consent'] = 'Confirmă că datele pot fi deschise în WhatsApp.';
+        }
+        if ($values['newsletter_consent'] === '1' && $values['email'] === '') {
+            $errors['newsletter_consent'] = 'Completează adresa de email pentru abonarea la newsletter.';
         }
 
         return ['values' => $values, 'errors' => $errors];

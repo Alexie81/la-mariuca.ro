@@ -2941,6 +2941,72 @@
     customerTrigger = null;
   });
 
+  const newsletterDialog = document.querySelector('[data-admin-newsletter-dialog]');
+  const newsletterContent = newsletterDialog?.querySelector('[data-admin-newsletter-content]');
+  const newsletterLoading = newsletterContent?.innerHTML || '';
+  let newsletterTrigger = null;
+  const closeNewsletterDialog = () => {
+    if (!newsletterDialog?.open) return;
+    newsletterDialog.classList.remove('is-visible');
+    window.setTimeout(() => {
+      if (newsletterDialog.open) newsletterDialog.close();
+    }, reducedMotion ? 0 : 170);
+  };
+  const showNewsletterError = () => {
+    if (!newsletterContent) return;
+    newsletterContent.innerHTML = '<div class="admin-customer-error"><span aria-hidden="true">!</span><h2>Nu am putut deschide profilul</h2><p>Reîncarcă pagina și încearcă din nou.</p></div>';
+  };
+  const loadNewsletterProfile = async (url, showLoading = true) => {
+    if (!newsletterContent || !url) return;
+    if (showLoading) newsletterContent.innerHTML = newsletterLoading;
+    newsletterContent.classList.toggle('is-changing-page', !showLoading);
+    try {
+      const response = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+      const markup = await response.text();
+      if (!response.ok || response.redirected || !markup.includes('data-admin-newsletter-profile')) throw new Error();
+      newsletterContent.innerHTML = markup;
+      newsletterContent.scrollTop = 0;
+    } catch (error) {
+      showNewsletterError();
+    } finally {
+      newsletterContent.classList.remove('is-changing-page');
+    }
+  };
+  document.querySelectorAll('[data-admin-newsletter-trigger]').forEach((trigger) => {
+    trigger.addEventListener('click', (event) => {
+      if (!newsletterDialog || typeof newsletterDialog.showModal !== 'function' || !window.fetch) return;
+      event.preventDefault();
+      newsletterTrigger = trigger;
+      newsletterDialog.showModal();
+      document.documentElement.classList.add('has-admin-customer-dialog');
+      requestAnimationFrame(() => newsletterDialog.classList.add('is-visible'));
+      loadNewsletterProfile(trigger.dataset.modalUrl);
+    });
+  });
+  newsletterContent?.addEventListener('click', (event) => {
+    const paginationLink = event.target.closest('[data-admin-newsletter-messages-page]');
+    if (!paginationLink || !window.fetch) return;
+    event.preventDefault();
+    loadNewsletterProfile(paginationLink.dataset.modalUrl, false);
+  });
+  newsletterDialog?.addEventListener('click', (event) => {
+    if (event.target === newsletterDialog || event.target.closest('[data-admin-newsletter-close]')) {
+      event.preventDefault();
+      closeNewsletterDialog();
+    }
+  });
+  newsletterDialog?.addEventListener('cancel', (event) => {
+    event.preventDefault();
+    closeNewsletterDialog();
+  });
+  newsletterDialog?.addEventListener('close', () => {
+    document.documentElement.classList.remove('has-admin-customer-dialog');
+    newsletterDialog.classList.remove('is-visible');
+    if (newsletterContent) newsletterContent.innerHTML = newsletterLoading;
+    newsletterTrigger?.focus({ preventScroll: true });
+    newsletterTrigger = null;
+  });
+
   document.querySelectorAll('[data-admin-toast]').forEach((toast) => {
     const remove = () => {
       toast.style.opacity = '0';
