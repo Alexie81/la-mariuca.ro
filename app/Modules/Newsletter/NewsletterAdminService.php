@@ -67,10 +67,8 @@ final class NewsletterAdminService
         ];
     }
 
-    /**
-     * @return array{subscriber:array<string,mixed>,events:list<array<string,mixed>>,messages:array{items:list<array<string,mixed>>,page:int,per_page:int,total:int,total_pages:int,from:int,to:int}}|null
-     */
-    public function detail(int $subscriberId, int $messagePage = 1, int $perPage = 4): ?array
+    /** @return array{subscriber:array<string,mixed>,events:list<array<string,mixed>>}|null */
+    public function detail(int $subscriberId): ?array
     {
         $statement = $this->pdo->prepare("SELECT s.*,u.first_name AS customer_first_name,u.last_name AS customer_last_name,u.created_at AS customer_created_at,
                 (SELECT COUNT(*) FROM newsletter_deliveries d WHERE d.subscriber_id=s.id AND d.status<>'queued') AS message_count,
@@ -88,33 +86,9 @@ final class NewsletterAdminService
         $events = $this->pdo->prepare('SELECT * FROM newsletter_subscription_events WHERE subscriber_id=:id ORDER BY created_at DESC,id DESC LIMIT 30');
         $events->execute(['id' => $subscriberId]);
 
-        $perPage = max(1, min(20, $perPage));
-        $count = $this->pdo->prepare('SELECT COUNT(*) FROM newsletter_deliveries WHERE subscriber_id=:id');
-        $count->execute(['id' => $subscriberId]);
-        $total = (int) $count->fetchColumn();
-        $totalPages = max(1, (int) ceil($total / $perPage));
-        $messagePage = max(1, min($messagePage, $totalPages));
-        $offset = ($messagePage - 1) * $perPage;
-        $messages = $this->pdo->prepare("SELECT d.*,m.subject,m.preview_text,m.status AS message_status
-            FROM newsletter_deliveries d JOIN newsletter_messages m ON m.id=d.message_id
-            WHERE d.subscriber_id=:id ORDER BY COALESCE(d.sent_at,d.created_at) DESC,d.id DESC LIMIT :limit OFFSET :offset");
-        $messages->bindValue(':id', $subscriberId, PDO::PARAM_INT);
-        $messages->bindValue(':limit', $perPage, PDO::PARAM_INT);
-        $messages->bindValue(':offset', $offset, PDO::PARAM_INT);
-        $messages->execute();
-
         return [
             'subscriber' => $subscriber,
             'events' => $events->fetchAll(),
-            'messages' => [
-                'items' => $messages->fetchAll(),
-                'page' => $messagePage,
-                'per_page' => $perPage,
-                'total' => $total,
-                'total_pages' => $totalPages,
-                'from' => $total === 0 ? 0 : $offset + 1,
-                'to' => min($offset + $perPage, $total),
-            ],
         ];
     }
 

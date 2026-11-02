@@ -2983,12 +2983,6 @@
       loadNewsletterProfile(trigger.dataset.modalUrl);
     });
   });
-  newsletterContent?.addEventListener('click', (event) => {
-    const paginationLink = event.target.closest('[data-admin-newsletter-messages-page]');
-    if (!paginationLink || !window.fetch) return;
-    event.preventDefault();
-    loadNewsletterProfile(paginationLink.dataset.modalUrl, false);
-  });
   newsletterDialog?.addEventListener('click', (event) => {
     if (event.target === newsletterDialog || event.target.closest('[data-admin-newsletter-close]')) {
       event.preventDefault();

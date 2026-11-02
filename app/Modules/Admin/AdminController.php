@@ -324,7 +324,7 @@ final class AdminController
 
     public function newsletterSubscriberDetail(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
     {
-        $data = $this->newsletterSubscriberData((int) ($args['id'] ?? 0), max(1, (int) ($request->getQueryParams()['pagina_mesaje'] ?? 1)));
+        $data = $this->newsletterSubscriberData((int) ($args['id'] ?? 0));
         if ($data === null) {
             Flash::set('error', 'Abonatul solicitat nu a fost găsit.');
             return $this->view->redirect($this->config->path('admin/abonati-newsletter/'));
@@ -339,7 +339,7 @@ final class AdminController
 
     public function newsletterSubscriberModal(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
     {
-        $data = $this->newsletterSubscriberData((int) ($args['id'] ?? 0), max(1, (int) ($request->getQueryParams()['pagina_mesaje'] ?? 1)));
+        $data = $this->newsletterSubscriberData((int) ($args['id'] ?? 0));
         if ($data === null) {
             return $this->view->render('admin/partials/newsletter-subscriber-error.twig', [], 404);
         }
@@ -1125,10 +1125,10 @@ final class AdminController
         return $data;
     }
 
-    /** @return array{subscriber:array<string,mixed>,events:list<array<string,mixed>>,messages:array<string,mixed>}|null */
-    private function newsletterSubscriberData(int $subscriberId, int $messagePage): ?array
+    /** @return array{subscriber:array<string,mixed>,events:list<array<string,mixed>>}|null */
+    private function newsletterSubscriberData(int $subscriberId): ?array
     {
-        $data = $this->newsletter->detail($subscriberId, $messagePage, 4);
+        $data = $this->newsletter->detail($subscriberId);
         if ($data === null) {
             return null;
         }
@@ -1143,18 +1143,6 @@ final class AdminController
             $event['display_created_at'] = $this->localCustomerDate((string) ($event['created_at'] ?? ''));
         }
         unset($event);
-        $deliveryLabels = [
-            'queued' => 'În așteptare', 'sent' => 'Trimis', 'delivered' => 'Livrat', 'opened' => 'Deschis',
-            'clicked' => 'Accesat', 'bounced' => 'Respins', 'failed' => 'Eșuat',
-        ];
-        foreach ($data['messages']['items'] as &$message) {
-            $message['status_label'] = $deliveryLabels[(string) ($message['status'] ?? '')] ?? ucfirst((string) ($message['status'] ?? ''));
-            $message['display_sent_at'] = $this->localCustomerDate((string) ($message['sent_at'] ?? $message['created_at'] ?? ''), 'Încă netrimis');
-        }
-        unset($message);
-        $firstPage = max(1, $data['messages']['page'] - 2);
-        $lastPage = min($data['messages']['total_pages'], $data['messages']['page'] + 2);
-        $data['messages']['page_numbers'] = range($firstPage, $lastPage);
         return $data;
     }
 

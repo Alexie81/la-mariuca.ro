@@ -66,14 +66,12 @@ final class NewsletterAdminTest extends DatabaseTestCase
         self::assertStringContainsString('Ștefania Ionescu', $modal);
         self::assertStringContainsString('Formular contact', $modal);
         self::assertStringContainsString('Istoricul abonării', $modal);
-        self::assertStringContainsString('Mesajele trimise', $modal);
+        self::assertStringNotContainsString('Mesajele trimise', $modal);
+        self::assertStringNotContainsString('Paginarea mesajelor abonatului', $modal);
         self::assertStringContainsString('Colecția de toamnă 5', $modal);
-        self::assertStringContainsString('Pagina <strong>1</strong> din 2', $modal);
+        self::assertStringNotContainsString('Colecția de toamnă 4', $modal);
 
-        $modalPageTwo = (string) $this->get('/admin/abonati-newsletter/' . $this->featuredSubscriberId . '/modal/?pagina_mesaje=2')->getBody();
-        self::assertStringContainsString('Colecția de toamnă 1', $modalPageTwo);
-        self::assertStringContainsString('Pagina <strong>2</strong> din 2', $modalPageTwo);
-        $standalone = $this->get('/admin/abonati-newsletter/' . $this->featuredSubscriberId . '/?pagina_mesaje=2');
+        $standalone = $this->get('/admin/abonati-newsletter/' . $this->featuredSubscriberId . '/');
         self::assertSame(200, $standalone->getStatusCode());
         self::assertStringContainsString('Înapoi la abonați', (string) $standalone->getBody());
     }
