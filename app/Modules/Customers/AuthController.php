@@ -19,8 +19,9 @@ final class AuthController
     {
     }
 
-    public function loginForm(): ResponseInterface
+    public function loginForm(ServerRequestInterface $request): ResponseInterface
     {
+        $this->rememberCheckoutContinuation($request);
         return $this->view->render('storefront/pages/login.twig', ['meta' => ['title' => 'Autentificare', 'noindex' => true]]);
     }
 
@@ -43,11 +44,13 @@ final class AuthController
         }
         $user = $this->auth->user();
         Flash::set('success', 'Te-ai autentificat cu succes.');
-        return $this->view->redirect($this->config->path(in_array($user['role'] ?? '', ['administrator', 'operator'], true) ? 'admin/' : 'cont/'));
+        $customerDestination = $this->consumeCustomerDestination();
+        return $this->view->redirect($this->config->path(in_array($user['role'] ?? '', ['administrator', 'operator'], true) ? 'admin/' : $customerDestination));
     }
 
-    public function registerForm(): ResponseInterface
+    public function registerForm(ServerRequestInterface $request): ResponseInterface
     {
+        $this->rememberCheckoutContinuation($request);
         return $this->view->render('storefront/pages/register.twig', ['meta' => ['title' => 'Creează cont', 'noindex' => true]]);
     }
 
@@ -80,8 +83,9 @@ final class AuthController
         return $this->view->redirect($this->config->path('cont/autentificare/'));
     }
 
-    public function googleStart(): ResponseInterface
+    public function googleStart(ServerRequestInterface $request): ResponseInterface
     {
+        $this->rememberCheckoutContinuation($request);
         if (!$this->googleOAuth->enabled()) {
             Flash::set('error', 'Autentificarea cu Google este pregătită, dar trebuie configurată înainte de activare.');
             return $this->view->redirect($this->config->path('cont/autentificare/'));
@@ -98,7 +102,7 @@ final class AuthController
                 throw new \RuntimeException('Contul nu poate fi autentificat.');
             }
             Flash::set('success', 'Te-ai autentificat cu Google. Bine ai revenit!');
-            return $this->view->redirect($this->config->path('cont/'));
+            return $this->view->redirect($this->config->path($this->consumeCustomerDestination()));
         } catch (\RuntimeException $exception) {
             Flash::set('error', $exception->getMessage());
             return $this->view->redirect($this->config->path('cont/autentificare/'));
@@ -106,6 +110,20 @@ final class AuthController
             Flash::set('error', 'Autentificarea cu Google nu a putut fi finalizată. Încearcă din nou.');
             return $this->view->redirect($this->config->path('cont/autentificare/'));
         }
+    }
+
+    private function rememberCheckoutContinuation(ServerRequestInterface $request): void
+    {
+        if (($request->getQueryParams()['continuare'] ?? null) === 'comanda') {
+            $_SESSION['checkout_auth_continuation'] = 'comanda';
+        }
+    }
+
+    private function consumeCustomerDestination(): string
+    {
+        $continuesCheckout = ($_SESSION['checkout_auth_continuation'] ?? null) === 'comanda';
+        unset($_SESSION['checkout_auth_continuation']);
+        return $continuesCheckout ? 'finalizare-comanda/' : 'cont/';
     }
 
     private function normalizeRomanianPhone(string $phone): ?string

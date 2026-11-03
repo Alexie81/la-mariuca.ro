@@ -23,6 +23,25 @@ final class CheckoutService
         $this->shippingMethods = $shippingMethods ?? new ShippingMethodService($pdo);
     }
 
+    /**
+     * @param array<string,mixed> $cart
+     * @param array<string,mixed> $shippingMethod
+     * @return array{shipping_bani:int,shipping_discount_bani:int,total_bani:int,shipping_offer:?array<string,mixed>}
+     */
+    public function quoteShipping(array $cart, array $shippingMethod): array
+    {
+        $standardPrice = (int) $shippingMethod['price_bani'];
+        $benefit = $this->cart->bestShippingDiscount($standardPrice, (array) ($cart['shipping_discounts'] ?? $cart['customer_shipping_discounts'] ?? []));
+        $shipping = max(0, $standardPrice - $benefit['discount_bani']);
+
+        return [
+            'shipping_bani' => $shipping,
+            'shipping_discount_bani' => $benefit['discount_bani'],
+            'total_bani' => (int) $cart['subtotal_bani'] - (int) $cart['discount_bani'] + $shipping,
+            'shipping_offer' => $benefit['discount'],
+        ];
+    }
+
     /** @param array<string, mixed> $data @return array{order_number:string,token:string,id:int,payment_method:string,idempotency_key:string} */
     public function place(array $data): array
     {
@@ -78,15 +97,14 @@ final class CheckoutService
         $this->pdo->beginTransaction();
         try {
             $shippingMethod = $this->shippingMethods->requireActiveForCheckout((int) ($data['shipping_method_id'] ?? 0), true);
-            $shippingBeforeDiscount = (int) $shippingMethod['price_bani'];
-            $shippingBenefit = $this->cart->bestShippingDiscount($shippingBeforeDiscount, (array) ($cart['shipping_discounts'] ?? $cart['customer_shipping_discounts'] ?? []));
-            $shippingDiscount = (int) $shippingBenefit['discount_bani'];
-            $shipping = max(0, $shippingBeforeDiscount - $shippingDiscount);
+            $shippingQuote = $this->quoteShipping($cart, $shippingMethod);
+            $shippingDiscount = $shippingQuote['shipping_discount_bani'];
+            $shipping = $shippingQuote['shipping_bani'];
             $tax = 0;
-            $total = $cart['subtotal_bani'] - $discount + $shipping + $tax;
+            $total = $shippingQuote['total_bani'] + $tax;
             $userId = isset($_SESSION['user_id']) ? (int) $_SESSION['user_id'] : null;
             $merchandiseBenefit = is_array($cart['merchandise_discount'] ?? null) ? $cart['merchandise_discount'] : null;
-            $shippingOffer = is_array($shippingBenefit['discount']) ? $shippingBenefit['discount'] : null;
+            $shippingOffer = $shippingQuote['shipping_offer'];
             $customerDiscountId = is_array($merchandiseBenefit) && ($merchandiseBenefit['offer_source'] ?? '') === 'customer' ? (int) $merchandiseBenefit['id'] : null;
             $promotionId = is_array($merchandiseBenefit) && ($merchandiseBenefit['offer_source'] ?? '') === 'promotion' ? (int) $merchandiseBenefit['id'] : null;
             $customerShippingDiscountId = is_array($shippingOffer) && ($shippingOffer['offer_source'] ?? '') === 'customer' ? (int) $shippingOffer['id'] : null;

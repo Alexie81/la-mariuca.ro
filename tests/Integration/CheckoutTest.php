@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Integration;
 
+use App\AppFactory;
 use App\Modules\Cart\CartService;
 use App\Modules\Checkout\CheckoutService;
 use App\Modules\Orders\OrderService;
@@ -18,6 +19,99 @@ use Tests\DatabaseTestCase;
 final class CheckoutTest extends DatabaseTestCase
 {
     private const STRIPE_WEBHOOK_SECRET = 'whsec_checkout_test';
+
+    public function testShippingQuotesUseTheSameDiscountsAndTotalsAsThePlacedOrder(): void
+    {
+        $this->seed();
+        $variant = $this->availableVariant();
+        $cart = new CartService($this->pdo);
+        $cart->add((int) $variant['id'], 1);
+        $this->insertPromotion('Reducere comandă', 'order', 'percent', 1000);
+        $this->insertPromotion('Reducere transport', 'shipping', 'fixed', 1500);
+        $methodId = $this->insertShippingMethod('Transport cotat', 'transport-cotat', 2490);
+        $service = new CheckoutService($this->pdo, $cart, Config::load($this->root));
+        $summary = $cart->summary();
+        $quote = $service->quoteShipping($summary, ['price_bani' => 2490]);
+
+        self::assertSame(990, $quote['shipping_bani']);
+        self::assertSame(1500, $quote['shipping_discount_bani']);
+        self::assertSame($summary['total_bani'] + 990, $quote['total_bani']);
+        $lowerPrice = $service->quoteShipping($summary, ['price_bani' => 1000]);
+        self::assertSame(0, $lowerPrice['shipping_bani']);
+        self::assertSame(1000, $lowerPrice['shipping_discount_bani']);
+        self::assertSame($summary['total_bani'], $lowerPrice['total_bani']);
+
+        $result = $service->place(array_replace($this->checkoutData('quoted-order'), ['shipping_method_id' => (string) $methodId]));
+        $order = $this->pdo->query('SELECT shipping_bani,shipping_discount_bani,total_bani FROM orders WHERE id=' . (int) $result['id'])->fetch();
+        self::assertIsArray($order);
+        foreach (['shipping_bani', 'shipping_discount_bani', 'total_bani'] as $field) {
+            self::assertSame($quote[$field], (int) $order[$field]);
+        }
+    }
+
+    public function testFailedCheckoutRetainsOnlyAllowedFormFieldsForTheNextRequest(): void
+    {
+        $this->seed();
+        $app = AppFactory::create($this->root);
+        $request = (new ServerRequestFactory())->createServerRequest('GET', 'http://localhost/finalizare-comanda/');
+        self::assertSame(200, $app->handle($request)->getStatusCode());
+        $data = array_replace($this->checkoutData('failed-checkout'), [
+            '_csrf' => $_SESSION['_csrf'],
+            'email' => 'invalid-email',
+            'saved_address_id' => '',
+            'marketing' => '1',
+            'unrelated_secret' => 'must-not-persist',
+            'phone' => str_repeat('1', 2100),
+        ]);
+        $response = $app->handle((new ServerRequestFactory())
+            ->createServerRequest('POST', 'http://localhost/finalizare-comanda/')
+            ->withParsedBody($data));
+        self::assertSame(303, $response->getStatusCode());
+        self::assertSame('/finalizare-comanda/', $response->getHeaderLine('Location'));
+        $remembered = $_SESSION['checkout_old_input'];
+        self::assertSame('invalid-email', $remembered['email']);
+        self::assertSame('Strada Test 1', $remembered['address']);
+        self::assertSame('', $remembered['saved_address_id']);
+        self::assertSame('1', $remembered['marketing']);
+        self::assertSame(2000, mb_strlen($remembered['phone']));
+        self::assertArrayNotHasKey('_csrf', $remembered);
+        self::assertArrayNotHasKey('idempotency_key', $remembered);
+        self::assertArrayNotHasKey('unrelated_secret', $remembered);
+        self::assertSame(200, $app->handle($request)->getStatusCode());
+        self::assertArrayNotHasKey('checkout_old_input', $_SESSION);
+        self::assertSame(0, (int) $this->pdo->query('SELECT COUNT(*) FROM orders')->fetchColumn());
+        unset($app);
+        gc_collect_cycles();
+    }
+
+    public function testNoScriptRecalculationKeepsShippingWithoutPlacingOrValidatingOrder(): void
+    {
+        $this->seed();
+        $variant = $this->availableVariant();
+        (new CartService($this->pdo))->add((int) $variant['id'], 1);
+        $methodId = $this->insertShippingMethod('Livrare alternativă', 'recalculare', 2990);
+        $app = AppFactory::create($this->root);
+        $request = (new ServerRequestFactory())
+            ->createServerRequest('POST', 'http://localhost/finalizare-comanda/')
+            ->withParsedBody([
+                '_csrf' => (new \App\Shared\Security\Csrf())->token(),
+                'checkout_action' => 'recalculate',
+                'shipping_method_id' => (string) $methodId,
+                'first_name' => 'Ana',
+            ]);
+        $response = $app->handle($request);
+        self::assertSame(303, $response->getStatusCode());
+        self::assertSame('/finalizare-comanda/', $response->getHeaderLine('Location'));
+        self::assertSame((string) $methodId, $_SESSION['checkout_old_input']['shipping_method_id']);
+        self::assertSame('Ana', $_SESSION['checkout_old_input']['first_name']);
+        self::assertSame('', $_SESSION['checkout_old_input']['terms']);
+        self::assertSame(0, (int) $this->pdo->query('SELECT COUNT(*) FROM orders')->fetchColumn());
+        self::assertSame(0, (int) $this->pdo->query('SELECT COUNT(*) FROM inventory_reservations')->fetchColumn());
+        self::assertSame(0, (int) $this->pdo->query('SELECT COUNT(*) FROM rate_limits')->fetchColumn());
+        self::assertArrayNotHasKey('_flash', $_SESSION);
+        unset($app);
+        gc_collect_cycles();
+    }
 
     public function testServerPriceAndSingleReservationAreAuthoritative(): void
     {
