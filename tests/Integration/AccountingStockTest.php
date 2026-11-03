@@ -196,6 +196,7 @@ final class AccountingStockTest extends DatabaseTestCase
         foreach ($variants as [$variantId, $quantity]) {
             $cart->add($variantId, $quantity);
         }
+        $shippingMethodId = (int) $this->pdo->query("SELECT id FROM shipping_methods WHERE status='active' AND deleted_at IS NULL ORDER BY is_default DESC,position,id LIMIT 1")->fetchColumn();
         $result = (new CheckoutService($this->pdo, $cart, Config::load($this->root)))->place([
             'email' => 'contabilitate@example.test',
             'first_name' => 'Ana',
@@ -205,6 +206,7 @@ final class AccountingStockTest extends DatabaseTestCase
             'city' => 'București — Sector 1',
             'county' => 'București',
             'postal_code' => '010101',
+            'shipping_method_id' => (string) $shippingMethodId,
             'payment_method' => 'cod',
             'idempotency_key' => $key,
             'terms' => '1',
