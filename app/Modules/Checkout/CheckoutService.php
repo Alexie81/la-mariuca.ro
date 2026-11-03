@@ -6,6 +6,7 @@ namespace App\Modules\Checkout;
 
 use App\Modules\Admin\AdminPushService;
 use App\Modules\Cart\CartService;
+use App\Modules\Shipping\ShippingMethodService;
 use App\Shared\Config\Config;
 use App\Shared\Support\RomanianLocations;
 use PDO;
@@ -14,10 +15,12 @@ use RuntimeException;
 final class CheckoutService
 {
     private readonly RomanianLocations $locations;
+    private readonly ShippingMethodService $shippingMethods;
 
-    public function __construct(private readonly PDO $pdo, private readonly CartService $cart, private readonly Config $config, ?RomanianLocations $locations = null, private readonly ?AdminPushService $push = null)
+    public function __construct(private readonly PDO $pdo, private readonly CartService $cart, private readonly Config $config, ?RomanianLocations $locations = null, private readonly ?AdminPushService $push = null, ?ShippingMethodService $shippingMethods = null)
     {
         $this->locations = $locations ?? RomanianLocations::fromProjectRoot();
+        $this->shippingMethods = $shippingMethods ?? new ShippingMethodService($pdo);
     }
 
     /** @param array<string, mixed> $data @return array{order_number:string,token:string,id:int,payment_method:string,idempotency_key:string} */
@@ -65,13 +68,6 @@ final class CheckoutService
         }
 
         $discount = $cart['discount_bani'];
-        $discountedSubtotal = $cart['subtotal_bani'] - $discount;
-        $shippingBeforeDiscount = $discountedSubtotal >= $this->config->int('SHIPPING_FREE_THRESHOLD_BANI', 30000) ? 0 : $this->config->int('SHIPPING_FLAT_RATE_BANI', 1900);
-        $shippingBenefit = $this->cart->bestShippingDiscount($shippingBeforeDiscount, (array) ($cart['customer_shipping_discounts'] ?? []));
-        $shippingDiscount = (int) $shippingBenefit['discount_bani'];
-        $shipping = $shippingBeforeDiscount - $shippingDiscount;
-        $tax = 0;
-        $total = $cart['subtotal_bani'] - $discount + $shipping + $tax;
         $token = bin2hex(random_bytes(32));
         $address = [
             'address' => trim((string) $data['address']), 'city' => $officialLocation['locality'],
@@ -81,18 +77,38 @@ final class CheckoutService
 
         $this->pdo->beginTransaction();
         try {
+            $shippingMethod = $this->shippingMethods->requireActiveForCheckout((int) ($data['shipping_method_id'] ?? 0), true);
+            $shippingBeforeDiscount = (int) $shippingMethod['price_bani'];
+            $shippingBenefit = $this->cart->bestShippingDiscount($shippingBeforeDiscount, (array) ($cart['shipping_discounts'] ?? $cart['customer_shipping_discounts'] ?? []));
+            $shippingDiscount = (int) $shippingBenefit['discount_bani'];
+            $shipping = max(0, $shippingBeforeDiscount - $shippingDiscount);
+            $tax = 0;
+            $total = $cart['subtotal_bani'] - $discount + $shipping + $tax;
             $userId = isset($_SESSION['user_id']) ? (int) $_SESSION['user_id'] : null;
-            $customerDiscountId = is_array($cart['customer_discount'] ?? null) ? (int) $cart['customer_discount']['id'] : null;
-            $customerShippingDiscountId = is_array($shippingBenefit['discount']) ? (int) $shippingBenefit['discount']['id'] : null;
+            $merchandiseBenefit = is_array($cart['merchandise_discount'] ?? null) ? $cart['merchandise_discount'] : null;
+            $shippingOffer = is_array($shippingBenefit['discount']) ? $shippingBenefit['discount'] : null;
+            $customerDiscountId = is_array($merchandiseBenefit) && ($merchandiseBenefit['offer_source'] ?? '') === 'customer' ? (int) $merchandiseBenefit['id'] : null;
+            $promotionId = is_array($merchandiseBenefit) && ($merchandiseBenefit['offer_source'] ?? '') === 'promotion' ? (int) $merchandiseBenefit['id'] : null;
+            $customerShippingDiscountId = is_array($shippingOffer) && ($shippingOffer['offer_source'] ?? '') === 'customer' ? (int) $shippingOffer['id'] : null;
+            $shippingPromotionId = is_array($shippingOffer) && ($shippingOffer['offer_source'] ?? '') === 'promotion' ? (int) $shippingOffer['id'] : null;
+            $couponSelected = (is_array($merchandiseBenefit) && ($merchandiseBenefit['offer_source'] ?? '') === 'coupon')
+                || (is_array($shippingOffer) && ($shippingOffer['offer_source'] ?? '') === 'coupon');
+            $couponToRedeem = $couponSelected && is_array($cart['coupon_candidate'] ?? null) ? $cart['coupon_candidate'] : null;
             if ($customerDiscountId !== null) {
                 $this->assertCustomerDiscountActive($customerDiscountId, (int) $userId, false);
             }
             if ($customerShippingDiscountId !== null) {
                 $this->assertCustomerDiscountActive($customerShippingDiscountId, (int) $userId, true);
             }
+            if ($promotionId !== null) {
+                $this->assertPromotionActive($promotionId, false, (int) $cart['subtotal_bani']);
+            }
+            if ($shippingPromotionId !== null) {
+                $this->assertPromotionActive($shippingPromotionId, true, (int) $cart['subtotal_bani']);
+            }
             $insert = $this->pdo->prepare("INSERT INTO orders
-                (order_number, public_token_hash, idempotency_key, cart_id, user_id, email, first_name, last_name, phone, customer_type, company_json, shipping_address_json, billing_address_json, subtotal_bani, discount_bani, customer_discount_id, customer_shipping_discount_id, shipping_bani, shipping_discount_bani, tax_bani, total_bani, currency, status, payment_status, payment_method, shipping_method, internal_notes, terms_accepted_at, marketing_consent, created_at, updated_at)
-                VALUES (NULL, :token_hash, :idempotency, :cart_id, :user_id, :email, :first_name, :last_name, :phone, :customer_type, :company, :shipping_address, :billing_address, :subtotal, :discount, :customer_discount, :customer_shipping_discount, :shipping, :shipping_discount, :tax, :total, 'RON', 'new', 'pending', :payment_method, 'manual', '', :terms_at, :marketing, :created_at, :updated_at)");
+                (order_number, public_token_hash, idempotency_key, cart_id, user_id, email, first_name, last_name, phone, customer_type, company_json, shipping_address_json, billing_address_json, subtotal_bani, discount_bani, customer_discount_id, customer_shipping_discount_id, promotion_id, shipping_promotion_id, shipping_bani, shipping_discount_bani, tax_bani, total_bani, currency, status, payment_status, payment_method, shipping_method, shipping_method_id, shipping_method_name, internal_notes, terms_accepted_at, marketing_consent, created_at, updated_at)
+                VALUES (NULL, :token_hash, :idempotency, :cart_id, :user_id, :email, :first_name, :last_name, :phone, :customer_type, :company, :shipping_address, :billing_address, :subtotal, :discount, :customer_discount, :customer_shipping_discount, :promotion, :shipping_promotion, :shipping, :shipping_discount, :tax, :total, 'RON', 'new', 'pending', :payment_method, :shipping_method, :shipping_method_id, :shipping_method_name, '', :terms_at, :marketing, :created_at, :updated_at)");
             $insert->execute([
                 'token_hash' => hash('sha256', $token), 'idempotency' => $idempotencyKey, 'cart_id' => $this->cart->cartId(),
                 'user_id' => $userId,
@@ -101,19 +117,24 @@ final class CheckoutService
                 'company' => json_encode([], JSON_THROW_ON_ERROR), 'shipping_address' => json_encode($address, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
                 'billing_address' => json_encode($address, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR), 'subtotal' => $cart['subtotal_bani'],
                 'discount' => $discount, 'customer_discount' => $customerDiscountId, 'customer_shipping_discount' => $customerShippingDiscountId,
+                'promotion' => $promotionId, 'shipping_promotion' => $shippingPromotionId,
                 'shipping' => $shipping, 'shipping_discount' => $shippingDiscount, 'tax' => $tax, 'total' => $total, 'payment_method' => $method,
+                'shipping_method' => $shippingMethod['code'], 'shipping_method_id' => $shippingMethod['id'], 'shipping_method_name' => $shippingMethod['name'],
                 'terms_at' => $now, 'marketing' => isset($data['marketing']) ? 1 : 0, 'created_at' => $now, 'updated_at' => $now,
             ]);
             $orderId = (int) $this->pdo->lastInsertId();
             $orderNumber = 'LM-' . gmdate('Y') . '-' . str_pad((string) $orderId, 6, '0', STR_PAD_LEFT);
             $this->pdo->prepare('UPDATE orders SET order_number = :number WHERE id = :id')->execute(['number' => $orderNumber, 'id' => $orderId]);
 
-            if (is_array($cart['coupon'])) {
+            if (is_array($couponToRedeem)) {
                 $lockSql = 'SELECT * FROM coupons WHERE id=:id' . ($this->pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql' ? ' FOR UPDATE' : '');
                 $lock = $this->pdo->prepare($lockSql);
-                $lock->execute(['id' => $cart['coupon']['id']]);
+                $lock->execute(['id' => $couponToRedeem['id']]);
                 $coupon = $lock->fetch();
-                if (!is_array($coupon) || $coupon['status'] !== 'active') {
+                if (!is_array($coupon) || $coupon['status'] !== 'active' || $coupon['deleted_at'] !== null
+                    || ($coupon['starts_at'] !== null && (string) $coupon['starts_at'] > $now)
+                    || ($coupon['ends_at'] !== null && (string) $coupon['ends_at'] <= $now)
+                    || (int) $coupon['minimum_bani'] > (int) $cart['subtotal_bani']) {
                     throw new RuntimeException('Cuponul nu mai este disponibil.');
                 }
                 $usage = $this->pdo->prepare("SELECT COUNT(*) FROM coupon_redemptions WHERE coupon_id=:id AND status IN ('reserved','confirmed')");
@@ -196,7 +217,7 @@ final class CheckoutService
     private function assertCustomerDiscountActive(int $discountId, int $userId, bool $shipping): void
     {
         $sql = "SELECT id,scope FROM customer_discounts WHERE id=:id AND user_id=:user AND status='active' AND deleted_at IS NULL
-            AND (starts_at IS NULL OR starts_at<=:starts) AND (ends_at IS NULL OR ends_at>=:ends)";
+            AND (starts_at IS NULL OR starts_at<=:starts) AND (ends_at IS NULL OR ends_at>:ends)";
         if ($this->pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql') {
             $sql .= ' FOR UPDATE';
         }
@@ -206,6 +227,23 @@ final class CheckoutService
         $discount = $statement->fetch();
         if (!is_array($discount) || (($discount['scope'] === 'shipping') !== $shipping)) {
             throw new RuntimeException('Reducerea personalizată nu mai este disponibilă. Reîncarcă pagina și încearcă din nou.');
+        }
+    }
+
+    private function assertPromotionActive(int $promotionId, bool $shipping, int $subtotalBani): void
+    {
+        $sql = "SELECT id,scope FROM promotions WHERE id=:id AND status='active' AND deleted_at IS NULL
+            AND minimum_bani<=:subtotal
+            AND (starts_at IS NULL OR starts_at<=:starts) AND (ends_at IS NULL OR ends_at>:ends)";
+        if ($this->pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql') {
+            $sql .= ' FOR UPDATE';
+        }
+        $statement = $this->pdo->prepare($sql);
+        $now = gmdate('c');
+        $statement->execute(['id' => $promotionId, 'subtotal' => $subtotalBani, 'starts' => $now, 'ends' => $now]);
+        $promotion = $statement->fetch();
+        if (!is_array($promotion) || (($promotion['scope'] === 'shipping') !== $shipping)) {
+            throw new RuntimeException('Promoția nu mai este disponibilă. Reîncarcă pagina și încearcă din nou.');
         }
     }
 

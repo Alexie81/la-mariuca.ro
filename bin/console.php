@@ -128,14 +128,54 @@ try {
             break;
         case 'reservations:expire':
             $pdo->beginTransaction();
-            $statement = $pdo->prepare("SELECT r.* FROM inventory_reservations r JOIN orders o ON o.id=r.order_id WHERE r.status='active' AND r.expires_at IS NOT NULL AND r.expires_at<:now AND o.payment_status='pending'");
-            $statement->execute(['now' => gmdate('c')]);
+            $now = gmdate('c');
+            $driver = (string) $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
+            $statement = $pdo->prepare("SELECT r.order_id FROM inventory_reservations r JOIN orders o ON o.id=r.order_id WHERE r.status='active' AND r.expires_at IS NOT NULL AND r.expires_at<:now AND o.payment_status='pending' ORDER BY r.order_id");
+            $statement->execute(['now' => $now]);
             $count = 0;
-            foreach ($statement->fetchAll() as $reservation) {
-                $pdo->prepare('UPDATE inventory SET reserved_quantity=reserved_quantity-:quantity_delta,updated_at=:now WHERE variant_id=:variant AND reserved_quantity>=:quantity_check')->execute(['quantity_delta' => $reservation['quantity'], 'quantity_check' => $reservation['quantity'], 'now' => gmdate('c'), 'variant' => $reservation['variant_id']]);
-                $pdo->prepare("UPDATE inventory_reservations SET status='released',updated_at=:now WHERE id=:id AND status='active'")->execute(['now' => gmdate('c'), 'id' => $reservation['id']]);
-                $pdo->prepare("UPDATE orders SET status='cancelled',cancelled_at=:now,updated_at=:now WHERE id=:id AND payment_status='pending'")->execute(['now' => gmdate('c'), 'id' => $reservation['order_id']]);
-                $count++;
+            $expiredOrderIds = array_values(array_unique(array_map('intval', $statement->fetchAll(PDO::FETCH_COLUMN))));
+            foreach ($expiredOrderIds as $orderId) {
+                $orderLock = $pdo->prepare('SELECT id,payment_status FROM orders WHERE id=:id' . ($driver === 'mysql' ? ' FOR UPDATE' : ''));
+                $orderLock->execute(['id' => $orderId]);
+                $order = $orderLock->fetch();
+                if (!is_array($order) || (string) $order['payment_status'] !== 'pending') {
+                    continue;
+                }
+                $reservationLock = $pdo->prepare("SELECT * FROM inventory_reservations WHERE order_id=:order AND status='active' ORDER BY id" . ($driver === 'mysql' ? ' FOR UPDATE' : ''));
+                $reservationLock->execute(['order' => $orderId]);
+                $reservations = $reservationLock->fetchAll();
+                $hasExpiredReservation = false;
+                foreach ($reservations as $reservation) {
+                    if ($reservation['expires_at'] !== null && (string) $reservation['expires_at'] < $now) {
+                        $hasExpiredReservation = true;
+                        break;
+                    }
+                }
+                if (!$hasExpiredReservation) {
+                    continue;
+                }
+                foreach ($reservations as $reservation) {
+                    $releaseInventory = $pdo->prepare('UPDATE inventory SET reserved_quantity=reserved_quantity-:quantity_delta,updated_at=:now WHERE variant_id=:variant AND reserved_quantity>=:quantity_check');
+                    $releaseInventory->execute(['quantity_delta' => $reservation['quantity'], 'quantity_check' => $reservation['quantity'], 'now' => $now, 'variant' => $reservation['variant_id']]);
+                    if ($releaseInventory->rowCount() !== 1) {
+                        throw new RuntimeException('Stoc inconsistent la expirarea rezervării #' . (int) $reservation['id'] . '.');
+                    }
+                    $releaseReservation = $pdo->prepare("UPDATE inventory_reservations SET status='released',updated_at=:now WHERE id=:id AND status='active'");
+                    $releaseReservation->execute(['now' => $now, 'id' => $reservation['id']]);
+                    if ($releaseReservation->rowCount() !== 1) {
+                        throw new RuntimeException('Rezervarea #' . (int) $reservation['id'] . ' nu mai este activă.');
+                    }
+                    $pdo->prepare("INSERT INTO inventory_movements (variant_id,type,physical_delta,reserved_delta,reason,reference_type,reference_id,created_at) VALUES (:variant,'release',0,:reserved,'Expirare rezervare plată','order',:order,:now)")
+                        ->execute(['variant' => $reservation['variant_id'], 'reserved' => -((int) $reservation['quantity']), 'order' => $orderId, 'now' => $now]);
+                    $count++;
+                }
+                $cancelOrder = $pdo->prepare("UPDATE orders SET status='cancelled',cancelled_at=COALESCE(cancelled_at,:now),updated_at=:now WHERE id=:id AND payment_status='pending'");
+                $cancelOrder->execute(['now' => $now, 'id' => $orderId]);
+                if ($cancelOrder->rowCount() !== 1) {
+                    throw new RuntimeException('Comanda #' . $orderId . ' nu mai poate fi anulată pentru expirare.');
+                }
+                $pdo->prepare("UPDATE coupon_redemptions SET status='released',updated_at=:now WHERE order_id=:order AND status='reserved'")
+                    ->execute(['now' => $now, 'order' => $orderId]);
             }
             $pdo->commit();
             fwrite(STDOUT, "Rezervări expirate: {$count}. Plățile tardive trebuie reconciliate separat.\n");

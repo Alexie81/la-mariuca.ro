@@ -291,6 +291,13 @@ final class OrderService
                 $params['now2'] = $now;
             }
             $this->pdo->prepare("UPDATE orders SET status = :status, updated_at = :now{$extra} WHERE id = :id")->execute($params);
+            if ($action === 'confirm') {
+                $this->pdo->prepare("UPDATE coupon_redemptions SET status='confirmed',updated_at=:now WHERE order_id=:order AND status='reserved'")
+                    ->execute(['now' => $now, 'order' => $orderId]);
+            } elseif ($action === 'cancel') {
+                $this->pdo->prepare("UPDATE coupon_redemptions SET status='released',updated_at=:now WHERE order_id=:order AND status IN ('reserved','confirmed')")
+                    ->execute(['now' => $now, 'order' => $orderId]);
+            }
             $this->pdo->prepare("INSERT INTO audit_log (actor_user_id, action, entity_type, entity_id, context_json, created_at) VALUES (:actor, :action, 'order', :id, :context, :now)")->execute([
                 'actor' => $actorId, 'action' => 'order.' . $action, 'id' => $orderId, 'context' => json_encode(['from' => $order['status'], 'to' => $allowed[$action]['to']], JSON_THROW_ON_ERROR), 'now' => $now,
             ]);

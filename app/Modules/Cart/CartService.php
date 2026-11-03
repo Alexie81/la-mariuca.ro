@@ -127,7 +127,7 @@ final class CartService
             $this->pdo->prepare('UPDATE carts SET coupon_code=NULL,updated_at=:now WHERE id=:id')->execute(['now' => gmdate('c'), 'id' => $cartId]);
             return;
         }
-        $statement = $this->pdo->prepare("SELECT * FROM coupons WHERE code=:code AND status='active' AND (starts_at IS NULL OR starts_at<=:now_start) AND (ends_at IS NULL OR ends_at>=:now_end)");
+        $statement = $this->pdo->prepare("SELECT * FROM coupons WHERE code=:code AND status='active' AND deleted_at IS NULL AND (starts_at IS NULL OR starts_at<=:now_start) AND (ends_at IS NULL OR ends_at>:now_end)");
         $now = gmdate('c');
         $statement->execute(['code' => $code, 'now_start' => $now, 'now_end' => $now]);
         $coupon = $statement->fetch();
@@ -137,6 +137,10 @@ final class CartService
         $subtotal = $this->baseSummary()['subtotal_bani'];
         if ($subtotal < (int) $coupon['minimum_bani']) {
             throw new RuntimeException('Valoarea coșului nu atinge pragul minim al cuponului.');
+        }
+        $benefits = $this->evaluateDiscounts([$coupon], $this->baseSummary(), 'coupon');
+        if ($benefits['merchandise'] === null && $benefits['shipping'] === []) {
+            throw new RuntimeException('Cuponul nu se aplică produselor din coșul curent.');
         }
         if ($coupon['usage_limit'] !== null) {
             $usage = $this->pdo->prepare("SELECT COUNT(*) FROM coupon_redemptions WHERE coupon_id=:id AND status IN ('reserved','confirmed')");
@@ -152,40 +156,51 @@ final class CartService
     public function summary(): array
     {
         $summary = $this->baseSummary();
-        $coupon = null;
-        $discount = 0;
+        $couponCandidate = null;
+        $couponBenefits = ['merchandise' => null, 'shipping' => []];
         $cart = $this->pdo->prepare('SELECT coupon_code FROM carts WHERE id=:id');
         $cart->execute(['id' => $this->cartId()]);
         $code = $cart->fetchColumn();
         if (is_string($code) && $code !== '') {
-            $statement = $this->pdo->prepare("SELECT * FROM coupons WHERE code=:code AND status='active' AND minimum_bani<=:subtotal AND (starts_at IS NULL OR starts_at<=:now_start) AND (ends_at IS NULL OR ends_at>=:now_end)");
+            $statement = $this->pdo->prepare("SELECT * FROM coupons WHERE code=:code AND status='active' AND deleted_at IS NULL AND minimum_bani<=:subtotal AND (starts_at IS NULL OR starts_at<=:now_start) AND (ends_at IS NULL OR ends_at>:now_end)");
             $now = gmdate('c');
             $statement->execute(['code' => $code, 'subtotal' => $summary['subtotal_bani'], 'now_start' => $now, 'now_end' => $now]);
             $row = $statement->fetch();
             if (is_array($row)) {
-                $coupon = $row;
-                $discount = $row['type'] === 'percent'
-                    ? intdiv(($summary['subtotal_bani'] * (int) $row['value']) + 5000, 10000)
-                    : min($summary['subtotal_bani'], (int) $row['value']);
+                $couponCandidate = $row;
+                $couponBenefits = $this->evaluateDiscounts([$row], $summary, 'coupon');
             }
         }
         $personal = $this->personalDiscounts($summary);
-        $customerDiscount = $personal['merchandise'];
-        if (is_array($customerDiscount) && (int) $customerDiscount['discount_bani'] > $discount) {
-            $discount = (int) $customerDiscount['discount_bani'];
-            $coupon = null;
-        } else {
-            $customerDiscount = null;
+        $global = $this->globalPromotions($summary);
+        $selected = $couponBenefits['merchandise'];
+        foreach ([$personal['merchandise'], $global['merchandise']] as $candidate) {
+            if (is_array($candidate) && (int) $candidate['discount_bani'] > (int) ($selected['discount_bani'] ?? 0)) {
+                $selected = $candidate;
+            }
         }
-        $discountLabel = is_array($customerDiscount)
-            ? 'personală · ' . (string) $customerDiscount['label']
-            : (is_array($coupon) ? (string) $coupon['code'] : '');
+        $discount = (int) ($selected['discount_bani'] ?? 0);
+        $selectedSource = (string) ($selected['offer_source'] ?? '');
+        $customerDiscount = $selectedSource === 'customer' ? $selected : null;
+        $promotion = $selectedSource === 'promotion' ? $selected : null;
+        $coupon = $selectedSource === 'coupon' ? $couponCandidate : null;
+        $discountLabel = match ($selectedSource) {
+            'customer' => 'personală · ' . (string) ($selected['label'] ?? 'comandă'),
+            'promotion' => (string) ($selected['name'] ?? 'promoție automată'),
+            'coupon' => (string) ($couponCandidate['code'] ?? ''),
+            default => '',
+        };
+        $shippingDiscounts = array_merge($couponBenefits['shipping'], $personal['shipping'], $global['shipping']);
         return $summary + [
             'discount_bani' => $discount,
             'total_bani' => $summary['subtotal_bani'] - $discount,
             'coupon' => $coupon,
+            'coupon_candidate' => $couponCandidate,
+            'merchandise_discount' => $selected,
+            'promotion' => $promotion,
             'customer_discount' => $customerDiscount,
-            'customer_shipping_discounts' => $personal['shipping'],
+            'shipping_discounts' => $shippingDiscounts,
+            'customer_shipping_discounts' => $shippingDiscounts,
             'discount_label' => $discountLabel,
         ];
     }
@@ -228,6 +243,40 @@ final class CartService
             return ['merchandise' => null, 'shipping' => []];
         }
 
+        return $this->evaluateDiscounts($discounts, $summary, 'customer');
+    }
+
+    /** @param array{items:list<array<string,mixed>>,subtotal_bani:int,count:int} $summary @return array{merchandise:?array<string,mixed>,shipping:list<array<string,mixed>>} */
+    private function globalPromotions(array $summary): array
+    {
+        if ($summary['items'] === []) {
+            return ['merchandise' => null, 'shipping' => []];
+        }
+        $now = gmdate('c');
+        $statement = $this->pdo->prepare("SELECT * FROM promotions
+            WHERE status='active' AND deleted_at IS NULL
+              AND minimum_bani<=:subtotal
+              AND (starts_at IS NULL OR starts_at<=:starts) AND (ends_at IS NULL OR ends_at>:ends)
+            ORDER BY id");
+        $statement->execute(['subtotal' => $summary['subtotal_bani'], 'starts' => $now, 'ends' => $now]);
+        $discounts = $statement->fetchAll();
+
+        return $discounts === []
+            ? ['merchandise' => null, 'shipping' => []]
+            : $this->evaluateDiscounts($discounts, $summary, 'promotion');
+    }
+
+    /**
+     * @param list<array<string,mixed>> $discounts
+     * @param array{items:list<array<string,mixed>>,subtotal_bani:int,count:int} $summary
+     * @return array{merchandise:?array<string,mixed>,shipping:list<array<string,mixed>>}
+     */
+    private function evaluateDiscounts(array $discounts, array $summary, string $source): array
+    {
+        if ($discounts === [] || $summary['items'] === []) {
+            return ['merchandise' => null, 'shipping' => []];
+        }
+
         $categories = [];
         $categoryParents = [];
         $productIds = array_values(array_unique(array_map(static fn (array $item): int => (int) $item['product_id'], $summary['items'])));
@@ -248,6 +297,10 @@ final class CartService
         $best = null;
         $shipping = [];
         foreach ($discounts as $discount) {
+            $discount['offer_source'] = $source;
+            $discount['value_type'] = trim((string) ($discount['value_type'] ?? '')) !== ''
+                ? (string) $discount['value_type']
+                : (string) ($discount['type'] ?? '');
             if ($discount['scope'] === 'shipping') {
                 $shipping[] = $discount;
                 continue;
@@ -270,12 +323,16 @@ final class CartService
             }
             $amount = $discount['value_type'] === 'percent'
                 ? intdiv(($eligible * (int) $discount['value']) + 5000, 10000)
-                : min($eligible, (int) $discount['value']);
+                : ($discount['value_type'] === 'fixed' ? min($eligible, (int) $discount['value']) : 0);
             if ($amount > (int) ($best['discount_bani'] ?? 0)) {
                 $discount['discount_bani'] = $amount;
                 $discount['eligible_bani'] = $eligible;
-                $discount['label'] = match ((string) $discount['scope']) {
-                    'product' => 'produs', 'category' => 'categorie', default => 'comandă',
+                $discount['label'] = match ($source) {
+                    'coupon' => (string) ($discount['code'] ?? 'cupon'),
+                    'promotion' => (string) ($discount['name'] ?? 'promoție'),
+                    default => match ((string) $discount['scope']) {
+                        'product' => 'produs', 'category' => 'categorie', default => 'comandă',
+                    },
                 };
                 $best = $discount;
             }

@@ -33,8 +33,6 @@ final class Config
             'DB_DATABASE' => 'storage/private/development.sqlite',
             'SESSION_NAME' => 'lamariuca_session',
             'SESSION_SECURE' => 'false',
-            'SHIPPING_FLAT_RATE_BANI' => '1900',
-            'SHIPPING_FREE_THRESHOLD_BANI' => '30000',
             'TAX_RATE_BASIS_POINTS' => '0',
             'PRICES_INCLUDE_TAX' => 'true',
             'STRIPE_ENABLED' => 'false',
