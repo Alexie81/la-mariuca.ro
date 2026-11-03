@@ -2091,9 +2091,6 @@ td {
   overflow-wrap: normal;
 }
 .site-announcement:focus-within .site-announcement__track { animation-play-state: paused; }
-@media (hover: hover) {
-  .site-announcement:hover .site-announcement__track { animation-play-state: paused; }
-}
 @keyframes announcement-right {
   from { transform: translate3d(calc(-1 * var(--announcement-lap, 100vw)), 0, 0); }
   to { transform: translate3d(0, 0, 0); }
