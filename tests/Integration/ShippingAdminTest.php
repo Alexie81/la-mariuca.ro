@@ -248,6 +248,14 @@ final class ShippingAdminTest extends DatabaseTestCase
         self::assertMatchesRegularExpression('/value="' . $defaultId . '"[^>]*checked/', $checkout);
     }
 
+    public function testSuggestedMethodControlUsesAnAnchoredInputAndANonScrollableDialogShell(): void
+    {
+        $css = file_get_contents(dirname(__DIR__, 2) . '/public/assets/css/shipping-admin.css');
+        self::assertIsString($css);
+        self::assertStringContainsString('.admin-shipping-dialog__surface,.admin-shipping-dialog__content{overflow:clip}', $css);
+        self::assertStringContainsString('.admin-shipping-availability>label.admin-shipping-default>input{width:1px;height:1px;min-height:1px', $css);
+    }
+
     /** @return array<string,string> */
     private function validPayload(): array
     {
