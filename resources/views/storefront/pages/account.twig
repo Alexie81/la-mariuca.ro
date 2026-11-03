@@ -1,6 +1,6 @@
 {% extends 'storefront/layouts/base.twig' %}
 {% block body_class %}account-page-body{% endblock %}
-{% block head %}<link rel="stylesheet" href="{{ url('assets/css/storefront/account.css') }}?v=20261026-account7"><link rel="stylesheet" href="{{ url('assets/css/storefront/romania-locations.css') }}?v=20261026-locations1">{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url('assets/css/storefront/account.css') }}?v=20261026-account7"><link rel="stylesheet" href="{{ url('assets/css/storefront/romania-locations.css') }}?v=20261103-locations3">{% endblock %}
 {% block content %}
 {% set initials = (account.first_name|first ~ account.last_name|first)|upper %}
 <div class="account-page">
@@ -208,5 +208,5 @@
     </div>
   </div>
 </div>
-<script type="module" src="{{ url('assets/js/storefront/account.js') }}?v=20261026-account4"></script>
+<script type="module" src="{{ url('assets/js/storefront/account.js') }}?v=20261103-account5"></script>
 {% endblock %}

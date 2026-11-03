@@ -12,10 +12,9 @@
   display: block;
   margin: 0 0 8px 3px;
   color: #7e625c;
-  font-size: .63rem;
+  font-size: 12px;
   font-weight: 800;
-  letter-spacing: .08em;
-  text-transform: uppercase;
+  letter-spacing: .01em;
 }
 
 .ro-location-control { position: relative; }
@@ -28,10 +27,12 @@
   outline: 0;
   background: #fffdfc;
   color: #49332f;
-  font: 600 .78rem/1.4 var(--sans);
+  font: 500 15px/1.4 var(--sans);
+  box-sizing: border-box;
   transition: border-color .2s ease, box-shadow .2s ease, background .2s ease;
 }
 .ro-location-picker.is-enhanced .ro-location-control > input { cursor: pointer; }
+.ro-location-picker:not(.is-enhanced) .ro-location-control > button { display: none; }
 .ro-location-control > input:focus,
 .ro-location-field.is-open .ro-location-control > input { border-color: #d4666c; background: #fff; box-shadow: 0 0 0 4px rgba(207, 89, 97, .1); }
 .ro-location-field.is-invalid .ro-location-control > input { border-color: #cf4f58; box-shadow: 0 0 0 4px rgba(207, 79, 88, .1); }
@@ -64,7 +65,7 @@
   right: 0;
   left: 0;
   display: flex;
-  max-height: min(350px, var(--ro-location-space, 350px));
+  max-height: min(410px, var(--ro-location-space, 410px));
   overflow: hidden;
   flex-direction: column;
   padding: 9px;
@@ -77,18 +78,24 @@
   animation: ro-location-open .18s ease both;
 }
 .ro-location-dropdown[hidden] { display: none; }
+.ro-location-dropdown__head { display: flex; flex: 0 0 auto; align-items: center; justify-content: space-between; gap: 12px; padding: 0 3px 8px 7px; }
+.ro-location-dropdown__head strong { color: #49332f; font: 700 14px/1.4 var(--sans); }
+.ro-location-dropdown__head button { display: grid; width: 36px; height: 36px; flex: 0 0 36px; place-items: center; padding: 0; border: 1px solid #efd9d4; border-radius: 12px; background: #fff9f7; color: #a94b54; cursor: pointer; }
+.ro-location-dropdown__head button:hover, .ro-location-dropdown__head button:focus-visible { background: #fff0ec; outline: 2px solid #d4666c; outline-offset: 2px; }
+.ro-location-dropdown__head svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
 .ro-location-search { position: relative; display: block; }
 .ro-location-search > svg { position: absolute; z-index: 2; top: 50%; left: 13px; width: 18px; height: 18px; fill: none; stroke: #c26065; stroke-linecap: round; stroke-width: 1.7; transform: translateY(-50%); }
 .ro-location-search > input {
   width: 100%;
-  min-height: 43px !important;
+  min-height: 46px !important;
   padding: 9px 12px 9px 39px !important;
   border: 1px solid #ecd1cb !important;
   border-radius: 14px !important;
   outline: 0;
   background: #fff9f7 !important;
   color: #503833;
-  font: 600 .72rem/1.3 var(--sans) !important;
+  font: 500 14px/1.3 var(--sans) !important;
+  box-sizing: border-box;
   box-shadow: none !important;
 }
 .ro-location-search > input:focus { border-color: #d4666c !important; background: #fff !important; }
@@ -96,7 +103,7 @@
 .ro-location-option {
   display: flex;
   width: 100%;
-  min-height: 39px;
+  min-height: 44px;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
@@ -105,7 +112,7 @@
   border-radius: 12px;
   background: transparent;
   color: #624843;
-  font: 700 .69rem/1.3 var(--sans);
+  font: 600 14px/1.4 var(--sans);
   text-align: left;
   cursor: pointer;
 }
@@ -116,8 +123,8 @@
 .ro-location-option:hover::after,
 .ro-location-option:focus-visible::after,
 .ro-location-option.is-selected::after { opacity: 1; transform: translateX(0); }
-.ro-location-dropdown > small { display: block; padding: 7px 7px 2px; color: #a1847d; font-size: .56rem; line-height: 1.35; }
-.ro-location-empty { padding: 22px 10px; color: #9d7c75; font-size: .67rem; text-align: center; }
+.ro-location-dropdown > small { display: block; padding: 9px 7px 3px; color: #8b6b64; font-size: 12px; line-height: 1.45; }
+.ro-location-empty { padding: 22px 10px; color: #8b6b64; font-size: 13px; line-height: 1.5; text-align: center; }
 .ro-location-field.is-disabled { opacity: .62; }.ro-location-field.is-disabled .ro-location-control { pointer-events: none; }
 
 @keyframes ro-location-open { from { opacity: 0; transform: translateY(-5px) scale(.985); } to { opacity: 1; transform: none; } }
@@ -128,8 +135,13 @@
 
 @media (max-width: 760px) {
   .ro-location-picker { grid-template-columns: 1fr; gap: 14px; }
-  .ro-location-dropdown { position: fixed; z-index: 130; top: auto; right: 8px; bottom: max(8px, env(safe-area-inset-bottom)); left: 8px; max-height: min(72vh, 560px); padding: 12px; border-radius: 25px; box-shadow: 0 20px 70px rgba(45, 23, 20, .3); }
-  .ro-location-options { max-height: min(54vh, 420px); }
+  .ro-location-control > input, .ro-location-search > input { font-size: 16px !important; }
+  .ro-location-dropdown { position: fixed; z-index: 130; top: auto; right: 8px; bottom: max(8px, env(safe-area-inset-bottom)); left: 8px; max-height: min(72dvh, 560px); padding: 12px; border-radius: 25px; box-shadow: 0 20px 70px rgba(45, 23, 20, .3); box-sizing: border-box; }
+  .ro-location-dropdown__head { padding-bottom: 10px; }
+  .ro-location-dropdown__head strong { font-size: 16px; }
+  .ro-location-dropdown__head button { width: 44px; height: 44px; flex-basis: 44px; }
+  .ro-location-options { max-height: min(54dvh, 420px); }
+  .ro-location-option { min-height: 48px; font-size: 15px; }
   .ro-location-field.is-open::before { position: fixed; z-index: 129; inset: 0; background: rgba(50, 32, 29, .42); backdrop-filter: blur(5px); content: ""; }
 }
 
