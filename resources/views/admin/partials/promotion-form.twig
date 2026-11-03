@@ -1,3 +1,7 @@
+{% if offer_not_found|default(false) %}
+  {% include 'admin/partials/promotion-missing.twig' %}
+{% else %}
+{% set is_edit = is_edit|default(false) %}
 {% set kind = offer_kind|default('promotion') %}
 {% set is_coupon = kind == 'coupon' %}
 {% set data = form_data|default({}) %}
@@ -20,13 +24,13 @@
 
   <header class="admin-promotion-form__hero">
     <span class="admin-promotion-form__hero-icon {{ is_coupon ? 'is-coupon' : 'is-promotion' }}" aria-hidden="true"><svg viewBox="0 0 24 24">{% if is_coupon %}<path d="M4 8.5V5h3.5a2.5 2.5 0 0 0 5 0H20v3.5a2.5 2.5 0 0 0 0 5V17h-7.5a2.5 2.5 0 0 0-5 0H4v-3.5a2.5 2.5 0 0 0 0-5Z"/><path d="M12 7v10"/>{% else %}<path d="M20 12 12 20 4 12V4h8l8 8Z"/><circle cx="9" cy="9" r="1.5"/>{% endif %}</svg></span>
-    <div><span class="admin-promotions-eyebrow">{{ is_coupon ? 'Cod de reducere' : 'Avantaj automat' }}</span><h2 id="admin-promotion-form-title">{{ is_coupon ? 'Creează un cupon' : 'Creează o reducere' }}</h2><p>{{ is_coupon ? 'Clientul introduce codul la finalizarea comenzii.' : 'Oferta se aplică singură când sunt îndeplinite condițiile.' }}</p></div>
+    <div><span class="admin-promotions-eyebrow">{{ is_coupon ? 'Cod de reducere' : 'Avantaj automat' }}</span><h2 id="admin-promotion-form-title">{{ is_edit ? (is_coupon ? 'Editează cuponul' : 'Editează reducerea') : (is_coupon ? 'Creează un cupon' : 'Creează o reducere') }}</h2><p>{{ is_edit ? 'Actualizează oferta. Comenzile deja plasate își păstrează valorile.' : (is_coupon ? 'Clientul introduce codul la finalizarea comenzii.' : 'Oferta se aplică singură când sunt îndeplinite condițiile.') }}</p></div>
     <span class="admin-promotion-form__hero-badge"><i></i>{{ is_coupon ? 'Cod unic' : 'Aplicare automată' }}</span>
   </header>
 
   <div class="admin-promotion-form__body" data-admin-promotion-scroll-body>
     {% if form_errors._form|default('') %}<div class="admin-promotion-form__alert" role="alert"><strong>Verifică formularul</strong><span>{{ form_errors._form }}</span></div>{% endif %}
-    {% if not is_coupon %}
+    {% if not is_coupon and not is_edit %}
       <section class="admin-promotion-quickstart" aria-labelledby="admin-promotion-quickstart-title">
         <header><span>Pornește rapid</span><div><strong id="admin-promotion-quickstart-title">Alege un exemplu și ajustează-l</strong><small>Completează automat formularul, fără să salveze.</small></div></header>
         <div>
@@ -37,13 +41,15 @@
       </section>
     {% endif %}
     <div class="admin-promotion-form__steps">
+      {% if is_edit %}<div class="admin-promotion-edit-state"><label class="admin-promotion-field"><span>Starea ofertei</span><select name="status"><option value="active" {{ data.status|default('active') == 'active' ? 'selected' : '' }}>Activă — respectă valabilitatea aleasă</option><option value="inactive" {{ data.status|default('active') == 'inactive' ? 'selected' : '' }}>Inactivă — nu se aplică</option></select><small>Pentru reactivare, alege „Activă” și salvează modificările.</small></label></div>{% endif %}
+      <input type="hidden" name="topbar_priority" value="{{ data.topbar_priority|default(0) }}">
       <section class="admin-promotion-step">
         <header><span>1</span><div><small>{{ is_coupon ? 'Identitate' : 'Denumire internă' }}</small><h3>{{ is_coupon ? 'Cum va fi recunoscut?' : 'Cum numim oferta?' }}</h3><p>{{ is_coupon ? 'Codul este scris automat cu majuscule și poate conține litere, cifre, „-” sau „_”.' : 'Alege un nume scurt, clar pentru colegii care folosesc administrarea.' }}</p></div></header>
         <div class="admin-promotion-identity {{ is_coupon ? 'has-code' : '' }}">
           {% if is_coupon %}
             <label class="admin-promotion-field {{ form_errors.code|default('') ? 'has-error' : '' }}"><span>Cod cupon <b>*</b></span><div class="admin-promotion-code"><i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 8.5V5h3.5a2.5 2.5 0 0 0 5 0H20v3.5a2.5 2.5 0 0 0 0 5V17h-7.5a2.5 2.5 0 0 0-5 0H4v-3.5a2.5 2.5 0 0 0 0-5Z"/></svg></i><input type="text" name="code" value="{{ data.code|default('') }}" placeholder="EX: BUNVENIT10" minlength="3" maxlength="40" pattern="[A-Za-z0-9_-]{3,40}" autocomplete="off" spellcheck="false" required data-admin-promotion-code></div><small>Minimum 3 caractere. Fără spații sau diacritice.</small>{% if form_errors.code|default('') %}<em>{{ form_errors.code }}</em>{% endif %}</label>
           {% endif %}
-          <label class="admin-promotion-field {{ form_errors.name|default('') ? 'has-error' : '' }}"><span>{{ is_coupon ? 'Nume intern' : 'Numele reducerii' }} <b>*</b></span><input type="text" name="name" value="{{ data.name|default('') }}" placeholder="{{ is_coupon ? 'Ex: Bun venit — 10%' : 'Ex: Livrare gratuită de weekend' }}" maxlength="90" required><small>{{ is_coupon ? 'Se vede doar în administrare.' : 'Îl vei recunoaște ușor în registru.' }}</small>{% if form_errors.name|default('') %}<em>{{ form_errors.name }}</em>{% endif %}</label>
+          <label class="admin-promotion-field {{ form_errors.name|default('') ? 'has-error' : '' }}"><span>{{ is_coupon ? 'Nume intern' : 'Numele reducerii' }} <b>*</b></span><input type="text" name="name" value="{{ data.name|default('') }}" placeholder="{{ is_coupon ? 'Ex: Bun venit — 10%' : 'Ex: Livrare gratuită de weekend' }}" maxlength="190" required><small>{{ is_coupon ? 'Se vede doar în administrare.' : 'Îl vei recunoaște ușor în registru.' }}</small>{% if form_errors.name|default('') %}<em>{{ form_errors.name }}</em>{% endif %}</label>
         </div>
       </section>
 
@@ -143,6 +149,7 @@
   <footer class="admin-promotion-form__footer">
     <div><span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.6 2.8 8.2 7 10 4.2-1.8 7-5.4 7-10V6l-7-3Z"/><path d="m9 12 2 2 4-4"/></svg></span><p><strong data-admin-promotion-summary-title>Verifică și activează.</strong><small data-admin-promotion-summary-detail>{{ is_coupon ? 'Codul va putea fi folosit după salvare.' : 'Reducerea se va aplica automat după salvare.' }}</small></p></div>
     <p class="admin-promotion-form__feedback" data-admin-promotion-feedback hidden></p>
-    <button class="admin-promotion-submit" type="submit"><span>{{ is_coupon ? 'Creează cuponul' : 'Activează reducerea' }}</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
+    <button class="admin-promotion-submit" type="submit"><span>{{ is_edit ? 'Salvează modificările' : (is_coupon ? 'Creează cuponul' : 'Activează reducerea') }}</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
   </footer>
 </form>
+{% endif %}

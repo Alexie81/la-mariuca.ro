@@ -1,0 +1,8 @@
+{% extends 'admin/layouts/base.twig' %}
+{% block title %}Confirmă acțiunea{% endblock %}
+{% block content %}
+  <div class="admin-promotion-confirm-page">
+    {% if offer %}{% include 'admin/partials/promotion-confirm.twig' with {is_modal:false} %}
+    {% else %}{% include 'admin/partials/promotion-missing.twig' %}{% endif %}
+  </div>
+{% endblock %}

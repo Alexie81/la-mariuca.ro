@@ -250,6 +250,11 @@ final class AppFactory
             $group->get('/cupoane-promotii/reducere/nou/', [$adminController, 'promotionForm']);
             $group->get('/cupoane-promotii/reducere/nou/modal/', [$adminController, 'promotionModal']);
             $group->post('/cupoane-promotii/reducere/nou/', [$adminController, 'savePromotion']);
+            $group->get('/cupoane-promotii/{offer_type:cupon|reducere}/{id:[0-9]+}/editare/', [$adminController, 'editPromotionOffer']);
+            $group->get('/cupoane-promotii/{offer_type:cupon|reducere}/{id:[0-9]+}/editare/modal/', [$adminController, 'editPromotionOfferModal']);
+            $group->post('/cupoane-promotii/{offer_type:cupon|reducere}/{id:[0-9]+}/editare/', [$adminController, 'updatePromotionOffer']);
+            $group->get('/cupoane-promotii/{offer_type:cupon|reducere}/{id:[0-9]+}/{action:dezactiveaza|sterge}/confirmare/', [$adminController, 'confirmPromotionAction']);
+            $group->post('/cupoane-promotii/{offer_type:cupon|reducere}/{id:[0-9]+}/sterge/', [$adminController, 'deletePromotionOffer']);
             $group->post('/cupoane-promotii/{offer_type:cupon|reducere}/{id:[0-9]+}/dezactiveaza/', [$adminController, 'deactivatePromotionOffer']);
             $group->get('/livrare/', [$adminController, 'shippingMethods']);
             $group->get('/livrare/noua/', [$adminController, 'shippingMethodForm']);

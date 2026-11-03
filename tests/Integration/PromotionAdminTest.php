@@ -287,6 +287,107 @@ final class PromotionAdminTest extends DatabaseTestCase
         self::assertStringContainsString('Ținută vedetă pentru test', $inactiveSearch);
     }
 
+    public function testCouponEditPrefillsValuesAndPreservesIdentityAndRedemptions(): void
+    {
+        $data = ['_csrf' => $this->csrf, 'code' => 'EDIT25', 'name' => 'Cupon pentru editare', 'scope' => 'order', 'value_type' => 'fixed', 'value' => '25,50', 'minimum' => '300', 'usage_limit' => '10', 'per_customer_limit' => '2', 'validity' => 'period', 'starts_at' => '2030-01-10T10:00', 'ends_at' => '2030-01-20T18:00', 'topbar_enabled' => '1', 'topbar_message' => 'Oferta pentru editare', 'topbar_priority' => '17'];
+        self::assertSame(303, $this->post('/admin/cupoane-promotii/cupon/nou/', $data)->getStatusCode());
+        $coupon = $this->pdo->query("SELECT * FROM coupons WHERE code='EDIT25'")->fetch(PDO::FETCH_ASSOC);
+        $id = (int) $coupon['id'];
+        $base = '/admin/cupoane-promotii/cupon/' . $id . '/';
+        $this->pdo->prepare("INSERT INTO coupon_redemptions (coupon_id,order_id,email,status,created_at,updated_at) VALUES (:coupon,NULL,'edit@example.test','confirmed',:now,:now)")->execute(['coupon' => $id, 'now' => gmdate('c')]);
+        $modal = $this->get($base . 'editare/modal/');
+        self::assertSame(200, $modal->getStatusCode());
+        $markup = (string) $modal->getBody();
+        self::assertStringContainsString('Editează cuponul', $markup);
+        foreach (['25,50', '300,00', '2030-01-10T10:00', '2030-01-20T18:00', 'EDIT25', '17'] as $value) {
+            self::assertStringContainsString('value="' . $value . '"', $markup);
+        }
+        self::assertStringContainsString('action="' . $base . 'editare/"', $markup);
+        $edited = [...$data, 'value' => '12.50', 'value_type' => 'percent', 'status' => 'inactive'];
+        self::assertSame(200, $this->post($base . 'editare/', $edited, ['Accept' => 'application/json'])->getStatusCode());
+        $saved = $this->pdo->query('SELECT * FROM coupons WHERE id=' . $id)->fetch(PDO::FETCH_ASSOC);
+        self::assertSame(1250, (int) $saved['value']);
+        self::assertSame('percent', $saved['type']);
+        self::assertSame('inactive', $saved['status']);
+        self::assertSame($coupon['created_at'], $saved['created_at']);
+        self::assertSame($coupon['created_by_user_id'], $saved['created_by_user_id']);
+        self::assertSame(1, (int) $this->pdo->query('SELECT COUNT(*) FROM coupon_redemptions WHERE coupon_id=' . $id)->fetchColumn());
+        self::assertSame(303, $this->post('/admin/cupoane-promotii/cupon/nou/', [...$data, 'code' => 'OTHER25'])->getStatusCode());
+        self::assertSame(422, $this->post($base . 'editare/', [...$edited, 'code' => 'OTHER25'], ['Accept' => 'application/json'])->getStatusCode());
+        self::assertSame('EDIT25', $this->pdo->query('SELECT code FROM coupons WHERE id=' . $id)->fetchColumn());
+        $invalid = $this->post($base . 'editare/', [...$edited, 'value' => '101']);
+        self::assertSame(422, $invalid->getStatusCode());
+        self::assertStringContainsString('value="101"', (string) $invalid->getBody());
+        self::assertSame(1250, (int) $this->pdo->query('SELECT value FROM coupons WHERE id=' . $id)->fetchColumn());
+    }
+
+    public function testPromotionEditSupportsScopeThresholdReactivationAndValidation(): void
+    {
+        $id = $this->insertPromotion('Oferta de actualizat', 'shipping', 'free', 0, null, null, 'inactive', 'Anunț inițial', 5);
+        $base = '/admin/cupoane-promotii/reducere/' . $id . '/';
+        $modal = (string) $this->get($base . 'editare/modal/')->getBody();
+        self::assertStringContainsString('Editează reducerea', $modal);
+        self::assertStringContainsString('value="inactive" selected', $modal);
+        self::assertStringContainsString('name="value_type" value="free" checked', $modal);
+        $productId = (int) $this->pdo->query("SELECT id FROM products WHERE status='published' ORDER BY id LIMIT 1")->fetchColumn();
+        $data = ['_csrf' => $this->csrf, 'name' => 'Oferta de actualizat', 'scope' => 'product', 'target_id' => $productId, 'value_type' => 'fixed', 'value' => '35,50', 'minimum_mode' => 'amount', 'minimum' => '300', 'validity' => 'always', 'status' => 'active', 'topbar_enabled' => '1', 'topbar_message' => 'Anunț actualizat', 'topbar_priority' => '5'];
+        self::assertSame(200, $this->post($base . 'editare/', $data, ['Accept' => 'application/json'])->getStatusCode());
+        $saved = $this->pdo->query('SELECT * FROM promotions WHERE id=' . $id)->fetch(PDO::FETCH_ASSOC);
+        self::assertSame('active', $saved['status']);
+        self::assertSame('product', $saved['scope']);
+        self::assertSame($productId, (int) $saved['target_id']);
+        self::assertSame(3550, (int) $saved['value']);
+        self::assertSame(30000, (int) $saved['minimum_bani']);
+        self::assertStringContainsString('Anunț actualizat', (string) $this->get('/')->getBody());
+        self::assertSame(422, $this->post($base . 'editare/', [...$data, 'target_id' => 999999], ['Accept' => 'application/json'])->getStatusCode());
+        self::assertSame($productId, (int) $this->pdo->query('SELECT target_id FROM promotions WHERE id=' . $id)->fetchColumn());
+        self::assertSame(404, $this->get('/admin/cupoane-promotii/reducere/999999/editare/modal/')->getStatusCode());
+    }
+
+    public function testConfirmationsDoNotMutateAndDeletionRetainsHistoryWithAdminAndCsrfProtection(): void
+    {
+        $promotionId = $this->insertPromotion('Ofertă de șters', 'shipping', 'free', 0, null, null, 'active', 'Mesaj de eliminat', 1000);
+        $couponData = ['_csrf' => $this->csrf, 'code' => 'DELETE10', 'name' => 'Cupon de șters', 'scope' => 'order', 'value_type' => 'percent', 'value' => '10', 'validity' => 'always'];
+        self::assertSame(303, $this->post('/admin/cupoane-promotii/cupon/nou/', $couponData)->getStatusCode());
+        $couponId = (int) $this->pdo->query("SELECT id FROM coupons WHERE code='DELETE10'")->fetchColumn();
+        $this->pdo->prepare("INSERT INTO coupon_redemptions (coupon_id,order_id,email,status,created_at,updated_at) VALUES (:coupon,NULL,'history@example.test','confirmed',:now,:now)")->execute(['coupon' => $couponId, 'now' => gmdate('c')]);
+        foreach (['cupon' => $couponId, 'reducere' => $promotionId] as $type => $id) {
+            $table = $type === 'cupon' ? 'coupons' : 'promotions';
+            $base = '/admin/cupoane-promotii/' . $type . '/' . $id . '/';
+            foreach (['dezactiveaza', 'sterge'] as $action) {
+                $confirm = $this->get($base . $action . '/confirmare/');
+                self::assertSame(200, $confirm->getStatusCode());
+                self::assertStringContainsString('action="' . $base . $action . '/"', (string) $confirm->getBody());
+                self::assertSame('active', $this->pdo->query('SELECT status FROM ' . $table . ' WHERE id=' . $id)->fetchColumn());
+                self::assertSame(419, $this->post($base . $action . '/', ['_csrf' => 'invalid'])->getStatusCode());
+            }
+            self::assertSame(419, $this->post($base . 'editare/', ['_csrf' => 'invalid'])->getStatusCode());
+            $session = $_SESSION;
+            $_SESSION = [];
+            self::assertSame(303, $this->get($base . 'editare/')->getStatusCode());
+            self::assertSame(303, $this->get($base . 'sterge/confirmare/')->getStatusCode());
+            // A valid anonymous CSRF token still cannot authorize an admin mutation.
+            $this->get('/admin');
+            self::assertSame(303, $this->post($base . 'sterge/', ['_csrf' => $_SESSION['_csrf']])->getStatusCode());
+            $_SESSION = $session;
+            self::assertSame(303, $this->post($base . 'sterge/', ['_csrf' => $this->csrf])->getStatusCode());
+            $deleted = $this->pdo->query('SELECT * FROM ' . $table . ' WHERE id=' . $id)->fetch(PDO::FETCH_ASSOC);
+            self::assertNotEmpty($deleted['deleted_at']);
+            self::assertSame('inactive', $deleted['status']);
+            self::assertSame(0, (int) $deleted['topbar_enabled']);
+            self::assertSame(404, $this->get($base . 'editare/')->getStatusCode());
+            self::assertSame(404, $this->get($base . 'sterge/confirmare/')->getStatusCode());
+            self::assertSame(422, $this->post($base . 'editare/', $couponData, ['Accept' => 'application/json'])->getStatusCode());
+            self::assertSame(422, $this->post($base . 'sterge/', ['_csrf' => $this->csrf], ['Accept' => 'application/json'])->getStatusCode());
+        }
+        self::assertSame(1, (int) $this->pdo->query('SELECT COUNT(*) FROM coupon_redemptions WHERE coupon_id=' . $couponId)->fetchColumn());
+        unset($_SESSION['_flash']);
+        $registry = (string) $this->get('/admin/cupoane-promotii/')->getBody();
+        self::assertStringNotContainsString('Cupon de șters', $registry);
+        self::assertStringNotContainsString('Ofertă de șters', $registry);
+        self::assertStringNotContainsString('Mesaj de eliminat', (string) $this->get('/')->getBody());
+    }
+
     private function insertPromotion(
         string $name,
         string $scope,

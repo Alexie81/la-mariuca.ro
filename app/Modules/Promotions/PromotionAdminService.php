@@ -167,13 +167,95 @@ final class PromotionAdminService
     /** @param array<string,mixed> $data */
     public function createCoupon(array $data, int $adminUserId): string
     {
+        return $this->writeOffer(fn(): string => $this->persistCoupon($data, $adminUserId));
+    }
+
+    /** @param array<string,mixed> $data */
+    public function createPromotion(array $data, int $adminUserId): string
+    {
+        return $this->writeOffer(fn(): string => $this->persistPromotion($data, $adminUserId));
+    }
+
+    /** @return array<string,mixed>|null */
+    public function findOffer(string $offerType, int $offerId): ?array
+    {
+        $this->offerTable($offerType);
+        $statement = $this->pdo->prepare('SELECT * FROM (' . $this->registrySql() . ') offers WHERE offer_type=:type AND id=:id');
+        $statement->execute(['type' => $offerType, 'id' => $offerId]);
+        $offer = $statement->fetch();
+        return is_array($offer) ? $offer : null;
+    }
+
+    /** @param array<string,mixed> $data */
+    public function updateOffer(string $offerType, int $offerId, array $data): string
+    {
+        $table = $this->offerTable($offerType);
+        return $this->writeOffer(function () use ($table, $offerType, $offerId, $data): string {
+            $lock = $this->pdo->prepare("SELECT id FROM {$table} WHERE id=:id AND deleted_at IS NULL" . ($this->pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql' ? ' FOR UPDATE' : ''));
+            $lock->execute(['id' => $offerId]);
+            if ($lock->fetchColumn() === false) {
+                throw new \RuntimeException('Oferta nu mai există în registru.');
+            }
+            return $offerType === 'coupon'
+                ? $this->persistCoupon($data, 0, $offerId)
+                : $this->persistPromotion($data, 0, $offerId);
+        });
+    }
+
+    public function deleteOffer(string $offerType, int $offerId): string
+    {
+        $table = $this->offerTable($offerType);
+        return $this->writeOffer(function () use ($table, $offerType, $offerId): string {
+            $now = gmdate('c');
+            $statement = $this->pdo->prepare("UPDATE {$table} SET status='inactive',topbar_enabled=0,deleted_at=:deleted,updated_at=:updated WHERE id=:id AND deleted_at IS NULL");
+            $statement->execute(['deleted' => $now, 'updated' => $now, 'id' => $offerId]);
+            if ($statement->rowCount() !== 1) {
+                throw new \RuntimeException('Oferta nu mai există în registru.');
+            }
+            return $offerType === 'coupon' ? 'Cuponul a fost șters din registru.' : 'Reducerea a fost ștearsă din registru.';
+        });
+    }
+
+    private function offerTable(string $offerType): string
+    {
+        return match ($offerType) {
+            'coupon' => 'coupons',
+            'promotion' => 'promotions',
+            default => throw new \RuntimeException('Tipul ofertei nu este valid.'),
+        };
+    }
+
+    /** @param callable():string $operation */
+    private function writeOffer(callable $operation): string
+    {
+        $ownsTransaction = !$this->pdo->inTransaction();
+        if ($ownsTransaction) {
+            $this->pdo->beginTransaction();
+        }
+        try {
+            $message = $operation();
+            if ($ownsTransaction) {
+                $this->pdo->commit();
+            }
+            return $message;
+        } catch (\Throwable $exception) {
+            if ($ownsTransaction && $this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+            throw $exception;
+        }
+    }
+
+    /** @param array<string,mixed> $data */
+    private function persistCoupon(array $data, int $adminUserId, ?int $offerId = null): string
+    {
         $name = $this->validatedName($data);
         $code = mb_strtoupper(trim((string) ($data['code'] ?? '')), 'UTF-8');
         if (preg_match('/^[A-Z0-9][A-Z0-9_-]{2,39}$/', $code) !== 1) {
             throw new \RuntimeException('Codul trebuie să aibă între 3 și 40 de caractere și poate conține litere, cifre, cratimă sau underscore.');
         }
-        $duplicate = $this->pdo->prepare('SELECT id FROM coupons WHERE UPPER(code)=:code LIMIT 1');
-        $duplicate->execute(['code' => $code]);
+        $duplicate = $this->pdo->prepare('SELECT id FROM coupons WHERE UPPER(code)=:code AND id<>:id LIMIT 1');
+        $duplicate->execute(['code' => $code, 'id' => $offerId ?? 0]);
         if ($duplicate->fetchColumn() !== false) {
             throw new \RuntimeException('Există deja un cupon cu acest cod.');
         }
@@ -190,6 +272,17 @@ final class PromotionAdminService
         $legacyType = $rule['value_type'] === 'fixed' ? 'fixed' : 'percent';
         $legacyValue = $rule['value_type'] === 'free' ? 10000 : $rule['value'];
         try {
+            if ($offerId !== null) {
+                $statement = $this->pdo->prepare('UPDATE coupons SET code=:code,type=:type,value=:value,minimum_bani=:minimum,usage_limit=:usage_limit,per_customer_limit=:customer_limit,starts_at=:starts,ends_at=:ends,status=:status,name=:name,scope=:scope,target_id=:target,value_type=:value_type,topbar_enabled=:topbar,topbar_message=:message,topbar_priority=:priority,updated_at=:updated WHERE id=:id AND deleted_at IS NULL');
+                $statement->execute([
+                    'id' => $offerId, 'code' => $code, 'type' => $legacyType, 'value' => $legacyValue,
+                    'minimum' => $minimumBani, 'usage_limit' => $usageLimit, 'customer_limit' => $customerLimit,
+                    'starts' => $startsAt, 'ends' => $endsAt, 'status' => $status, 'name' => $name,
+                    'scope' => $rule['scope'], 'target' => $rule['target_id'], 'value_type' => $rule['value_type'],
+                    'topbar' => $topbarEnabled ? 1 : 0, 'message' => $topbarMessage, 'priority' => $topbarPriority, 'updated' => $now,
+                ]);
+                return 'Cuponul „' . $name . '” a fost actualizat.';
+            }
             $statement = $this->pdo->prepare("INSERT INTO coupons
                 (code,type,value,minimum_bani,usage_limit,per_customer_limit,starts_at,ends_at,status,created_at,name,scope,target_id,value_type,topbar_enabled,topbar_message,topbar_priority,created_by_user_id,updated_at,deleted_at)
                 VALUES (:code,:legacy_type,:value,:minimum,:usage_limit,:customer_limit,:starts,:ends,:status,:created,:name,:scope,:target,:value_type,:topbar_enabled,:topbar_message,:topbar_priority,:admin,:updated,NULL)");
@@ -225,7 +318,7 @@ final class PromotionAdminService
     }
 
     /** @param array<string,mixed> $data */
-    public function createPromotion(array $data, int $adminUserId): string
+    private function persistPromotion(array $data, int $adminUserId, ?int $offerId = null): string
     {
         $name = $this->validatedName($data);
         $rule = $this->validatedRule($data);
@@ -244,6 +337,16 @@ final class PromotionAdminService
         $status = $this->validatedStatus($data);
         $now = gmdate('c');
 
+        if ($offerId !== null) {
+            $statement = $this->pdo->prepare('UPDATE promotions SET name=:name,scope=:scope,value_type=:value_type,value=:value,target_id=:target,minimum_bani=:minimum,starts_at=:starts,ends_at=:ends,status=:status,topbar_enabled=:topbar,topbar_message=:message,topbar_priority=:priority,updated_at=:updated WHERE id=:id AND deleted_at IS NULL');
+            $statement->execute([
+                'id' => $offerId, 'name' => $name, 'scope' => $rule['scope'], 'value_type' => $rule['value_type'],
+                'value' => $rule['value'], 'target' => $rule['target_id'], 'minimum' => $minimumBani,
+                'starts' => $startsAt, 'ends' => $endsAt, 'status' => $status,
+                'topbar' => $topbarEnabled ? 1 : 0, 'message' => $topbarMessage, 'priority' => $topbarPriority, 'updated' => $now,
+            ]);
+            return 'Reducerea „' . $name . '” a fost actualizată.';
+        }
         $statement = $this->pdo->prepare("INSERT INTO promotions
             (name,scope,value_type,value,target_id,minimum_bani,starts_at,ends_at,status,topbar_enabled,topbar_message,topbar_priority,created_by_user_id,created_at,updated_at,deleted_at)
             VALUES (:name,:scope,:value_type,:value,:target,:minimum,:starts,:ends,:status,:topbar_enabled,:topbar_message,:topbar_priority,:admin,:created,:updated,NULL)");
@@ -269,6 +372,11 @@ final class PromotionAdminService
     }
 
     public function deactivateOffer(string $offerType, int $offerId): string
+    {
+        return $this->writeOffer(fn(): string => $this->deactivateExistingOffer($offerType, $offerId));
+    }
+
+    private function deactivateExistingOffer(string $offerType, int $offerId): string
     {
         $table = match ($offerType) {
             'coupon' => 'coupons',

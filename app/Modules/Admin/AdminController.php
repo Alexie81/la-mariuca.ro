@@ -406,10 +406,49 @@ final class AdminController
 
     public function deactivatePromotionOffer(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
     {
+        return $this->changePromotionOffer($request, $response, $args, false);
+    }
+
+    public function deletePromotionOffer(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        return $this->changePromotionOffer($request, $response, $args, true);
+    }
+
+    public function editPromotionOffer(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        return $this->promotionFormResponse($args['offer_type'] === 'cupon' ? 'coupon' : 'promotion', false, (int) $args['id']);
+    }
+
+    public function editPromotionOfferModal(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        return $this->promotionFormResponse($args['offer_type'] === 'cupon' ? 'coupon' : 'promotion', true, (int) $args['id']);
+    }
+
+    public function updatePromotionOffer(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        return $this->savePromotionOffer($request, $response, $args['offer_type'] === 'cupon' ? 'coupon' : 'promotion', (int) $args['id']);
+    }
+
+    public function confirmPromotionAction(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $offer = $this->promotions->findOffer($args['offer_type'] === 'cupon' ? 'coupon' : 'promotion', (int) $args['id']);
+        return $this->view->render('admin/pages/promotion-confirm.twig', [
+            'offer' => $offer,
+            'is_delete' => $args['action'] === 'sterge',
+            'form_action' => $this->config->path('admin/cupoane-promotii/' . $args['offer_type'] . '/' . $args['id'] . '/' . $args['action'] . '/'),
+            'admin_section' => 'promotions',
+            'admin_context' => 'Confirmă acțiunea',
+        ], $offer === null ? 404 : 200);
+    }
+
+    private function changePromotionOffer(ServerRequestInterface $request, ResponseInterface $response, array $args, bool $delete): ResponseInterface
+    {
         $offerType = ($args['offer_type'] ?? '') === 'cupon' ? 'coupon' : (($args['offer_type'] ?? '') === 'reducere' ? 'promotion' : '');
         $wantsJson = str_contains(strtolower($request->getHeaderLine('Accept')), 'application/json');
         try {
-            $message = $this->promotions->deactivateOffer($offerType, (int) ($args['id'] ?? 0));
+            $message = $delete
+                ? $this->promotions->deleteOffer($offerType, (int) ($args['id'] ?? 0))
+                : $this->promotions->deactivateOffer($offerType, (int) ($args['id'] ?? 0));
             if ($wantsJson) {
                 $response->getBody()->write((string) json_encode(['ok' => true, 'message' => $message], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
                 return $response->withHeader('Content-Type', 'application/json; charset=utf-8')->withHeader('Cache-Control', 'no-store');
@@ -1218,37 +1257,55 @@ final class AdminController
         return $this->view->redirect($this->config->path('admin/cupoane-promotii/'));
     }
 
-    private function promotionFormResponse(string $offerKind, bool $modal): ResponseInterface
+    /** @param array<string,mixed>|null $formData @param array<string,string> $errors */
+    private function promotionFormResponse(string $offerKind, bool $modal, ?int $offerId = null, ?array $formData = null, array $errors = [], int $status = 200): ResponseInterface
     {
         $route = $offerKind === 'coupon' ? 'cupon' : 'reducere';
+        $offer = $offerId !== null ? $this->promotions->findOffer($offerKind, $offerId) : null;
+        $notFound = $offerId !== null && $offer === null;
+        if ($formData === null && $offer !== null) {
+            $formData = $offer;
+            $formData['value'] = number_format((int) $offer['value'] / 100, 2, ',', '');
+            $formData['minimum'] = (int) $offer['minimum_bani'] > 0 ? number_format((int) $offer['minimum_bani'] / 100, 2, ',', '') : '';
+            $formData['validity'] = $offer['starts_at'] || $offer['ends_at'] ? 'period' : 'always';
+            foreach (['starts_at', 'ends_at'] as $field) {
+                $formData[$field] = $offer[$field]
+                    ? (new \DateTimeImmutable((string) $offer[$field]))->setTimezone(new \DateTimeZone('Europe/Bucharest'))->format('Y-m-d\TH:i')
+                    : '';
+            }
+        }
         $data = [
             'offer_kind' => $offerKind,
             'catalog' => $this->promotions->discountCatalog(),
-            'form_action' => $this->config->path('admin/cupoane-promotii/' . $route . '/nou/'),
-            'form_data' => [],
-            'errors' => [],
+            'form_action' => $this->config->path('admin/cupoane-promotii/' . $route . '/' . ($offerId !== null ? $offerId . '/editare/' : 'nou/')),
+            'form_data' => $formData ?? [],
+            'errors' => $errors,
             'is_modal' => $modal,
+            'is_edit' => $offerId !== null,
+            'offer_not_found' => $notFound,
         ];
         if ($modal) {
-            return $this->view->render('admin/partials/promotion-form.twig', $data);
+            return $this->view->render('admin/partials/promotion-form.twig', $data, $notFound ? 404 : $status);
         }
 
         return $this->view->render('admin/pages/promotion-form.twig', [
             ...$data,
             'admin_section' => 'promotions',
-            'admin_context' => $offerKind === 'coupon' ? 'Cupon nou' : 'Reducere nouă',
+            'admin_context' => $offerId !== null ? 'Editează oferta' : ($offerKind === 'coupon' ? 'Cupon nou' : 'Reducere nouă'),
             'admin_unread_count' => $this->notificationService->unreadCount((int) ($this->auth->user()['id'] ?? 0)),
-        ]);
+        ], $notFound ? 404 : $status);
     }
 
-    private function savePromotionOffer(ServerRequestInterface $request, ResponseInterface $response, string $offerKind): ResponseInterface
+    private function savePromotionOffer(ServerRequestInterface $request, ResponseInterface $response, string $offerKind, ?int $offerId = null): ResponseInterface
     {
         $wantsJson = str_contains(strtolower($request->getHeaderLine('Accept')), 'application/json');
+        $data = (array) ($request->getParsedBody() ?? []);
         try {
-            $data = (array) ($request->getParsedBody() ?? []);
-            $message = $offerKind === 'coupon'
+            $message = $offerId !== null
+                ? $this->promotions->updateOffer($offerKind, $offerId, $data)
+                : ($offerKind === 'coupon'
                 ? $this->promotions->createCoupon($data, (int) ($this->auth->user()['id'] ?? 0))
-                : $this->promotions->createPromotion($data, (int) ($this->auth->user()['id'] ?? 0));
+                : $this->promotions->createPromotion($data, (int) ($this->auth->user()['id'] ?? 0)));
             if ($wantsJson) {
                 $response->getBody()->write((string) json_encode([
                     'ok' => true,
@@ -1264,9 +1321,7 @@ final class AdminController
                 $response->getBody()->write((string) json_encode(['ok' => false, 'message' => $exception->getMessage()], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
                 return $response->withStatus(422)->withHeader('Content-Type', 'application/json; charset=utf-8')->withHeader('Cache-Control', 'no-store');
             }
-            Flash::set('error', $exception->getMessage());
-            $route = $offerKind === 'coupon' ? 'cupon' : 'reducere';
-            return $this->view->redirect($this->config->path('admin/cupoane-promotii/' . $route . '/nou/'));
+            return $this->promotionFormResponse($offerKind, false, $offerId, $data, ['_form' => $exception->getMessage()], 422);
         }
     }
 
@@ -1278,6 +1333,7 @@ final class AdminController
         $offer['offer_kind'] = $offerType;
         $offer['route_type'] = $offerType === 'coupon' ? 'cupon' : 'reducere';
         $offer['show_in_topbar'] = (int) ($offer['topbar_enabled'] ?? 0) === 1;
+        $offer['can_deactivate'] = $offer['status'] === 'active';
         $offer['status'] = $lifecycle;
         $offer['status_label'] = match ($lifecycle) {
             'active' => 'Activă',

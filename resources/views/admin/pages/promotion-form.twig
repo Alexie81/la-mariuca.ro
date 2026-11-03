@@ -1,7 +1,7 @@
 {% extends 'admin/layouts/base.twig' %}
 
 {% set is_coupon = offer_kind|default('promotion') == 'coupon' %}
-{% block title %}{{ is_coupon ? 'Cupon nou' : 'Reducere nouă' }}{% endblock %}
+{% block title %}{{ is_edit|default(false) ? 'Editează oferta' : (is_coupon ? 'Cupon nou' : 'Reducere nouă') }}{% endblock %}
 
 {% block content %}
   <section class="admin-promotion-page">
