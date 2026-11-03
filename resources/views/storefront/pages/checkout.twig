@@ -40,20 +40,33 @@
           {% include 'storefront/partials/romania-location-fields.twig' with { location_id: 'checkout-address', county_value: selected_address.county|default(''), city_value: selected_address.city|default('') } %}
           <label>Cod poștal *<input name="postal_code" value="{{ selected_address.postal_code|default('') }}" autocomplete="postal-code" required></label>
         </div>
+        <section class="checkout-shipping" aria-labelledby="checkout-shipping-title">
+          <div class="checkout-shipping__head"><span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 6h11v11H3zM14 10h4l3 4v3h-7z"/><circle cx="7" cy="18" r="2"/><circle cx="18" cy="18" r="2"/></svg></span><div><small>Cum ajunge comanda?</small><h2 id="checkout-shipping-title">Alege metoda de livrare</h2><p>Costul și estimarea sunt afișate înainte să plasezi comanda.</p></div></div>
+          {% if shipping_methods|default([]) %}
+            <div class="checkout-shipping__methods">
+              {% for method in shipping_methods %}
+                {% set estimate = method.estimated_min_days == method.estimated_max_days ? method.estimated_min_days ~ (method.estimated_min_days == 1 ? ' zi lucrătoare' : ' zile lucrătoare') : method.estimated_min_days ~ '–' ~ method.estimated_max_days ~ ' zile lucrătoare' %}
+                <label class="checkout-shipping-method"><input type="radio" name="shipping_method_id" value="{{ method.id }}" {{ method.is_default or loop.first ? 'checked' : '' }} required><span><i aria-hidden="true"><svg viewBox="0 0 24 24">{% if method.type == 'pickup' %}<path d="M4 10h16v10H4zM3 10l2-6h14l2 6M9 20v-5h6v5"/>{% elseif method.type == 'locker' %}<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M12 3v18M4 10h16"/>{% elseif method.type == 'other' %}<path d="M12 3v12M8 11l4 4 4-4M5 20h14"/>{% else %}<path d="M3 6h11v11H3zM14 10h4l3 4v3h-7z"/><circle cx="7" cy="18" r="2"/><circle cx="18" cy="18" r="2"/>{% endif %}</svg></i><span><strong>{{ method.name }}</strong>{% if method.description %}<small>{{ method.description }}</small>{% endif %}<em><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>{{ estimate }}</em></span><b>{{ method.price_bani == 0 ? 'Gratuit' : money(method.price_bani) }}</b><u aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m6 12 4 4 8-9"/></svg></u></span></label>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="checkout-shipping__empty" role="alert"><span aria-hidden="true">!</span><div><strong>Livrarea nu este disponibilă momentan</strong><p>Nu poți plasa comanda până când magazinul activează o metodă de livrare.</p></div></div>
+          {% endif %}
+        </section>
         <h2>Plată</h2>
         <label class="choice"><input type="radio" name="payment_method" value="cod" checked> Ramburs la livrare</label>
         <label class="choice"><input type="radio" name="payment_method" value="stripe" {{ stripe_enabled ? '' : 'disabled' }}> Card prin Stripe {{ stripe_enabled ? '' : '(indisponibil până la configurare)' }}</label>
         <label class="choice"><input type="checkbox" name="terms" required> Confirm că am citit și accept termenii. Trimiterea comenzii implică obligația de plată.</label>
         <label class="choice"><input type="checkbox" name="marketing"> Doresc să primesc noutăți (opțional).</label>
-        <button class="button button-wide" type="submit">Plasează comanda cu obligație de plată</button>
+        <button class="button button-wide" type="submit" {{ shipping_methods|default([]) ? '' : 'disabled' }}>Plasează comanda cu obligație de plată</button>
       </form>
       <aside class="order-summary">
         <h2>Sumar</h2>
         {% for item in cart.items %}<div><span>{{ item.name }} × {{ item.quantity }}</span><strong>{{ money(item.line_total_bani) }}</strong></div>{% endfor %}
         <hr><div><span>Subtotal</span><strong>{{ money(cart.subtotal_bani) }}</strong></div>
         {% if cart.discount_bani %}<div><span>Reducere {{ cart.discount_label|default(cart.coupon.code|default('')) }}</span><strong>−{{ money(cart.discount_bani) }}</strong></div><div><span>După reducere</span><strong>{{ money(cart.total_bani) }}</strong></div>{% endif %}
-        {% if cart.customer_shipping_discounts|default([]) %}<div><span>Avantaj personal la livrare</span><strong>Se aplică automat</strong></div>{% endif %}
-        <small>Transportul se adaugă server-side după reducere, conform pragului configurat.</small>
+        {% if cart.shipping_discounts|default(cart.customer_shipping_discounts|default([])) %}<div><span>Avantaj la livrare</span><strong>Se aplică automat</strong></div>{% endif %}
+        <small>Costul metodei alese este verificat și adăugat server-side înainte de confirmarea comenzii.</small>
       </aside>
     </div>
   {% else %}

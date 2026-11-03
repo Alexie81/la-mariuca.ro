@@ -1,0 +1,148 @@
+{% set kind = offer_kind|default('promotion') %}
+{% set is_coupon = kind == 'coupon' %}
+{% set data = form_data|default({}) %}
+{% set form_errors = errors|default({}) %}
+{% set chosen_scope = data.scope|default('order') %}
+{% set chosen_value_type = data.value_type|default('percent') %}
+{% set chosen_validity = data.validity|default('always') %}
+{% set chosen_target = data.target_id|default('') %}
+{% set topbar_enabled = data.topbar_enabled|default(data.show_in_topbar|default(false)) %}
+{% set minimum_value = data.minimum|default('') %}
+{% set preview_scope = chosen_scope == 'shipping' ? 'Livrare' : (chosen_scope == 'product' ? 'Produs ales' : (chosen_scope == 'category' ? 'Categorie aleasă' : 'Toată comanda')) %}
+{% set preview_value = data.value|default('10') %}
+{% set preview_benefit = chosen_value_type == 'free' ? 'Livrare gratuită' : (chosen_value_type == 'fixed' ? preview_value ~ ' Lei reducere' : preview_value ~ '% reducere') %}
+
+<noscript><style>.admin-promotion-target[hidden],.admin-promotion-dates[hidden],.admin-promotion-topbar-editor[hidden],.admin-promotion-value label[hidden]{display:block!important}.admin-promotion-target{margin-top:12px}.admin-promotion-target::before{display:block;margin-bottom:8px;color:#b84b58;font-size:11px;font-weight:800;content:"Completează această selecție numai dacă ai ales tipul corespunzător mai sus."}</style></noscript>
+
+<form class="admin-promotion-form" action="{{ form_action }}" method="post" data-admin-promotion-form data-offer-kind="{{ kind }}"{% if is_modal|default(false) %} data-is-modal="true"{% endif %}>
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  <input type="hidden" name="offer_kind" value="{{ kind }}">
+
+  <header class="admin-promotion-form__hero">
+    <span class="admin-promotion-form__hero-icon {{ is_coupon ? 'is-coupon' : 'is-promotion' }}" aria-hidden="true"><svg viewBox="0 0 24 24">{% if is_coupon %}<path d="M4 8.5V5h3.5a2.5 2.5 0 0 0 5 0H20v3.5a2.5 2.5 0 0 0 0 5V17h-7.5a2.5 2.5 0 0 0-5 0H4v-3.5a2.5 2.5 0 0 0 0-5Z"/><path d="M12 7v10"/>{% else %}<path d="M20 12 12 20 4 12V4h8l8 8Z"/><circle cx="9" cy="9" r="1.5"/>{% endif %}</svg></span>
+    <div><span class="admin-promotions-eyebrow">{{ is_coupon ? 'Cod de reducere' : 'Avantaj automat' }}</span><h2 id="admin-promotion-form-title">{{ is_coupon ? 'Creează un cupon' : 'Creează o reducere' }}</h2><p>{{ is_coupon ? 'Clientul introduce codul la finalizarea comenzii.' : 'Oferta se aplică singură când sunt îndeplinite condițiile.' }}</p></div>
+    <span class="admin-promotion-form__hero-badge"><i></i>{{ is_coupon ? 'Cod unic' : 'Aplicare automată' }}</span>
+  </header>
+
+  <div class="admin-promotion-form__body" data-admin-promotion-scroll-body>
+    {% if form_errors._form|default('') %}<div class="admin-promotion-form__alert" role="alert"><strong>Verifică formularul</strong><span>{{ form_errors._form }}</span></div>{% endif %}
+    {% if not is_coupon %}
+      <section class="admin-promotion-quickstart" aria-labelledby="admin-promotion-quickstart-title">
+        <header><span>Pornește rapid</span><div><strong id="admin-promotion-quickstart-title">Alege un exemplu și ajustează-l</strong><small>Completează automat formularul, fără să salveze.</small></div></header>
+        <div>
+          <button class="admin-promotion-quickstart__button" type="button" data-admin-promotion-preset="shipping"><i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 6h11v11H3zM14 10h4l3 4v3h-7z"/><circle cx="7" cy="18" r="2"/><circle cx="18" cy="18" r="2"/></svg></i><span><strong>Livrare gratuită</strong><small>De la 300 Lei</small></span><em>Recomandat</em></button>
+          <button class="admin-promotion-quickstart__button" type="button" data-admin-promotion-preset="percent"><i aria-hidden="true">%</i><span><strong>10% la comandă</strong><small>Fără prag minim</small></span></button>
+          <button class="admin-promotion-quickstart__button" type="button" data-admin-promotion-preset="fixed"><i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 7h16v11H4zM7 10h5M16 14h1"/></svg></i><span><strong>25 Lei reducere</strong><small>La întreaga comandă</small></span></button>
+        </div>
+      </section>
+    {% endif %}
+    <div class="admin-promotion-form__steps">
+      <section class="admin-promotion-step">
+        <header><span>1</span><div><small>{{ is_coupon ? 'Identitate' : 'Denumire internă' }}</small><h3>{{ is_coupon ? 'Cum va fi recunoscut?' : 'Cum numim oferta?' }}</h3><p>{{ is_coupon ? 'Codul este scris automat cu majuscule și poate conține litere, cifre, „-” sau „_”.' : 'Alege un nume scurt, clar pentru colegii care folosesc administrarea.' }}</p></div></header>
+        <div class="admin-promotion-identity {{ is_coupon ? 'has-code' : '' }}">
+          {% if is_coupon %}
+            <label class="admin-promotion-field {{ form_errors.code|default('') ? 'has-error' : '' }}"><span>Cod cupon <b>*</b></span><div class="admin-promotion-code"><i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 8.5V5h3.5a2.5 2.5 0 0 0 5 0H20v3.5a2.5 2.5 0 0 0 0 5V17h-7.5a2.5 2.5 0 0 0-5 0H4v-3.5a2.5 2.5 0 0 0 0-5Z"/></svg></i><input type="text" name="code" value="{{ data.code|default('') }}" placeholder="EX: BUNVENIT10" minlength="3" maxlength="40" pattern="[A-Za-z0-9_-]{3,40}" autocomplete="off" spellcheck="false" required data-admin-promotion-code></div><small>Minimum 3 caractere. Fără spații sau diacritice.</small>{% if form_errors.code|default('') %}<em>{{ form_errors.code }}</em>{% endif %}</label>
+          {% endif %}
+          <label class="admin-promotion-field {{ form_errors.name|default('') ? 'has-error' : '' }}"><span>{{ is_coupon ? 'Nume intern' : 'Numele reducerii' }} <b>*</b></span><input type="text" name="name" value="{{ data.name|default('') }}" placeholder="{{ is_coupon ? 'Ex: Bun venit — 10%' : 'Ex: Livrare gratuită de weekend' }}" maxlength="90" required><small>{{ is_coupon ? 'Se vede doar în administrare.' : 'Îl vei recunoaște ușor în registru.' }}</small>{% if form_errors.name|default('') %}<em>{{ form_errors.name }}</em>{% endif %}</label>
+        </div>
+      </section>
+
+      <section class="admin-promotion-step">
+        <header><span>2</span><div><small>Unde se aplică?</small><h3>Alege beneficiul</h3><p>Poți oferi un avantaj pentru întreaga comandă, un produs, o categorie sau livrare.</p></div></header>
+        <div class="admin-promotion-scopes">
+          {% set scopes = [
+            {value:'order', title:'Toată comanda', text:'Din valoarea produselor', icon:'tag'},
+            {value:'product', title:'Un produs', text:'Doar produsul selectat', icon:'bag'},
+            {value:'category', title:'O categorie', text:'Toate produsele din ramură', icon:'folder'},
+            {value:'shipping', title:'Livrare', text:'Gratuită sau redusă', icon:'truck'}
+          ] %}
+          {% for scope in scopes %}
+            <label><input type="radio" name="scope" value="{{ scope.value }}" {{ chosen_scope == scope.value ? 'checked' : '' }}><span><i aria-hidden="true"><svg viewBox="0 0 24 24">{% if scope.icon == 'truck' %}<path d="M3 6h11v11H3zM14 10h4l3 4v3h-7z"/><circle cx="7" cy="18" r="2"/><circle cx="18" cy="18" r="2"/>{% elseif scope.icon == 'bag' %}<path d="M5 8h14l-1 12H6L5 8ZM9 9V6a3 3 0 0 1 6 0v3"/>{% elseif scope.icon == 'folder' %}<path d="M3 7h7l2 2h9v10H3z"/>{% else %}<path d="M20 12 12 20 4 12V4h8l8 8Z"/><circle cx="9" cy="9" r="1.5"/>{% endif %}</svg></i><b>{{ scope.title }}</b><small>{{ scope.text }}</small><em><svg viewBox="0 0 24 24"><path d="m6 12 4 4 8-9"/></svg></em></span></label>
+          {% endfor %}
+        </div>
+
+        <div class="admin-promotion-target" data-admin-promotion-target="product" {{ chosen_scope != 'product' ? 'hidden' : '' }}>
+          <div class="admin-promotion-picker__head">
+            <label class="admin-promotion-picker__search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m16 16 4 4"/></svg><span><small>Căutare semantică</small><input type="search" placeholder="Numele exact, SKU sau categorie…" autocomplete="off" data-admin-promotion-product-search></span></label>
+            <p data-admin-promotion-product-status aria-live="polite"><strong data-admin-promotion-product-count>{{ catalog.products|default([])|length }}</strong><span data-admin-promotion-product-label>{{ catalog.products|default([])|length == 1 ? 'produs disponibil' : 'produse disponibile' }}</span><em data-admin-promotion-product-exact hidden>Potrivire exactă</em></p>
+          </div>
+          <div class="admin-promotion-products" data-admin-promotion-products>
+            {% for product in catalog.products|default([]) %}
+              <label data-admin-promotion-product data-product-name="{{ product.name }}" data-product-skus="{{ product.search_skus|default(product.primary_sku|default('')) }}" data-product-category="{{ product.category_name|default('') }}" data-product-keywords="{{ product.search_terms|default('') }}"><input type="radio" name="target_id" value="{{ product.id }}" {{ chosen_scope == 'product' and chosen_target == product.id ? 'checked' : '' }}><span>{% if product.image_path|default('') %}<img src="{{ url(product.image_path) }}" width="58" height="58" alt="">{% else %}<i class="admin-promotion-product__fallback"><svg viewBox="0 0 24 24"><path d="M5 8h14l-1 12H6L5 8ZM9 9V6a3 3 0 0 1 6 0v3"/></svg></i>{% endif %}<span><b>{{ product.name }}</b><small>{{ product.category_name|default('Fără categorie') }}</small></span>{% if product.primary_sku|default('') %}<code>{{ product.primary_sku }}</code>{% endif %}<em><svg viewBox="0 0 24 24"><path d="m6 12 4 4 8-9"/></svg></em></span></label>
+            {% else %}<p class="admin-promotion-picker__notice">Niciun produs disponibil.</p>{% endfor %}
+            <div class="admin-promotion-picker__empty" data-admin-promotion-product-empty hidden><span aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5M8 10h4"/></svg></span><strong>Nicio potrivire relevantă</strong><small>Încearcă numele produsului sau SKU-ul complet.</small></div>
+          </div>
+        </div>
+
+        <div class="admin-promotion-target" data-admin-promotion-target="category" {{ chosen_scope != 'category' ? 'hidden' : '' }}>
+          <div class="admin-promotion-categories" role="radiogroup" aria-label="Alege categoria">
+            {% for category in catalog.categories|default([]) %}
+              <label><input type="radio" name="target_id" value="{{ category.id }}" {{ chosen_scope == 'category' and chosen_target == category.id ? 'checked' : '' }}><span style="--depth:{{ category.depth|default(0) }}"><i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 7h7l2 2h9v10H3z"/></svg></i><span><b>{{ category.name|default(category.path) }}</b><small>{{ category.path|default('Categorie principală') }}</small></span><em><svg viewBox="0 0 24 24"><path d="m6 12 4 4 8-9"/></svg></em></span></label>
+            {% else %}<p class="admin-promotion-picker__notice">Nicio categorie disponibilă.</p>{% endfor %}
+          </div>
+        </div>
+      </section>
+
+      <section class="admin-promotion-step">
+        <header><span>3</span><div><small>Ce primește?</small><h3>Configurează valoarea</h3><p>Tipurile disponibile se adaptează automat beneficiului ales.</p></div></header>
+        <div class="admin-promotion-value">
+          <fieldset><legend>Tipul reducerii</legend><label><input type="radio" name="value_type" value="percent" {{ chosen_value_type == 'percent' ? 'checked' : '' }}><span><b>Procent</b><small>Ex: 10%</small><em><svg viewBox="0 0 24 24"><path d="m6 12 4 4 8-9"/></svg></em></span></label><label><input type="radio" name="value_type" value="fixed" {{ chosen_value_type == 'fixed' ? 'checked' : '' }}><span><b>Sumă fixă</b><small>Ex: 25 Lei</small><em><svg viewBox="0 0 24 24"><path d="m6 12 4 4 8-9"/></svg></em></span></label><label data-admin-promotion-free-option {{ chosen_scope != 'shipping' ? 'hidden' : '' }}><input type="radio" name="value_type" value="free" {{ chosen_value_type == 'free' ? 'checked' : '' }}><span><b>Gratuită</b><small>Doar pentru livrare</small><em><svg viewBox="0 0 24 24"><path d="m6 12 4 4 8-9"/></svg></em></span></label></fieldset>
+          <label class="admin-promotion-field admin-promotion-amount {{ form_errors.value|default('') ? 'has-error' : '' }}"><span>Valoarea reducerii <b>*</b></span><div><input type="text" inputmode="decimal" name="value" value="{{ data.value|default('10') }}" required data-admin-promotion-value><strong data-admin-promotion-unit>%</strong></div><small data-admin-promotion-value-help>Introdu un procent între 0,01 și 100.</small>{% if form_errors.value|default('') %}<em>{{ form_errors.value }}</em>{% endif %}</label>
+        </div>
+        {% if is_coupon %}
+          <div class="admin-promotion-commercial">
+            <label class="admin-promotion-field"><span>Valoare minimă a comenzii</span><div class="admin-promotion-money"><input type="text" inputmode="decimal" name="minimum" value="{{ minimum_value }}" placeholder="0" data-admin-promotion-minimum><strong>Lei</strong></div><small>Lasă gol dacă nu există un prag minim.</small></label>
+            <label class="admin-promotion-field"><span>Limită totală de folosire</span><input type="number" inputmode="numeric" name="usage_limit" value="{{ data.usage_limit|default('') }}" min="1" step="1" placeholder="Fără limită"><small>Numărul maxim de comenzi pentru acest cod.</small></label>
+            <label class="admin-promotion-field"><span>Limită per client</span><input type="number" inputmode="numeric" name="per_customer_limit" value="{{ data.per_customer_limit|default('') }}" min="1" step="1" placeholder="Fără limită"><small>Câte utilizări poate avea fiecare client.</small></label>
+          </div>
+        {% else %}
+          {% set threshold_title = chosen_scope == 'shipping' ? 'Prag pentru livrare' : (chosen_scope == 'product' ? 'Prag pentru produs' : (chosen_scope == 'category' ? 'Prag pentru categorie' : 'Prag pentru comandă')) %}
+          {% set threshold_help = chosen_scope == 'shipping'
+            ? 'Livrarea redusă sau gratuită se activează numai când produsele din coș ating suma aleasă.'
+            : (chosen_scope == 'product'
+              ? 'Produsul ales primește reducerea numai când valoarea întregului coș atinge suma aleasă.'
+              : (chosen_scope == 'category'
+                ? 'Produsele eligibile primesc reducerea numai când valoarea întregului coș atinge suma aleasă.'
+                : 'Reducerea se activează numai când valoarea produselor din coș atinge suma aleasă.')) %}
+          <div class="admin-promotion-threshold{{ minimum_value and minimum_value != '0' ? ' has-value' : '' }}" data-admin-promotion-threshold>
+            <span class="admin-promotion-threshold__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 19h16M7 16V9m5 7V5m5 11v-4"/><path d="m5 8 5-4 4 3 5-5"/></svg></span>
+            <div class="admin-promotion-threshold__copy"><small>Condiție de activare</small><strong data-admin-promotion-minimum-title>{{ threshold_title }}</strong><p data-admin-promotion-minimum-help>{{ threshold_help }}</p></div>
+            <div class="admin-promotion-threshold__field">
+              <div class="admin-promotion-threshold__modes" role="radiogroup" aria-label="Alege pragul minim"><label><input type="radio" name="minimum_mode" value="none" {{ not minimum_value or minimum_value == '0' ? 'checked' : '' }} data-admin-promotion-minimum-mode><span>Orice comandă</span></label><label><input type="radio" name="minimum_mode" value="amount" {{ minimum_value and minimum_value != '0' ? 'checked' : '' }} data-admin-promotion-minimum-mode><span>De la o valoare</span></label></div>
+              <label class="admin-promotion-field"><span>Comandă minimă <small>Lei</small></span><div class="admin-promotion-money"><input type="text" inputmode="decimal" name="minimum" value="{{ minimum_value }}" placeholder="Ex: 300,00" data-admin-promotion-minimum><strong>Lei</strong></div></label>
+            </div>
+            <p class="admin-promotion-threshold__status" aria-live="polite"><span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m7 12 3 3 7-7"/></svg></span><strong data-admin-promotion-minimum-status>{{ minimum_value and minimum_value != '0' ? 'Se activează de la ' ~ minimum_value ~ ' Lei' : 'Se aplică fără prag minim' }}</strong></p>
+          </div>
+        {% endif %}
+      </section>
+
+      <section class="admin-promotion-step">
+        <header><span>4</span><div><small>Cât timp?</small><h3>Stabilește valabilitatea</h3><p>Oferta poate rămâne activă până o dezactivezi sau doar într-o perioadă.</p></div></header>
+        <div class="admin-promotion-validity"><label><input type="radio" name="validity" value="always" {{ chosen_validity == 'always' ? 'checked' : '' }}><span><i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M18.2 8C20 8 21 9.4 21 12s-1 4-2.8 4C14.4 16 11.6 8 7.8 8 6 8 5 9.4 5 12s1 4 2.8 4c3.8 0 6.6-8 10.4-8Z"/></svg></i><span><b>Fără termen</b><small>Rămâne activă până când alegi să o oprești.</small></span><em aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m6 12 4 4 8-9"/></svg></em></span></label><label><input type="radio" name="validity" value="period" {{ chosen_validity == 'period' ? 'checked' : '' }}><span><i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 3v4M18 3v4M4 9h16M6 5h12a2 2 0 0 1 2 2v13H4V7a2 2 0 0 1 2-2Z"/><path d="M8 13h3M8 17h7"/></svg></i><span><b>Perioadă aleasă</b><small>Stabilești exact data de început și data de sfârșit.</small></span><em aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m6 12 4 4 8-9"/></svg></em></span></label></div>
+        <div class="admin-promotion-dates" data-admin-promotion-dates {{ chosen_validity != 'period' ? 'hidden' : '' }}><label><span>Începe la</span><input type="datetime-local" name="starts_at" value="{{ data.starts_at|default('') }}"></label><i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></i><label><span>Se încheie la</span><input type="datetime-local" name="ends_at" value="{{ data.ends_at|default('') }}"></label></div>
+      </section>
+
+      <section class="admin-promotion-step">
+        <header><span>5</span><div><small>Comunicare</small><h3>Anunță oferta în magazin</h3><p>Opțional, afișează un mesaj scurt în bara de sus a site-ului.</p></div></header>
+        <label class="admin-promotion-topbar-toggle"><input type="checkbox" name="topbar_enabled" value="1" {{ topbar_enabled ? 'checked' : '' }} data-admin-promotion-topbar-toggle><span><i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 6h16v12H4zM4 9h16"/></svg></i><span><b>Afișează în bara de sus</b><small>Vizitatorii vor vedea mesajul pe toate paginile magazinului.</small></span><em></em></span></label>
+        <div class="admin-promotion-topbar-editor{{ not topbar_enabled ? ' is-disabled' : '' }}" data-admin-promotion-topbar-editor>
+          <div class="admin-promotion-message-editor">
+            <label class="admin-promotion-field {{ form_errors.topbar_message|default('') ? 'has-error' : '' }}"><span>Mesajul din bară <b>*</b><small><strong data-admin-promotion-message-count>{{ data.topbar_message|default('')|length }}</strong>/140</small></span><textarea name="topbar_message" maxlength="140" rows="3" placeholder="{{ is_coupon ? 'Ex: Primești 10% la prima comandă!' : 'Ex: Livrare gratuită în acest weekend!' }}" data-admin-promotion-message>{{ data.topbar_message|default('') }}</textarea><small>{{ is_coupon ? 'Codul este afișat automat lângă mesaj — nu trebuie repetat.' : 'Spune beneficiul direct și păstrează mesajul ușor de citit.' }}</small>{% if form_errors.topbar_message|default('') %}<em>{{ form_errors.topbar_message }}</em>{% endif %}</label>
+            <div class="admin-promotion-message-suggestion"><span><small>Mesaj sugerat</small><strong data-admin-promotion-message-suggestion>{{ is_coupon ? 'Folosește codul la finalizarea comenzii.' : 'Descoperă oferta pregătită pentru tine.' }}</strong></span><button class="admin-promotion-message-suggestion__button" type="button" data-admin-promotion-use-message>Folosește mesajul</button></div>
+          </div>
+          <div class="admin-promotion-topbar-preview">
+            <div class="admin-promotion-topbar-preview__head"><small>Previzualizare în magazin</small><span data-admin-promotion-topbar-state><i></i>{{ topbar_enabled ? 'bară vizibilă' : 'bară oprită' }}</span></div>
+            <div class="admin-promotion-topbar-preview__line"><i class="admin-promotion-topbar-preview__icon" aria-hidden="true"><svg viewBox="0 0 24 24">{% if is_coupon %}<path d="M4 8.5V5h3.5a2.5 2.5 0 0 0 5 0H20v3.5a2.5 2.5 0 0 0 0 5V17h-7.5a2.5 2.5 0 0 0-5 0H4v-3.5a2.5 2.5 0 0 0 0-5Z"/>{% else %}<path d="M20 12 12 20 4 12V4h8l8 8Z"/><circle cx="9" cy="9" r="1.5"/>{% endif %}</svg></i><p data-admin-promotion-message-preview>{{ data.topbar_message|default(is_coupon ? 'Folosește codul tău la finalizarea comenzii.' : 'O ofertă specială te așteaptă în magazin.') }}</p>{% if is_coupon %}<code data-admin-promotion-code-preview>{{ data.code|default('COD CUPON') ?: 'COD CUPON' }}</code>{% endif %}</div>
+            <div class="admin-promotion-topbar-preview__meta"><span class="is-scope" data-admin-promotion-scope-preview>{{ preview_scope }}</span><strong data-admin-promotion-benefit-preview>{{ preview_benefit }}</strong><span class="is-condition" data-admin-promotion-minimum-preview {{ not minimum_value or minimum_value == '0' ? 'hidden' : '' }}>De la {{ minimum_value }} Lei</span></div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <footer class="admin-promotion-form__footer">
+    <div><span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.6 2.8 8.2 7 10 4.2-1.8 7-5.4 7-10V6l-7-3Z"/><path d="m9 12 2 2 4-4"/></svg></span><p><strong data-admin-promotion-summary-title>Verifică și activează.</strong><small data-admin-promotion-summary-detail>{{ is_coupon ? 'Codul va putea fi folosit după salvare.' : 'Reducerea se va aplica automat după salvare.' }}</small></p></div>
+    <p class="admin-promotion-form__feedback" data-admin-promotion-feedback hidden></p>
+    <button class="admin-promotion-submit" type="submit"><span>{{ is_coupon ? 'Creează cuponul' : 'Activează reducerea' }}</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
+  </footer>
+</form>

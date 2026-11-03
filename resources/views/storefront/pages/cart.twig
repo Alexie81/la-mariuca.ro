@@ -98,7 +98,7 @@
               </span>
               <label for="coupon_code"><strong>Ai un cod de reducere?</strong><small>Introdu-l aici și îl aplicăm imediat.</small></label>
               <span class="cart-coupon__control">
-                <input id="coupon_code" name="coupon_code" value="{{ cart.coupon.code|default('') }}" placeholder="Cod cupon" autocomplete="off">
+                <input id="coupon_code" name="coupon_code" value="{{ cart.coupon_candidate.code|default(cart.coupon.code|default('')) }}" placeholder="Cod cupon" autocomplete="off">
                 <button type="submit">{{ cart.coupon ? 'Actualizează' : 'Aplică' }}</button>
               </span>
             </form>

@@ -83,6 +83,10 @@
           <span>Metodă de plată</span>
           <strong>{{ order.payment_method == 'cod' ? 'Ramburs la curier' : 'Card online' }}</strong>
         </div>
+        <div class="admin-order-summary__method">
+          <span>Metodă de livrare</span>
+          <strong>{{ order.shipping_method_name|default('') ?: (order.shipping_method|default('') in ['manual', 'curier'] ? 'Curier standard' : order.shipping_method|default('Curier standard')) }}</strong>
+        </div>
       </section>
 
       {% if order.payments %}

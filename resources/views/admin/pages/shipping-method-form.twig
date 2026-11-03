@@ -1,0 +1,11 @@
+{% extends 'admin/layouts/base.twig' %}
+
+{% set data = form_data|default(shipping_method|default({})) %}
+{% block title %}{{ data.id|default(null) ? 'Editează metoda de livrare' : 'Metodă de livrare nouă' }}{% endblock %}
+
+{% block content %}
+  <section class="admin-shipping-page">
+    <a class="admin-shipping-page__back" href="{{ url('admin/livrare/') }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg>Înapoi la metodele de livrare</a>
+    {% include 'admin/partials/shipping-method-form.twig' with {is_modal: false} %}
+  </section>
+{% endblock %}

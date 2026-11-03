@@ -1,0 +1,69 @@
+{% set data = form_data|default(shipping_method|default({})) %}
+{% set form_errors = errors|default({}) %}
+{% set editing = data.id|default(null) %}
+{% set selected_type = data.type|default('courier') %}
+{% set selected_status = data.status|default('active') %}
+{% set min_days = data.estimated_min_days|default(1) %}
+{% set max_days = data.estimated_max_days|default(2) %}
+
+<form class="admin-shipping-form" action="{{ form_action }}" method="post" data-admin-shipping-form data-is-edit="{{ editing ? 'true' : 'false' }}"{% if is_modal|default(false) %} data-is-modal="true"{% endif %}>
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  <header class="admin-shipping-form__hero">
+    <span class="admin-shipping-form__hero-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 6h11v11H3zM14 10h4l3 4v3h-7z"/><circle cx="7" cy="18" r="2"/><circle cx="18" cy="18" r="2"/></svg></span>
+    <div><span class="admin-shipping-eyebrow">{{ editing ? 'Actualizează opțiunea' : 'Opțiune nouă în checkout' }}</span><h2 id="admin-shipping-form-title">{{ editing ? 'Editează metoda de livrare' : 'Adaugă o metodă de livrare' }}</h2><p>Completează exact informațiile pe care trebuie să le înțeleagă clientul.</p></div>
+    <span class="admin-shipping-form__hero-badge"><i></i><span data-admin-shipping-hero-state>{{ selected_status == 'active' ? 'Vizibilă în checkout' : 'Ascunsă' }}</span></span>
+  </header>
+
+  <div class="admin-shipping-form__body">
+    {% if form_errors._form|default('') %}<div class="admin-shipping-form__alert" role="alert"><strong>Verifică formularul</strong><span>{{ form_errors._form }}</span></div>{% endif %}
+    <aside class="admin-shipping-form__promo-note"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12 12 20 4 12V4h8l8 8Z"/><circle cx="9" cy="9" r="1.5"/></svg><p><strong>Pragul pentru livrare gratuită nu se setează aici.</strong><span>Îl poți configura separat din <a href="{{ url('admin/cupoane-promotii/') }}">Cupoane și promoții</a>.</span></p></aside>
+
+    <div class="admin-shipping-form__layout">
+      <div class="admin-shipping-form__steps">
+        <section class="admin-shipping-step">
+          <header><span>1</span><div><small>Cum ajunge?</small><h3>Alege tipul metodei</h3><p>Tipul oferă clientului un reper vizual rapid.</p></div></header>
+          <div class="admin-shipping-types" role="radiogroup" aria-label="Tipul metodei de livrare">
+            {% for value, label in {courier: 'Curier la adresă', locker: 'Locker / punct', pickup: 'Ridicare personală', other: 'Altă metodă'} %}<label><input type="radio" name="type" value="{{ value }}" {{ selected_type == value ? 'checked' : '' }}><span><i aria-hidden="true"><svg viewBox="0 0 24 24">{% if value == 'pickup' %}<path d="M4 10h16v10H4zM3 10l2-6h14l2 6M9 20v-5h6v5"/>{% elseif value == 'locker' %}<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M12 3v18M4 10h16"/>{% elseif value == 'other' %}<path d="M12 3v12M8 11l4 4 4-4M5 20h14"/>{% else %}<path d="M3 6h11v11H3zM14 10h4l3 4v3h-7z"/><circle cx="7" cy="18" r="2"/><circle cx="18" cy="18" r="2"/>{% endif %}</svg></i><b>{{ label }}</b><small>{{ value == 'courier' ? 'Livrare direct la adresă' : (value == 'locker' ? 'Ridicare dintr-un punct ales' : (value == 'pickup' ? 'Clientul vine să ridice comanda' : 'O opțiune personalizată')) }}</small><em aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m6 12 4 4 8-9"/></svg></em></span></label>{% endfor %}
+          </div>
+        </section>
+
+        <section class="admin-shipping-step">
+          <header><span>2</span><div><small>Ce vede clientul?</small><h3>Nume și explicație</h3><p>Folosește cuvinte simple, fără termeni interni.</p></div></header>
+          <div class="admin-shipping-fields">
+            <label class="{{ form_errors.name|default('') ? 'has-error' : '' }}"><span>Numele metodei <b>*</b></span><input name="name" value="{{ data.name|default('') }}" maxlength="120" placeholder="Ex: Curier rapid la adresă" required data-admin-shipping-name><small>Apare primul în selectorul de la checkout.</small>{% if form_errors.name|default('') %}<em>{{ form_errors.name }}</em>{% endif %}</label>
+            <label class="{{ form_errors.code|default('') ? 'has-error' : '' }}"><span>Cod intern <b>*</b></span><input name="code" value="{{ data.code|default('') }}" maxlength="80" pattern="[a-z0-9-]+" placeholder="curier-rapid" required data-admin-shipping-code><small>Se generează din nume, dar îl poți modifica.</small>{% if form_errors.code|default('') %}<em>{{ form_errors.code }}</em>{% endif %}</label>
+            <label class="is-wide {{ form_errors.description|default('') ? 'has-error' : '' }}"><span>Explicație scurtă <em>opțional</em><small><strong data-admin-shipping-description-count>{{ data.description|default('')|length }}</strong>/160</small></span><textarea name="description" maxlength="160" rows="3" placeholder="Ex: Primești coletul la adresa aleasă, cu urmărire inclusă." data-admin-shipping-description>{{ data.description|default('') }}</textarea><small>O singură propoziție este suficientă.</small>{% if form_errors.description|default('') %}<em>{{ form_errors.description }}</em>{% endif %}</label>
+          </div>
+        </section>
+
+        <section class="admin-shipping-step">
+          <header><span>3</span><div><small>Cât costă și când ajunge?</small><h3>Cost și estimare</h3><p>Valorile vor fi afișate înainte de plasarea comenzii.</p></div></header>
+          <div class="admin-shipping-cost-time">
+            <label class="admin-shipping-cost {{ form_errors.price|default('') ? 'has-error' : '' }}"><span>Cost standard <b>*</b></span><span><input name="price" value="{{ data.price|default(data.price_bani is defined ? (data.price_bani / 100)|number_format(2, ',', '') : '19,00') }}" inputmode="decimal" placeholder="19,00" required data-admin-shipping-price><strong>Lei</strong></span><small>Poți introduce 0 pentru o metodă fără cost, precum ridicarea personală.</small>{% if form_errors.price|default('') %}<em>{{ form_errors.price }}</em>{% endif %}</label>
+            <div class="admin-shipping-days"><span>Interval estimat <b>*</b></span><div><label><small>Minimum</small><input type="number" name="estimated_min_days" min="0" max="365" value="{{ min_days }}" required data-admin-shipping-min-days><em>zile</em></label><i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></i><label><small>Maximum</small><input type="number" name="estimated_max_days" min="0" max="365" value="{{ max_days }}" required data-admin-shipping-max-days><em>zile</em></label></div><small>Maximumul trebuie să fie egal sau mai mare decât minimumul.</small></div>
+          </div>
+        </section>
+
+        <section class="admin-shipping-step">
+          <header><span>4</span><div><small>Unde apare?</small><h3>Ordine și disponibilitate</h3><p>Controlează poziția și dacă metoda poate fi aleasă acum.</p></div></header>
+          <div class="admin-shipping-availability">
+            <label><span>Număr de ordine <b>*</b></span><input type="number" name="position" min="0" max="9999" value="{{ data.position|default(10) }}" required data-admin-shipping-position><small>Numărul mai mic apare primul în checkout.</small></label>
+            <fieldset><legend>Stare</legend><label><input type="radio" name="status" value="active" {{ selected_status == 'active' ? 'checked' : '' }}><span><i></i><b>Activă</b><small>Poate fi aleasă de client</small></span></label><label><input type="radio" name="status" value="inactive" {{ selected_status != 'active' ? 'checked' : '' }}><span><i></i><b>Ascunsă</b><small>Rămâne doar în administrare</small></span></label></fieldset>
+            <label class="admin-shipping-default"><input type="checkbox" name="is_default" value="1" {{ data.is_default|default(false) ? 'checked' : '' }} data-admin-shipping-default><span><i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m6 12 4 4 8-9"/></svg></i><span><b>Sugerează această metodă</b><small>Va fi preselectată în checkout când este activă.</small></span></span></label>
+          </div>
+        </section>
+      </div>
+
+      <aside class="admin-shipping-preview" aria-labelledby="admin-shipping-preview-title">
+        <header><span class="admin-shipping-eyebrow">Previzualizare live</span><h3 id="admin-shipping-preview-title">Așa o va vedea clientul</h3><p>Modificările apar aici înainte să salvezi.</p></header>
+        <div class="admin-shipping-preview__checkout">
+          <span class="admin-shipping-preview__label">Metodă de livrare</span>
+          <article><span class="admin-shipping-preview__radio" aria-hidden="true"><i></i></span><span class="admin-shipping-preview__icon" aria-hidden="true"><svg viewBox="0 0 24 24" data-admin-shipping-preview-icon><path d="M3 6h11v11H3zM14 10h4l3 4v3h-7z"/><circle cx="7" cy="18" r="2"/><circle cx="18" cy="18" r="2"/></svg></span><span class="admin-shipping-preview__copy"><strong data-admin-shipping-preview-name>{{ data.name|default('Curier rapid la adresă') ?: 'Curier rapid la adresă' }}</strong><small data-admin-shipping-preview-description>{{ data.description|default('Primești coletul la adresa aleasă.') ?: 'Primești coletul la adresa aleasă.' }}</small><em data-admin-shipping-preview-estimate>Ajunge în aproximativ {{ min_days == max_days ? min_days : min_days ~ '–' ~ max_days }} {{ max_days == 1 ? 'zi lucrătoare' : 'zile lucrătoare' }}</em></span><b data-admin-shipping-preview-price>{{ data.price_bani|default(1900) == 0 ? 'Gratuit' : (data.price|default('19,00') ~ ' Lei') }}</b></article>
+        </div>
+        <div class="admin-shipping-preview__state"><span><i></i><strong data-admin-shipping-preview-state>{{ selected_status == 'active' ? 'Activă în checkout' : 'Ascunsă din checkout' }}</strong></span><small data-admin-shipping-preview-order>Poziția {{ data.position|default(10) }} în listă</small></div>
+      </aside>
+    </div>
+  </div>
+
+  <footer class="admin-shipping-form__footer"><div><span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 6h11v11H3zM14 10h4l3 4v3h-7z"/><circle cx="7" cy="18" r="2"/><circle cx="18" cy="18" r="2"/></svg></span><p><strong data-admin-shipping-summary-title>{{ data.name|default('Metodă nouă') ?: 'Metodă nouă' }}</strong><small data-admin-shipping-summary-detail>{{ data.price|default('19,00') }} Lei · {{ min_days == max_days ? min_days : min_days ~ '–' ~ max_days }} zile</small></p></div><p class="admin-shipping-form__feedback" data-admin-shipping-feedback hidden></p><a href="{{ url('admin/livrare/') }}" data-admin-shipping-close>Renunță</a><button type="submit"><span>{{ editing ? 'Salvează modificările' : 'Adaugă metoda' }}</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button></footer>
+</form>

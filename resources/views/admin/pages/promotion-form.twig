@@ -1,0 +1,11 @@
+{% extends 'admin/layouts/base.twig' %}
+
+{% set is_coupon = offer_kind|default('promotion') == 'coupon' %}
+{% block title %}{{ is_coupon ? 'Cupon nou' : 'Reducere nouă' }}{% endblock %}
+
+{% block content %}
+  <section class="admin-promotion-page">
+    <a class="admin-promotion-page__back" href="{{ url('admin/cupoane-promotii/') }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg>Înapoi la cupoane și promoții</a>
+    {% include 'admin/partials/promotion-form.twig' with {is_modal: false} %}
+  </section>
+{% endblock %}

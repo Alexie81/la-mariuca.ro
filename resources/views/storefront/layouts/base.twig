@@ -34,7 +34,7 @@
   <link rel="stylesheet" href="{{ url('assets/css/storefront/tokens.css') }}">
   <link rel="stylesheet" href="{{ url('assets/css/storefront/base.css') }}">
   <link rel="stylesheet" href="{{ url('assets/css/storefront/typography.css') }}">
-  <link rel="stylesheet" href="{{ url('assets/css/storefront/layout.css') }}?v=20261026-tablet-footer1">
+  <link rel="stylesheet" href="{{ url('assets/css/storefront/layout.css') }}?v=20261103-promotion-topbar1">
   <link rel="stylesheet" href="{{ url('assets/css/storefront/components.css') }}">
   <link rel="stylesheet" href="{{ url('assets/css/storefront/pages.css') }}?v=20261031-product-specifications-three1">
   <link rel="stylesheet" href="{{ url('assets/css/storefront/empty-states.css') }}">
@@ -43,15 +43,46 @@
 </head>
 <body class="{% block body_class %}{% endblock %}">
   <a class="skip-link" href="#continut">Sari la conținut</a>
-  <div class="mobile-delivery">
-    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h11v10H3zM14 10h4l3 3v3h-7z"></path><circle cx="7" cy="18" r="2"></circle><circle cx="18" cy="18" r="2"></circle></svg>
-    <span>Livrare rapidă în toată România</span>
-  </div>
   {% set cart = cart_summary() %}
   {% set user = current_user() %}
   {% set favorite_total = favorite_count() %}
   {% set navigation_tree = navigation_categories() %}
-  <header class="site-header">
+  {% set promotion_banner = active_promotion_banner|default(null) %}
+  <header class="site-header{{ promotion_banner ? ' site-header--with-announcement' : '' }}">
+    {% if promotion_banner %}
+      {% set promotion_type = promotion_banner.offer_type|default('promotion') == 'coupon' ? 'coupon' : 'promotion' %}
+      {% set promotion_code = promotion_banner.code|default(promotion_banner.coupon_code|default(''))|trim %}
+      {% set promotion_link = promotion_banner.link_path|default('')|trim %}
+      <aside class="site-announcement site-announcement--{{ promotion_type }}" aria-label="Ofertă activă">
+        {% if promotion_link %}
+          <a class="site-announcement__inner" href="{{ url(promotion_link) }}">
+        {% else %}
+          <div class="site-announcement__inner">
+        {% endif %}
+            <span class="site-announcement__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M12 2.8 14 8l5.2 2-5.2 2-2 5.2-2-5.2-5.2-2L10 8l2-5.2Z"></path><path d="m18.2 15.1.8 2.1 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8.8-2.1Z"></path></svg>
+            </span>
+            <span class="site-announcement__message">{{ promotion_banner.message|default('O ofertă specială, pregătită cu drag pentru tine.') }}</span>
+            {% if promotion_code %}
+              <span class="site-announcement__code"><span>Cod</span><strong>{{ promotion_code }}</strong></span>
+            {% endif %}
+            {% if promotion_link %}
+              <span class="site-announcement__arrow" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"></path></svg>
+              </span>
+            {% endif %}
+        {% if promotion_link %}
+          </a>
+        {% else %}
+          </div>
+        {% endif %}
+      </aside>
+    {% else %}
+      <div class="mobile-delivery">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h11v10H3zM14 10h4l3 3v3h-7z"></path><circle cx="7" cy="18" r="2"></circle><circle cx="18" cy="18" r="2"></circle></svg>
+        <span>Livrare rapidă în toată România</span>
+      </div>
+    {% endif %}
     <div class="header-container header-row">
       <a class="brand" href="{{ url('') }}" aria-label="La Măriuca Boutique, pagina principală">
         <img class="brand-logo" src="{{ url('assets/images/logo-la-mariuca-transparent.png') }}" width="1000" height="337" alt="" decoding="async">

@@ -13,6 +13,8 @@ use App\Modules\Suppliers\SupplierAdminService;
 use App\Modules\Content\ContentAdminService;
 use App\Modules\Customers\CustomerAdminService;
 use App\Modules\Newsletter\NewsletterAdminService;
+use App\Modules\Promotions\PromotionAdminService;
+use App\Modules\Shipping\ShippingMethodService;
 use App\Shared\Config\Config;
 use App\Shared\Http\RateLimiter;
 use App\Shared\Http\View;
@@ -26,7 +28,7 @@ use Psr\Http\Message\ServerRequestInterface;
 
 final class AdminController
 {
-    public function __construct(private readonly PDO $pdo, private readonly AdminDashboardService $dashboardService, private readonly AdminNotificationService $notificationService, private readonly AdminPushService $push, private readonly CatalogRepository $catalog, private readonly CatalogAdminService $catalogAdmin, private readonly CustomerAdminService $customers, private readonly NewsletterAdminService $newsletter, private readonly SupplierAdminService $suppliers, private readonly OrderService $orders, private readonly ProductReviewService $reviews, private readonly MediaService $media, private readonly ContentAdminService $contentAdmin, private readonly Auth $auth, private readonly AdminRememberMe $rememberMe, private readonly RateLimiter $limiter, private readonly View $view, private readonly Config $config)
+    public function __construct(private readonly PDO $pdo, private readonly AdminDashboardService $dashboardService, private readonly AdminNotificationService $notificationService, private readonly AdminPushService $push, private readonly CatalogRepository $catalog, private readonly CatalogAdminService $catalogAdmin, private readonly CustomerAdminService $customers, private readonly NewsletterAdminService $newsletter, private readonly PromotionAdminService $promotions, private readonly ShippingMethodService $shippingMethods, private readonly SupplierAdminService $suppliers, private readonly OrderService $orders, private readonly ProductReviewService $reviews, private readonly MediaService $media, private readonly ContentAdminService $contentAdmin, private readonly Auth $auth, private readonly AdminRememberMe $rememberMe, private readonly RateLimiter $limiter, private readonly View $view, private readonly Config $config)
     {
     }
 
@@ -344,6 +346,184 @@ final class AdminController
             return $this->view->render('admin/partials/newsletter-subscriber-error.twig', [], 404);
         }
         return $this->view->render('admin/partials/newsletter-subscriber-modal.twig', $data);
+    }
+
+    public function promotions(ServerRequestInterface $request): ResponseInterface
+    {
+        $query = $request->getQueryParams();
+        $search = trim(mb_substr((string) ($query['cautare'] ?? ''), 0, 120));
+        $pagination = $this->promotions->paginate(max(1, (int) ($query['pagina'] ?? 1)), 15, $search);
+        foreach ($pagination['items'] as &$offer) {
+            $this->decoratePromotionOffer($offer);
+        }
+        unset($offer);
+        $firstPage = max(1, $pagination['page'] - 2);
+        $lastPage = min($pagination['total_pages'], $pagination['page'] + 2);
+        $pagination['page_numbers'] = range($firstPage, $lastPage);
+
+        return $this->view->render('admin/pages/promotions.twig', [
+            'offers' => $pagination['items'],
+            'pagination' => $pagination,
+            'summary' => $this->promotions->summary(),
+            'search' => $search,
+            'filters_query' => $search !== '' ? http_build_query(['cautare' => $search]) : '',
+            'has_filters' => $search !== '',
+            'admin_section' => 'promotions',
+            'admin_context' => 'Cupoane și promoții',
+            'admin_unread_count' => $this->notificationService->unreadCount((int) ($this->auth->user()['id'] ?? 0)),
+        ]);
+    }
+
+    public function couponForm(): ResponseInterface
+    {
+        return $this->promotionFormResponse('coupon', false);
+    }
+
+    public function couponModal(): ResponseInterface
+    {
+        return $this->promotionFormResponse('coupon', true);
+    }
+
+    public function promotionForm(): ResponseInterface
+    {
+        return $this->promotionFormResponse('promotion', false);
+    }
+
+    public function promotionModal(): ResponseInterface
+    {
+        return $this->promotionFormResponse('promotion', true);
+    }
+
+    public function savePromotionCoupon(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    {
+        return $this->savePromotionOffer($request, $response, 'coupon');
+    }
+
+    public function savePromotion(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    {
+        return $this->savePromotionOffer($request, $response, 'promotion');
+    }
+
+    public function deactivatePromotionOffer(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $offerType = ($args['offer_type'] ?? '') === 'cupon' ? 'coupon' : (($args['offer_type'] ?? '') === 'reducere' ? 'promotion' : '');
+        $wantsJson = str_contains(strtolower($request->getHeaderLine('Accept')), 'application/json');
+        try {
+            $message = $this->promotions->deactivateOffer($offerType, (int) ($args['id'] ?? 0));
+            if ($wantsJson) {
+                $response->getBody()->write((string) json_encode(['ok' => true, 'message' => $message], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+                return $response->withHeader('Content-Type', 'application/json; charset=utf-8')->withHeader('Cache-Control', 'no-store');
+            }
+            Flash::set('success', $message);
+        } catch (\Throwable $exception) {
+            if ($wantsJson) {
+                $response->getBody()->write((string) json_encode(['ok' => false, 'message' => $exception->getMessage()], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+                return $response->withStatus(422)->withHeader('Content-Type', 'application/json; charset=utf-8')->withHeader('Cache-Control', 'no-store');
+            }
+            Flash::set('error', $exception->getMessage());
+        }
+
+        return $this->view->redirect($this->config->path('admin/cupoane-promotii/'));
+    }
+
+    public function shippingMethods(): ResponseInterface
+    {
+        $summary = $this->shippingMethods->summary();
+        return $this->view->render('admin/pages/shipping-methods.twig', [
+            'shipping_methods' => $this->shippingMethods->allForAdmin(),
+            'summary' => $summary,
+            'admin_section' => 'shipping',
+            'admin_context' => 'Livrare',
+            'admin_unread_count' => $this->notificationService->unreadCount((int) ($this->auth->user()['id'] ?? 0)),
+        ]);
+    }
+
+    public function shippingMethodForm(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $id = isset($args['id']) ? (int) $args['id'] : null;
+        $method = $id === null ? null : $this->shippingMethods->find($id);
+        if ($id !== null && $method === null) {
+            Flash::set('error', 'Metoda de livrare solicitată nu mai există.');
+            return $this->view->redirect($this->config->path('admin/livrare/'));
+        }
+
+        return $this->view->render('admin/pages/shipping-method-form.twig', [
+            'shipping_method' => $method,
+            'shipping_types' => $this->shippingTypeOptions(),
+            'form_action' => $this->config->path($id === null ? 'admin/livrare/noua/' : 'admin/livrare/' . $id . '/editare/'),
+            'admin_section' => 'shipping',
+            'admin_context' => $id === null ? 'Metodă de livrare nouă' : 'Editare metodă de livrare',
+            'admin_unread_count' => $this->notificationService->unreadCount((int) ($this->auth->user()['id'] ?? 0)),
+        ]);
+    }
+
+    public function shippingMethodModal(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $id = isset($args['id']) ? (int) $args['id'] : null;
+        $method = $id === null ? null : $this->shippingMethods->find($id);
+        if ($id !== null && $method === null) {
+            return $this->view->render('admin/partials/shipping-method-form.twig', [
+                'shipping_method_not_found' => true,
+                'shipping_method' => null,
+                'shipping_types' => $this->shippingTypeOptions(),
+                'form_action' => '',
+                'is_modal' => true,
+            ], 404);
+        }
+
+        return $this->view->render('admin/partials/shipping-method-form.twig', [
+            'shipping_method' => $method,
+            'shipping_types' => $this->shippingTypeOptions(),
+            'form_action' => $this->config->path($id === null ? 'admin/livrare/noua/' : 'admin/livrare/' . $id . '/editare/'),
+            'is_modal' => true,
+        ]);
+    }
+
+    public function saveShippingMethod(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $wantsJson = str_contains(strtolower($request->getHeaderLine('Accept')), 'application/json');
+        try {
+            $id = $this->shippingMethods->save((array) ($request->getParsedBody() ?? []), isset($args['id']) ? (int) $args['id'] : null);
+            $message = 'Metoda de livrare a fost salvată.';
+            if ($wantsJson) {
+                $response->getBody()->write((string) json_encode([
+                    'ok' => true,
+                    'id' => $id,
+                    'message' => $message,
+                    'redirect' => $this->config->path('admin/livrare/'),
+                ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+                return $response->withHeader('Content-Type', 'application/json; charset=utf-8')->withHeader('Cache-Control', 'no-store');
+            }
+            Flash::set('success', $message);
+            return $this->view->redirect($this->config->path('admin/livrare/'));
+        } catch (\Throwable $exception) {
+            if ($wantsJson) {
+                $response->getBody()->write((string) json_encode(['ok' => false, 'message' => $exception->getMessage()], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+                return $response->withStatus(422)->withHeader('Content-Type', 'application/json; charset=utf-8')->withHeader('Cache-Control', 'no-store');
+            }
+            Flash::set('error', $exception->getMessage());
+            return $this->view->redirect($request->getHeaderLine('Referer') ?: $this->config->path('admin/livrare/'));
+        }
+    }
+
+    public function shippingMethodStatus(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $wantsJson = str_contains(strtolower($request->getHeaderLine('Accept')), 'application/json');
+        try {
+            $message = $this->shippingMethods->changeStatus((int) ($args['id'] ?? 0), (string) (((array) ($request->getParsedBody() ?? []))['status'] ?? ''));
+            if ($wantsJson) {
+                $response->getBody()->write((string) json_encode(['ok' => true, 'message' => $message], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+                return $response->withHeader('Content-Type', 'application/json; charset=utf-8')->withHeader('Cache-Control', 'no-store');
+            }
+            Flash::set('success', $message);
+        } catch (\Throwable $exception) {
+            if ($wantsJson) {
+                $response->getBody()->write((string) json_encode(['ok' => false, 'message' => $exception->getMessage()], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+                return $response->withStatus(422)->withHeader('Content-Type', 'application/json; charset=utf-8')->withHeader('Cache-Control', 'no-store');
+            }
+            Flash::set('error', $exception->getMessage());
+        }
+        return $this->view->redirect($this->config->path('admin/livrare/'));
     }
 
     public function customerModal(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
@@ -1029,51 +1209,107 @@ final class AdminController
 
     public function coupons(): ResponseInterface
     {
-        return $this->view->render('admin/pages/coupons.twig', ['coupons' => $this->pdo->query('SELECT * FROM coupons ORDER BY id DESC')->fetchAll()]);
+        return $this->view->redirect($this->config->path('admin/cupoane-promotii/'));
     }
 
     public function saveCoupon(ServerRequestInterface $request): ResponseInterface
     {
-        $data = (array) ($request->getParsedBody() ?? []);
-        try {
-            $code = strtoupper(trim((string) ($data['code'] ?? '')));
-            $type = ($data['type'] ?? '') === 'percent' ? 'percent' : 'fixed';
-            if (!preg_match('/^[A-Z0-9_-]{3,40}$/', $code)) {
-                throw new \RuntimeException('Codul trebuie să aibă 3–40 caractere: litere, cifre, _ sau -.');
-            }
-            if ($type === 'percent') {
-                $percent = str_replace(',', '.', trim((string) ($data['value'] ?? '')));
-                if (!preg_match('/^\d{1,3}(?:\.\d{1,2})?$/', $percent)) {
-                    throw new \RuntimeException('Procentul trebuie să fie între 0,01 și 100.');
-                }
-                [$whole, $fraction] = array_pad(explode('.', $percent, 2), 2, '');
-                $value = ((int) $whole * 100) + (int) str_pad($fraction, 2, '0');
-            } else {
-                $value = Money::parse((string) ($data['value'] ?? ''));
-            }
-            if ($value <= 0 || ($type === 'percent' && $value > 10000)) {
-                throw new \RuntimeException('Valoarea cuponului nu este validă.');
-            }
-            $toUtc = static function (mixed $value): ?string {
-                $value = trim((string) $value);
-                if ($value === '') {
-                    return null;
-                }
-                return (new \DateTimeImmutable($value, new \DateTimeZone('Europe/Bucharest')))->setTimezone(new \DateTimeZone('UTC'))->format('c');
-            };
-            $this->pdo->prepare('INSERT INTO coupons (code,type,value,minimum_bani,usage_limit,per_customer_limit,starts_at,ends_at,status,created_at) VALUES (:code,:type,:value,:minimum,:usage_limit,:customer_limit,:starts,:ends,:status,:now)')->execute([
-                'code' => $code, 'type' => $type, 'value' => $value,
-                'minimum' => trim((string) ($data['minimum'] ?? '')) === '' ? 0 : Money::parse((string) $data['minimum']),
-                'usage_limit' => trim((string) ($data['usage_limit'] ?? '')) === '' ? null : max(1, (int) $data['usage_limit']),
-                'customer_limit' => trim((string) ($data['per_customer_limit'] ?? '')) === '' ? null : max(1, (int) $data['per_customer_limit']),
-                'starts' => $toUtc($data['starts_at'] ?? ''), 'ends' => $toUtc($data['ends_at'] ?? ''),
-                'status' => ($data['status'] ?? '') === 'inactive' ? 'inactive' : 'active', 'now' => gmdate('c'),
-            ]);
-            Flash::set('success', 'Cuponul a fost creat. Cupoanele nu se cumulează.');
-        } catch (\Throwable $exception) {
-            Flash::set('error', $exception->getMessage());
+        Flash::set('success', 'Configuratorul nou reunește cupoanele și promoțiile în același registru.');
+        return $this->view->redirect($this->config->path('admin/cupoane-promotii/'));
+    }
+
+    private function promotionFormResponse(string $offerKind, bool $modal): ResponseInterface
+    {
+        $route = $offerKind === 'coupon' ? 'cupon' : 'reducere';
+        $data = [
+            'offer_kind' => $offerKind,
+            'catalog' => $this->promotions->discountCatalog(),
+            'form_action' => $this->config->path('admin/cupoane-promotii/' . $route . '/nou/'),
+            'form_data' => [],
+            'errors' => [],
+            'is_modal' => $modal,
+        ];
+        if ($modal) {
+            return $this->view->render('admin/partials/promotion-form.twig', $data);
         }
-        return $this->view->redirect($this->config->path('admin/cupoane/'));
+
+        return $this->view->render('admin/pages/promotion-form.twig', [
+            ...$data,
+            'admin_section' => 'promotions',
+            'admin_context' => $offerKind === 'coupon' ? 'Cupon nou' : 'Reducere nouă',
+            'admin_unread_count' => $this->notificationService->unreadCount((int) ($this->auth->user()['id'] ?? 0)),
+        ]);
+    }
+
+    private function savePromotionOffer(ServerRequestInterface $request, ResponseInterface $response, string $offerKind): ResponseInterface
+    {
+        $wantsJson = str_contains(strtolower($request->getHeaderLine('Accept')), 'application/json');
+        try {
+            $data = (array) ($request->getParsedBody() ?? []);
+            $message = $offerKind === 'coupon'
+                ? $this->promotions->createCoupon($data, (int) ($this->auth->user()['id'] ?? 0))
+                : $this->promotions->createPromotion($data, (int) ($this->auth->user()['id'] ?? 0));
+            if ($wantsJson) {
+                $response->getBody()->write((string) json_encode([
+                    'ok' => true,
+                    'message' => $message,
+                    'redirect' => $this->config->path('admin/cupoane-promotii/'),
+                ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+                return $response->withHeader('Content-Type', 'application/json; charset=utf-8')->withHeader('Cache-Control', 'no-store');
+            }
+            Flash::set('success', $message);
+            return $this->view->redirect($this->config->path('admin/cupoane-promotii/'));
+        } catch (\Throwable $exception) {
+            if ($wantsJson) {
+                $response->getBody()->write((string) json_encode(['ok' => false, 'message' => $exception->getMessage()], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+                return $response->withStatus(422)->withHeader('Content-Type', 'application/json; charset=utf-8')->withHeader('Cache-Control', 'no-store');
+            }
+            Flash::set('error', $exception->getMessage());
+            $route = $offerKind === 'coupon' ? 'cupon' : 'reducere';
+            return $this->view->redirect($this->config->path('admin/cupoane-promotii/' . $route . '/nou/'));
+        }
+    }
+
+    /** @param array<string,mixed> $offer */
+    private function decoratePromotionOffer(array &$offer): void
+    {
+        $offerType = (string) ($offer['offer_type'] ?? 'promotion');
+        $lifecycle = (string) ($offer['lifecycle_status'] ?? $offer['status'] ?? 'inactive');
+        $offer['offer_kind'] = $offerType;
+        $offer['route_type'] = $offerType === 'coupon' ? 'cupon' : 'reducere';
+        $offer['show_in_topbar'] = (int) ($offer['topbar_enabled'] ?? 0) === 1;
+        $offer['status'] = $lifecycle;
+        $offer['status_label'] = match ($lifecycle) {
+            'active' => 'Activă',
+            'scheduled' => 'Programată',
+            'expired' => 'Expirată',
+            default => 'Inactivă',
+        };
+        $offer['scope_label'] = match ((string) ($offer['scope'] ?? '')) {
+            'product' => 'Un produs',
+            'category' => 'O categorie',
+            'shipping' => 'Livrare',
+            default => 'Toată comanda',
+        };
+        $offer['value_label'] = match ((string) ($offer['value_type'] ?? '')) {
+            'free' => 'Livrare gratuită',
+            'percent' => rtrim(rtrim(number_format(((int) ($offer['value'] ?? 0)) / 100, 2, ',', ''), '0'), ',') . '% reducere',
+            default => Money::format((int) ($offer['value'] ?? 0)) . ' reducere',
+        };
+        $offer['minimum_label'] = (int) ($offer['minimum_bani'] ?? 0) > 0
+            ? 'Prag minim ' . Money::format((int) $offer['minimum_bani'])
+            : 'Fără prag minim';
+
+        $startsAt = trim((string) ($offer['starts_at'] ?? ''));
+        $endsAt = trim((string) ($offer['ends_at'] ?? ''));
+        if ($startsAt === '' && $endsAt === '') {
+            $offer['validity_label'] = 'Fără termen';
+            $offer['validity_detail'] = 'Până la dezactivare';
+        } else {
+            $offer['validity_label'] = $lifecycle === 'scheduled' ? 'Începe ' . $this->localCustomerDate($startsAt) : 'Perioadă stabilită';
+            $offer['validity_detail'] = ($startsAt !== '' ? $this->localCustomerDate($startsAt) : 'Acum')
+                . ' – ' . ($endsAt !== '' ? $this->localCustomerDate($endsAt) : 'fără final');
+        }
     }
 
     /** @return array{customer:array<string,mixed>,discounts:list<array<string,mixed>>,orders:array<string,mixed>}|null */
@@ -1170,6 +1406,17 @@ final class AdminController
             'admin_import' => 'Import administrativ', 'email_link' => 'Link din email', 'contact_request' => 'Cerere de contact',
             'admin' => 'Administrator', 'bounce' => 'Adresă respinsă', 'complaint' => 'Raportare spam', default => 'Nespecificată',
         };
+    }
+
+    /** @return list<array{value:string,label:string,description:string}> */
+    private function shippingTypeOptions(): array
+    {
+        return [
+            ['value' => 'courier', 'label' => 'Curier la adresă', 'description' => 'Coletul ajunge la adresa clientului.'],
+            ['value' => 'locker', 'label' => 'Easybox / locker', 'description' => 'Clientul ridică pachetul dintr-un locker.'],
+            ['value' => 'pickup', 'label' => 'Ridicare personală', 'description' => 'Comanda este ridicată dintr-un punct stabilit.'],
+            ['value' => 'other', 'label' => 'Altă metodă', 'description' => 'O opțiune de livrare configurată manual.'],
+        ];
     }
 
     /** @return array<string,mixed>|null */

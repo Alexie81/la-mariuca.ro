@@ -1,0 +1,61 @@
+{% extends 'admin/layouts/base.twig' %}
+
+{% block title %}Livrare{% endblock %}
+
+{% block content %}
+  {% set methods = shipping_methods|default([]) %}
+  {% set totals = summary|default({total: methods|length, active: 0, inactive: 0}) %}
+
+  <section class="admin-shipping-hero" aria-labelledby="admin-shipping-title">
+    <div class="admin-shipping-hero__copy">
+      <span class="admin-shipping-eyebrow"><i aria-hidden="true"></i> Expedierea comenzilor</span>
+      <h1 id="admin-shipping-title">Livrare</h1>
+      <p>Configurează opțiunile pe care clientul le poate alege la finalizarea comenzii.</p>
+      <div class="admin-shipping-summary" aria-label="Rezumat metode de livrare">
+        <article><span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 6h11v11H3zM14 10h4l3 4v3h-7z"/><circle cx="7" cy="18" r="2"/><circle cx="18" cy="18" r="2"/></svg></span><div><strong>{{ totals.total|default(methods|length) }}</strong><small>{{ totals.total|default(methods|length) == 1 ? 'metodă configurată' : 'metode configurate' }}</small></div></article>
+        <article class="is-active"><span aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/></svg></span><div><strong>{{ totals.active|default(0) }}</strong><small>active la checkout</small></div></article>
+        <article><span aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 12h8"/></svg></span><div><strong>{{ totals.inactive|default(0) }}</strong><small>ascunse temporar</small></div></article>
+      </div>
+    </div>
+    <a class="admin-shipping-add" href="{{ url('admin/livrare/noua/') }}" data-admin-shipping-trigger data-modal-url="{{ url('admin/livrare/noua/modal/') }}"><span><small>Opțiune nouă</small><strong>Adaugă metodă</strong></span><i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></i></a>
+  </section>
+
+  <aside class="admin-shipping-promotion-note" aria-label="Unde configurezi livrarea gratuită">
+    <span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20 12 12 20 4 12V4h8l8 8Z"/><circle cx="9" cy="9" r="1.5"/></svg></span>
+    <div><small>Regulă comercială separată</small><strong>Livrarea gratuită în funcție de valoarea coșului se configurează din Cupoane și promoții.</strong><p>Aici stabilești metodele și costul lor standard. Pragurile promoționale rămân într-un singur loc, ca să nu existe reguli contradictorii.</p></div>
+    <a href="{{ url('admin/cupoane-promotii/') }}">Deschide promoțiile <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a>
+  </aside>
+
+  <section class="admin-shipping-panel" aria-labelledby="admin-shipping-list-title">
+    <header class="admin-shipping-panel__head"><div><span class="admin-shipping-eyebrow">Opțiunile din checkout</span><h2 id="admin-shipping-list-title">Metodele de livrare</h2><p>Ordinea de mai jos este ordinea în care le vede clientul.</p></div>{% if methods %}<span><strong>{{ totals.active|default(0) }}</strong> disponibile acum</span>{% endif %}</header>
+
+    {% if methods %}
+      <div class="admin-shipping-table-wrap">
+        <table class="admin-shipping-table">
+          <thead><tr><th>Metodă</th><th>Cost standard</th><th>Estimare</th><th>Ordine</th><th>Stare</th><th>Folosiri</th><th>Acțiuni</th></tr></thead>
+          <tbody>
+          {% for method in methods %}
+            {% set active = method.status == 'active' %}
+            {% set type_label = method.type == 'pickup' ? 'Ridicare personală' : (method.type == 'locker' ? 'Locker / punct' : (method.type == 'courier' ? 'Curier la adresă' : 'Altă metodă')) %}
+            {% set estimate = method.estimated_min_days == method.estimated_max_days ? method.estimated_min_days ~ (method.estimated_min_days == 1 ? ' zi lucrătoare' : ' zile lucrătoare') : method.estimated_min_days ~ '–' ~ method.estimated_max_days ~ ' zile lucrătoare' %}
+            <tr class="{{ active ? '' : 'is-inactive' }}">
+              <td data-label="Metodă"><span class="admin-shipping-method"><i class="is-{{ method.type }}" aria-hidden="true"><svg viewBox="0 0 24 24">{% if method.type == 'pickup' %}<path d="M4 10h16v10H4zM3 10l2-6h14l2 6M9 20v-5h6v5"/>{% elseif method.type == 'locker' %}<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M12 3v18M4 10h16M8 7h1M15 14h1"/>{% elseif method.type == 'other' %}<path d="M12 3v12M8 11l4 4 4-4M5 20h14"/>{% else %}<path d="M3 6h11v11H3zM14 10h4l3 4v3h-7z"/><circle cx="7" cy="18" r="2"/><circle cx="18" cy="18" r="2"/>{% endif %}</svg></i><span><small>{{ type_label }}</small><strong>{{ method.name }}</strong><em>{{ method.description ?: 'Fără explicație suplimentară' }}</em><code>{{ method.code }}</code></span>{% if method.is_default %}<b>Implicită</b>{% endif %}</span></td>
+              <td data-label="Cost standard"><span class="admin-shipping-price {{ method.price_bani == 0 ? 'is-free' : '' }}"><strong>{{ method.price_bani == 0 ? 'Gratuit' : money(method.price_bani) }}</strong><small>{{ method.price_bani == 0 ? 'cost fix 0 Lei' : 'adăugat la comandă' }}</small></span></td>
+              <td data-label="Estimare"><span class="admin-shipping-estimate"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span><strong>{{ estimate }}</strong><small>după predarea coletului</small></span></span></td>
+              <td data-label="Ordine"><span class="admin-shipping-position"><strong>{{ method.position }}</strong><small>în checkout</small></span></td>
+              <td data-label="Stare"><span class="admin-shipping-status {{ active ? 'is-active' : 'is-inactive' }}"><i></i>{{ active ? 'Activă' : 'Ascunsă' }}</span></td>
+              {% set method_order_count = method.order_count|default(0) %}
+              <td data-label="Folosiri"><span class="admin-shipping-usage"><strong>{{ method_order_count }}</strong><small>{{ method_order_count == 1 ? 'comandă' : 'comenzi' }}</small></span></td>
+              <td data-label="Acțiuni" class="admin-shipping-actions"><div><a href="{{ url('admin/livrare/' ~ method.id ~ '/editare/') }}" data-admin-shipping-trigger data-modal-url="{{ url('admin/livrare/' ~ method.id ~ '/editare/modal/') }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 20 4.2-1 10.4-10.4a2 2 0 0 0-2.8-2.8L5.4 16.2 4 20Z"/><path d="m14.5 7.1 2.8 2.8"/></svg><span>Editează</span></a><form action="{{ url('admin/livrare/' ~ method.id ~ '/stare/') }}" method="post"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="status" value="{{ active ? 'inactive' : 'active' }}"><button type="submit" class="{{ active ? 'is-deactivate' : 'is-activate' }}"><svg viewBox="0 0 24 24" aria-hidden="true">{% if active %}<circle cx="12" cy="12" r="9"/><path d="M8 12h8"/>{% else %}<circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/>{% endif %}</svg><span>{{ active ? 'Ascunde' : 'Activează' }}</span></button></form></div></td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="admin-shipping-empty"><span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 6h11v11H3zM14 10h4l3 4v3h-7z"/><circle cx="7" cy="18" r="2"/><circle cx="18" cy="18" r="2"/></svg></span><small>Primul pas</small><strong>Checkoutul așteaptă prima metodă de livrare</strong><p>Adaugă un curier, un locker sau ridicarea personală și spune-i clientului clar cât costă și când ajunge.</p><a href="{{ url('admin/livrare/noua/') }}" data-admin-shipping-trigger data-modal-url="{{ url('admin/livrare/noua/modal/') }}">Adaugă prima metodă <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a></div>
+    {% endif %}
+  </section>
+
+  <dialog class="admin-shipping-dialog" data-admin-shipping-dialog aria-labelledby="admin-shipping-form-title"><div class="admin-shipping-dialog__surface"><button class="admin-shipping-dialog__close" type="button" data-admin-shipping-close aria-label="Închide formularul"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"/></svg></button><div class="admin-shipping-dialog__content" data-admin-shipping-content aria-live="polite"><div class="admin-shipping-loading"><span aria-hidden="true"><i></i><i></i><i></i></span><strong>Pregătim metoda de livrare…</strong><small>Încărcăm costul, estimarea și afișarea în checkout.</small></div></div></div></dialog>
+{% endblock %}

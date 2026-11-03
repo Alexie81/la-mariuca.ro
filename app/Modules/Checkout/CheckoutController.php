@@ -8,6 +8,7 @@ use App\Modules\Cart\CartService;
 use App\Modules\Orders\OrderService;
 use App\Modules\Payments\StripeCheckoutService;
 use App\Modules\Customers\CustomerAccountService;
+use App\Modules\Shipping\ShippingMethodService;
 use App\Shared\Config\Config;
 use App\Shared\Http\RateLimiter;
 use App\Shared\Http\View;
@@ -18,7 +19,7 @@ use Psr\Http\Message\ServerRequestInterface;
 
 final class CheckoutController
 {
-    public function __construct(private readonly CheckoutService $checkout, private readonly CartService $cart, private readonly OrderService $orders, private readonly StripeCheckoutService $stripe, private readonly Auth $auth, private readonly CustomerAccountService $accountService, private readonly RateLimiter $limiter, private readonly View $view, private readonly Config $config)
+    public function __construct(private readonly CheckoutService $checkout, private readonly CartService $cart, private readonly OrderService $orders, private readonly StripeCheckoutService $stripe, private readonly Auth $auth, private readonly CustomerAccountService $accountService, private readonly RateLimiter $limiter, private readonly View $view, private readonly Config $config, private readonly ShippingMethodService $shippingMethods)
     {
     }
 
@@ -36,9 +37,12 @@ final class CheckoutController
                 $customer = null;
             }
         }
+        $shippingMethods = $this->shippingMethods->activeForCheckout();
         return $this->view->render('storefront/pages/checkout.twig', [
             'cart' => $this->cart->summary(), 'idempotency_key' => $_SESSION['checkout_idempotency'],
             'checkout_customer' => $customer,
+            'shipping_methods' => $shippingMethods,
+            'default_shipping_method_id' => (int) ($shippingMethods[0]['id'] ?? 0),
             'stripe_enabled' => $this->config->bool('STRIPE_ENABLED') && $this->config->get('STRIPE_SECRET_KEY') !== '',
             'meta' => ['title' => 'Finalizare comandă', 'noindex' => true],
         ]);

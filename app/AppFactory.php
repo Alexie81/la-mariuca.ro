@@ -34,8 +34,10 @@ use App\Modules\Newsletter\NewsletterSubscriptionService;
 use App\Modules\Orders\OrderService;
 use App\Modules\Payments\StripeWebhookController;
 use App\Modules\Payments\StripeCheckoutService;
+use App\Modules\Promotions\PromotionAdminService;
 use App\Modules\Reviews\ProductReviewRepository;
 use App\Modules\Reviews\ProductReviewService;
+use App\Modules\Shipping\ShippingMethodService;
 use App\Modules\Suppliers\SupplierAdminService;
 use App\Shared\Config\Config;
 use App\Shared\Database\ConnectionFactory;
@@ -80,6 +82,8 @@ final class AppFactory
         $cart = new CartService($pdo);
         $contactWhatsApp = new ContactWhatsAppService($config);
         $newsletterSubscriptions = new NewsletterSubscriptionService($pdo);
+        $promotions = new PromotionAdminService($pdo);
+        $shippingMethods = new ShippingMethodService($pdo);
         $productDescriptions = new ProductDescriptionSanitizer();
 
         $twig = new Environment(new FilesystemLoader($root . '/resources/views'), [
@@ -110,6 +114,7 @@ final class AppFactory
         $twig->addFunction(new TwigFunction('current_user', static fn(): ?array => $auth->user()));
         $twig->addFunction(new TwigFunction('navigation_categories', static fn(): array => $categoryPaths->addPathsToTree($catalog->navigationCategories())));
         $twig->addFunction(new TwigFunction('cart_summary', static fn(): array => $cart->summary()));
+        $twig->addGlobal('active_promotion_banner', $promotions->activeTopbarOffer());
         $cartVariantIds = null;
         $twig->addFunction(new TwigFunction('is_variant_in_cart', static function (int|string|null $variantId) use ($cart, &$cartVariantIds): bool {
             if ((int) $variantId <= 0) {
@@ -140,10 +145,10 @@ final class AppFactory
         $cartController = new CartController($cart, $view, $config);
         $romanianLocations = RomanianLocations::fromProjectRoot($root);
         $customerAccount = new CustomerAccountService(new CustomerAccountRepository($pdo), $romanianLocations);
-        $checkoutController = new CheckoutController(new CheckoutService($pdo, $cart, $config, $romanianLocations, $push), $cart, $orders, new StripeCheckoutService($pdo, $config), $auth, $customerAccount, $rateLimiter, $view, $config);
+        $checkoutController = new CheckoutController(new CheckoutService($pdo, $cart, $config, $romanianLocations, $push, $shippingMethods), $cart, $orders, new StripeCheckoutService($pdo, $config), $auth, $customerAccount, $rateLimiter, $view, $config, $shippingMethods);
         $authController = new AuthController($pdo, $auth, new GoogleOAuthService($pdo, $config), $customerAccount, $rateLimiter, $view, $config);
         $twoFactorController = new TwoFactorController($pdo, $auth, new TotpService($config), $adminRememberMe, $rateLimiter, $view, $config);
-        $adminController = new AdminController($pdo, new AdminDashboardService($pdo), new AdminNotificationService($pdo), $push, $catalog, new CatalogAdminService($pdo, $productDescriptions), new CustomerAdminService($pdo), new NewsletterAdminService($pdo), new SupplierAdminService($pdo), $orders, $reviews, new MediaService($pdo, $root), new ContentAdminService($pdo), $auth, $adminRememberMe, $rateLimiter, $view, $config);
+        $adminController = new AdminController($pdo, new AdminDashboardService($pdo), new AdminNotificationService($pdo), $push, $catalog, new CatalogAdminService($pdo, $productDescriptions), new CustomerAdminService($pdo), new NewsletterAdminService($pdo), $promotions, $shippingMethods, new SupplierAdminService($pdo), $orders, $reviews, new MediaService($pdo, $root), new ContentAdminService($pdo), $auth, $adminRememberMe, $rateLimiter, $view, $config);
         $adminPushController = new AdminPushController($push, $auth, $view, $config);
 
         $app = SlimAppFactory::create();
@@ -233,6 +238,22 @@ final class AppFactory
             $group->get('/abonati-newsletter/', [$adminController, 'newsletterSubscribers']);
             $group->get('/abonati-newsletter/{id:[0-9]+}/', [$adminController, 'newsletterSubscriberDetail']);
             $group->get('/abonati-newsletter/{id:[0-9]+}/modal/', [$adminController, 'newsletterSubscriberModal']);
+            $group->get('/cupoane-promotii/', [$adminController, 'promotions']);
+            $group->get('/cupoane-promotii/cupon/nou/', [$adminController, 'couponForm']);
+            $group->get('/cupoane-promotii/cupon/nou/modal/', [$adminController, 'couponModal']);
+            $group->post('/cupoane-promotii/cupon/nou/', [$adminController, 'savePromotionCoupon']);
+            $group->get('/cupoane-promotii/reducere/nou/', [$adminController, 'promotionForm']);
+            $group->get('/cupoane-promotii/reducere/nou/modal/', [$adminController, 'promotionModal']);
+            $group->post('/cupoane-promotii/reducere/nou/', [$adminController, 'savePromotion']);
+            $group->post('/cupoane-promotii/{offer_type:cupon|reducere}/{id:[0-9]+}/dezactiveaza/', [$adminController, 'deactivatePromotionOffer']);
+            $group->get('/livrare/', [$adminController, 'shippingMethods']);
+            $group->get('/livrare/noua/', [$adminController, 'shippingMethodForm']);
+            $group->get('/livrare/noua/modal/', [$adminController, 'shippingMethodModal']);
+            $group->post('/livrare/noua/', [$adminController, 'saveShippingMethod']);
+            $group->get('/livrare/{id:[0-9]+}/editare/', [$adminController, 'shippingMethodForm']);
+            $group->get('/livrare/{id:[0-9]+}/editare/modal/', [$adminController, 'shippingMethodModal']);
+            $group->post('/livrare/{id:[0-9]+}/editare/', [$adminController, 'saveShippingMethod']);
+            $group->post('/livrare/{id:[0-9]+}/stare/', [$adminController, 'shippingMethodStatus']);
             $group->get('/furnizori/', [$adminController, 'suppliers']);
             $group->get('/furnizori/nou/', [$adminController, 'supplierForm']);
             $group->get('/furnizori/nou/modal/', [$adminController, 'supplierModalForm']);

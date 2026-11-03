@@ -3001,6 +3001,699 @@
     newsletterTrigger = null;
   });
 
+  const normalizePromotionSearch = (value = '') => String(value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLocaleLowerCase('ro-RO')
+    .replace(/[„”"']/g, '')
+    .replace(/[^a-z0-9_-]+/g, ' ')
+    .trim();
+
+  const promotionDistance = (left, right) => {
+    if (left === right) return 0;
+    if (!left.length) return right.length;
+    if (!right.length) return left.length;
+    const previous = Array.from({ length: right.length + 1 }, (_, index) => index);
+    for (let leftIndex = 1; leftIndex <= left.length; leftIndex += 1) {
+      const current = [leftIndex];
+      for (let rightIndex = 1; rightIndex <= right.length; rightIndex += 1) {
+        const substitution = previous[rightIndex - 1] + (left[leftIndex - 1] === right[rightIndex - 1] ? 0 : 1);
+        current[rightIndex] = Math.min(previous[rightIndex] + 1, current[rightIndex - 1] + 1, substitution);
+      }
+      previous.splice(0, previous.length, ...current);
+    }
+    return previous[right.length];
+  };
+
+  const initializePromotionForm = (root = document) => {
+    root.querySelectorAll('[data-admin-promotion-form]').forEach((form) => {
+      if (form.dataset.promotionReady === 'true') return;
+      form.dataset.promotionReady = 'true';
+
+      const scopeInputs = [...form.querySelectorAll('input[name="scope"]')];
+      const nameInput = form.querySelector('input[name="name"]');
+      const targetPanels = [...form.querySelectorAll('[data-admin-promotion-target]')];
+      const valueTypeInputs = [...form.querySelectorAll('input[name="value_type"]')];
+      const freeOption = form.querySelector('[data-admin-promotion-free-option]');
+      const valueInput = form.querySelector('[data-admin-promotion-value]');
+      const valueUnit = form.querySelector('[data-admin-promotion-unit]');
+      const valueHelp = form.querySelector('[data-admin-promotion-value-help]');
+      const amountField = valueInput?.closest('.admin-promotion-amount');
+      const validityInputs = [...form.querySelectorAll('input[name="validity"]')];
+      const datePanel = form.querySelector('[data-admin-promotion-dates]');
+      const startInput = form.querySelector('input[name="starts_at"]');
+      const endInput = form.querySelector('input[name="ends_at"]');
+      const codeInput = form.querySelector('[data-admin-promotion-code]');
+      const topbarToggle = form.querySelector('[data-admin-promotion-topbar-toggle]');
+      const topbarEditor = form.querySelector('[data-admin-promotion-topbar-editor]');
+      const topbarMessage = form.querySelector('[data-admin-promotion-message]');
+      const messageCount = form.querySelector('[data-admin-promotion-message-count]');
+      const messagePreview = form.querySelector('[data-admin-promotion-message-preview]');
+      const codePreview = form.querySelector('[data-admin-promotion-code-preview]');
+      const minimumPanel = form.querySelector('[data-admin-promotion-threshold]');
+      const minimumInput = form.querySelector('[data-admin-promotion-minimum]');
+      const minimumTitle = form.querySelector('[data-admin-promotion-minimum-title]');
+      const minimumHelp = form.querySelector('[data-admin-promotion-minimum-help]');
+      const minimumStatus = form.querySelector('[data-admin-promotion-minimum-status]');
+      const minimumModeInputs = [...form.querySelectorAll('[data-admin-promotion-minimum-mode]')];
+      const previewScope = form.querySelector('[data-admin-promotion-scope-preview]');
+      const previewBenefit = form.querySelector('[data-admin-promotion-benefit-preview]');
+      const previewMinimum = form.querySelector('[data-admin-promotion-minimum-preview]');
+      const topbarState = form.querySelector('[data-admin-promotion-topbar-state]');
+      const messageSuggestion = form.querySelector('[data-admin-promotion-message-suggestion]');
+      const useMessage = form.querySelector('[data-admin-promotion-use-message]');
+      const summaryTitle = form.querySelector('[data-admin-promotion-summary-title]');
+      const summaryDetail = form.querySelector('[data-admin-promotion-summary-detail]');
+      const presetButtons = [...form.querySelectorAll('[data-admin-promotion-preset]')];
+
+      const selectedValue = () => form.querySelector('input[name="value_type"]:checked')?.value || 'percent';
+      const selectedScope = () => form.querySelector('input[name="scope"]:checked')?.value || 'order';
+      let shippingValuePreference = selectedScope() === 'shipping' ? selectedValue() : null;
+
+      const updateTargetPanels = () => {
+        const scope = selectedScope();
+        targetPanels.forEach((panel) => {
+          const active = panel.dataset.adminPromotionTarget === scope;
+          panel.hidden = !active;
+          panel.querySelectorAll('input[name="target_id"]').forEach((input) => {
+            input.disabled = !active;
+            input.required = active;
+          });
+        });
+        const shipping = scope === 'shipping';
+        if (freeOption) freeOption.hidden = !shipping;
+        if (shipping && form.dataset.offerKind === 'promotion') {
+          const preferred = form.querySelector(`input[name="value_type"][value="${shippingValuePreference || 'free'}"]`);
+          if (preferred) preferred.checked = true;
+        } else if (!shipping && selectedValue() === 'free') {
+          const percent = form.querySelector('input[name="value_type"][value="percent"]');
+          if (percent) percent.checked = true;
+        }
+        updateValue();
+        updateMinimum();
+      };
+
+      const validateValue = () => {
+        if (!valueInput || valueInput.disabled) return;
+        const value = Number(String(valueInput.value).replace(',', '.'));
+        const percent = selectedValue() === 'percent';
+        const valid = Number.isFinite(value) && value > 0 && (!percent || value <= 100);
+        valueInput.setCustomValidity(valid ? '' : (percent ? 'Introdu un procent mai mare decât 0 și cel mult 100.' : 'Introdu o valoare mai mare decât 0.'));
+      };
+
+      function updateValue() {
+        const type = selectedValue();
+        const free = type === 'free';
+        if (valueInput) {
+          valueInput.disabled = free;
+          valueInput.required = !free;
+          valueInput.setCustomValidity('');
+        }
+        amountField?.classList.toggle('is-free', free);
+        if (valueUnit) valueUnit.textContent = type === 'percent' ? '%' : (type === 'fixed' ? 'Lei' : 'Inclus');
+        if (valueHelp) valueHelp.textContent = type === 'percent'
+          ? 'Introdu un procent între 0,01 și 100.'
+          : (type === 'fixed' ? 'Introdu suma în Lei, mai mare decât 0.' : 'Livrarea va fi oferită gratuit.');
+        validateValue();
+        updateCampaignPreview();
+      }
+
+      const updateDates = () => {
+        const period = form.querySelector('input[name="validity"]:checked')?.value === 'period';
+        if (datePanel) datePanel.hidden = !period;
+        [startInput, endInput].forEach((input) => {
+          if (!input) return;
+          input.disabled = !period;
+          input.required = period;
+          input.setCustomValidity('');
+        });
+        if (period && startInput?.value && endInput?.value && endInput.value <= startInput.value) {
+          endInput.setCustomValidity('Data de final trebuie să fie după data de început.');
+        }
+        updateCampaignPreview();
+      };
+
+      const updateTopbar = () => {
+        const enabled = Boolean(topbarToggle?.checked);
+        if (topbarEditor) {
+          topbarEditor.hidden = false;
+          topbarEditor.classList.toggle('is-disabled', !enabled);
+        }
+        if (topbarMessage) {
+          topbarMessage.disabled = !enabled;
+          topbarMessage.required = enabled;
+        }
+        if (topbarState) {
+          topbarState.classList.toggle('is-active', enabled);
+          topbarState.lastChild.textContent = enabled ? ' bară vizibilă' : ' bară oprită';
+        }
+        updateCampaignPreview();
+      };
+
+      const updateMessage = () => {
+        const value = topbarMessage?.value.trim() || '';
+        if (messageCount) messageCount.textContent = String(topbarMessage?.value.length || 0);
+        if (messagePreview) messagePreview.textContent = value || (form.dataset.offerKind === 'coupon'
+          ? 'Folosește codul tău la finalizarea comenzii.'
+          : 'O ofertă specială te așteaptă în magazin.');
+      };
+
+      function updateMinimum() {
+        if (!minimumInput) return;
+        const scope = selectedScope();
+        const amountMode = minimumModeInputs.length === 0
+          ? !minimumInput.disabled
+          : Boolean(form.querySelector('[data-admin-promotion-minimum-mode][value="amount"]')?.checked);
+        const copy = {
+          shipping: ['Prag pentru livrare', 'Livrarea redusă sau gratuită se activează numai când produsele din coș ating suma aleasă.'],
+          product: ['Prag pentru produs', 'Produsul ales primește reducerea numai când valoarea întregului coș atinge suma aleasă.'],
+          category: ['Prag pentru categorie', 'Produsele eligibile primesc reducerea numai când valoarea întregului coș atinge suma aleasă.'],
+          order: ['Prag pentru comandă', 'Reducerea se activează numai când valoarea produselor din coș atinge suma aleasă.'],
+        }[scope] || ['Prag pentru comandă', 'Reducerea se activează numai când valoarea produselor din coș atinge suma aleasă.'];
+        if (minimumTitle) minimumTitle.textContent = copy[0];
+        if (minimumHelp) minimumHelp.textContent = copy[1];
+
+        const raw = minimumInput.disabled ? '' : minimumInput.value.trim();
+        const normalized = raw.replace(',', '.');
+        const validFormat = raw === '' || /^\d+(?:[,.]\d{1,2})?$/.test(raw);
+        const numericValue = validFormat && raw !== '' ? Number(normalized) : 0;
+        const hasValue = validFormat && Number.isFinite(numericValue) && numericValue > 0;
+        const minimumError = !validFormat
+          ? 'Introdu suma în Lei, de exemplu 300 sau 300,00.'
+          : (amountMode && !hasValue ? 'Introdu valoarea minimă de la care se activează reducerea.' : '');
+        minimumInput.setCustomValidity(minimumError);
+        minimumPanel?.classList.toggle('has-value', hasValue);
+        if (minimumStatus) {
+          minimumStatus.textContent = hasValue
+            ? `${scope === 'shipping' ? 'Livrarea' : 'Oferta'} se activează de la ${raw} Lei`
+            : (minimumError ? 'Introdu pragul de activare' : 'Se aplică fără prag minim');
+        }
+        updateCampaignPreview();
+      }
+
+      const updateMinimumMode = (focusAmount = false) => {
+        if (minimumModeInputs.length === 0 || !minimumInput) {
+          updateMinimum();
+          return;
+        }
+        const amountMode = form.querySelector('[data-admin-promotion-minimum-mode][value="amount"]')?.checked;
+        minimumInput.disabled = !amountMode;
+        minimumInput.required = Boolean(amountMode);
+        if (!amountMode) minimumInput.value = '';
+        minimumPanel?.classList.toggle('is-any-order', !amountMode);
+        updateMinimum();
+        if (amountMode && focusAmount) minimumInput.focus({ preventScroll: true });
+      };
+
+      function updateCampaignPreview() {
+        const scope = selectedScope();
+        const type = selectedValue();
+        const rawValue = valueInput?.value.trim() || '0';
+        const rawMinimum = minimumInput && !minimumInput.disabled ? minimumInput.value.trim() : '';
+        const minimumNumber = Number(rawMinimum.replace(',', '.'));
+        const hasMinimum = rawMinimum !== '' && Number.isFinite(minimumNumber) && minimumNumber > 0;
+        const scopeLabels = { order: 'Toată comanda', product: 'Produs ales', category: 'Categorie aleasă', shipping: 'Livrare' };
+        const scopeNatural = { order: 'toată comanda', product: 'produsul ales', category: 'categoria aleasă', shipping: 'livrare' };
+        const benefit = type === 'free' ? 'Livrare gratuită' : `${rawValue || '0'}${type === 'percent' ? '%' : ' Lei'} reducere`;
+        if (previewScope) previewScope.textContent = scopeLabels[scope] || 'Toată comanda';
+        if (previewBenefit) previewBenefit.textContent = benefit;
+        if (previewMinimum) {
+          previewMinimum.hidden = !hasMinimum;
+          previewMinimum.textContent = hasMinimum ? `De la ${rawMinimum} Lei` : '';
+        }
+
+        let suggestion = 'Descoperă oferta pregătită pentru tine.';
+        if (form.dataset.offerKind === 'coupon') {
+          suggestion = type === 'free' ? 'Livrare gratuită folosind codul tău.' : `Primești ${rawValue || '0'}${type === 'percent' ? '%' : ' Lei'} reducere folosind codul tău.`;
+        } else if (scope === 'shipping' && type === 'free') {
+          suggestion = hasMinimum ? `Livrare gratuită la comenzile de minimum ${rawMinimum} Lei.` : 'Livrare gratuită pentru comanda ta.';
+        } else {
+          suggestion = `${benefit} pentru ${scopeNatural[scope] || 'toată comanda'}.`;
+        }
+        if (messageSuggestion) messageSuggestion.textContent = suggestion;
+
+        const period = form.querySelector('input[name="validity"]:checked')?.value === 'period';
+        const visible = Boolean(topbarToggle?.checked);
+        if (summaryTitle) summaryTitle.textContent = benefit;
+        if (summaryDetail) summaryDetail.textContent = [
+          hasMinimum ? `de la ${rawMinimum} Lei` : 'orice comandă',
+          period ? 'perioadă aleasă' : 'fără termen',
+          visible ? 'anunț vizibil' : 'fără anunț',
+        ].join(' · ');
+      }
+
+      scopeInputs.forEach((input) => input.addEventListener('change', updateTargetPanels));
+      valueTypeInputs.forEach((input) => input.addEventListener('change', () => {
+        if (selectedScope() === 'shipping') shippingValuePreference = selectedValue();
+        updateValue();
+      }));
+      valueInput?.addEventListener('input', () => { validateValue(); updateCampaignPreview(); });
+      validityInputs.forEach((input) => input.addEventListener('change', updateDates));
+      startInput?.addEventListener('change', updateDates);
+      endInput?.addEventListener('change', updateDates);
+      topbarToggle?.addEventListener('change', updateTopbar);
+      topbarMessage?.addEventListener('input', updateMessage);
+      minimumInput?.addEventListener('input', updateMinimum);
+      minimumModeInputs.forEach((input) => input.addEventListener('change', () => updateMinimumMode(input.value === 'amount')));
+      useMessage?.addEventListener('click', () => {
+        if (!topbarMessage || !messageSuggestion) return;
+        topbarMessage.value = messageSuggestion.textContent.trim();
+        updateMessage();
+        topbarMessage.focus({ preventScroll: true });
+      });
+      codeInput?.addEventListener('input', () => {
+        const caret = codeInput.selectionStart;
+        codeInput.value = codeInput.value.toLocaleUpperCase('ro-RO').replace(/[^A-Z0-9_-]/g, '');
+        if (codePreview) codePreview.textContent = codeInput.value || 'COD CUPON';
+        if (caret !== null) codeInput.setSelectionRange(caret, caret);
+      });
+
+      presetButtons.forEach((button) => button.addEventListener('click', () => {
+        const preset = button.dataset.adminPromotionPreset;
+        const values = preset === 'shipping'
+          ? { name: 'Livrare gratuită de la 300 Lei', scope: 'shipping', type: 'free', value: '', minimum: '300', topbar: true, message: 'Livrare gratuită la comenzile de minimum 300 Lei.' }
+          : (preset === 'fixed'
+            ? { name: '25 Lei reducere la comandă', scope: 'order', type: 'fixed', value: '25', minimum: '', topbar: false, message: '' }
+            : { name: '10% reducere la comandă', scope: 'order', type: 'percent', value: '10', minimum: '', topbar: false, message: '' });
+        if (nameInput) nameInput.value = values.name;
+        const scopeInput = form.querySelector(`input[name="scope"][value="${values.scope}"]`);
+        if (scopeInput) scopeInput.checked = true;
+        const typeInput = form.querySelector(`input[name="value_type"][value="${values.type}"]`);
+        if (typeInput) typeInput.checked = true;
+        if (values.scope === 'shipping') shippingValuePreference = values.type;
+        if (valueInput) valueInput.value = values.value;
+        if (minimumModeInputs.length > 0) {
+          const mode = form.querySelector(`[data-admin-promotion-minimum-mode][value="${values.minimum ? 'amount' : 'none'}"]`);
+          if (mode) mode.checked = true;
+        }
+        if (minimumInput) {
+          minimumInput.disabled = false;
+          minimumInput.value = values.minimum;
+        }
+        const always = form.querySelector('input[name="validity"][value="always"]');
+        if (always) always.checked = true;
+        if (topbarToggle) topbarToggle.checked = values.topbar;
+        if (topbarMessage) topbarMessage.value = values.message;
+        presetButtons.forEach((item) => item.classList.toggle('is-selected', item === button));
+        updateTargetPanels();
+        updateMinimumMode();
+        updateDates();
+        updateTopbar();
+        updateMessage();
+      }));
+
+      const productSearch = form.querySelector('[data-admin-promotion-product-search]');
+      const productList = form.querySelector('[data-admin-promotion-products]');
+      const productItems = [...form.querySelectorAll('[data-admin-promotion-product]')];
+      const productEmpty = form.querySelector('[data-admin-promotion-product-empty]');
+      const productCount = form.querySelector('[data-admin-promotion-product-count]');
+      const productLabel = form.querySelector('[data-admin-promotion-product-label]');
+      const productExact = form.querySelector('[data-admin-promotion-product-exact]');
+      const productIndex = productItems.map((item, order) => {
+        const name = normalizePromotionSearch(item.dataset.productName);
+        const rawSkus = normalizePromotionSearch(item.dataset.productSkus);
+        const skus = rawSkus.split(/[\s,;|]+/).filter(Boolean);
+        const category = normalizePromotionSearch(item.dataset.productCategory);
+        const keywords = normalizePromotionSearch(item.dataset.productKeywords);
+        return { item, order, name, skus, category, keywords, haystack: `${name} ${rawSkus} ${category} ${keywords}`.trim() };
+      });
+
+      const updateProductResults = () => {
+        if (!productSearch || !productList) return;
+        const query = normalizePromotionSearch(productSearch.value);
+        const queryTokens = query.split(' ').filter(Boolean);
+        const exactMatches = query ? productIndex.filter((entry) => entry.name === query || entry.skus.includes(query)) : [];
+        const exactMode = exactMatches.length > 0;
+        const ranked = productIndex.map((entry) => {
+          if (!query) return { ...entry, visible: true, score: entry.order };
+          if (exactMode) return { ...entry, visible: exactMatches.includes(entry), score: exactMatches.includes(entry) ? 0 : 9999 };
+          let score = 0;
+          let visible = true;
+          queryTokens.forEach((token) => {
+            if (entry.name === token || entry.skus.includes(token)) score -= 70;
+            else if (entry.name.startsWith(token)) score -= 36;
+            else if (entry.skus.some((sku) => sku.startsWith(token))) score -= 30;
+            else if (entry.haystack.includes(token)) score -= 15;
+            else {
+              const words = entry.haystack.split(' ').filter(Boolean);
+              const fuzzy = words.some((word) => Math.abs(word.length - token.length) <= 2 && promotionDistance(word, token) <= (token.length > 6 ? 2 : 1));
+              if (fuzzy) score -= 4;
+              else visible = false;
+            }
+          });
+          return { ...entry, visible, score: score + entry.order / 1000 };
+        }).sort((left, right) => left.score - right.score);
+
+        let visibleCount = 0;
+        ranked.forEach((entry) => {
+          entry.item.hidden = !entry.visible;
+          if (entry.visible) {
+            visibleCount += 1;
+            productList.append(entry.item);
+          }
+        });
+        if (!query) productIndex.sort((left, right) => left.order - right.order).forEach((entry) => productList.append(entry.item));
+        if (productEmpty) productEmpty.hidden = visibleCount !== 0;
+        if (productCount) productCount.textContent = String(visibleCount);
+        if (productLabel) productLabel.textContent = visibleCount === 1 ? 'produs relevant' : 'produse relevante';
+        if (productExact) productExact.hidden = !exactMode;
+      };
+      productSearch?.addEventListener('input', updateProductResults);
+
+      form.addEventListener('submit', (event) => {
+        validateValue();
+        updateDates();
+        if (!form.checkValidity()) {
+          event.preventDefault();
+          form.reportValidity();
+          form.querySelector(':invalid')?.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'center' });
+        }
+      });
+
+      updateTargetPanels();
+      updateMinimumMode();
+      updateValue();
+      updateDates();
+      updateTopbar();
+      updateMessage();
+      if (codePreview) codePreview.textContent = codeInput?.value || 'COD CUPON';
+      updateProductResults();
+    });
+  };
+
+  const promotionDialog = document.querySelector('[data-admin-promotion-dialog]');
+  const promotionContent = promotionDialog?.querySelector('[data-admin-promotion-content]');
+  const promotionLoading = promotionContent?.innerHTML || '';
+  let promotionTrigger = null;
+
+  const closePromotionDialog = () => {
+    if (!promotionDialog?.open) return;
+    promotionDialog.classList.remove('is-visible');
+    window.setTimeout(() => {
+      if (promotionDialog.open) promotionDialog.close();
+    }, reducedMotion ? 0 : 180);
+  };
+
+  const showPromotionError = () => {
+    if (!promotionContent) return;
+    promotionContent.innerHTML = '<div class="admin-promotion-loading"><strong>Formularul nu a putut fi deschis</strong><small>Închide fereastra și încearcă din nou.</small></div>';
+  };
+
+  const loadPromotionForm = async (url) => {
+    if (!promotionContent || !url) return;
+    promotionContent.innerHTML = promotionLoading;
+    try {
+      const response = await fetch(url, { headers: { 'Accept': 'text/html', 'X-Requested-With': 'XMLHttpRequest' } });
+      const markup = await response.text();
+      if (!response.ok || response.redirected || !markup.includes('data-admin-promotion-form')) throw new Error();
+      promotionContent.innerHTML = markup;
+      promotionContent.scrollTop = 0;
+      initializePromotionForm(promotionContent);
+      promotionContent.querySelector('[data-admin-promotion-code], input[name="name"]')?.focus({ preventScroll: true });
+    } catch (_) {
+      showPromotionError();
+    }
+  };
+
+  document.querySelectorAll('[data-admin-promotion-trigger]').forEach((trigger) => {
+    trigger.addEventListener('click', (event) => {
+      if (!promotionDialog || typeof promotionDialog.showModal !== 'function' || !window.fetch) return;
+      event.preventDefault();
+      promotionTrigger = trigger;
+      promotionDialog.showModal();
+      document.documentElement.classList.add('has-admin-promotion-dialog');
+      requestAnimationFrame(() => promotionDialog.classList.add('is-visible'));
+      loadPromotionForm(trigger.dataset.modalUrl);
+    });
+  });
+
+  promotionContent?.addEventListener('submit', async (event) => {
+    const form = event.target.closest('[data-admin-promotion-form]');
+    if (!form || !window.fetch) return;
+    event.preventDefault();
+    if (!form.reportValidity()) return;
+    const submit = form.querySelector('button[type="submit"]');
+    const feedback = form.querySelector('[data-admin-promotion-feedback]');
+    if (submit) submit.disabled = true;
+    if (feedback) feedback.hidden = true;
+    try {
+      const response = await fetch(form.action, { method: 'POST', body: new FormData(form), headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } });
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType.includes('text/html')) {
+        const markup = await response.text();
+        if (!response.ok || !markup.includes('data-admin-promotion-form')) throw new Error('Oferta nu a putut fi salvată.');
+        promotionContent.innerHTML = markup;
+        initializePromotionForm(promotionContent);
+        return;
+      }
+      const payload = await response.json();
+      if (!response.ok || !payload.ok) throw new Error(payload.message || 'Oferta nu a putut fi salvată.');
+      if (payload.redirect) window.location.assign(payload.redirect);
+      else window.location.reload();
+    } catch (error) {
+      if (submit) submit.disabled = false;
+      if (feedback) {
+        feedback.textContent = error.message || 'Verifică datele și încearcă din nou.';
+        feedback.hidden = false;
+      }
+    }
+  });
+
+  promotionDialog?.addEventListener('click', (event) => {
+    if (event.target === promotionDialog || event.target.closest('[data-admin-promotion-close]')) {
+      event.preventDefault();
+      closePromotionDialog();
+    }
+  });
+  promotionDialog?.addEventListener('cancel', (event) => { event.preventDefault(); closePromotionDialog(); });
+  promotionDialog?.addEventListener('close', () => {
+    document.documentElement.classList.remove('has-admin-promotion-dialog');
+    promotionDialog.classList.remove('is-visible');
+    if (promotionContent) promotionContent.innerHTML = promotionLoading;
+    promotionTrigger?.focus({ preventScroll: true });
+    promotionTrigger = null;
+  });
+
+  initializePromotionForm(document);
+
+  const shippingTypeIcons = {
+    courier: '<path d="M3 6h11v11H3zM14 10h4l3 4v3h-7z"/><circle cx="7" cy="18" r="2"/><circle cx="18" cy="18" r="2"/>',
+    locker: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M12 3v18M4 10h16M8 7h1M15 14h1"/>',
+    pickup: '<path d="M4 10h16v10H4zM3 10l2-6h14l2 6M9 20v-5h6v5"/>',
+    other: '<path d="M12 3v12M8 11l4 4 4-4M5 20h14"/>',
+  };
+
+  const normalizeShippingCode = (value = '') => String(value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLocaleLowerCase('ro-RO')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80);
+
+  const initializeShippingMethodForm = (root = document) => {
+    root.querySelectorAll('[data-admin-shipping-form]').forEach((form) => {
+      if (form.dataset.shippingReady === 'true') return;
+      form.dataset.shippingReady = 'true';
+
+      const nameInput = form.querySelector('[data-admin-shipping-name]');
+      const codeInput = form.querySelector('[data-admin-shipping-code]');
+      const descriptionInput = form.querySelector('[data-admin-shipping-description]');
+      const descriptionCount = form.querySelector('[data-admin-shipping-description-count]');
+      const priceInput = form.querySelector('[data-admin-shipping-price]');
+      const minDaysInput = form.querySelector('[data-admin-shipping-min-days]');
+      const maxDaysInput = form.querySelector('[data-admin-shipping-max-days]');
+      const positionInput = form.querySelector('[data-admin-shipping-position]');
+      const typeInputs = [...form.querySelectorAll('input[name="type"]')];
+      const statusInputs = [...form.querySelectorAll('input[name="status"]')];
+      const defaultInput = form.querySelector('[data-admin-shipping-default]');
+      const heroState = form.querySelector('[data-admin-shipping-hero-state]');
+      const previewName = form.querySelector('[data-admin-shipping-preview-name]');
+      const previewDescription = form.querySelector('[data-admin-shipping-preview-description]');
+      const previewEstimate = form.querySelector('[data-admin-shipping-preview-estimate]');
+      const previewPrice = form.querySelector('[data-admin-shipping-preview-price]');
+      const previewState = form.querySelector('[data-admin-shipping-preview-state]');
+      const previewOrder = form.querySelector('[data-admin-shipping-preview-order]');
+      const previewIcon = form.querySelector('[data-admin-shipping-preview-icon]');
+      const summaryTitle = form.querySelector('[data-admin-shipping-summary-title]');
+      const summaryDetail = form.querySelector('[data-admin-shipping-summary-detail]');
+      let codeIsManual = form.dataset.isEdit === 'true' || Boolean(codeInput?.value.trim());
+
+      const parsePrice = () => {
+        const raw = priceInput?.value.trim() || '';
+        if (!/^\d+(?:[,.]\d{1,2})?$/.test(raw)) return null;
+        const value = Number(raw.replace(',', '.'));
+        return Number.isFinite(value) && value >= 0 ? value : null;
+      };
+
+      const formatPrice = (value) => value === 0
+        ? 'Gratuit'
+        : `${new Intl.NumberFormat('ro-RO', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value)} Lei`;
+
+      const estimateText = () => {
+        const minimum = Number(minDaysInput?.value || 0);
+        const maximum = Number(maxDaysInput?.value || 0);
+        if (!Number.isFinite(minimum) || !Number.isFinite(maximum)) return 'Completează intervalul de livrare';
+        const value = minimum === maximum ? String(minimum) : `${minimum}–${maximum}`;
+        return `Ajunge în aproximativ ${value} ${maximum === 1 ? 'zi lucrătoare' : 'zile lucrătoare'}`;
+      };
+
+      const validate = () => {
+        const price = parsePrice();
+        priceInput?.setCustomValidity(price === null ? 'Introdu un cost valid în Lei, de exemplu 19,00 sau 0.' : '');
+        const minimum = Number(minDaysInput?.value || 0);
+        const maximum = Number(maxDaysInput?.value || 0);
+        const validDays = Number.isInteger(minimum) && Number.isInteger(maximum) && minimum >= 0 && maximum >= minimum && maximum <= 365;
+        maxDaysInput?.setCustomValidity(validDays ? '' : 'Maximumul trebuie să fie egal sau mai mare decât minimumul și cel mult 365 de zile.');
+      };
+
+      const update = () => {
+        validate();
+        const name = nameInput?.value.trim() || 'Metodă nouă';
+        const description = descriptionInput?.value.trim() || 'Primești coletul prin metoda aleasă.';
+        const price = parsePrice();
+        const priceLabel = price === null ? 'Cost necompletat' : formatPrice(price);
+        const type = form.querySelector('input[name="type"]:checked')?.value || 'courier';
+        const active = form.querySelector('input[name="status"]:checked')?.value !== 'inactive';
+        if (descriptionCount) descriptionCount.textContent = String(descriptionInput?.value.length || 0);
+        if (previewName) previewName.textContent = name;
+        if (previewDescription) previewDescription.textContent = description;
+        if (previewEstimate) previewEstimate.textContent = estimateText();
+        if (previewPrice) previewPrice.textContent = priceLabel;
+        if (previewState) previewState.textContent = active ? 'Activă în checkout' : 'Ascunsă din checkout';
+        if (heroState) heroState.textContent = active ? 'Vizibilă în checkout' : 'Ascunsă';
+        if (previewOrder) previewOrder.textContent = `Poziția ${positionInput?.value || '1'} în listă${defaultInput?.checked ? ' · sugerată' : ''}`;
+        if (previewIcon) previewIcon.innerHTML = shippingTypeIcons[type] || shippingTypeIcons.other;
+        if (summaryTitle) summaryTitle.textContent = name;
+        if (summaryDetail) summaryDetail.textContent = `${priceLabel} · ${estimateText().replace('Ajunge în aproximativ ', '')}`;
+      };
+
+      nameInput?.addEventListener('input', () => {
+        if (codeInput && !codeIsManual) codeInput.value = normalizeShippingCode(nameInput.value);
+        update();
+      });
+      codeInput?.addEventListener('input', () => {
+        const caret = codeInput.selectionStart;
+        codeInput.value = normalizeShippingCode(codeInput.value);
+        codeIsManual = codeInput.value !== normalizeShippingCode(nameInput?.value || '');
+        if (caret !== null) codeInput.setSelectionRange(Math.min(caret, codeInput.value.length), Math.min(caret, codeInput.value.length));
+      });
+      [descriptionInput, priceInput, minDaysInput, maxDaysInput, positionInput].forEach((input) => input?.addEventListener('input', update));
+      [...typeInputs, ...statusInputs].forEach((input) => input.addEventListener('change', update));
+      defaultInput?.addEventListener('change', update);
+      form.addEventListener('submit', (event) => {
+        validate();
+        if (!form.checkValidity()) {
+          event.preventDefault();
+          form.reportValidity();
+          form.querySelector(':invalid')?.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'center' });
+        }
+      });
+      update();
+    });
+  };
+
+  const shippingDialog = document.querySelector('[data-admin-shipping-dialog]');
+  const shippingContent = shippingDialog?.querySelector('[data-admin-shipping-content]');
+  const shippingLoading = shippingContent?.innerHTML || '';
+  let shippingTrigger = null;
+  let shippingRequest = null;
+
+  const closeShippingDialog = () => {
+    if (!shippingDialog?.open) return;
+    shippingRequest?.abort();
+    shippingRequest = null;
+    shippingDialog.classList.remove('is-visible');
+    document.documentElement.classList.remove('has-admin-shipping-dialog');
+    window.setTimeout(() => {
+      if (shippingDialog.open) shippingDialog.close();
+    }, reducedMotion ? 0 : 190);
+  };
+
+  const loadShippingForm = async (url) => {
+    if (!shippingContent || !url) return;
+    shippingRequest?.abort();
+    shippingRequest = new AbortController();
+    shippingContent.innerHTML = shippingLoading;
+    try {
+      const response = await fetch(url, { headers: { 'Accept': 'text/html', 'X-Requested-With': 'XMLHttpRequest' }, signal: shippingRequest.signal });
+      const markup = await response.text();
+      if (!response.ok || response.redirected || !markup.includes('data-admin-shipping-form')) throw new Error('Metoda de livrare nu mai este disponibilă sau sesiunea a expirat.');
+      shippingContent.innerHTML = markup;
+      initializeShippingMethodForm(shippingContent);
+      shippingContent.querySelector('[data-admin-shipping-name]')?.focus({ preventScroll: true });
+    } catch (error) {
+      if (error.name === 'AbortError') return;
+      shippingContent.innerHTML = `<div class="admin-shipping-loading"><strong>Formularul nu a putut fi deschis</strong><small>${error.message || 'Închide fereastra și încearcă din nou.'}</small></div>`;
+    } finally {
+      shippingRequest = null;
+    }
+  };
+
+  document.querySelectorAll('[data-admin-shipping-trigger]').forEach((trigger) => {
+    trigger.addEventListener('click', (event) => {
+      if (!shippingDialog || typeof shippingDialog.showModal !== 'function' || !window.fetch) return;
+      event.preventDefault();
+      shippingTrigger = trigger;
+      shippingDialog.showModal();
+      document.documentElement.classList.add('has-admin-shipping-dialog');
+      requestAnimationFrame(() => shippingDialog.classList.add('is-visible'));
+      loadShippingForm(trigger.dataset.modalUrl);
+    });
+  });
+
+  shippingContent?.addEventListener('submit', async (event) => {
+    const form = event.target.closest('[data-admin-shipping-form]');
+    if (!form || !window.fetch) return;
+    event.preventDefault();
+    if (!form.reportValidity()) return;
+    const submit = form.querySelector('button[type="submit"]');
+    const submitLabel = submit?.querySelector('span');
+    const feedback = form.querySelector('[data-admin-shipping-feedback]');
+    if (submit) submit.disabled = true;
+    if (submitLabel) submitLabel.textContent = 'Se salvează…';
+    if (feedback) feedback.hidden = true;
+    try {
+      const response = await fetch(form.action, { method: 'POST', body: new FormData(form), headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } });
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType.includes('text/html')) {
+        const markup = await response.text();
+        if (!markup.includes('data-admin-shipping-form')) throw new Error('Metoda nu a putut fi salvată.');
+        shippingContent.innerHTML = markup;
+        initializeShippingMethodForm(shippingContent);
+        return;
+      }
+      const payload = await response.json();
+      if (!response.ok || !payload.ok) throw new Error(payload.message || 'Metoda nu a putut fi salvată.');
+      if (payload.redirect) window.location.assign(payload.redirect);
+      else window.location.reload();
+    } catch (error) {
+      if (submit) submit.disabled = false;
+      if (submitLabel) submitLabel.textContent = 'Încearcă din nou';
+      if (feedback) {
+        feedback.textContent = error.message || 'Verifică datele și încearcă din nou.';
+        feedback.hidden = false;
+      }
+    }
+  });
+
+  shippingDialog?.addEventListener('click', (event) => {
+    if (event.target === shippingDialog || event.target.closest('[data-admin-shipping-close]')) {
+      event.preventDefault();
+      closeShippingDialog();
+    }
+  });
+  shippingDialog?.addEventListener('cancel', (event) => { event.preventDefault(); closeShippingDialog(); });
+  shippingDialog?.addEventListener('close', () => {
+    document.documentElement.classList.remove('has-admin-shipping-dialog');
+    shippingDialog.classList.remove('is-visible');
+    if (shippingContent) shippingContent.innerHTML = shippingLoading;
+    shippingTrigger?.focus({ preventScroll: true });
+    shippingTrigger = null;
+  });
+
+  initializeShippingMethodForm(document);
+
   document.querySelectorAll('[data-admin-toast]').forEach((toast) => {
     const remove = () => {
       toast.style.opacity = '0';

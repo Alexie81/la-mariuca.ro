@@ -1,0 +1,114 @@
+{% extends 'admin/layouts/base.twig' %}
+
+{% block title %}Cupoane și promoții{% endblock %}
+
+{% block content %}
+  {% set current_search = search|default('') %}
+  {% set has_search = current_search is not empty %}
+  {% set search_query = has_search ? '&cautare=' ~ (current_search|url_encode) : '' %}
+  {% set offer_total = summary.total|default(pagination.total|default(offers|length)) %}
+  {% set active_total = summary.active|default(0) %}
+  {% set coupon_total = summary.coupons|default(summary.coupon|default(0)) %}
+  {% set promotion_total = summary.promotions|default(summary.promotion|default(0)) %}
+
+  <section class="admin-promotions-hero" aria-labelledby="admin-promotions-title">
+    <div class="admin-promotions-hero__copy">
+      <span class="admin-promotions-eyebrow"><i aria-hidden="true"></i> Avantaje comerciale</span>
+      <h1 id="admin-promotions-title">Cupoane și promoții</h1>
+      <p>Construiește oferte clare, urmărește valabilitatea lor și controlează ce anunți în bara magazinului.</p>
+      <div class="admin-promotions-hero__actions" aria-label="Creează o ofertă">
+        <a class="admin-promotions-cta is-coupon" href="{{ url('admin/cupoane-promotii/cupon/nou/') }}" data-admin-promotion-trigger data-modal-url="{{ url('admin/cupoane-promotii/cupon/nou/modal/') }}">
+          <span class="admin-promotions-cta__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 8.5V5h3.5a2.5 2.5 0 0 0 5 0H20v3.5a2.5 2.5 0 0 0 0 5V17h-7.5a2.5 2.5 0 0 0-5 0H4v-3.5a2.5 2.5 0 0 0 0-5Z"/><path d="M12 7v10"/></svg></span>
+          <span><small>Cod pentru client</small><strong>Adaugă cupon</strong></span>
+          <svg class="admin-promotions-cta__arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+        </a>
+        <a class="admin-promotions-cta is-promotion" href="{{ url('admin/cupoane-promotii/reducere/nou/') }}" data-admin-promotion-trigger data-modal-url="{{ url('admin/cupoane-promotii/reducere/nou/modal/') }}">
+          <span class="admin-promotions-cta__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20 12 12 20 4 12V4h8l8 8Z"/><circle cx="9" cy="9" r="1.5"/></svg></span>
+          <span><small>Aplicare automată</small><strong>Adaugă reducere</strong></span>
+          <svg class="admin-promotions-cta__arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+        </a>
+      </div>
+    </div>
+
+    <div class="admin-promotions-summary" aria-label="Rezumat cupoane și promoții">
+      <article><span class="admin-promotions-summary__icon is-rose" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5h16v14H4zM8 9h8M8 13h5"/></svg></span><span><strong>{{ offer_total }}</strong><small>oferte în registru</small></span></article>
+      <article><span class="admin-promotions-summary__icon is-green" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/></svg></span><span><strong>{{ active_total }}</strong><small>active acum</small></span></article>
+      <article><span class="admin-promotions-summary__icon is-gold" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 8.5V5h3.5a2.5 2.5 0 0 0 5 0H20v3.5a2.5 2.5 0 0 0 0 5V17h-7.5a2.5 2.5 0 0 0-5 0H4v-3.5a2.5 2.5 0 0 0 0-5Z"/></svg></span><span><strong>{{ coupon_total }}</strong><small>cupoane cu cod</small></span></article>
+      <article><span class="admin-promotions-summary__icon is-violet" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20 12 12 20 4 12V4h8l8 8Z"/><circle cx="9" cy="9" r="1.5"/></svg></span><span><strong>{{ promotion_total }}</strong><small>reduceri automate</small></span></article>
+    </div>
+  </section>
+
+  <section class="admin-promotions-panel" aria-labelledby="admin-promotions-list-title">
+    <header class="admin-promotions-panel__head">
+      <div><span class="admin-promotions-eyebrow">Registrul avantajelor</span><h2 id="admin-promotions-list-title">Toate ofertele, într-un singur loc</h2><p>Cuponul cere un cod. Reducerea se aplică automat când sunt îndeplinite condițiile.</p></div>
+      {% if pagination.total|default(0) > 0 %}<p class="admin-promotions-panel__range"><strong>{{ pagination.from|default(1) }}–{{ pagination.to|default(offers|length) }}</strong><span>din {{ pagination.total }}</span></p>{% endif %}
+    </header>
+
+    <form class="admin-promotions-search" action="{{ url('admin/cupoane-promotii/') }}" method="get" role="search">
+      <label>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m16.5 16.5 4 4"/></svg>
+        <span><small>Căutare inteligentă</small><input type="search" name="cautare" value="{{ current_search }}" placeholder="Cod, nume, produs, categorie sau stare…" autocomplete="off"></span>
+      </label>
+      {% if has_search %}<a class="admin-promotions-search__clear" href="{{ url('admin/cupoane-promotii/') }}" aria-label="Șterge căutarea"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"/></svg></a>{% endif %}
+      <button class="admin-promotions-search__submit" type="submit"><span>Caută</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
+    </form>
+    <div class="admin-promotions-search-hints" aria-label="Exemple de căutare"><span>Încearcă:</span><a href="{{ url('admin/cupoane-promotii/?cautare=active') }}">active</a><a href="{{ url('admin/cupoane-promotii/?cautare=livrare') }}">livrare</a><a href="{{ url('admin/cupoane-promotii/?cautare=bara+de+sus') }}">bara de sus</a></div>
+
+    {% if offers %}
+      <div class="admin-promotions-table-wrap">
+        <table class="admin-promotions-table">
+          <thead><tr><th>Ofertă</th><th>Beneficiu</th><th>Se aplică la</th><th>Valabilitate</th><th>Utilizări</th><th>Bară sus</th><th>Stare</th><th><span class="sr-only">Acțiuni</span></th></tr></thead>
+          <tbody>
+          {% for offer in offers %}
+            {% set kind = offer.offer_kind|default(offer.kind|default('promotion')) %}
+            {% set is_coupon = kind == 'coupon' or kind == 'cupon' %}
+            {% set route_type = offer.route_type|default(is_coupon ? 'cupon' : 'reducere') %}
+            {% set state = offer.status|default(offer.state|default('active')) %}
+            {% set is_active = state in ['active', 'scheduled'] %}
+            {% set offer_name = offer.display_name|default(offer.name|default(is_coupon ? offer.code|default('Cupon') : 'Reducere automată')) %}
+            <tr class="{{ is_active ? '' : 'is-inactive' }}">
+              <td data-label="Ofertă">
+                <span class="admin-promotion-offer">
+                  <i class="{{ is_coupon ? 'is-coupon' : 'is-promotion' }}" aria-hidden="true"><svg viewBox="0 0 24 24">{% if is_coupon %}<path d="M4 8.5V5h3.5a2.5 2.5 0 0 0 5 0H20v3.5a2.5 2.5 0 0 0 0 5V17h-7.5a2.5 2.5 0 0 0-5 0H4v-3.5a2.5 2.5 0 0 0 0-5Z"/><path d="M12 7v10"/>{% else %}<path d="M20 12 12 20 4 12V4h8l8 8Z"/><circle cx="9" cy="9" r="1.5"/>{% endif %}</svg></i>
+                  <span><small>{{ is_coupon ? 'Cupon cu cod' : 'Reducere automată' }}</small><strong>{{ offer_name }}</strong>{% if is_coupon and offer.code|default('') %}<code>{{ offer.code }}</code>{% endif %}</span>
+                </span>
+              </td>
+              <td data-label="Beneficiu"><span class="admin-promotion-benefit"><strong>{{ offer.value_label|default(offer.discount_label|default('—')) }}</strong><small>{{ offer.minimum_label|default('Fără prag minim') }}</small></span></td>
+              <td data-label="Se aplică la"><span class="admin-promotion-scope"><strong>{{ offer.scope_label|default(offer.target_type_label|default('Toată comanda')) }}</strong><small>{{ offer.target_name|default(offer.target_label|default('Fără restricții')) }}</small></span></td>
+              <td data-label="Valabilitate"><span class="admin-promotion-validity"><strong>{{ offer.validity_label|default(offer.display_validity|default('Fără termen')) }}</strong><small>{{ offer.validity_detail|default(offer.display_period|default('Până la dezactivare')) }}</small></span></td>
+              <td data-label="Utilizări"><span class="admin-promotion-usage"><strong>{{ offer.usage_count|default(offer.redemptions_count|default(0)) }}</strong><small>{% if offer.usage_limit|default(null) %}din {{ offer.usage_limit }}{% else %}fără limită{% endif %}</small></span></td>
+              <td data-label="Bară sus">{% if offer.show_in_topbar|default(false) %}<span class="admin-promotion-topbar is-visible"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v12H4zM4 9h16"/></svg><span><strong>Vizibilă</strong><small>{{ offer.topbar_message|default('Mesaj activ') }}</small></span></span>{% else %}<span class="admin-promotion-topbar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v12H4zM4 9h16"/></svg><span><strong>Oprită</strong><small>Nu apare în magazin</small></span></span>{% endif %}</td>
+              <td data-label="Stare"><span class="admin-promotion-status is-{{ state }}"><i></i>{{ offer.status_label|default(offer.state_label|default(is_active ? 'Activă' : 'Inactivă')) }}</span></td>
+              <td class="admin-promotions-table__action" data-label="Acțiuni">
+                {% if is_active %}
+                  <details class="admin-promotion-deactivate">
+                    <summary aria-label="Dezactivează {{ offer_name }}" title="Dezactivează"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8 12h8"/></svg></summary>
+                    <div><strong>Dezactivezi oferta?</strong><p>Nu va mai fi aplicată comenzilor noi.</p><form action="{{ offer.deactivate_url|default(url('admin/cupoane-promotii/' ~ route_type ~ '/' ~ offer.id ~ '/dezactiveaza/')) }}" method="post"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><button class="admin-promotion-deactivate__submit" type="submit">Da, dezactivează</button></form></div>
+                  </details>
+                {% else %}<span class="admin-promotion-action-disabled" aria-label="Oferta este deja inactivă"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12"/></svg></span>{% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      {% if pagination.total_pages|default(1) > 1 %}
+        <nav class="admin-pagination admin-promotions-pagination" aria-label="Paginarea cupoanelor și promoțiilor">
+          {% if pagination.page > 1 %}<a class="admin-pagination__arrow" href="{{ url('admin/cupoane-promotii/?pagina=' ~ (pagination.page - 1) ~ search_query) }}" aria-label="Pagina anterioară"><svg viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></svg></a>{% else %}<span class="admin-pagination__arrow is-disabled"><svg viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></svg></span>{% endif %}
+          <div class="admin-pagination__pages">{% for page_number in pagination.page_numbers|default(1..pagination.total_pages) %}<a href="{{ url('admin/cupoane-promotii/?pagina=' ~ page_number ~ search_query) }}" class="{{ pagination.page == page_number ? 'is-active' : '' }}"{% if pagination.page == page_number %} aria-current="page"{% endif %}>{{ page_number }}</a>{% endfor %}</div>
+          {% if pagination.page < pagination.total_pages %}<a class="admin-pagination__arrow" href="{{ url('admin/cupoane-promotii/?pagina=' ~ (pagination.page + 1) ~ search_query) }}" aria-label="Pagina următoare"><svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></a>{% else %}<span class="admin-pagination__arrow is-disabled"><svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></span>{% endif %}
+        </nav>
+      {% endif %}
+    {% else %}
+      <div class="admin-promotions-empty"><span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20 12 12 20 4 12V4h8l8 8Z"/><circle cx="9" cy="9" r="1.5"/></svg></span><strong>{{ has_search ? 'Nicio ofertă nu corespunde căutării' : 'Registrul este pregătit pentru prima ofertă' }}</strong><p>{{ has_search ? 'Încearcă un cod, un produs, o categorie sau o stare mai generală.' : 'Creează un cupon cu cod sau o reducere aplicată automat.' }}</p>{% if has_search %}<a href="{{ url('admin/cupoane-promotii/') }}">Vezi toate ofertele</a>{% endif %}</div>
+    {% endif %}
+  </section>
+
+  <dialog class="admin-promotion-dialog" data-admin-promotion-dialog aria-labelledby="admin-promotion-form-title">
+    <div class="admin-promotion-dialog__surface">
+      <button class="admin-promotion-dialog__close" type="button" data-admin-promotion-close aria-label="Închide formularul"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"/></svg></button>
+      <div class="admin-promotion-dialog__content" data-admin-promotion-content aria-live="polite"><div class="admin-promotion-loading"><span aria-hidden="true"><i></i><i></i><i></i></span><strong>Pregătim formularul…</strong><small>Încărcăm produsele și categoriile.</small></div></div>
+    </div>
+  </dialog>
+{% endblock %}
