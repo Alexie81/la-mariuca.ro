@@ -256,6 +256,18 @@ final class ShippingAdminTest extends DatabaseTestCase
         self::assertStringContainsString('.admin-shipping-availability>label.admin-shipping-default>input{width:1px;height:1px;min-height:1px', $css);
     }
 
+    public function testShippingRegistryUsesCompactResponsiveCardGrids(): void
+    {
+        $css = file_get_contents(dirname(__DIR__, 2) . '/public/assets/css/shipping-admin.css');
+        self::assertIsString($css);
+        self::assertStringContainsString('@media(max-width:900px){', $css);
+        self::assertStringContainsString('grid-template-areas:"method method method" "price estimate order" "status usage usage" "actions actions actions"', $css);
+        self::assertStringContainsString('@media(max-width:560px){', $css);
+        self::assertStringContainsString('grid-template-areas:"method method" "price estimate" "order usage" "status status" "actions actions"', $css);
+        self::assertStringContainsString('.admin-shipping-table td:nth-child(7){grid-area:actions}', $css);
+        self::assertStringContainsString('.admin-shipping-actions a,.admin-shipping-actions button{width:100%;min-width:0;min-height:44px', $css);
+    }
+
     /** @return array<string,string> */
     private function validPayload(): array
     {
