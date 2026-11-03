@@ -2,6 +2,12 @@
 
 Actualizat: 2026-11-03
 
+### 2026-11-03 — Editare, ștergere și confirmări pentru oferte
+- Registrul de cupoane și promoții oferă editare cu date precompletate, dezactivare și ștergere. Confirmările sunt dialoguri native în afara tabelului, astfel încât zona de scroll nu le mai taie. Au butoane aliniate, închidere cu Escape, revenirea focusului la acțiunea inițială și pagini de confirmare funcționale fără JavaScript.
+- Editarea reutilizează validările de creare, păstrează identitatea și utilizările ofertei, convertește corect bani/Lei și datele UTC/Europe-Bucharest și permite reactivarea din selectorul stării. Ștergerea marchează oferta eliminată și o oprește, păstrând înregistrările folosite de istoricul comenzilor. Rutele sunt protejate prin autorizare admin și CSRF; modificările rulează în tranzacții.
+- Verificat în browserul intern la 1680×950, 1280×720, 390×844 și 320×740: confirmările de dezactivare/ștergere, formularul de editare, lipsa overflow-ului orizontal și alinierea acțiunilor. Oferta existentă nu a fost modificată sau ștearsă în browser. Consola nu a raportat erori.
+- Au trecut lint PHP, compilarea a 72 template-uri Twig, PHPStan, sintaxa JavaScript și PHPUnit (129 teste / 1613 aserțiuni). Cele 6 teste pentru administrarea ofertelor acoperă inclusiv editarea, unicitatea codului, păstrarea utilizărilor, ștergerea, rutele inexistente, autorizarea și CSRF. Suita PHPUnit a rulat direct prin wrapperul PHP local; lansarea prin scriptul Composer nu transmite extensia locală mbstring către procesul copil. Nu s-au verificat concurența MySQL, Apache, SMTP sau Stripe și nu s-a făcut deploy în producție.
+
 ## VERIFIED
 
 - Fundația noului panou de administrare este disponibilă direct la `/admin`: vizitatorii neautentificați

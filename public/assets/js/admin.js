@@ -3140,7 +3140,7 @@
           topbarEditor.classList.toggle('is-disabled', !enabled);
         }
         if (topbarMessage) {
-          topbarMessage.disabled = !enabled;
+          topbarMessage.readOnly = !enabled;
           topbarMessage.required = enabled;
         }
         if (topbarState) {
@@ -3240,8 +3240,12 @@
           period ? 'perioadă aleasă' : 'fără termen',
           visible ? 'anunț vizibil' : 'fără anunț',
         ].join(' · ');
+        if (form.querySelector('select[name="status"]')?.value === 'inactive' && summaryDetail) {
+          summaryDetail.textContent = 'Ofertă inactivă · nu se aplică și nu apare în magazin';
+        }
       }
 
+      form.querySelector('select[name="status"]')?.addEventListener('change', updateCampaignPreview);
       scopeInputs.forEach((input) => input.addEventListener('change', updateTargetPanels));
       valueTypeInputs.forEach((input) => input.addEventListener('change', () => {
         if (selectedScope() === 'shipping') shippingValuePreference = selectedValue();
@@ -3475,6 +3479,43 @@
   });
 
   initializePromotionForm(document);
+
+  const promotionConfirm = document.querySelector('[data-admin-promotion-confirm-dialog]');
+  let promotionConfirmTrigger = null;
+  document.querySelectorAll('[data-admin-promotion-confirm]').forEach((trigger) => {
+    trigger.addEventListener('click', (event) => {
+      if (!promotionConfirm || typeof promotionConfirm.showModal !== 'function') return;
+      event.preventDefault();
+      promotionConfirmTrigger = trigger;
+      const deleting = trigger.dataset.adminPromotionConfirm === 'delete';
+      promotionConfirm.querySelector('[data-promotion-confirm-card]').classList.toggle('is-delete', deleting);
+      promotionConfirm.querySelector('.admin-promotion-confirm__eyebrow').textContent = deleting ? 'Elimină din registru' : 'Pune oferta pe pauză';
+      promotionConfirm.querySelector('[data-promotion-confirm-title]').textContent = deleting ? 'Ștergi această ofertă?' : 'Dezactivezi oferta?';
+      promotionConfirm.querySelector('[data-promotion-confirm-description]').textContent = deleting
+        ? 'Oferta va fi eliminată din registru și nu se va mai aplica la comenzile noi.'
+        : 'Oferta nu se va mai aplica la comenzile noi și nu va mai apărea în bara magazinului.';
+      promotionConfirm.querySelector('[data-promotion-confirm-name]').textContent = trigger.dataset.offerName;
+      promotionConfirm.querySelector('[data-promotion-confirm-label]').textContent = trigger.dataset.offerLabel;
+      promotionConfirm.querySelector('[data-promotion-confirm-note]').textContent = deleting
+        ? 'Comenzile și reducerile deja acordate rămân în istoric.'
+        : 'O poți reactiva oricând din Editează → Starea ofertei.';
+      promotionConfirm.querySelector('[data-promotion-confirm-submit]').textContent = deleting ? 'Da, șterge oferta' : 'Da, dezactivează';
+      promotionConfirm.querySelector('[data-promotion-confirm-form]').action = trigger.dataset.actionUrl;
+      promotionConfirm.showModal();
+      document.documentElement.classList.add('has-admin-promotion-confirm');
+    });
+  });
+  promotionConfirm?.addEventListener('click', (event) => {
+    if (event.target === promotionConfirm || event.target.closest('[data-promotion-confirm-close]')) {
+      event.preventDefault();
+      promotionConfirm.close();
+    }
+  });
+  promotionConfirm?.addEventListener('close', () => {
+    document.documentElement.classList.remove('has-admin-promotion-confirm');
+    promotionConfirmTrigger?.focus({ preventScroll: true });
+    promotionConfirmTrigger = null;
+  });
 
   const shippingTypeIcons = {
     courier: '<path d="M3 6h11v11H3zM14 10h4l3 4v3h-7z"/><circle cx="7" cy="18" r="2"/><circle cx="18" cy="18" r="2"/>',

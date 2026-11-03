@@ -80,12 +80,12 @@
               <td data-label="Bară sus">{% if offer.show_in_topbar|default(false) %}<span class="admin-promotion-topbar is-visible"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v12H4zM4 9h16"/></svg><span><strong>Vizibilă</strong><small>{{ offer.topbar_message|default('Mesaj activ') }}</small></span></span>{% else %}<span class="admin-promotion-topbar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v12H4zM4 9h16"/></svg><span><strong>Oprită</strong><small>Nu apare în magazin</small></span></span>{% endif %}</td>
               <td data-label="Stare"><span class="admin-promotion-status is-{{ state }}"><i></i>{{ offer.status_label|default(offer.state_label|default(is_active ? 'Activă' : 'Inactivă')) }}</span></td>
               <td class="admin-promotions-table__action" data-label="Acțiuni">
-                {% if is_active %}
-                  <details class="admin-promotion-deactivate">
-                    <summary aria-label="Dezactivează {{ offer_name }}" title="Dezactivează"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8 12h8"/></svg></summary>
-                    <div><strong>Dezactivezi oferta?</strong><p>Nu va mai fi aplicată comenzilor noi.</p><form action="{{ offer.deactivate_url|default(url('admin/cupoane-promotii/' ~ route_type ~ '/' ~ offer.id ~ '/dezactiveaza/')) }}" method="post"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><button class="admin-promotion-deactivate__submit" type="submit">Da, dezactivează</button></form></div>
-                  </details>
-                {% else %}<span class="admin-promotion-action-disabled" aria-label="Oferta este deja inactivă"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12"/></svg></span>{% endif %}
+                {% set offer_url = 'admin/cupoane-promotii/' ~ route_type ~ '/' ~ offer.id ~ '/' %}
+                <div class="admin-promotion-actions">
+                  <a href="{{ url(offer_url ~ 'editare/') }}" data-admin-promotion-trigger data-modal-url="{{ url(offer_url ~ 'editare/modal/') }}" aria-label="Editează {{ offer_name }}" title="Editează"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m16 3 5 5-12 12-6 1 1-6L16 3ZM13 6l5 5"/></svg><span>Editează</span></a>
+                  {% if offer.can_deactivate %}<a href="{{ url(offer_url ~ 'dezactiveaza/confirmare/') }}" data-admin-promotion-confirm="deactivate" data-action-url="{{ url(offer_url ~ 'dezactiveaza/') }}" data-offer-name="{{ offer_name }}" data-offer-label="{{ is_coupon ? 'Cupon · ' ~ offer.code : 'Reducere automată' }}" aria-label="Dezactivează {{ offer_name }}" title="Dezactivează"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8 12h8"/></svg><span>Oprește</span></a>{% endif %}
+                  <a class="is-delete" href="{{ url(offer_url ~ 'sterge/confirmare/') }}" data-admin-promotion-confirm="delete" data-action-url="{{ url(offer_url ~ 'sterge/') }}" data-offer-name="{{ offer_name }}" data-offer-label="{{ is_coupon ? 'Cupon · ' ~ offer.code : 'Reducere automată' }}" aria-label="Șterge {{ offer_name }}" title="Șterge"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/></svg><span>Șterge</span></a>
+                </div>
               </td>
             </tr>
           {% endfor %}
@@ -110,5 +110,8 @@
       <button class="admin-promotion-dialog__close" type="button" data-admin-promotion-close aria-label="Închide formularul"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"/></svg></button>
       <div class="admin-promotion-dialog__content" data-admin-promotion-content aria-live="polite"><div class="admin-promotion-loading"><span aria-hidden="true"><i></i><i></i><i></i></span><strong>Pregătim formularul…</strong><small>Încărcăm produsele și categoriile.</small></div></div>
     </div>
+  </dialog>
+  <dialog class="admin-promotion-confirm-dialog" data-admin-promotion-confirm-dialog aria-labelledby="promotion-confirm-title" aria-describedby="promotion-confirm-description">
+    {% include 'admin/partials/promotion-confirm.twig' with {is_modal:true, is_delete:false} %}
   </dialog>
 {% endblock %}

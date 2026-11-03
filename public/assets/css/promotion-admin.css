@@ -240,7 +240,7 @@
 .admin-promotions-table th:nth-child(5) { width: 8%; }
 .admin-promotions-table th:nth-child(6) { width: 14%; }
 .admin-promotions-table th:nth-child(7) { width: 9%; }
-.admin-promotions-table th:last-child { width: 70px; }
+.admin-promotions-table th:last-child { width: 160px; }
 .admin-promotions-table td { padding: 15px 14px; border-top: 1px solid #f1ddd8; color: #513934; font-size: 12px; vertical-align: middle; }
 .admin-promotions-table td:first-child { padding-left: 27px; }
 .admin-promotions-table tbody tr { transition: background .18s ease; }
@@ -286,19 +286,14 @@
 .admin-promotion-status.is-disabled,
 .admin-promotion-status.is-inactive { color: #a77a77; background: #f8efec; }
 
-.admin-promotions-table__action { position: relative; text-align: center; }
-.admin-promotion-deactivate { position: relative; display: inline-block; }
-.admin-promotion-deactivate summary,
-.admin-promotion-action-disabled { width: 38px; height: 38px; display: inline-grid; place-items: center; border: 1px solid #efd0ca; border-radius: 12px; color: #c34b5a; background: #fff8f6; cursor: pointer; list-style: none; }
-.admin-promotion-deactivate summary::-webkit-details-marker { display: none; }
-.admin-promotion-deactivate summary svg,
-.admin-promotion-action-disabled svg { width: 18px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-width: 1.7; }
-.admin-promotion-action-disabled { color: #b9a5a0; border-style: dashed; cursor: default; }
-.admin-promotion-deactivate > div { width: 230px; position: absolute; z-index: 20; top: calc(100% + 9px); right: 0; padding: 14px; border: 1px solid #edc9c2; border-radius: 15px; background: #fff; box-shadow: 0 18px 45px rgba(72, 39, 33, .2); text-align: left; }
-.admin-promotion-deactivate > div::before { width: 10px; height: 10px; content: ""; position: absolute; top: -6px; right: 14px; border-top: 1px solid #edc9c2; border-left: 1px solid #edc9c2; background: #fff; transform: rotate(45deg); }
-.admin-promotion-deactivate > div strong { font-size: 12px; }
-.admin-promotion-deactivate > div p { margin: 4px 0 11px; color: #927973; font-size: 10px; line-height: 1.45; }
-.admin-promotion-deactivate button { width: 100%; min-height: 38px; border: 0; border-radius: 10px; color: #fff; background: #d65363; cursor: pointer; font-size: 10px; font-weight: 800; }
+.admin-promotions-table__action { text-align: center; }
+.admin-promotion-actions { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
+.admin-promotion-actions a { display: inline-flex; flex: 0 0 auto; justify-content: center; align-items: center; gap: 6px; width: 40px; min-height: 40px; border: 1px solid #ecd6d1; border-radius: 12px; background: #fff; color: #93695f; text-decoration: none; transition: background .15s, border-color .15s; }
+.admin-promotion-actions a:hover { background: #fff2ee; border-color: #dba8a0; }
+.admin-promotion-actions a.is-delete { background: #fff3f2; color: #c54b5a; }
+.admin-promotion-actions svg { flex: 0 0 auto; width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.65; }
+.admin-promotion-actions a > span { display: none; }
+.admin-promotion-actions a:focus-visible { outline: 3px solid #dc5c6b; outline-offset: 3px; }
 
 .admin-promotions-pagination { margin: 21px auto 24px; }
 .admin-promotions-empty { min-height: 270px; display: grid; place-items: center; align-content: center; gap: 7px; padding: 34px; border-top: 1px solid #efd9d4; text-align: center; }
@@ -308,6 +303,36 @@
 .admin-promotions-empty p { max-width: 500px; margin: 0; color: #987c75; font-size: 12px; line-height: 1.55; }
 .admin-promotions-empty a { margin-top: 8px; color: #c84b5b; font-size: 11px; font-weight: 800; }
 
+/* Confirmările sunt în top layer, în afara containerului tabelului. */
+html.has-admin-promotion-confirm { overflow: hidden; }
+.admin-promotion-confirm-dialog { width: min(480px, calc(100vw - 32px)); max-width: none; height: fit-content; max-height: calc(100dvh - 32px); margin: auto; padding: 0; border: 1px solid #f0dcd6; border-radius: 26px; background: #fffdfb; color: #49342e; overflow: auto; box-shadow: 0 32px 100px #321b2533; }
+.admin-promotion-confirm-dialog::backdrop { background: rgba(40,28,30,.43); backdrop-filter: blur(5px); }
+.admin-promotion-confirm-page { max-width: 480px; margin: 32px auto; overflow: hidden; border: 1px solid #f0dcd6; border-radius: 26px; background: #fffdfb; box-shadow: 0 16px 48px #321b2510; }
+.admin-promotion-confirm { position: relative; }
+.admin-promotion-confirm svg { flex: 0 0 auto; width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.admin-promotion-confirm .admin-promotion-confirm__close { position: absolute; right: 16px; top: 16px; display: grid; place-items: center; width: 40px; height: 40px; margin: 0; padding: 0; border: 1px solid #eddfda; border-radius: 50%; background: #fff; color: #8f7068; cursor: pointer; }
+.admin-promotion-confirm__body { padding: 30px 28px 24px; }
+.admin-promotion-confirm__icon { width: 60px; height: 60px; display: grid; place-items: center; margin-bottom: 24px; border: 1px solid #f0d3c2; border-radius: 19px; background: #fff2e6; color: #ad712d; }
+.admin-promotion-confirm__icon svg { width: 28px; height: 28px; }
+.admin-promotion-confirm__icon .icon-delete { display: none; }
+.admin-promotion-confirm.is-delete .admin-promotion-confirm__icon { border-color: #f3c8cb; background: #fff0f0; color: #c8495a; }
+.admin-promotion-confirm.is-delete .icon-pause { display: none; }
+.admin-promotion-confirm.is-delete .icon-delete { display: block; }
+.admin-promotion-confirm__eyebrow { display: block; color: #af6f60; font: 700 11px/1.4 var(--admin-sans, sans-serif); letter-spacing: .1em; text-transform: uppercase; }
+.admin-promotion-confirm h2 { margin: 8px 0 12px; color: #49342e; font: 500 32px/1.15 var(--admin-serif, Georgia, serif); letter-spacing: -.02em; }
+.admin-promotion-confirm__body > p { margin: 0; font: 400 14px/1.65 var(--admin-sans, sans-serif); color: #856e67; }
+.admin-promotion-confirm__offer { display: grid; gap: 5px; margin: 22px 0 18px; padding: 16px 18px; border: 1px solid #ebdad4; border-radius: 14px; background: #fff; overflow-wrap: anywhere; }
+.admin-promotion-confirm__offer small { color: #a17c71; font-size: 12px; line-height: 1.4; }
+.admin-promotion-confirm__offer strong { font-size: 16px; line-height: 1.45; color: #53382f; }
+.admin-promotion-confirm__body > .admin-promotion-confirm__note { display: flex; align-items: flex-start; gap: 9px; font-size: 13px; line-height: 1.55; }
+.admin-promotion-confirm__note svg { margin-top: 1px; color: #40927e; }
+.admin-promotion-confirm__footer { display: grid; grid-template-columns: 1fr 1.4fr; gap: 10px; padding: 18px 28px; border-top: 1px solid #eeded8; background: #fbf7f4; }
+.admin-promotion-confirm__footer > a,.admin-promotion-confirm__footer > button { display: inline-flex; justify-content: center; align-items: center; min-width: 0; min-height: 48px; margin: 0; padding: 12px; border: 1px solid #e8d4cd; border-radius: 13px; color: #795c52; background: #fff; font: 700 13px/1.3 var(--admin-sans, sans-serif); white-space: nowrap; text-decoration: none; cursor: pointer; }
+.admin-promotion-confirm__footer > button { border-color: transparent; color: #fff; background: #c95161; box-shadow: 0 7px 18px #c9516126; }
+.admin-promotion-confirm__footer > button:hover { background: #b54252; }
+.admin-promotion-confirm a:focus-visible,.admin-promotion-confirm button:focus-visible { outline: 3px solid #dd7b88; outline-offset: 3px; }
+.admin-promotion-edit-state { padding: 18px 22px; border: 1px solid #ecd7d0; border-radius: 18px; background: #fffaf7; }
+.admin-promotion-edit-state select { width: 100%; min-height: 46px; padding: 10px 12px; border: 1px solid #e8cfc8; border-radius: 12px; background: #fff; color: #594039; font: 500 14px/1.4 var(--admin-sans, sans-serif); }
 /* Modal și pagină fallback */
 html.has-admin-promotion-dialog { overflow: hidden; }
 .admin-promotion-page { max-width: 1180px; margin: 0 auto; }
@@ -708,7 +733,8 @@ html.has-admin-promotion-dialog { overflow: hidden; }
   .admin-promotions-table__action { grid-column: 1/-1; display: flex !important; justify-content: flex-end; align-items: center; min-height: 57px; }
   .admin-promotions-table__action::before { margin-right: auto; }
   .admin-promotion-offer strong,.admin-promotion-topbar small { white-space: normal; }
-  .admin-promotion-deactivate > div { right: 0; }
+  .admin-promotion-actions a { width: auto; padding: 0 12px; }
+  .admin-promotion-actions a > span { display: inline; font-size: 12px; font-weight: 700; white-space: nowrap; }
   .admin-promotion-scopes { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .admin-promotion-commercial { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .admin-promotion-identity.has-code { grid-template-columns: 1fr; }
@@ -856,8 +882,6 @@ html.has-admin-promotion-dialog { overflow: hidden; }
 .admin-promotion-categories b,
 .admin-promotion-value legend,
 .admin-promotion-value fieldset b,
-.admin-promotion-deactivate > div p,
-.admin-promotion-deactivate button,
 .admin-promotion-form__footer strong {
   font-size: 11px;
 }
@@ -867,4 +891,18 @@ html.has-admin-promotion-dialog { overflow: hidden; }
   .admin-promotions-cta,
   .admin-promotion-scopes label > span { transition: none; }
   .admin-promotion-loading i { animation: none; }
+}
+
+@media (max-width: 480px) {
+  .admin-promotions-table td.admin-promotions-table__action { display: block !important; }
+  .admin-promotions-table__action::before { display: none; }
+  .admin-promotion-actions { width: 100%; }
+  .admin-promotion-actions a { flex: 1 1 0; padding: 0 6px; min-height: 44px; }
+  .admin-promotion-actions a > span { font-size: 11px; }
+  .admin-promotion-actions svg { width: 16px; height: 16px; }
+  .admin-promotion-confirm-dialog { width: calc(100vw - 24px); border-radius: 22px; }
+  .admin-promotion-confirm__body { padding: 24px 20px 20px; }
+  .admin-promotion-confirm h2 { font-size: 28px; }
+  .admin-promotion-confirm__footer { padding: 16px 20px; gap: 8px; }
+  .admin-promotion-confirm__footer > a,.admin-promotion-confirm__footer > button { padding-inline: 8px; font-size: 12px; }
 }
