@@ -433,7 +433,6 @@ final class PromotionAdminService
         }
         $offer['message'] = (string) $offer['topbar_message'];
         $offer['coupon_code'] = (string) ($offer['code'] ?? '');
-        $offer['link_path'] = 'magazin/';
 
         return $offer;
     }

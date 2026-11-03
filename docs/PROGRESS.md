@@ -2,6 +2,10 @@
 
 Actualizat: 2026-11-03
 
+### 2026-11-03 — Anunțul promoțional fără link
+- Bara ofertelor afișează acum doar mesajul, iconița și eventualul cod, fără legătură către magazin. Au fost eliminate destinația implicită și stilurile specifice linkului; animația și limitele navbarului rămân aceleași.
+- Verificat în browser la 1280 și 390 px: niciun link în bară, apăsarea păstrează pagina checkout, animația și iconița de curier sunt prezente, fără overflow orizontal. Au trecut 72 template-uri compilate, lint pentru serviciul modificat, `PromotionAdminTest` (7 teste / 243 aserțiuni) și `git diff --check`. Fără deploy.
+
 ### 2026-11-03 — Switch-uri pentru confirmarea comenzii
 - Acceptarea termenilor și opțiunea de newsletter au acum carduri cu switch-uri, titluri lizibile, etichetă „Opțional”, stare selectată roz și bifă pe cursor. Toată suprafața cardului poate activa opțiunea; linkul termenilor rămâne separat accesibil.
 - Controalele păstrează inputurile native, asocierea cu formularul, valorile reafișate după erori și validarea obligatorie doar pentru termeni. Sunt utilizabile fără JavaScript și din tastatură, cu focus vizibil și animații oprite când este cerută mișcare redusă.

@@ -34,7 +34,7 @@
   <link rel="stylesheet" href="{{ url('assets/css/storefront/tokens.css') }}">
   <link rel="stylesheet" href="{{ url('assets/css/storefront/base.css') }}">
   <link rel="stylesheet" href="{{ url('assets/css/storefront/typography.css') }}">
-  <link rel="stylesheet" href="{{ url('assets/css/storefront/layout.css') }}?v=20261103-promotion-navwidth3">
+  <link rel="stylesheet" href="{{ url('assets/css/storefront/layout.css') }}?v=20261103-promotion-notice4">
   <link rel="stylesheet" href="{{ url('assets/css/storefront/components.css') }}">
   <link rel="stylesheet" href="{{ url('assets/css/storefront/pages.css') }}?v=20261031-product-specifications-three1">
   <link rel="stylesheet" href="{{ url('assets/css/storefront/empty-states.css') }}">
@@ -52,14 +52,9 @@
     {% if promotion_banner %}
       {% set promotion_type = promotion_banner.offer_type|default('promotion') == 'coupon' ? 'coupon' : 'promotion' %}
       {% set promotion_code = promotion_banner.code|default(promotion_banner.coupon_code|default(''))|trim %}
-      {% set promotion_link = promotion_banner.link_path|default('')|trim %}
       {% set promotion_is_shipping = promotion_banner.scope|default('order') == 'shipping' %}
       <aside class="site-announcement site-announcement--{{ promotion_type }}" aria-label="Ofertă activă" data-announcement>
-        {% if promotion_link %}
-          <a class="site-announcement__inner" href="{{ url(promotion_link) }}">
-        {% else %}
-          <div class="site-announcement__inner">
-        {% endif %}
+        <div class="site-announcement__inner">
           <span class="site-announcement__track" data-announcement-track>
             <span class="site-announcement__group" data-announcement-group>
               <span class="site-announcement__content" data-announcement-content>
@@ -77,11 +72,7 @@
               </span>
             </span>
           </span>
-        {% if promotion_link %}
-          </a>
-        {% else %}
-          </div>
-        {% endif %}
+        </div>
       </aside>
     {% else %}
       <div class="mobile-delivery">

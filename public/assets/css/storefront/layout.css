@@ -1992,12 +1992,6 @@ td {
   text-decoration: none;
 }
 
-a.site-announcement__inner:hover { color: #fff9f1; }
-a.site-announcement__inner:focus-visible {
-  outline: 2px solid #ffe2af;
-  outline-offset: -3px;
-}
-
 .site-announcement__track { display: block; max-width: 100%; }
 .site-announcement__group { display: block; }
 .site-announcement__group--copy { display: none; }
