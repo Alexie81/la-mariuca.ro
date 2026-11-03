@@ -226,9 +226,14 @@ const initializePicker = (picker) => {
           (document.activeElement === search ? closeButton : search)?.focus();
         }
       });
-      element.addEventListener('focusout', () => queueMicrotask(() => {
-        if (element.classList.contains('is-open') && !element.contains(document.activeElement)) close();
-      }));
+      element.addEventListener('focusout', (event) => {
+        // A pointer selection moves focus from search to an option before click.
+        // During focusout activeElement can still be body; keep the option alive.
+        if (event.relatedTarget instanceof Node && element.contains(event.relatedTarget)) return;
+        window.requestAnimationFrame(() => {
+          if (element.classList.contains('is-open') && !element.contains(document.activeElement)) close();
+        });
+      });
       return { element, close, open };
     };
 

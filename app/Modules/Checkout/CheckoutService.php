@@ -45,7 +45,7 @@ final class CheckoutService
     /** @param array<string, mixed> $data @return array{order_number:string,token:string,id:int,payment_method:string,idempotency_key:string} */
     public function place(array $data): array
     {
-        $required = ['email', 'first_name', 'last_name', 'phone', 'address', 'city', 'county', 'postal_code', 'payment_method', 'idempotency_key'];
+        $required = ['email', 'first_name', 'last_name', 'phone', 'address', 'city', 'county', 'payment_method', 'idempotency_key'];
         foreach ($required as $field) {
             if (trim((string) ($data[$field] ?? '')) === '') {
                 throw new RuntimeException('Completează toate câmpurile obligatorii.');
@@ -56,6 +56,10 @@ final class CheckoutService
         }
         if (!isset($data['terms'])) {
             throw new RuntimeException('Trebuie să accepți termenii pentru a plasa comanda.');
+        }
+        $postalCode = trim((string) ($data['postal_code'] ?? ''));
+        if ($postalCode !== '' && preg_match('/^[0-9]{6}$/', $postalCode) !== 1) {
+            throw new RuntimeException('Codul poștal este opțional. Dacă îl completezi, folosește 6 cifre.');
         }
         $officialLocation = $this->locations->canonicalize((string) $data['county'], (string) $data['city']);
         if ($officialLocation === null) {
@@ -90,7 +94,7 @@ final class CheckoutService
         $token = bin2hex(random_bytes(32));
         $address = [
             'address' => trim((string) $data['address']), 'city' => $officialLocation['locality'],
-            'county' => $officialLocation['county'], 'postal_code' => trim((string) $data['postal_code']),
+            'county' => $officialLocation['county'], 'postal_code' => $postalCode,
         ];
         $now = gmdate('c');
 

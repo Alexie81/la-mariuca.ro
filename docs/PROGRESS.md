@@ -2,6 +2,11 @@
 
 Actualizat: 2026-11-03
 
+### 2026-11-03 — Adresă fără cod poștal obligatoriu
+- Județul și localitatea apar înaintea căutării poștale și se pot alege direct. Codul poștal este opțional în checkout, salvarea rapidă și editarea adreselor din cont; valorile completate sunt validate ca șase cifre.
+- Selectorul comun de județe/localități nu mai închide lista între pierderea focusului și clickul pe opțiune. Verificat pe telefon la 390 px: apăsarea pe Cluj și Cluj-Napoca păstrează ambele selecții, cu codul poștal gol și valid, fără overflow.
+- Au trecut testele de adresă/cont/cod poștal (12 teste / 118 aserțiuni), verificarea sintaxei celor trei module JS, compilarea celor 72 template-uri și `git diff --check`. Nu s-au plasat comenzi sau salvat adrese reale în browser.
+
 ### 2026-11-03 — Anunțul promoțional fără link
 - Bara ofertelor afișează acum doar mesajul, iconița și eventualul cod, fără legătură către magazin. Au fost eliminate destinația implicită și stilurile specifice linkului; animația și limitele navbarului rămân aceleași.
 - Verificat în browser la 1280 și 390 px: niciun link în bară, apăsarea păstrează pagina checkout, animația și iconița de curier sunt prezente, fără overflow orizontal. Au trecut 72 template-uri compilate, lint pentru serviciul modificat, `PromotionAdminTest` (7 teste / 243 aserțiuni) și `git diff --check`. Fără deploy.

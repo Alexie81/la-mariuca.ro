@@ -4,6 +4,6 @@
 <label><span>Telefon *</span><input name="phone" value="{{ values.phone|default('') }}" autocomplete="tel" inputmode="tel" required></label>
 <label class="account-form-full"><span>Stradă, număr, bloc, apartament *</span><input name="address" value="{{ values.address|default('') }}" autocomplete="street-address" maxlength="220" required></label>
 {% include 'storefront/partials/romania-location-fields.twig' with { location_id: location_id|default('account-address'), county_value: values.county|default(''), city_value: values.city|default('') } %}
-<label><span>Cod poștal *</span><input name="postal_code" value="{{ values.postal_code|default('') }}" autocomplete="postal-code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" placeholder="000000" required></label>
+<label><span>Cod poștal <small>(opțional)</small></span><input name="postal_code" value="{{ values.postal_code|default('') }}" autocomplete="postal-code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" placeholder="6 cifre, dacă îl cunoști"></label>
 <label class="account-form-full"><span>Indicații pentru curier <small>opțional</small></span><textarea name="notes" maxlength="250" rows="3" placeholder="Interfon, reper sau alte detalii utile…">{{ values.notes|default('') }}</textarea></label>
 <label class="account-switch account-form-full"><input type="checkbox" name="is_default" value="1"{{ default_checked ? ' checked' : '' }}><span aria-hidden="true"><i></i></span><p><strong>Adresă implicită</strong><small>Va fi prima propunere la finalizarea comenzii.</small></p></label>

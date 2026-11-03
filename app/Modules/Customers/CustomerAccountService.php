@@ -112,8 +112,11 @@ final class CustomerAccountService
         $county = $this->clean((string) ($data['county'] ?? ''), 120);
         $postalCode = preg_replace('/\s+/', '', trim((string) ($data['postal_code'] ?? ''))) ?? '';
         $notes = $this->clean((string) ($data['notes'] ?? ''), 250);
-        if ($label === '' || $firstName === '' || $lastName === '' || $phone === null || $street === '' || preg_match('/^[0-9]{6}$/', $postalCode) !== 1) {
-            throw new RuntimeException('Completează toate câmpurile adresei și un cod poștal românesc din 6 cifre.');
+        if ($label === '' || $firstName === '' || $lastName === '' || $phone === null || $street === '') {
+            throw new RuntimeException('Completează datele de contact și câmpurile obligatorii ale adresei.');
+        }
+        if ($postalCode !== '' && preg_match('/^[0-9]{6}$/', $postalCode) !== 1) {
+            throw new RuntimeException('Codul poștal este opțional. Dacă îl completezi, folosește 6 cifre.');
         }
         $officialLocation = $this->locations->canonicalize($county, $city);
         if ($officialLocation === null) {

@@ -57,6 +57,10 @@ final class CheckoutAddressTest extends DatabaseTestCase
         self::assertSame(1, $guestPage->query('//a[@href="/cont/inregistrare/?continuare=comanda"]')->length);
         self::assertSame(1, $guestPage->query('//form[@id="checkout-form" and @method="post" and @action="/finalizare-comanda/"]')->length);
         self::assertSame(1, $guestPage->query('//button[@form="checkout-form" and @type="submit" and not(@name) and not(@disabled)]')->length);
+        self::assertSame(1, $guestPage->query('//input[@name="postal_code" and not(@required)]')->length);
+        self::assertSame(1, $guestPage->query('//input[@name="county" and not(@disabled)]')->length);
+        self::assertSame(1, $guestPage->query('//input[@name="postal_code"]/preceding::input[@name="county"]')->length);
+        self::assertSame(1, $guestPage->query('//input[@name="postal_code"]/preceding::input[@name="city"]')->length);
         self::assertStringContainsString('Poți continua și fără cont.', (string) $guestPage->evaluate('string(//body)'));
     }
 
@@ -119,6 +123,23 @@ final class CheckoutAddressTest extends DatabaseTestCase
             self::assertNotEmpty($payload['message']);
         }
         self::assertSame(0, (int) $this->pdo->query('SELECT COUNT(*) FROM addresses')->fetchColumn());
+    }
+
+    public function testQuickAddressCanBeSavedAndReusedWithoutAPostalCode(): void
+    {
+        $userId = $this->insertUser('customer', 'active');
+        $_SESSION['user_id'] = $userId;
+        $data = $this->addressData();
+        unset($data['postal_code']);
+        $response = $this->post($data);
+        self::assertSame(201, $response->getStatusCode());
+        $payload = json_decode((string) $response->getBody(), true, 512, JSON_THROW_ON_ERROR);
+        self::assertSame('', $payload['address']['details']['postal_code']);
+        self::assertSame('București', $payload['address']['details']['county']);
+        self::assertSame('București — Sector 1', $payload['address']['details']['city']);
+        $defaults = (new CustomerAccountService(new CustomerAccountRepository($this->pdo)))->checkoutDefaults($userId);
+        self::assertSame('', $defaults['default_address']['details']['postal_code']);
+        self::assertSame('Strada Florilor 10', $defaults['default_address']['details']['address']);
     }
 
     private function insertUser(string $role, string $status): int

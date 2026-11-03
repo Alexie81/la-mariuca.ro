@@ -2,7 +2,7 @@
 {% macro icon(name) %}<svg viewBox="0 0 24 24" aria-hidden="true">{% if name == 'arrow' %}<path d="M4 12h15m-6-6 6 6-6 6"/>{% elseif name == 'bag' %}<path d="M5 7h14l1 14H4L5 7ZM9 8V6a3 3 0 0 1 6 0v2"/>{% elseif name == 'pin' %}<path d="M20 10c0 6-8 11-8 11S4 16 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/>{% elseif name == 'truck' %}<path d="M3 5h11v12H3zM14 9h4l3 5v3h-7"/><circle cx="7" cy="18" r="2"/><circle cx="18" cy="18" r="2"/>{% elseif name == 'card' %}<rect x="3" y="5" width="18" height="14" rx="3"/><path d="M3 10h18M7 15h4"/>{% elseif name == 'check' %}<path d="m5 12 4 4L19 6"/>{% elseif name == 'lock' %}<rect x="5" y="10" width="14" height="11" rx="3"/><path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v3"/>{% elseif name == 'search' %}<circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/>{% elseif name == 'clock' %}<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>{% elseif name == 'heart' %}<path d="M20.8 5.6a5.5 5.5 0 0 0-8.8 1 5.5 5.5 0 0 0-8.8-1C-1 10.2 6 16.6 12 21c6-4.4 13-10.8 8.8-15.4Z"/>{% endif %}</svg>{% endmacro %}
 {% block head %}
   <link rel="stylesheet" href="{{ url('assets/css/storefront/romania-locations.css') }}?v=20261103-locations3">
-  <link rel="stylesheet" href="{{ url('assets/css/storefront/checkout.css') }}?v=20261103-checkout3">
+  <link rel="stylesheet" href="{{ url('assets/css/storefront/checkout.css') }}?v=20261103-checkout4">
 {% endblock %}
 {% block body_class %}checkout-page-body{% endblock %}
 {% block content %}
@@ -56,15 +56,17 @@
             </select>
           </label>
         {% endif %}
+        <div class="checkout-fields checkout-location-fields">
+          {% include 'storefront/partials/romania-location-fields.twig' with { location_id: 'checkout-address', county_value: values.county|default(''), city_value: values.city|default('') } %}
+        </div>
         <div class="checkout-postal" data-postal-lookup data-endpoint="{{ url('finalizare-comanda/cod-postal/') }}">
-          <div class="checkout-postal-copy"><span>{{ _self.icon('search') }}</span><div><strong>Începe cu codul poștal</strong><p>Te ajută să completezi județul și localitatea.</p></div></div>
-          <div class="checkout-postal-control"><label for="checkout-postal">Cod poștal <span>*</span></label><div><input id="checkout-postal" name="postal_code" value="{{ values.postal_code|default('') }}" autocomplete="postal-code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" placeholder="6 cifre" required aria-describedby="checkout-postal-status"><button type="button" data-postal-search hidden>Caută {{ _self.icon('arrow') }}</button></div></div>
-          <p id="checkout-postal-status" class="checkout-postal-status" data-postal-status role="status" aria-live="polite">Poți alege și manual județul și localitatea de mai jos.</p>
+          <div class="checkout-postal-copy"><span>{{ _self.icon('search') }}</span><div><strong>Cauți după codul poștal?</strong><p>Dacă îl cunoști, te ajută să găsești județul și localitatea.</p></div></div>
+          <div class="checkout-postal-control"><label for="checkout-postal">Cod poștal <small>Opțional</small></label><div><input id="checkout-postal" name="postal_code" value="{{ values.postal_code|default('') }}" autocomplete="postal-code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" placeholder="6 cifre, dacă îl cunoști" aria-describedby="checkout-postal-status"><button type="button" data-postal-search hidden>Caută {{ _self.icon('arrow') }}</button></div></div>
+          <p id="checkout-postal-status" class="checkout-postal-status" data-postal-status role="status" aria-live="polite">Județul și localitatea se pot alege direct, fără cod poștal.</p>
           <div class="checkout-postal-results" data-postal-results hidden></div>
           <small class="checkout-postal-source">Date poștale: <a href="https://www.geonames.org/" target="_blank" rel="noopener noreferrer">GeoNames</a> · strada și numărul se completează separat.</small>
         </div>
         <div class="checkout-fields">
-          {% include 'storefront/partials/romania-location-fields.twig' with { location_id: 'checkout-address', county_value: values.county|default(''), city_value: values.city|default('') } %}
           <label for="checkout-street" class="checkout-full">Stradă și număr <span>*</span><input id="checkout-street" name="address" value="{{ values.address|default('') }}" autocomplete="street-address" maxlength="500" placeholder="Stradă, număr, bloc, scară, etaj, apartament" required><small>Adaugă toate detaliile necesare pentru o livrare ușoară.</small></label>
         </div>
         {% if checkout_customer %}
@@ -129,5 +131,5 @@
   </div>
   {% else %}<div class="checkout-empty">{{ _self.icon('bag') }}<h2>Un coș pregătit pentru bucurii</h2><p>Adaugă produsele preferate și revino aici pentru a finaliza comanda.</p><a class="checkout-submit" href="{{ url('magazin/') }}">Descoperă colecțiile {{ _self.icon('arrow') }}</a></div>{% endif %}
 </div>
-<script type="module" src="{{ url('assets/js/storefront/checkout-account.js') }}?v=20261103-checkout1"></script>
+<script type="module" src="{{ url('assets/js/storefront/checkout-account.js') }}?v=20261103-checkout3"></script>
 {% endblock %}

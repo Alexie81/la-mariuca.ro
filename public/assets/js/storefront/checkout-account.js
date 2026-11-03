@@ -1,4 +1,4 @@
-import { initializeRomanianLocationSelectors, setRomanianLocation } from './romania-locations.js?v=20261103-locations3';
+import { initializeRomanianLocationSelectors, setRomanianLocation } from './romania-locations.js?v=20261103-locations4';
 
 initializeRomanianLocationSelectors();
 const form = document.querySelector('[data-checkout-form]');
@@ -55,7 +55,7 @@ if (form instanceof HTMLFormElement) {
   };
   const lookup = async (explicit = false) => {
     const code = postalInput.value.trim();
-    if (!/^\d{6}$/.test(code)) { if (explicit) message(postalStatus, 'Introdu un cod poștal format din 6 cifre.', 'error'); return; }
+    if (!/^\d{6}$/.test(code)) { if (explicit) message(postalStatus, 'Pentru căutare, introdu 6 cifre. Poți continua și fără cod poștal.', 'error'); return; }
     if (!explicit && code === lastSearched) return;
     cancelLookup();
     const version = lookupVersion;
@@ -95,7 +95,7 @@ if (form instanceof HTMLFormElement) {
   if (postalButton && postalInput) {
     postalButton.hidden = false;
     postalButton.addEventListener('click', () => lookup(true));
-    postalInput.addEventListener('input', () => { cancelLookup(); message(postalStatus, 'Poți alege și manual județul și localitatea de mai jos.'); if (/^\d{6}$/.test(postalInput.value.trim())) lookupTimer = setTimeout(() => lookup(), 400); });
+    postalInput.addEventListener('input', () => { cancelLookup(); message(postalStatus, 'Județul și localitatea se pot alege direct, fără cod poștal.'); if (/^\d{6}$/.test(postalInput.value.trim())) lookupTimer = setTimeout(() => lookup(), 400); });
     postalInput.addEventListener('keydown', (event) => { if (event.key === 'Enter') { event.preventDefault(); lookup(true); } });
   }
 
@@ -107,13 +107,13 @@ if (form instanceof HTMLFormElement) {
   if (addressSelector instanceof HTMLSelectElement) {
     addressSelector.addEventListener('change', async () => {
       cancelLookup();
-      message(postalStatus, 'Poți alege și manual județul și localitatea de mai jos.');
+      message(postalStatus, 'Județul și localitatea se pot alege direct, fără cod poștal.');
       message(saveStatus, '');
       const option = addressSelector.selectedOptions[0];
       if (!option || option.value === '') {
         assign('address', ''); assign('postal_code', '');
         await setRomanianLocation(picker, { county: '', city: '' });
-        showSavePanel(); postalInput?.focus(); return;
+        showSavePanel(); field('county')?.focus(); return;
       }
       assign('first_name', option.dataset.firstName); assign('last_name', option.dataset.lastName); assign('phone', option.dataset.phone);
       assign('address', option.dataset.address); assign('postal_code', option.dataset.postalCode);
@@ -127,7 +127,7 @@ if (form instanceof HTMLFormElement) {
       const names = ['first_name', 'last_name', 'phone', 'address', 'county', 'city', 'postal_code'];
       for (const name of names) {
         const input = field(name);
-        if (!input.value.trim() || !input.checkValidity()) { message(saveStatus, 'Completează datele de contact și adresa înainte de salvare.', 'error'); input.focus(); input.reportValidity(); return; }
+        if ((input.required && !input.value.trim()) || !input.checkValidity()) { message(saveStatus, 'Completează datele de contact și adresa înainte de salvare.', 'error'); input.focus(); input.reportValidity(); return; }
       }
       const data = new URLSearchParams();
       [...names, '_csrf'].forEach((name) => data.set(name, field(name).value));
