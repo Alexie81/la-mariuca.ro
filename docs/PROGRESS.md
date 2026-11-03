@@ -2,6 +2,11 @@
 
 Actualizat: 2026-11-03
 
+### 2026-11-03 — Switch-uri pentru confirmarea comenzii
+- Acceptarea termenilor și opțiunea de newsletter au acum carduri cu switch-uri, titluri lizibile, etichetă „Opțional”, stare selectată roz și bifă pe cursor. Toată suprafața cardului poate activa opțiunea; linkul termenilor rămâne separat accesibil.
+- Controalele păstrează inputurile native, asocierea cu formularul, valorile reafișate după erori și validarea obligatorie doar pentru termeni. Sunt utilizabile fără JavaScript și din tastatură, cu focus vizibil și animații oprite când este cerută mișcare redusă.
+- Verificat în browser la 1280, 768 și 320 px: stări pornit/oprit, tastă Space, lipsa overflow-ului, termeni obligatorii și newsletter opțional. Nu s-au acceptat termenii sau trimis comenzi/abonări; comutarea vizuală a newsletterului a fost anulată. Au trecut compilarea a 72 template-uri, `CheckoutAddressTest` (4 teste / 62 aserțiuni), testele existente pentru păstrarea datelor/recalculare fără JS (2 teste / 23 aserțiuni) și `git diff --check`. Fără deploy în producție.
+
 ### 2026-11-03 — Reactivare directă din registrul ofertelor
 - Ofertele inactive au buton verde „Reactivează”, cu text vizibil inclusiv pe desktop și confirmare separată. Pe telefon ocupă un rând complet, iar editarea și ștergerea rămân dedesubt, cu pictogramele și textele aliniate. Mesajul dezactivării indică acum această acțiune directă.
 - Reactivarea schimbă doar starea și data actualizării, păstrând valabilitatea, regulile, utilizările și configurația barei. Ofertele șterse nu pot fi reactivate; perioadele viitoare/expirate nu devin aplicabile doar prin reactivare. Rutele cer autorizare admin și CSRF și funcționează și fără JavaScript.
