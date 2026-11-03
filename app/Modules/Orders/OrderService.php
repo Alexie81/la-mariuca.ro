@@ -213,15 +213,38 @@ final class OrderService
     /** @return array<string, mixed>|null */
     public function byPublicToken(string $token): ?array
     {
+        if (preg_match('/\A[a-f0-9]{64}\z/', $token) !== 1) {
+            return null;
+        }
         $statement = $this->pdo->prepare('SELECT * FROM orders WHERE public_token_hash = :token');
         $statement->execute(['token' => hash('sha256', $token)]);
         $order = $statement->fetch();
         if (!is_array($order)) {
             return null;
         }
-        $items = $this->pdo->prepare('SELECT * FROM order_items WHERE order_id = :id ORDER BY id');
+        $items = $this->pdo->prepare('SELECT item.*,
+                COALESCE(variant_media.public_path,
+                    (SELECT product_media.public_path FROM product_images pi
+                     JOIN media product_media ON product_media.id=pi.media_id
+                     WHERE pi.product_id=item.product_id AND product_media.public_path IS NOT NULL
+                     ORDER BY pi.position,pi.media_id LIMIT 1)
+                ) AS image_path
+            FROM order_items item
+            LEFT JOIN product_variants variant ON variant.id=item.variant_id
+            LEFT JOIN media variant_media ON variant_media.id=variant.image_media_id
+            WHERE item.order_id=:id ORDER BY item.id');
         $items->execute(['id' => $order['id']]);
         $order['items'] = $items->fetchAll();
+        foreach ($order['items'] as &$item) {
+            $item['personalization'] = $this->decodeJson((string) $item['personalization_json']);
+        }
+        unset($item);
+        $payment = $this->pdo->prepare('SELECT status FROM payments WHERE order_id=:order AND provider=:provider ORDER BY id DESC LIMIT 1');
+        $payment->execute(['order' => $order['id'], 'provider' => $order['payment_method']]);
+        $order['latest_payment_status'] = $payment->fetchColumn() ?: null;
+        $order['shipping_address'] = $this->decodeJson((string) $order['shipping_address_json']);
+        $order['billing_address'] = $this->decodeJson((string) $order['billing_address_json']);
+        $order['company'] = $this->decodeJson((string) $order['company_json']);
         return $order;
     }
 

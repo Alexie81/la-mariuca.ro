@@ -19,6 +19,7 @@ use App\Modules\Catalog\ProductRecommendationService;
 use App\Modules\Catalog\StorefrontController;
 use App\Modules\Checkout\CheckoutController;
 use App\Modules\Checkout\CheckoutService;
+use App\Modules\Checkout\OrderResultPresenter;
 use App\Modules\Checkout\PostalCodeController;
 use App\Modules\Content\ContentRepository;
 use App\Modules\Content\ContactWhatsAppService;
@@ -148,7 +149,7 @@ final class AppFactory
         $romanianLocations = RomanianLocations::fromProjectRoot($root);
         $postalCodeController = new PostalCodeController(RomanianPostalCodes::fromProjectRoot($root));
         $customerAccount = new CustomerAccountService(new CustomerAccountRepository($pdo), $romanianLocations);
-        $checkoutController = new CheckoutController(new CheckoutService($pdo, $cart, $config, $romanianLocations, $push, $shippingMethods), $cart, $orders, new StripeCheckoutService($pdo, $config), $auth, $customerAccount, $rateLimiter, $view, $config, $shippingMethods);
+        $checkoutController = new CheckoutController(new CheckoutService($pdo, $cart, $config, $romanianLocations, $push, $shippingMethods), $cart, $orders, new StripeCheckoutService($pdo, $config), $auth, $customerAccount, $rateLimiter, $view, $config, $shippingMethods, new OrderResultPresenter($config));
         $authController = new AuthController($pdo, $auth, new GoogleOAuthService($pdo, $config), $customerAccount, $rateLimiter, $view, $config);
         $twoFactorController = new TwoFactorController($pdo, $auth, new TotpService($config), $adminRememberMe, $rateLimiter, $view, $config);
         $adminController = new AdminController($pdo, new AdminDashboardService($pdo), new AdminNotificationService($pdo), $push, $catalog, new CatalogAdminService($pdo, $productDescriptions), new CustomerAdminService($pdo), new NewsletterAdminService($pdo), $promotions, $shippingMethods, new SupplierAdminService($pdo), $orders, $reviews, new MediaService($pdo, $root), new ContentAdminService($pdo), $auth, $adminRememberMe, $rateLimiter, $view, $config);

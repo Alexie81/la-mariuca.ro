@@ -20,7 +20,7 @@ use Slim\Psr7\Response;
 
 final class CheckoutController
 {
-    public function __construct(private readonly CheckoutService $checkout, private readonly CartService $cart, private readonly OrderService $orders, private readonly StripeCheckoutService $stripe, private readonly Auth $auth, private readonly CustomerAccountService $accountService, private readonly RateLimiter $limiter, private readonly View $view, private readonly Config $config, private readonly ShippingMethodService $shippingMethods)
+    public function __construct(private readonly CheckoutService $checkout, private readonly CartService $cart, private readonly OrderService $orders, private readonly StripeCheckoutService $stripe, private readonly Auth $auth, private readonly CustomerAccountService $accountService, private readonly RateLimiter $limiter, private readonly View $view, private readonly Config $config, private readonly ShippingMethodService $shippingMethods, private readonly OrderResultPresenter $orderResult)
     {
     }
 
@@ -97,7 +97,6 @@ final class CheckoutController
                     return $this->view->redirect($this->stripe->createSession($result['id'], $result['token'], $result['idempotency_key']), 303);
                 } catch (\Throwable $exception) {
                     $this->stripe->markSessionFailure($result['id'], $exception->getMessage());
-                    Flash::set('error', 'Sesiunea de plată nu a putut fi creată. Comanda a intrat în verificare manuală și nu va fi expediată.');
                 }
             }
             return $this->view->redirect($this->config->path('comanda/' . $result['token'] . '/'));
@@ -175,8 +174,15 @@ final class CheckoutController
     {
         $order = $this->orders->byPublicToken((string) $args['token']);
         if ($order === null) {
-            return $this->view->render('storefront/pages/error.twig', ['title' => 'Comanda nu a fost găsită', 'message' => 'Linkul este invalid sau a expirat.', 'meta' => ['title' => 'Comandă indisponibilă', 'noindex' => true]], 404);
+            return $this->view->render('storefront/pages/error.twig', ['title' => 'Comanda nu a fost găsită', 'message' => 'Linkul este invalid sau a expirat.', 'meta' => ['title' => 'Comandă indisponibilă', 'noindex' => true]], 404)
+                ->withHeader('Cache-Control', 'private, no-store')->withHeader('Referrer-Policy', 'no-referrer');
         }
-        return $this->view->render('storefront/pages/order.twig', ['order' => $order, 'meta' => ['title' => 'Comanda ' . $order['order_number'], 'noindex' => true]]);
+        $query = $request->getQueryParams();
+        $returnStatus = is_string($query['plata'] ?? null) ? $query['plata'] : '';
+        return $this->view->render('storefront/pages/order.twig', [
+            'order' => $order,
+            'order_result' => $this->orderResult->present($order, $returnStatus, (string) $args['token']),
+            'meta' => ['title' => 'Comanda ' . $order['order_number'], 'noindex' => true],
+        ])->withHeader('Cache-Control', 'private, no-store')->withHeader('Referrer-Policy', 'no-referrer');
     }
 }

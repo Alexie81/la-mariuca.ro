@@ -2,6 +2,13 @@
 
 Actualizat: 2026-11-03
 
+### 2026-11-03 — Pagini pentru rezultatul comenzii și al plății
+- Pagina privată a comenzii are prezentări distincte pentru ramburs, plată cu cardul anulată, eșuată, în așteptare și confirmată. Stările existente de verificare, retur/rambursare și ramburs deja încasat păstrează mesaje corecte. Un parametru din URL nu poate marca plata ca reușită sau modifica o comandă; revenirea din Stripe cu anulare este doar un indiciu de afișare pentru plata încă neconfirmată.
+- Designul include antet cu stare, număr, dată și sumă, produse cu fotografii și variante, reduceri, costul livrării, total, adresă și contact. Cardul de ajutor folosește inima standard a magazinului și două acțiuni clare pentru mesaj și telefon. Linkurile funcționează fără JavaScript; verificarea stării nu inițiază plăți sau comenzi noi.
+- Prețurile și denumirile vin din snapshoturile comenzii; imaginile sunt ilustrațiile actuale din catalog. Răspunsurile cu token sunt private, fără cache și fără transmiterea refererului. Datele se afișează în Europe/Bucharest.
+- Browserul intern a verificat paginile cu date sintetice la 1440, 768, 390 și 320 px: fără overflow orizontal, butoane aliniate și ținte tactile de minimum 49 px, imagini încărcate, acțiunea de reverificare și lipsa erorilor în consolă. Nu s-au modificat comenzi reale pentru previzualizare.
+- Au trecut lint PHP, PHPStan, cele 72 template-uri Twig, `git diff --check` și suita integrală PHPUnit: 141 teste / 1772 aserțiuni. Testele dedicate rezultatului acoperă prioritatea stărilor, token invalid, base path, datele comenzii și lipsa modificărilor de stoc/plată la GET. Stripe live, SMTP, concurența MySQL și Apache nu au fost verificate; nu s-a făcut deploy.
+
 ### 2026-11-03 — Adresă fără cod poștal obligatoriu
 - Județul și localitatea apar înaintea căutării poștale și se pot alege direct. Codul poștal este opțional în checkout, salvarea rapidă și editarea adreselor din cont; valorile completate sunt validate ca șase cifre.
 - Selectorul comun de județe/localități nu mai închide lista între pierderea focusului și clickul pe opțiune. Verificat pe telefon la 390 px: apăsarea pe Cluj și Cluj-Napoca păstrează ambele selecții, cu codul poștal gol și valid, fără overflow.
