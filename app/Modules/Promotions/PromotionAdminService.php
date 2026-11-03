@@ -373,26 +373,30 @@ final class PromotionAdminService
 
     public function deactivateOffer(string $offerType, int $offerId): string
     {
-        return $this->writeOffer(fn(): string => $this->deactivateExistingOffer($offerType, $offerId));
+        return $this->writeOffer(fn(): string => $this->setExistingOfferStatus($offerType, $offerId, false));
     }
 
-    private function deactivateExistingOffer(string $offerType, int $offerId): string
+    public function reactivateOffer(string $offerType, int $offerId): string
     {
-        $table = match ($offerType) {
-            'coupon' => 'coupons',
-            'promotion' => 'promotions',
-            default => throw new \RuntimeException('Tipul avantajului nu este valid.'),
-        };
+        return $this->writeOffer(fn(): string => $this->setExistingOfferStatus($offerType, $offerId, true));
+    }
+
+    private function setExistingOfferStatus(string $offerType, int $offerId, bool $active): string
+    {
+        $table = $this->offerTable($offerType);
         if ($offerId < 1) {
             throw new \RuntimeException('Avantajul solicitat nu este valid.');
         }
 
-        $statement = $this->pdo->prepare("UPDATE {$table} SET status='inactive',updated_at=:updated WHERE id=:id AND deleted_at IS NULL AND status='active'");
-        $statement->execute(['updated' => gmdate('c'), 'id' => $offerId]);
+        $statement = $this->pdo->prepare("UPDATE {$table} SET status=:status,updated_at=:updated WHERE id=:id AND deleted_at IS NULL AND status=:previous");
+        $statement->execute(['status' => $active ? 'active' : 'inactive', 'previous' => $active ? 'inactive' : 'active', 'updated' => gmdate('c'), 'id' => $offerId]);
         if ($statement->rowCount() !== 1) {
-            throw new \RuntimeException('Avantajul nu mai există sau este deja inactiv.');
+            throw new \RuntimeException($active ? 'Oferta nu mai există sau este deja activată.' : 'Avantajul nu mai există sau este deja inactiv.');
         }
 
+        if ($active) {
+            return ($offerType === 'coupon' ? 'Cuponul a fost reactivat.' : 'Reducerea a fost reactivată.') . ' Valabilitatea și condițiile existente se păstrează.';
+        }
         return $offerType === 'coupon' ? 'Cuponul a fost dezactivat.' : 'Reducerea a fost dezactivată.';
     }
 

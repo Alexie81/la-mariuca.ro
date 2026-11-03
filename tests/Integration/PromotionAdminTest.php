@@ -388,6 +388,59 @@ final class PromotionAdminTest extends DatabaseTestCase
         self::assertStringNotContainsString('Mesaj de eliminat', (string) $this->get('/')->getBody());
     }
 
+    public function testDirectReactivationPreservesRulesAndRequiresAdminAndCsrf(): void
+    {
+        $promotionId = $this->insertPromotion('Reducere oprită', 'shipping', 'free', 0, null, null, 'inactive', 'Livrare pentru reactivare', 10);
+        self::assertSame(303, $this->post('/admin/cupoane-promotii/cupon/nou/', [
+            '_csrf' => $this->csrf, 'code' => 'REACT10', 'name' => 'Cupon oprit', 'scope' => 'order', 'value_type' => 'percent', 'value' => '10',
+            'minimum' => '300', 'usage_limit' => '5', 'per_customer_limit' => '2', 'validity' => 'always', 'status' => 'inactive',
+        ])->getStatusCode());
+        $couponId = (int) $this->pdo->query("SELECT id FROM coupons WHERE code='REACT10'")->fetchColumn();
+        $this->pdo->prepare("INSERT INTO coupon_redemptions (coupon_id,order_id,email,status,created_at,updated_at) VALUES (:coupon,NULL,'reactivate@example.test','confirmed',:now,:now)")->execute(['coupon' => $couponId, 'now' => gmdate('c')]);
+        foreach (['cupon' => [$couponId, 'Cupon oprit'], 'reducere' => [$promotionId, 'Reducere oprită']] as $type => [$id, $name]) {
+            $table = $type === 'cupon' ? 'coupons' : 'promotions';
+            $base = '/admin/cupoane-promotii/' . $type . '/' . $id . '/';
+            $original = $this->pdo->query('SELECT * FROM ' . $table . ' WHERE id=' . $id)->fetch(PDO::FETCH_ASSOC);
+            self::assertStringContainsString('aria-label="Reactivează ' . $name . '"', (string) $this->get('/admin/cupoane-promotii/')->getBody());
+            $confirm = $this->get($base . 'reactiveaza/confirmare/');
+            self::assertSame(200, $confirm->getStatusCode());
+            self::assertStringContainsString('Da, reactivează', (string) $confirm->getBody());
+            self::assertStringContainsString('action="' . $base . 'reactiveaza/"', (string) $confirm->getBody());
+            self::assertSame('inactive', $this->pdo->query('SELECT status FROM ' . $table . ' WHERE id=' . $id)->fetchColumn());
+            self::assertSame(419, $this->post($base . 'reactiveaza/', ['_csrf' => 'invalid'])->getStatusCode());
+            $session = $_SESSION;
+            $_SESSION = [];
+            $this->get('/admin');
+            self::assertSame(303, $this->get($base . 'reactiveaza/confirmare/')->getStatusCode());
+            self::assertSame(303, $this->post($base . 'reactiveaza/', ['_csrf' => $_SESSION['_csrf']])->getStatusCode());
+            $_SESSION = $session;
+            self::assertSame(200, $this->post($base . 'reactiveaza/', ['_csrf' => $this->csrf], ['Accept' => 'application/json'])->getStatusCode());
+            $saved = $this->pdo->query('SELECT * FROM ' . $table . ' WHERE id=' . $id)->fetch(PDO::FETCH_ASSOC);
+            self::assertSame('active', $saved['status']);
+            unset($original['status'], $original['updated_at'], $saved['status'], $saved['updated_at']);
+            self::assertSame($original, $saved);
+            $registry = (string) $this->get('/admin/cupoane-promotii/')->getBody();
+            self::assertStringNotContainsString('aria-label="Reactivează ' . $name . '"', $registry);
+            self::assertStringContainsString('aria-label="Dezactivează ' . $name . '"', $registry);
+            self::assertSame(422, $this->post($base . 'reactiveaza/', ['_csrf' => $this->csrf], ['Accept' => 'application/json'])->getStatusCode());
+            self::assertSame(303, $this->post($base . 'dezactiveaza/', ['_csrf' => $this->csrf])->getStatusCode());
+            self::assertSame(303, $this->post($base . 'reactiveaza/', ['_csrf' => $this->csrf])->getStatusCode());
+            self::assertSame(303, $this->post($base . 'sterge/', ['_csrf' => $this->csrf])->getStatusCode());
+            self::assertSame(422, $this->post($base . 'reactiveaza/', ['_csrf' => $this->csrf], ['Accept' => 'application/json'])->getStatusCode());
+            self::assertSame('inactive', $this->pdo->query('SELECT status FROM ' . $table . ' WHERE id=' . $id)->fetchColumn());
+        }
+        self::assertSame(1, (int) $this->pdo->query('SELECT COUNT(*) FROM coupon_redemptions WHERE coupon_id=' . $couponId)->fetchColumn());
+        foreach (['-2 days' => '-1 day', '+1 day' => '+2 days'] as $start => $end) {
+            $now = new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
+            $endsAt = $now->modify($end)->format('c');
+            $id = $this->insertPromotion('Perioadă păstrată', 'order', 'percent', 1000, $now->modify($start)->format('c'), $endsAt, 'inactive', 'Mesaj în afara perioadei', 1000);
+            self::assertSame(303, $this->post('/admin/cupoane-promotii/reducere/' . $id . '/reactiveaza/', ['_csrf' => $this->csrf])->getStatusCode());
+            self::assertSame($endsAt, $this->pdo->query('SELECT ends_at FROM promotions WHERE id=' . $id)->fetchColumn());
+            unset($_SESSION['_flash']);
+            self::assertStringNotContainsString('Mesaj în afara perioadei', (string) $this->get('/')->getBody());
+        }
+    }
+
     private function insertPromotion(
         string $name,
         string $scope,

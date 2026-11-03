@@ -406,12 +406,17 @@ final class AdminController
 
     public function deactivatePromotionOffer(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
     {
-        return $this->changePromotionOffer($request, $response, $args, false);
+        return $this->changePromotionOffer($request, $response, $args, 'deactivate');
     }
 
     public function deletePromotionOffer(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
     {
-        return $this->changePromotionOffer($request, $response, $args, true);
+        return $this->changePromotionOffer($request, $response, $args, 'delete');
+    }
+
+    public function reactivatePromotionOffer(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        return $this->changePromotionOffer($request, $response, $args, 'reactivate');
     }
 
     public function editPromotionOffer(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
@@ -435,20 +440,23 @@ final class AdminController
         return $this->view->render('admin/pages/promotion-confirm.twig', [
             'offer' => $offer,
             'is_delete' => $args['action'] === 'sterge',
+            'is_reactivate' => $args['action'] === 'reactiveaza',
             'form_action' => $this->config->path('admin/cupoane-promotii/' . $args['offer_type'] . '/' . $args['id'] . '/' . $args['action'] . '/'),
             'admin_section' => 'promotions',
             'admin_context' => 'Confirmă acțiunea',
         ], $offer === null ? 404 : 200);
     }
 
-    private function changePromotionOffer(ServerRequestInterface $request, ResponseInterface $response, array $args, bool $delete): ResponseInterface
+    private function changePromotionOffer(ServerRequestInterface $request, ResponseInterface $response, array $args, string $action): ResponseInterface
     {
         $offerType = ($args['offer_type'] ?? '') === 'cupon' ? 'coupon' : (($args['offer_type'] ?? '') === 'reducere' ? 'promotion' : '');
         $wantsJson = str_contains(strtolower($request->getHeaderLine('Accept')), 'application/json');
         try {
-            $message = $delete
-                ? $this->promotions->deleteOffer($offerType, (int) ($args['id'] ?? 0))
-                : $this->promotions->deactivateOffer($offerType, (int) ($args['id'] ?? 0));
+            $message = match ($action) {
+                'delete' => $this->promotions->deleteOffer($offerType, (int) ($args['id'] ?? 0)),
+                'reactivate' => $this->promotions->reactivateOffer($offerType, (int) ($args['id'] ?? 0)),
+                default => $this->promotions->deactivateOffer($offerType, (int) ($args['id'] ?? 0)),
+            };
             if ($wantsJson) {
                 $response->getBody()->write((string) json_encode(['ok' => true, 'message' => $message], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
                 return $response->withHeader('Content-Type', 'application/json; charset=utf-8')->withHeader('Cache-Control', 'no-store');
@@ -1334,6 +1342,7 @@ final class AdminController
         $offer['route_type'] = $offerType === 'coupon' ? 'cupon' : 'reducere';
         $offer['show_in_topbar'] = (int) ($offer['topbar_enabled'] ?? 0) === 1;
         $offer['can_deactivate'] = $offer['status'] === 'active';
+        $offer['can_reactivate'] = $offer['status'] === 'inactive';
         $offer['status'] = $lifecycle;
         $offer['status_label'] = match ($lifecycle) {
             'active' => 'Activă',

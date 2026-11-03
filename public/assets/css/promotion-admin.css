@@ -240,12 +240,12 @@
 .admin-promotions-table th:nth-child(5) { width: 8%; }
 .admin-promotions-table th:nth-child(6) { width: 14%; }
 .admin-promotions-table th:nth-child(7) { width: 9%; }
-.admin-promotions-table th:last-child { width: 160px; }
+.admin-promotions-table th:last-child { width: 240px; }
 .admin-promotions-table td { padding: 15px 14px; border-top: 1px solid #f1ddd8; color: #513934; font-size: 12px; vertical-align: middle; }
 .admin-promotions-table td:first-child { padding-left: 27px; }
 .admin-promotions-table tbody tr { transition: background .18s ease; }
 .admin-promotions-table tbody tr:hover { background: #fffaf8; }
-.admin-promotions-table tbody tr.is-inactive { opacity: .72; }
+.admin-promotions-table tbody tr.is-inactive > td:not(.admin-promotions-table__action) { opacity: .72; }
 
 .admin-promotion-offer { min-width: 0; display: flex; align-items: center; gap: 12px; }
 .admin-promotion-offer > i { width: 44px; height: 44px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 14px; color: #cb4a5c; background: #fff0ef; }
@@ -291,6 +291,9 @@
 .admin-promotion-actions a { display: inline-flex; flex: 0 0 auto; justify-content: center; align-items: center; gap: 6px; width: 40px; min-height: 40px; border: 1px solid #ecd6d1; border-radius: 12px; background: #fff; color: #93695f; text-decoration: none; transition: background .15s, border-color .15s; }
 .admin-promotion-actions a:hover { background: #fff2ee; border-color: #dba8a0; }
 .admin-promotion-actions a.is-delete { background: #fff3f2; color: #c54b5a; }
+.admin-promotion-actions a.is-reactivate { width: auto; padding: 0 12px; border-color: #bfdfd2; background: #ebf8f1; color: #23795e; }
+.admin-promotion-actions a.is-reactivate:hover { border-color: #85bda7; background: #dbf2e6; }
+.admin-promotion-actions a.is-reactivate > span { display: inline; font-size: 12px; font-weight: 700; white-space: nowrap; }
 .admin-promotion-actions svg { flex: 0 0 auto; width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.65; }
 .admin-promotion-actions a > span { display: none; }
 .admin-promotion-actions a:focus-visible { outline: 3px solid #dc5c6b; outline-offset: 3px; }
@@ -314,10 +317,13 @@ html.has-admin-promotion-confirm { overflow: hidden; }
 .admin-promotion-confirm__body { padding: 30px 28px 24px; }
 .admin-promotion-confirm__icon { width: 60px; height: 60px; display: grid; place-items: center; margin-bottom: 24px; border: 1px solid #f0d3c2; border-radius: 19px; background: #fff2e6; color: #ad712d; }
 .admin-promotion-confirm__icon svg { width: 28px; height: 28px; }
-.admin-promotion-confirm__icon .icon-delete { display: none; }
+.admin-promotion-confirm__icon .icon-delete,.admin-promotion-confirm__icon .icon-play { display: none; }
 .admin-promotion-confirm.is-delete .admin-promotion-confirm__icon { border-color: #f3c8cb; background: #fff0f0; color: #c8495a; }
 .admin-promotion-confirm.is-delete .icon-pause { display: none; }
 .admin-promotion-confirm.is-delete .icon-delete { display: block; }
+.admin-promotion-confirm.is-reactivate .admin-promotion-confirm__icon { border-color: #bfdfd2; background: #ebf8f1; color: #23795e; }
+.admin-promotion-confirm.is-reactivate .icon-pause { display: none; }
+.admin-promotion-confirm.is-reactivate .icon-play { display: block; }
 .admin-promotion-confirm__eyebrow { display: block; color: #af6f60; font: 700 11px/1.4 var(--admin-sans, sans-serif); letter-spacing: .1em; text-transform: uppercase; }
 .admin-promotion-confirm h2 { margin: 8px 0 12px; color: #49342e; font: 500 32px/1.15 var(--admin-serif, Georgia, serif); letter-spacing: -.02em; }
 .admin-promotion-confirm__body > p { margin: 0; font: 400 14px/1.65 var(--admin-sans, sans-serif); color: #856e67; }
@@ -330,6 +336,8 @@ html.has-admin-promotion-confirm { overflow: hidden; }
 .admin-promotion-confirm__footer > a,.admin-promotion-confirm__footer > button { display: inline-flex; justify-content: center; align-items: center; min-width: 0; min-height: 48px; margin: 0; padding: 12px; border: 1px solid #e8d4cd; border-radius: 13px; color: #795c52; background: #fff; font: 700 13px/1.3 var(--admin-sans, sans-serif); white-space: nowrap; text-decoration: none; cursor: pointer; }
 .admin-promotion-confirm__footer > button { border-color: transparent; color: #fff; background: #c95161; box-shadow: 0 7px 18px #c9516126; }
 .admin-promotion-confirm__footer > button:hover { background: #b54252; }
+.admin-promotion-confirm.is-reactivate .admin-promotion-confirm__footer > button { background: #288565; box-shadow: 0 7px 18px #28856526; }
+.admin-promotion-confirm.is-reactivate .admin-promotion-confirm__footer > button:hover { background: #206d53; }
 .admin-promotion-confirm a:focus-visible,.admin-promotion-confirm button:focus-visible { outline: 3px solid #dd7b88; outline-offset: 3px; }
 .admin-promotion-edit-state { padding: 18px 22px; border: 1px solid #ecd7d0; border-radius: 18px; background: #fffaf7; }
 .admin-promotion-edit-state select { width: 100%; min-height: 46px; padding: 10px 12px; border: 1px solid #e8cfc8; border-radius: 12px; background: #fff; color: #594039; font: 500 14px/1.4 var(--admin-sans, sans-serif); }
@@ -900,6 +908,8 @@ html.has-admin-promotion-dialog { overflow: hidden; }
   .admin-promotion-actions a { flex: 1 1 0; padding: 0 6px; min-height: 44px; }
   .admin-promotion-actions a > span { font-size: 11px; }
   .admin-promotion-actions svg { width: 16px; height: 16px; }
+  .admin-promotion-actions.has-reactivate { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .admin-promotion-actions.has-reactivate .is-reactivate { grid-column: 1/-1; grid-row: 1; }
   .admin-promotion-confirm-dialog { width: calc(100vw - 24px); border-radius: 22px; }
   .admin-promotion-confirm__body { padding: 24px 20px 20px; }
   .admin-promotion-confirm h2 { font-size: 28px; }

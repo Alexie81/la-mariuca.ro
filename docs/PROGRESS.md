@@ -2,6 +2,11 @@
 
 Actualizat: 2026-11-03
 
+### 2026-11-03 — Reactivare directă din registrul ofertelor
+- Ofertele inactive au buton verde „Reactivează”, cu text vizibil inclusiv pe desktop și confirmare separată. Pe telefon ocupă un rând complet, iar editarea și ștergerea rămân dedesubt, cu pictogramele și textele aliniate. Mesajul dezactivării indică acum această acțiune directă.
+- Reactivarea schimbă doar starea și data actualizării, păstrând valabilitatea, regulile, utilizările și configurația barei. Ofertele șterse nu pot fi reactivate; perioadele viitoare/expirate nu devin aplicabile doar prin reactivare. Rutele cer autorizare admin și CSRF și funcționează și fără JavaScript.
+- Verificate în browserul intern tabelul și confirmarea la 1680×950, plus butoanele și dialogul la 320×740, fără overflow sau erori în consolă. Oferta locală a rămas inactivă; verificările cu salvare au rulat doar în baza izolată de teste. Au trecut cele 7 teste de administrare promoții / 243 aserțiuni, PHPStan, lint pentru fișierele PHP modificate, compilarea a 72 template-uri, sintaxa JS și `git diff --check`. Nu s-a făcut deploy și nu s-a verificat concurența MySQL.
+
 ### 2026-11-03 — Editare, ștergere și confirmări pentru oferte
 - Registrul de cupoane și promoții oferă editare cu date precompletate, dezactivare și ștergere. Confirmările sunt dialoguri native în afara tabelului, astfel încât zona de scroll nu le mai taie. Au butoane aliniate, închidere cu Escape, revenirea focusului la acțiunea inițială și pagini de confirmare funcționale fără JavaScript.
 - Editarea reutilizează validările de creare, păstrează identitatea și utilizările ofertei, convertește corect bani/Lei și datele UTC/Europe-Bucharest și permite reactivarea din selectorul stării. Ștergerea marchează oferta eliminată și o oprește, păstrând înregistrările folosite de istoricul comenzilor. Rutele sunt protejate prin autorizare admin și CSRF; modificările rulează în tranzacții.

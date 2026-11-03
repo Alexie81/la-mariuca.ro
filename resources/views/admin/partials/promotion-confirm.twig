@@ -1,16 +1,17 @@
-<section class="admin-promotion-confirm {{ is_delete ? 'is-delete' : '' }}" data-promotion-confirm-card>
+{% set is_reactivate = is_reactivate|default(false) %}
+<section class="admin-promotion-confirm {{ is_delete ? 'is-delete' : (is_reactivate ? 'is-reactivate' : '') }}" data-promotion-confirm-card>
   {% if is_modal|default(false) %}<button class="admin-promotion-confirm__close" type="button" data-promotion-confirm-close aria-label="Închide confirmarea"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button>{% endif %}
   <div class="admin-promotion-confirm__body">
-    <span class="admin-promotion-confirm__icon" aria-hidden="true"><svg class="icon-pause" viewBox="0 0 24 24"><path d="M9 8v8M15 8v8"/><circle cx="12" cy="12" r="9"/></svg><svg class="icon-delete" viewBox="0 0 24 24"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/></svg></span>
-    <span class="admin-promotion-confirm__eyebrow">{{ is_delete ? 'Elimină din registru' : 'Pune oferta pe pauză' }}</span>
-    <h2 id="promotion-confirm-title" data-promotion-confirm-title>{{ is_delete ? 'Ștergi această ofertă?' : 'Dezactivezi oferta?' }}</h2>
-    <p id="promotion-confirm-description" data-promotion-confirm-description>{{ is_delete ? 'Oferta va fi eliminată din registru și nu se va mai aplica la comenzile noi.' : 'Oferta nu se va mai aplica la comenzile noi și nu va mai apărea în bara magazinului.' }}</p>
+    <span class="admin-promotion-confirm__icon" aria-hidden="true"><svg class="icon-pause" viewBox="0 0 24 24"><path d="M9 8v8M15 8v8"/><circle cx="12" cy="12" r="9"/></svg><svg class="icon-delete" viewBox="0 0 24 24"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/></svg><svg class="icon-play" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m10 8 6 4-6 4Z"/></svg></span>
+    <span class="admin-promotion-confirm__eyebrow">{{ is_delete ? 'Elimină din registru' : (is_reactivate ? 'Reia oferta' : 'Pune oferta pe pauză') }}</span>
+    <h2 id="promotion-confirm-title" data-promotion-confirm-title>{{ is_delete ? 'Ștergi această ofertă?' : (is_reactivate ? 'Reactivezi oferta?' : 'Dezactivezi oferta?') }}</h2>
+    <p id="promotion-confirm-description" data-promotion-confirm-description>{{ is_delete ? 'Oferta va fi eliminată din registru și nu se va mai aplica la comenzile noi.' : (is_reactivate ? 'Oferta se va aplica din nou când sunt îndeplinite condițiile și este în perioada de valabilitate.' : 'Oferta nu se va mai aplica la comenzile noi și nu va mai apărea în bara magazinului.') }}</p>
     <div class="admin-promotion-confirm__offer"><small data-promotion-confirm-label>{{ offer.offer_type|default('promotion') == 'coupon' ? 'Cupon · ' ~ offer.code : 'Reducere automată' }}</small><strong data-promotion-confirm-name>{{ offer.name|default('') }}</strong></div>
-    <p class="admin-promotion-confirm__note"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 5 6v5c0 4 3 8 7 10 4-2 7-6 7-10V6l-7-3Z"/><path d="m8 12 3 3 5-6"/></svg><span data-promotion-confirm-note>{{ is_delete ? 'Comenzile și reducerile deja acordate rămân în istoric.' : 'O poți reactiva oricând din Editează → Starea ofertei.' }}</span></p>
+    <p class="admin-promotion-confirm__note"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 5 6v5c0 4 3 8 7 10 4-2 7-6 7-10V6l-7-3Z"/><path d="m8 12 3 3 5-6"/></svg><span data-promotion-confirm-note>{{ is_delete ? 'Comenzile și reducerile deja acordate rămân în istoric.' : (is_reactivate ? 'Valabilitatea, pragul și limitele de utilizare rămân neschimbate.' : 'O poți porni din nou cu butonul „Reactivează” din registru.') }}</span></p>
   </div>
   <form class="admin-promotion-confirm__footer" method="post" action="{{ form_action|default('') }}" data-promotion-confirm-form>
     <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
     <a href="{{ url('admin/cupoane-promotii/') }}" data-promotion-confirm-close {{ is_modal|default(false) ? 'autofocus' : '' }}>Renunță</a>
-    <button type="submit"><span data-promotion-confirm-submit>{{ is_delete ? 'Da, șterge oferta' : 'Da, dezactivează' }}</span></button>
+    <button type="submit"><span data-promotion-confirm-submit>{{ is_delete ? 'Da, șterge oferta' : (is_reactivate ? 'Da, reactivează' : 'Da, dezactivează') }}</span></button>
   </form>
 </section>

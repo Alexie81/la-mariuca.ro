@@ -3488,18 +3488,20 @@
       event.preventDefault();
       promotionConfirmTrigger = trigger;
       const deleting = trigger.dataset.adminPromotionConfirm === 'delete';
+      const reactivating = trigger.dataset.adminPromotionConfirm === 'reactivate';
       promotionConfirm.querySelector('[data-promotion-confirm-card]').classList.toggle('is-delete', deleting);
-      promotionConfirm.querySelector('.admin-promotion-confirm__eyebrow').textContent = deleting ? 'Elimină din registru' : 'Pune oferta pe pauză';
-      promotionConfirm.querySelector('[data-promotion-confirm-title]').textContent = deleting ? 'Ștergi această ofertă?' : 'Dezactivezi oferta?';
+      promotionConfirm.querySelector('[data-promotion-confirm-card]').classList.toggle('is-reactivate', reactivating);
+      promotionConfirm.querySelector('.admin-promotion-confirm__eyebrow').textContent = deleting ? 'Elimină din registru' : (reactivating ? 'Reia oferta' : 'Pune oferta pe pauză');
+      promotionConfirm.querySelector('[data-promotion-confirm-title]').textContent = deleting ? 'Ștergi această ofertă?' : (reactivating ? 'Reactivezi oferta?' : 'Dezactivezi oferta?');
       promotionConfirm.querySelector('[data-promotion-confirm-description]').textContent = deleting
         ? 'Oferta va fi eliminată din registru și nu se va mai aplica la comenzile noi.'
-        : 'Oferta nu se va mai aplica la comenzile noi și nu va mai apărea în bara magazinului.';
+        : (reactivating ? 'Oferta se va aplica din nou când sunt îndeplinite condițiile și este în perioada de valabilitate.' : 'Oferta nu se va mai aplica la comenzile noi și nu va mai apărea în bara magazinului.');
       promotionConfirm.querySelector('[data-promotion-confirm-name]').textContent = trigger.dataset.offerName;
       promotionConfirm.querySelector('[data-promotion-confirm-label]').textContent = trigger.dataset.offerLabel;
       promotionConfirm.querySelector('[data-promotion-confirm-note]').textContent = deleting
         ? 'Comenzile și reducerile deja acordate rămân în istoric.'
-        : 'O poți reactiva oricând din Editează → Starea ofertei.';
-      promotionConfirm.querySelector('[data-promotion-confirm-submit]').textContent = deleting ? 'Da, șterge oferta' : 'Da, dezactivează';
+        : (reactivating ? 'Valabilitatea, pragul și limitele de utilizare rămân neschimbate.' : 'O poți porni din nou cu butonul „Reactivează” din registru.');
+      promotionConfirm.querySelector('[data-promotion-confirm-submit]').textContent = deleting ? 'Da, șterge oferta' : (reactivating ? 'Da, reactivează' : 'Da, dezactivează');
       promotionConfirm.querySelector('[data-promotion-confirm-form]').action = trigger.dataset.actionUrl;
       promotionConfirm.showModal();
       document.documentElement.classList.add('has-admin-promotion-confirm');

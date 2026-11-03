@@ -17,7 +17,7 @@
   {% if admin_section|default('') == 'categories' %}<link rel="stylesheet" href="{{ url('assets/css/category-editor.css?v=20261101-v2') }}">{% endif %}
   {% if admin_section|default('') in ['customers', 'newsletter'] %}<link rel="stylesheet" href="{{ url('assets/css/customer-admin.css?v=20261101-v15') }}">{% endif %}
   {% if admin_section|default('') == 'newsletter' %}<link rel="stylesheet" href="{{ url('assets/css/newsletter-admin.css?v=20261103-v2') }}">{% endif %}
-  {% if admin_section|default('') == 'promotions' %}<link rel="stylesheet" href="{{ url('assets/css/promotion-admin.css?v=20261103-actions-v6') }}">{% endif %}
+  {% if admin_section|default('') == 'promotions' %}<link rel="stylesheet" href="{{ url('assets/css/promotion-admin.css?v=20261103-actions-v7') }}">{% endif %}
   {% if admin_section|default('') == 'shipping' %}<link rel="stylesheet" href="{{ url('assets/css/shipping-admin.css?v=20261103-v4') }}">{% endif %}
 </head>
 {% set operator = admin_user|default(current_user()) %}
@@ -156,6 +156,6 @@
   </div>
 
   <script src="{{ url('assets/js/admin-rich-editor.js?v=20261031-rich-description-v1') }}" defer></script>
-  <script src="{{ url('assets/js/admin.js?v=20261103-promotions-v3') }}" defer></script>
+  <script src="{{ url('assets/js/admin.js?v=20261103-promotions-v4') }}" defer></script>
 </body>
 </html>
