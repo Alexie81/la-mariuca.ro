@@ -1,0 +1,3 @@
+{% extends 'admin/layouts/base.twig' %}
+{% block title %}{{ form_title }} · {{ order.order_number ?: '#' ~ order.id }}{% endblock %}
+{% block content %}<div class="order-action-page"><a class="order-back" href="{{ url('admin/comenzi/' ~ order.id ~ '/') }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg><span>Înapoi la comandă</span></a><section class="order-action-page__card">{% include partial_template %}</section></div>{% endblock %}

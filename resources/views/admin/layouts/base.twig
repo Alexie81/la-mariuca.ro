@@ -19,6 +19,7 @@
   {% if admin_section|default('') == 'newsletter' %}<link rel="stylesheet" href="{{ url('assets/css/newsletter-admin.css?v=20261103-v2') }}">{% endif %}
   {% if admin_section|default('') == 'promotions' %}<link rel="stylesheet" href="{{ url('assets/css/promotion-admin.css?v=20261103-actions-v7') }}">{% endif %}
   {% if admin_section|default('') == 'shipping' %}<link rel="stylesheet" href="{{ url('assets/css/shipping-admin.css?v=20261103-v4') }}">{% endif %}
+  {% if admin_section|default('') == 'orders' %}<link rel="stylesheet" href="{{ url('assets/css/order-admin.css?v=20261104-v3') }}">{% endif %}
 </head>
 {% set operator = admin_user|default(current_user()) %}
 {% set first_name = operator.first_name|default('Administrator') %}
@@ -157,5 +158,6 @@
 
   <script src="{{ url('assets/js/admin-rich-editor.js?v=20261031-rich-description-v1') }}" defer></script>
   <script src="{{ url('assets/js/admin.js?v=20261103-promotions-v4') }}" defer></script>
+  {% if admin_section|default('') == 'orders' %}<script src="{{ url('assets/js/order-admin.js?v=20261104-v3') }}" defer></script>{% endif %}
 </body>
 </html>

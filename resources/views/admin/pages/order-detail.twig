@@ -1,104 +1,61 @@
 {% extends 'admin/layouts/base.twig' %}
 {% block title %}Comanda {{ order.order_number ?: '#' ~ order.id }}{% endblock %}
 {% block content %}
-  <header class="admin-order-detail__hero">
-    <div>
-      <a class="admin-order-detail__back" href="{{ url('admin') }}">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg>
-        Înapoi la dashboard
-      </a>
-      <span class="admin-eyebrow">Detaliile comenzii</span>
-      <h1>{{ order.order_number ?: '#' ~ order.id }}</h1>
-      <p>Plasată în {{ order.display_created_at }} de {{ order.first_name }} {{ order.last_name }}</p>
-    </div>
-    <div class="admin-order-detail__states">
-      <span class="admin-order-badge admin-order-badge--{{ order.status }}">{{ order.status_label }}</span>
-      <span class="admin-order-payment admin-order-payment--{{ order.payment_status }}">{{ order.payment_status_label }}</span>
-    </div>
-  </header>
+  <div class="order-workspace" data-admin-order-workspace>
+    <header class="order-hero">
+      <div class="order-hero__main">
+        <a class="order-back" href="{{ url('admin/comenzi/') }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg><span>Registrul comenzilor</span></a>
+        <div class="order-hero__title"><span class="order-kicker">Fișă comandă</span><h1>{{ order.order_number ?: '#' ~ order.id }}</h1><p>Plasată în {{ order.display_created_at }} de <strong>{{ order.customer_name }}</strong></p></div>
+        <div class="order-hero__badges" aria-label="Starea comenzii"><span class="order-pill order-pill--{{ order.status }}"><i aria-hidden="true"></i>{{ order.status_label }}</span><span class="order-pill order-pill--payment-{{ order.payment_status }}"><i aria-hidden="true"></i>{{ order.payment_status_label }}</span></div>
+      </div>
+      <div class="order-hero__actions">
+        {% if order.available_actions %}<a href="{{ url('admin/comenzi/' ~ order.id ~ '/status/modal/') }}" class="order-action order-action--primary" data-order-modal-open data-modal-url="{{ url('admin/comenzi/' ~ order.id ~ '/status/modal/') }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M4 12h7M4 17h5M17 5v14M13 15l4 4 4-4"/></svg><span>Schimbă statusul</span></a>{% endif %}
+        <a href="{{ url('admin/comenzi/' ~ order.id ~ '/email/modal/') }}" class="order-action" data-order-modal-open data-modal-url="{{ url('admin/comenzi/' ~ order.id ~ '/email/modal/') }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v12H4zM4 8l8 6 8-6"/></svg><span>Trimite e-mail</span></a>
+        {% if order.can_return %}<a href="{{ url('admin/comenzi/' ~ order.id ~ '/retur/modal/') }}" class="order-action order-action--return" data-order-modal-open data-modal-url="{{ url('admin/comenzi/' ~ order.id ~ '/retur/modal/') }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7 4 12l5 5M5 12h9a5 5 0 0 1 5 5v1"/></svg><span>Retur</span></a>{% endif %}
+      </div>
+    </header>
 
-  <div class="admin-order-detail__layout">
-    <main class="admin-order-detail__main">
-      <section class="admin-order-detail__card" aria-labelledby="order-products-title">
-        <div class="admin-order-detail__heading">
-          <div><span class="admin-eyebrow">Conținut</span><h2 id="order-products-title">Produsele comandate</h2></div>
-          <span>{{ order.items|length }} {{ order.items|length == 1 ? 'produs' : 'produse' }}</span>
-        </div>
-        <div class="admin-order-products">
-          {% for item in order.items %}
-            <article class="admin-order-product">
-              <span class="admin-order-product__quantity">{{ item.quantity }}×</span>
-              <div>
-                <strong>{{ item.product_name }}</strong>
-                {% if item.variant_summary %}<p>{{ item.variant_summary }}</p>{% endif %}
-                <small>SKU {{ item.sku }}</small>
-              </div>
-              <div class="admin-order-product__price">
-                <strong>{{ money(item.line_total_bani) }}</strong>
-                <small>{{ money(item.unit_price_bani) }} / buc.</small>
-              </div>
-            </article>
-          {% else %}
-            <p class="admin-order-detail__empty">Comanda nu conține linii de produs.</p>
-          {% endfor %}
-        </div>
-      </section>
+    <section class="order-facts" aria-label="Rezumat rapid">
+      <article><span class="order-facts__icon order-facts__icon--rose"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 7h12l1 13H5L6 7Z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg></span><div><small>Produse</small><strong>{{ order.items|length }}</strong><span>{{ order.items|length == 1 ? 'linie de produs' : 'linii de produs' }}</span></div></article>
+      <article><span class="order-facts__icon order-facts__icon--gold"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16v12H4zM7 4h10v3M8 12h8"/></svg></span><div><small>Valoare totală</small><strong>{{ money(order.total_bani) }}</strong><span>{{ order.payment_method == 'stripe' ? 'Card online' : 'Ramburs la curier' }}</span></div></article>
+      <article><span class="order-facts__icon order-facts__icon--sage"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h11v11H3zM14 10h4l3 4v3h-7z"/><circle cx="7" cy="18" r="2"/><circle cx="18" cy="18" r="2"/></svg></span><div><small>Livrare</small><strong>{{ order.shipping_method_name|default('') ?: 'Curier standard' }}</strong><span>{{ order.shipping_bani > 0 ? money(order.shipping_bani) : 'Livrare gratuită' }}</span></div></article>
+      <article><span class="order-facts__icon order-facts__icon--lavender"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h12v16H6zM9 2v4M15 2v4M9 11h6M9 15h4"/></svg></span><div><small>Retururi</small><strong>{{ order.returns|length }}</strong><span>{{ order.returnable_quantity }} buc. eligibile</span></div></article>
+    </section>
 
-      <section class="admin-order-detail__card" aria-labelledby="order-customer-title">
-        <div class="admin-order-detail__heading">
-          <div><span class="admin-eyebrow">Client</span><h2 id="order-customer-title">Date de contact și livrare</h2></div>
-        </div>
-        <div class="admin-order-customer-grid">
-          <article>
-            <span>Email</span>
-            <a href="mailto:{{ order.email }}">{{ order.email }}</a>
-          </article>
-          <article>
-            <span>Telefon</span>
-            <a href="tel:{{ order.phone }}">{{ order.phone }}</a>
-          </article>
-          <article class="admin-order-customer-grid__wide">
-            <span>Adresă de livrare</span>
-            <strong>{{ order.shipping_address.address|default('—') }}</strong>
-            <p>{{ order.shipping_address.postal_code|default('') }} {{ order.shipping_address.city|default('') }}{% if order.shipping_address.county|default('') %}, {{ order.shipping_address.county }}{% endif %}</p>
-          </article>
-          {% if order.awb %}
-            <article class="admin-order-customer-grid__wide"><span>AWB</span><strong>{{ order.awb }}</strong></article>
-          {% endif %}
-        </div>
-      </section>
-    </main>
-
-    <aside class="admin-order-detail__aside">
-      <section class="admin-order-detail__card admin-order-summary" aria-labelledby="order-summary-title">
-        <div class="admin-order-detail__heading"><div><span class="admin-eyebrow">Total</span><h2 id="order-summary-title">Rezumat</h2></div></div>
-        <dl>
-          <div><dt>Subtotal</dt><dd>{{ money(order.subtotal_bani) }}</dd></div>
-          {% if order.discount_bani > 0 %}<div><dt>Reducere</dt><dd>−{{ money(order.discount_bani) }}</dd></div>{% endif %}
-          <div><dt>Livrare</dt><dd>{{ order.shipping_bani > 0 ? money(order.shipping_bani) : 'Gratuită' }}</dd></div>
-          {% if order.tax_bani > 0 %}<div><dt>Taxe</dt><dd>{{ money(order.tax_bani) }}</dd></div>{% endif %}
-          <div class="admin-order-summary__total"><dt>Total</dt><dd>{{ money(order.total_bani) }}</dd></div>
-        </dl>
-        <div class="admin-order-summary__method">
-          <span>Metodă de plată</span>
-          <strong>{{ order.payment_method == 'cod' ? 'Ramburs la curier' : 'Card online' }}</strong>
-        </div>
-        <div class="admin-order-summary__method">
-          <span>Metodă de livrare</span>
-          <strong>{{ order.shipping_method_name|default('') ?: (order.shipping_method|default('') in ['manual', 'curier'] ? 'Curier standard' : order.shipping_method|default('Curier standard')) }}</strong>
-        </div>
-      </section>
-
-      {% if order.payments %}
-        <section class="admin-order-detail__card" aria-labelledby="order-payments-title">
-          <div class="admin-order-detail__heading"><div><span class="admin-eyebrow">Tranzacții</span><h2 id="order-payments-title">Plăți</h2></div></div>
-          <div class="admin-order-payments">
-            {% for payment in order.payments %}
-              <article><span>{{ payment.provider|upper }}</span><strong>{{ money(payment.amount_bani) }}</strong><small>{{ payment.status }}</small></article>
-            {% endfor %}
+    <div class="order-layout">
+      <main class="order-column">
+        <section class="order-card" aria-labelledby="order-products-title">
+          <header class="order-card__head"><div><span class="order-kicker">Conținutul coletului</span><h2 id="order-products-title">Produsele comandate</h2><p>Imagine, SKU, variantă, cantitate și valoarea păstrată la momentul comenzii.</p></div><span class="order-count">{{ order.items|length }} {{ order.items|length == 1 ? 'produs' : 'produse' }}</span></header>
+          <div class="order-products">
+            {% for item in order.items %}
+              <article class="order-product">
+                {% if item.image_path %}<button class="order-product__media" type="button" data-order-image-open data-image-src="{{ url(item.image_path) }}" data-image-alt="{{ item.product_name }}" aria-label="Mărește imaginea pentru {{ item.product_name }}"><img src="{{ url(item.image_path) }}" alt="" width="104" height="124" loading="lazy"><span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4M8 11h6M11 8v6"/></svg></span></button>{% else %}<span class="order-product__media order-product__media--empty"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 7h12l1 13H5L6 7Z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg></span>{% endif %}
+                <div class="order-product__identity"><div class="order-product__top"><span>{{ item.quantity }} ×</span>{% if item.returned_quantity > 0 %}<em>{{ item.returned_quantity }} returnate</em>{% endif %}</div><h3>{{ item.product_name }}</h3>{% if item.variant_summary %}<p>{{ item.variant_summary }}</p>{% endif %}{% if item.personalization %}<ul>{% for label,value in item.personalization %}<li><span>{{ label }}</span><strong>{{ value }}</strong></li>{% endfor %}</ul>{% endif %}<div class="order-product__meta"><span>SKU <strong>{{ item.sku }}</strong></span>{% if item.product_slug %}<a href="{{ url('produs/' ~ item.product_slug ~ '/') }}" target="_blank" rel="noopener">Vezi produsul <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 5h5v5M19 5l-8 8M18 13v6H5V6h6"/></svg></a>{% else %}<span>Produs arhivat</span>{% endif %}</div></div>
+                <div class="order-product__value"><strong>{{ money(item.line_total_bani) }}</strong><span>{{ money(item.unit_price_bani) }} / buc.</span>{% if item.returnable_quantity > 0 %}<small>{{ item.returnable_quantity }} buc. pot fi returnate</small>{% endif %}</div>
+              </article>
+            {% else %}<div class="order-empty"><strong>Nicio linie de produs</strong><span>Comanda nu are produse asociate.</span></div>{% endfor %}
           </div>
         </section>
-      {% endif %}
-    </aside>
+
+        <section class="order-card" aria-labelledby="order-customer-title"><header class="order-card__head"><div><span class="order-kicker">Client și destinație</span><h2 id="order-customer-title">Contact și livrare</h2><p>Toate informațiile necesare pentru confirmare și predarea coletului.</p></div></header><div class="order-contact-grid">
+          <article class="order-contact order-contact--identity"><span class="order-contact__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span><div><small>Client</small><strong>{{ order.customer_name }}</strong><span>{{ order.customer_type == 'company' ? 'Persoană juridică' : 'Persoană fizică' }}</span></div></article>
+          <article class="order-contact"><span class="order-contact__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v12H4zM4 8l8 6 8-6"/></svg></span><div><small>E-mail</small><a href="mailto:{{ order.email }}">{{ order.email }}</a><span>Adresă pentru notificări</span></div></article>
+          <article class="order-contact"><span class="order-contact__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h3l2 5-2 1.5a14 14 0 0 0 3.5 3.5L15 12l5 2v3c0 1.7-1.3 3-3 3C9.8 20 4 14.2 4 7c0-1.7 1.3-3 3-3Z"/></svg></span><div><small>Telefon</small><a href="tel:{{ order.phone }}">{{ order.phone ?: 'Necompletat' }}</a><span>Contact pentru curier</span></div></article>
+          <article class="order-address"><span class="order-address__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s7-6.1 7-12a7 7 0 1 0-14 0c0 5.9 7 12 7 12Z"/><circle cx="12" cy="9" r="2.5"/></svg></span><div><small>Adresa de livrare</small><strong>{{ order.shipping_address.address|default('Adresă necompletată') }}</strong><p>{{ order.shipping_address.postal_code|default('') }} {{ order.shipping_address.city|default('') }}{% if order.shipping_address.county|default('') %}, {{ order.shipping_address.county }}{% endif %}</p>{% if order.shipping_address.details|default('') %}<span>{{ order.shipping_address.details }}</span>{% endif %}</div></article>
+          {% if order.billing_address and order.billing_address != order.shipping_address %}<article class="order-address"><span class="order-address__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Z"/><path d="M9 8h6M9 12h6"/></svg></span><div><small>Adresa de facturare</small><strong>{{ order.billing_address.address|default('Adresă necompletată') }}</strong><p>{{ order.billing_address.postal_code|default('') }} {{ order.billing_address.city|default('') }}{% if order.billing_address.county|default('') %}, {{ order.billing_address.county }}{% endif %}</p></div></article>{% endif %}
+        </div></section>
+
+        <section class="order-card" aria-labelledby="order-history-title"><header class="order-card__head"><div><span class="order-kicker">Trasabilitate</span><h2 id="order-history-title">Istoricul comenzii</h2><p>Acțiuni administrative, notificări și retururi, în ordine cronologică.</p></div></header><div class="order-timeline"><article><span class="order-timeline__dot"></span><div><strong>Comandă plasată</strong><p>{{ order.display_created_at }}</p></div><em>Client</em></article>{% for event in order.history %}<article><span class="order-timeline__dot"></span><div><strong>{{ event.label }}</strong><p>{{ event.display_created_at }}{% if event.context.reason|default('') %} · {{ event.context.reason }}{% endif %}</p></div><em>{{ event.actor_first_name|default('') ? event.actor_first_name ~ ' ' ~ event.actor_last_name : 'Sistem' }}</em></article>{% endfor %}</div></section>
+      </main>
+
+      <aside class="order-sidebar">
+        <section class="order-card order-summary" aria-labelledby="order-summary-title"><header class="order-card__head"><div><span class="order-kicker">Financiar</span><h2 id="order-summary-title">Rezumat</h2></div></header><dl><div><dt>Subtotal</dt><dd>{{ money(order.subtotal_bani) }}</dd></div>{% if order.discount_bani > 0 %}<div class="is-discount"><dt>Reducere</dt><dd>−{{ money(order.discount_bani) }}</dd></div>{% endif %}<div><dt>Livrare</dt><dd>{{ order.shipping_bani > 0 ? money(order.shipping_bani) : 'Gratuită' }}</dd></div>{% if order.tax_bani > 0 %}<div><dt>Taxe</dt><dd>{{ money(order.tax_bani) }}</dd></div>{% endif %}<div class="order-summary__total"><dt>Total</dt><dd>{{ money(order.total_bani) }}</dd></div></dl><div class="order-summary__methods"><article><small>Metodă de plată</small><strong>{{ order.payment_method == 'cod' ? 'Ramburs la curier' : 'Card online' }}</strong></article><article><small>Metodă de livrare</small><strong>{{ order.shipping_method_name|default('') ?: 'Curier standard' }}</strong></article></div></section>
+        <section class="order-card order-next" aria-labelledby="order-next-title"><header class="order-card__head"><div><span class="order-kicker">Pasul următor</span><h2 id="order-next-title">Administrează comanda</h2><p>Acțiunile disponibile se adaptează automat stării curente.</p></div></header>{% if order.available_actions %}<a href="{{ url('admin/comenzi/' ~ order.id ~ '/status/modal/') }}" class="order-next__primary" data-order-modal-open data-modal-url="{{ url('admin/comenzi/' ~ order.id ~ '/status/modal/') }}"><span><small>Stare curentă</small><strong>{{ order.status_label }}</strong></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a>{% else %}<div class="order-next__complete"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg><span><strong>Flux operațional încheiat</strong><small>Poți trimite un e-mail sau înregistra un retur, dacă este cazul.</small></span></div>{% endif %}<div class="order-next__links"><a href="{{ url('admin/comenzi/' ~ order.id ~ '/email/modal/') }}" data-order-modal-open data-modal-url="{{ url('admin/comenzi/' ~ order.id ~ '/email/modal/') }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v12H4zM4 8l8 6 8-6"/></svg><span>Actualizează clientul</span></a>{% if order.can_return %}<a href="{{ url('admin/comenzi/' ~ order.id ~ '/retur/modal/') }}" data-order-modal-open data-modal-url="{{ url('admin/comenzi/' ~ order.id ~ '/retur/modal/') }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7 4 12l5 5M5 12h9a5 5 0 0 1 5 5v1"/></svg><span>Înregistrează retur</span></a>{% endif %}</div></section>
+        {% if order.returns %}<section class="order-card order-returns" aria-labelledby="order-returns-title"><header class="order-card__head"><div><span class="order-kicker">Post-vânzare</span><h2 id="order-returns-title">Retururi</h2></div><span class="order-count">{{ order.returns|length }}</span></header>{% for return in order.returns %}<article><div><strong>{{ return.return_type == 'full' ? 'Retur integral' : 'Retur parțial' }}</strong><small>{{ return.display_created_at }} · {{ return.reason }}</small></div><span>{{ return.items|length }} {{ return.items|length == 1 ? 'produs' : 'produse' }}</span>{% if return.refund_bani > 0 %}<em>{{ money(return.refund_bani) }}</em>{% endif %}</article>{% endfor %}</section>{% endif %}
+        {% if order.internal_notes %}<section class="order-card order-note"><span class="order-kicker">Notă internă</span><p>{{ order.internal_notes }}</p></section>{% endif %}
+      </aside>
+    </div>
+    <dialog class="order-dialog" data-order-dialog aria-labelledby="order-dialog-title"><div class="order-dialog__shell"><button class="order-dialog__close" type="button" aria-label="Închide" data-order-dialog-close><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"/></svg></button><div class="order-dialog__content" data-order-dialog-content><div class="order-dialog__loading"><span></span><strong>Pregătim opțiunile…</strong><small>Totul va apărea imediat.</small></div></div></div></dialog>
+    <dialog class="order-lightbox" data-order-lightbox aria-label="Imagine produs"><button type="button" aria-label="Închide imaginea" data-order-lightbox-close><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"/></svg></button><figure><img src="" alt="" data-order-lightbox-image><figcaption data-order-lightbox-caption></figcaption></figure></dialog>
   </div>
 {% endblock %}
