@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const workspace = document.querySelector('[data-admin-order-workspace]');
+  const workspace = document.querySelector('[data-admin-order-workspace], .order-action-page');
   if (!workspace) return;
 
   const dialog = workspace.querySelector('[data-order-dialog]');
@@ -28,7 +28,23 @@
   };
 
   const initializeModal = (root) => {
+    const statusRadios = root.querySelectorAll('[data-order-action-radio]');
+    const syncStatusAction = () => {
+      const selected = root.querySelector('[data-order-action-radio]:checked');
+      const submit = selected?.form.querySelector('[type="submit"]');
+      if (!submit) return;
+      submit.querySelector('span').textContent = selected.closest('.order-choice').querySelector('strong').textContent;
+      submit.classList.toggle('is-destructive', selected.value === 'cancel');
+    };
+    statusRadios.forEach((radio) => radio.addEventListener('change', syncStatusAction));
+    syncStatusAction();
     const returnForm = root.querySelector('[data-order-return-form]');
+    const updateReturnSummary = () => {
+      const summary = returnForm?.querySelector('[data-return-summary]');
+      if (!summary) return;
+      const quantity = [...returnForm.querySelectorAll('[data-return-quantity]')].reduce((sum, select) => sum + Number(select.value), 0);
+      summary.textContent = quantity ? `${quantity} ${quantity === 1 ? 'bucată selectată' : 'bucăți selectate'}` : 'Niciun produs selectat';
+    };
     const syncRefundAmount = () => {
       const mode = returnForm?.querySelector('[data-refund-mode]:checked')?.value;
       const field = returnForm?.querySelector('[data-refund-amount]');
@@ -37,15 +53,20 @@
       field.querySelector('input')?.toggleAttribute('required', mode === 'partial');
     };
     returnForm?.querySelectorAll('[data-refund-mode]').forEach((radio) => radio.addEventListener('change', syncRefundAmount));
+    returnForm?.querySelectorAll('[data-return-quantity]').forEach((select) => select.addEventListener('change', updateReturnSummary));
     returnForm?.querySelector('[data-order-return-all]')?.addEventListener('click', (event) => {
       const button = event.currentTarget;
       const selects = [...returnForm.querySelectorAll('[data-return-quantity]')];
       const allSelected = selects.every((select) => select.selectedIndex === select.options.length - 1);
       selects.forEach((select) => { select.selectedIndex = allSelected ? 0 : select.options.length - 1; });
       button.textContent = allSelected ? 'Selectează toate cantitățile' : 'Golește selecția';
+      updateReturnSummary();
     });
     syncRefundAmount();
+    updateReturnSummary();
   };
+
+  if (!dialog) initializeModal(workspace);
 
   const loadModal = async (trigger) => {
     if (!dialog || !dialogContent) return;
@@ -81,7 +102,7 @@
       loadModal(modalOpen);
       return;
     }
-    if (event.target.closest('[data-order-dialog-close]')) {
+    if (event.target.closest('[data-order-dialog-close]') && dialog) {
       event.preventDefault();
       closeDialog();
       return;
@@ -110,7 +131,7 @@
     if (submit) submit.disabled = true;
     if (feedback) feedback.hidden = true;
     try {
-      const response = await fetch(form.action, {
+      const response = await fetch(form.getAttribute('action'), {
         method: 'POST',
         body: new FormData(form),
         headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
@@ -121,6 +142,7 @@
         feedback.textContent = payload.message;
         feedback.classList.add('is-success');
         feedback.hidden = false;
+        feedback.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
       }
       window.setTimeout(() => { window.location.href = payload.redirect || window.location.href; }, 350);
     } catch (error) {
@@ -128,6 +150,7 @@
         feedback.textContent = error.message || 'A apărut o problemă temporară.';
         feedback.classList.remove('is-success');
         feedback.hidden = false;
+        feedback.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
       }
       if (submit) submit.disabled = false;
     }

@@ -52,7 +52,7 @@ final class OrderAdminWorkflowTest extends DatabaseTestCase
         self::assertSame(200, $page->getStatusCode());
         $html = (string) $page->getBody();
 
-        self::assertStringContainsString('Fișă comandă', $html);
+        self::assertStringContainsString('Detaliile comenzii', $html);
         self::assertStringContainsString('Produsele comandate', $html);
         self::assertStringContainsString('Contact și livrare', $html);
         self::assertStringContainsString('Istoricul comenzii', $html);
@@ -68,11 +68,11 @@ final class OrderAdminWorkflowTest extends DatabaseTestCase
         self::assertSame(200, $returnModal->getStatusCode());
         self::assertStringContainsString('Înregistrează un retur', (string) $returnModal->getBody());
         self::assertStringContainsString('name="quantities[', (string) $returnModal->getBody());
-        self::assertStringContainsString('nu inițiază un transfer Stripe', (string) $returnModal->getBody());
+        self::assertStringContainsString('Această acțiune nu transferă bani', (string) $returnModal->getBody());
 
         $emailModal = $this->get('/admin/comenzi/' . $this->deliveredOrderId . '/email/modal/', ['X-Requested-With' => 'XMLHttpRequest']);
         self::assertSame(200, $emailModal->getStatusCode());
-        self::assertStringContainsString('Pune e-mailul în coadă', (string) $emailModal->getBody());
+        self::assertStringContainsString('Trimite actualizarea', (string) $emailModal->getBody());
     }
 
     public function testStatusWorkflowChangesStateAuditsAndQueuesCustomerEmail(): void
