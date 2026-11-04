@@ -196,9 +196,27 @@ final class OrderService
             return null;
         }
 
-        $items = $this->pdo->prepare('SELECT * FROM order_items WHERE order_id = :id ORDER BY id');
+        $items = $this->pdo->prepare(
+            'SELECT item.*,product.slug AS product_slug,product.status AS product_status,'
+            . 'COALESCE(variant_media.public_path,'
+            . ' (SELECT product_media.public_path FROM product_images pi JOIN media product_media ON product_media.id=pi.media_id'
+            . '  WHERE pi.product_id=item.product_id AND product_media.public_path IS NOT NULL ORDER BY pi.position,pi.media_id LIMIT 1)'
+            . ') AS image_path,'
+            . 'COALESCE((SELECT SUM(return_item.quantity) FROM order_return_items return_item WHERE return_item.order_item_id=item.id),0) AS returned_quantity '
+            . 'FROM order_items item '
+            . 'LEFT JOIN products product ON product.id=item.product_id '
+            . 'LEFT JOIN product_variants variant ON variant.id=item.variant_id '
+            . 'LEFT JOIN media variant_media ON variant_media.id=variant.image_media_id '
+            . 'WHERE item.order_id = :id ORDER BY item.id'
+        );
         $items->execute(['id' => $orderId]);
         $order['items'] = $items->fetchAll();
+        foreach ($order['items'] as &$item) {
+            $item['personalization'] = $this->decodeJson((string) $item['personalization_json']);
+            $item['returned_quantity'] = (int) $item['returned_quantity'];
+            $item['returnable_quantity'] = max(0, (int) $item['quantity'] - $item['returned_quantity']);
+        }
+        unset($item);
 
         $payments = $this->pdo->prepare('SELECT provider,provider_payment_id,amount_bani,refunded_bani,currency,status,created_at,updated_at FROM payments WHERE order_id = :id ORDER BY id DESC');
         $payments->execute(['id' => $orderId]);
@@ -206,6 +224,36 @@ final class OrderService
         $order['shipping_address'] = $this->decodeJson((string) $order['shipping_address_json']);
         $order['billing_address'] = $this->decodeJson((string) $order['billing_address_json']);
         $order['company'] = $this->decodeJson((string) $order['company_json']);
+
+        $returns = $this->pdo->prepare(
+            'SELECT r.*,u.first_name AS actor_first_name,u.last_name AS actor_last_name '
+            . 'FROM order_returns r LEFT JOIN users u ON u.id=r.actor_user_id WHERE r.order_id=:id ORDER BY r.id DESC'
+        );
+        $returns->execute(['id' => $orderId]);
+        $order['returns'] = $returns->fetchAll();
+        $returnItems = $this->pdo->prepare(
+            'SELECT ri.*,oi.product_name,oi.variant_summary,oi.sku FROM order_return_items ri '
+            . 'JOIN order_items oi ON oi.id=ri.order_item_id WHERE ri.return_id=:return ORDER BY ri.id'
+        );
+        foreach ($order['returns'] as &$return) {
+            $returnItems->execute(['return' => $return['id']]);
+            $return['items'] = $returnItems->fetchAll();
+        }
+        unset($return);
+
+        $history = $this->pdo->prepare(
+            "SELECT log.*,u.first_name AS actor_first_name,u.last_name AS actor_last_name FROM audit_log log "
+            . "LEFT JOIN users u ON u.id=log.actor_user_id WHERE log.entity_type='order' AND log.entity_id=:id ORDER BY log.id ASC LIMIT 40"
+        );
+        $history->execute(['id' => $orderId]);
+        $order['history'] = $history->fetchAll();
+        foreach ($order['history'] as &$event) {
+            $event['context'] = $this->decodeJson((string) $event['context_json']);
+        }
+        unset($event);
+        $order['available_actions'] = $this->availableActions((string) $order['status']);
+        $order['can_return'] = in_array((string) $order['status'], ['shipped', 'delivered', 'returned'], true)
+            && array_sum(array_column($order['items'], 'returnable_quantity')) > 0;
 
         return $order;
     }
@@ -248,7 +296,7 @@ final class OrderService
         return $order;
     }
 
-    public function transition(int $orderId, string $action, ?string $awb, int $actorId): void
+    public function transition(int $orderId, string $action, ?string $awb, int $actorId, string $reason = '', bool $notifyCustomer = false): void
     {
         $allowed = [
             'confirm' => ['from' => ['new'], 'to' => 'confirmed'],
@@ -321,8 +369,228 @@ final class OrderService
                 $this->pdo->prepare("UPDATE coupon_redemptions SET status='released',updated_at=:now WHERE order_id=:order AND status IN ('reserved','confirmed')")
                     ->execute(['now' => $now, 'order' => $orderId]);
             }
+            $context = ['from' => $order['status'], 'to' => $allowed[$action]['to']];
+            if (trim($reason) !== '') {
+                $context['reason'] = mb_substr(trim($reason), 0, 500);
+            }
             $this->pdo->prepare("INSERT INTO audit_log (actor_user_id, action, entity_type, entity_id, context_json, created_at) VALUES (:actor, :action, 'order', :id, :context, :now)")->execute([
-                'actor' => $actorId, 'action' => 'order.' . $action, 'id' => $orderId, 'context' => json_encode(['from' => $order['status'], 'to' => $allowed[$action]['to']], JSON_THROW_ON_ERROR), 'now' => $now,
+                'actor' => $actorId, 'action' => 'order.' . $action, 'id' => $orderId, 'context' => json_encode($context, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR), 'now' => $now,
+            ]);
+            if ($notifyCustomer) {
+                $this->queueStatusEmail($order, $allowed[$action]['to'], '', $now);
+            }
+            $this->pdo->commit();
+        } catch (\Throwable $exception) {
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+            throw $exception;
+        }
+    }
+
+    /**
+     * @param array<int,int|string> $quantities keyed by order item id
+     */
+    public function registerReturn(
+        int $orderId,
+        array $quantities,
+        string $reason,
+        string $notes,
+        bool $restock,
+        string $refundMode,
+        int $refundBani,
+        int $actorId,
+        bool $notifyCustomer = false,
+    ): int {
+        $reason = trim($reason);
+        if (mb_strlen($reason) < 3) {
+            throw new RuntimeException('Spune pe scurt motivul returului.');
+        }
+        if (!in_array($refundMode, ['none', 'partial', 'full'], true)) {
+            throw new RuntimeException('Opțiunea de rambursare nu este validă.');
+        }
+
+        $this->pdo->beginTransaction();
+        try {
+            $orderStatement = $this->pdo->prepare('SELECT * FROM orders WHERE id=:id');
+            $orderStatement->execute(['id' => $orderId]);
+            $order = $orderStatement->fetch();
+            if (!is_array($order)) {
+                throw new RuntimeException('Comanda nu a fost găsită.');
+            }
+            if (!in_array((string) $order['status'], ['shipped', 'delivered', 'returned'], true)) {
+                throw new RuntimeException('Returul poate fi înregistrat după expedierea comenzii.');
+            }
+
+            $itemsStatement = $this->pdo->prepare(
+                'SELECT item.*,COALESCE((SELECT SUM(return_item.quantity) FROM order_return_items return_item WHERE return_item.order_item_id=item.id),0) AS returned_quantity '
+                . 'FROM order_items item WHERE item.order_id=:order ORDER BY item.id'
+            );
+            $itemsStatement->execute(['order' => $orderId]);
+            $items = $itemsStatement->fetchAll();
+            $selected = [];
+            $remainingTotal = 0;
+            $selectedTotal = 0;
+            foreach ($items as $item) {
+                $remaining = max(0, (int) $item['quantity'] - (int) $item['returned_quantity']);
+                $remainingTotal += $remaining;
+                $quantity = max(0, (int) ($quantities[(int) $item['id']] ?? 0));
+                if ($quantity > $remaining) {
+                    throw new RuntimeException('Cantitatea de retur depășește cantitatea disponibilă pentru ' . $item['product_name'] . '.');
+                }
+                if ($quantity > 0) {
+                    $item['return_quantity'] = $quantity;
+                    $selected[] = $item;
+                    $selectedTotal += $quantity;
+                }
+            }
+            if ($selected === []) {
+                throw new RuntimeException('Selectează cel puțin un produs și o cantitate.');
+            }
+
+            $isFull = $selectedTotal === $remainingTotal;
+            if ($refundMode === 'full' && !$isFull) {
+                throw new RuntimeException('Rambursarea integrală este disponibilă când returnezi toate produsele rămase.');
+            }
+            $alreadyRefunded = (int) $this->pdo->query('SELECT COALESCE(MAX(refunded_bani),0) FROM payments WHERE order_id=' . $orderId)->fetchColumn();
+            $refundable = max(0, (int) $order['total_bani'] - $alreadyRefunded);
+            if ($refundMode === 'none') {
+                $refundBani = 0;
+            } elseif ($refundMode === 'full') {
+                $refundBani = $refundable;
+            } elseif ($refundBani <= 0 || $refundBani > $refundable) {
+                throw new RuntimeException('Suma rambursată trebuie să fie mai mare decât zero și să nu depășească soldul comenzii.');
+            }
+
+            $now = gmdate('c');
+            $returnStatement = $this->pdo->prepare(
+                'INSERT INTO order_returns (order_id,return_type,reason,notes,restock,refund_mode,refund_bani,actor_user_id,created_at) '
+                . 'VALUES (:order,:type,:reason,:notes,:restock,:refund_mode,:refund,:actor,:now)'
+            );
+            $returnStatement->execute([
+                'order' => $orderId,
+                'type' => $isFull ? 'full' : 'partial',
+                'reason' => mb_substr($reason, 0, 500),
+                'notes' => mb_substr(trim($notes), 0, 2000),
+                'restock' => $restock ? 1 : 0,
+                'refund_mode' => $refundMode,
+                'refund' => $refundBani,
+                'actor' => $actorId,
+                'now' => $now,
+            ]);
+            $returnId = (int) $this->pdo->lastInsertId();
+            $allocatedRefund = 0;
+            $selectedValue = array_sum(array_map(static function (array $item): int {
+                return (int) round(((int) $item['line_total_bani'] / max(1, (int) $item['quantity'])) * (int) $item['return_quantity']);
+            }, $selected));
+
+            foreach ($selected as $index => $item) {
+                $lineRefund = 0;
+                if ($refundBani > 0 && $selectedValue > 0) {
+                    $lineValue = (int) round(((int) $item['line_total_bani'] / max(1, (int) $item['quantity'])) * (int) $item['return_quantity']);
+                    $lineRefund = $index === array_key_last($selected)
+                        ? $refundBani - $allocatedRefund
+                        : min($refundBani - $allocatedRefund, (int) round($refundBani * ($lineValue / $selectedValue)));
+                    $allocatedRefund += $lineRefund;
+                }
+                $this->pdo->prepare(
+                    'INSERT INTO order_return_items (return_id,order_item_id,quantity,restocked_quantity,line_refund_bani) '
+                    . 'VALUES (:return,:item,:quantity,:restocked,:refund)'
+                )->execute([
+                    'return' => $returnId,
+                    'item' => $item['id'],
+                    'quantity' => $item['return_quantity'],
+                    'restocked' => $restock ? $item['return_quantity'] : 0,
+                    'refund' => $lineRefund,
+                ]);
+                if ($restock && $item['variant_id'] !== null) {
+                    $stock = $this->pdo->prepare('UPDATE inventory SET physical_quantity=physical_quantity+:quantity,updated_at=:now WHERE variant_id=:variant');
+                    $stock->execute(['quantity' => $item['return_quantity'], 'now' => $now, 'variant' => $item['variant_id']]);
+                    if ($stock->rowCount() !== 1) {
+                        throw new RuntimeException('Stocul variantei ' . $item['sku'] . ' nu a putut fi refăcut.');
+                    }
+                    $this->pdo->prepare(
+                        "INSERT INTO inventory_movements (variant_id,type,physical_delta,reserved_delta,reason,reference_type,reference_id,actor_user_id,created_at) "
+                        . "VALUES (:variant,'return',:quantity,0,:reason,'order_return',:return,:actor,:now)"
+                    )->execute([
+                        'variant' => $item['variant_id'],
+                        'quantity' => $item['return_quantity'],
+                        'reason' => 'Retur ' . ((string) $order['order_number'] ?: '#' . $orderId),
+                        'return' => $returnId,
+                        'actor' => $actorId,
+                        'now' => $now,
+                    ]);
+                }
+            }
+
+            if ($refundBani > 0) {
+                $payment = $this->pdo->prepare('SELECT id,refunded_bani FROM payments WHERE order_id=:order ORDER BY id DESC LIMIT 1');
+                $payment->execute(['order' => $orderId]);
+                $paymentRow = $payment->fetch();
+                $newRefunded = min((int) $order['total_bani'], $alreadyRefunded + $refundBani);
+                $paymentStatus = $newRefunded >= (int) $order['total_bani'] ? 'refunded' : 'partially_refunded';
+                if (is_array($paymentRow)) {
+                    $this->pdo->prepare('UPDATE payments SET refunded_bani=:refunded,status=:status,updated_at=:now WHERE id=:id')->execute([
+                        'refunded' => $newRefunded, 'status' => $paymentStatus, 'now' => $now, 'id' => $paymentRow['id'],
+                    ]);
+                }
+                $this->pdo->prepare('UPDATE orders SET payment_status=:payment_status,updated_at=:now WHERE id=:id')->execute([
+                    'payment_status' => $paymentStatus, 'now' => $now, 'id' => $orderId,
+                ]);
+            }
+
+            if ($isFull) {
+                $this->pdo->prepare("UPDATE orders SET status='returned',updated_at=:now WHERE id=:id")->execute(['now' => $now, 'id' => $orderId]);
+            }
+            $context = [
+                'return_id' => $returnId,
+                'type' => $isFull ? 'full' : 'partial',
+                'items' => count($selected),
+                'quantity' => $selectedTotal,
+                'restock' => $restock,
+                'refund_bani' => $refundBani,
+                'reason' => $reason,
+            ];
+            $this->pdo->prepare("INSERT INTO audit_log (actor_user_id,action,entity_type,entity_id,context_json,created_at) VALUES (:actor,:action,'order',:order,:context,:now)")->execute([
+                'actor' => $actorId,
+                'action' => $isFull ? 'order.return_full' : 'order.return_partial',
+                'order' => $orderId,
+                'context' => json_encode($context, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
+                'now' => $now,
+            ]);
+            if ($notifyCustomer) {
+                $this->queueStatusEmail($order, $isFull ? 'returned' : (string) $order['status'], 'Retur înregistrat: ' . $reason, $now);
+            }
+            $this->pdo->commit();
+
+            return $returnId;
+        } catch (\Throwable $exception) {
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+            throw $exception;
+        }
+    }
+
+    public function notifyCustomer(int $orderId, string $message, int $actorId): void
+    {
+        $message = trim($message);
+        if ($message !== '' && mb_strlen($message) < 3) {
+            throw new RuntimeException('Mesajul este prea scurt.');
+        }
+        $order = $this->findForAdmin($orderId);
+        if ($order === null) {
+            throw new RuntimeException('Comanda nu a fost găsită.');
+        }
+        $now = gmdate('c');
+        $this->pdo->beginTransaction();
+        try {
+            $this->queueStatusEmail($order, (string) $order['status'], $message, $now);
+            $this->pdo->prepare("INSERT INTO audit_log (actor_user_id,action,entity_type,entity_id,context_json,created_at) VALUES (:actor,'order.email_queued','order',:order,:context,:now)")->execute([
+                'actor' => $actorId,
+                'order' => $orderId,
+                'context' => json_encode(['message' => mb_substr($message, 0, 1000)], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
+                'now' => $now,
             ]);
             $this->pdo->commit();
         } catch (\Throwable $exception) {
@@ -331,6 +599,39 @@ final class OrderService
             }
             throw $exception;
         }
+    }
+
+    /** @return list<array{action:string,status:string}> */
+    private function availableActions(string $status): array
+    {
+        $actions = [
+            'new' => [['action' => 'confirm', 'status' => 'confirmed'], ['action' => 'cancel', 'status' => 'cancelled']],
+            'confirmed' => [['action' => 'prepare', 'status' => 'preparing'], ['action' => 'ship', 'status' => 'shipped'], ['action' => 'cancel', 'status' => 'cancelled']],
+            'preparing' => [['action' => 'ship', 'status' => 'shipped'], ['action' => 'cancel', 'status' => 'cancelled']],
+            'shipped' => [['action' => 'deliver', 'status' => 'delivered']],
+        ];
+
+        return $actions[$status] ?? [];
+    }
+
+    /** @param array<string,mixed> $order */
+    private function queueStatusEmail(array $order, string $status, string $message, string $now): void
+    {
+        $payload = [
+            'order_id' => (int) $order['id'],
+            'order_number' => (string) ($order['order_number'] ?: '#' . $order['id']),
+            'customer_name' => trim((string) $order['first_name'] . ' ' . (string) $order['last_name']),
+            'status' => $status,
+            'message' => mb_substr(trim($message), 0, 1000),
+        ];
+        $this->pdo->prepare(
+            "INSERT INTO outbox_messages (message_type,recipient,payload_json,status,attempts,available_at,created_at) "
+            . "VALUES ('order_status_update',:recipient,:payload,'pending',0,:now,:now)"
+        )->execute([
+            'recipient' => (string) $order['email'],
+            'payload' => json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
+            'now' => $now,
+        ]);
     }
 
     /** @return array<string, mixed> */

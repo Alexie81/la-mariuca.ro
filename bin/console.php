@@ -100,10 +100,28 @@ try {
                 $pdo->prepare("UPDATE outbox_messages SET status='processing',attempts=attempts+1 WHERE id=:id AND status IN ('pending','failed')")->execute(['id' => $message['id']]);
                 try {
                     $payload = json_decode((string) $message['payload_json'], true) ?: [];
-                    $subject = $message['message_type'] === 'order_confirmation' ? 'Confirmarea comenzii La Măriuca' : 'Verifică adresa de email';
-                    $body = $message['message_type'] === 'order_confirmation'
-                        ? 'Comanda a fost înregistrată. Număr intern: ' . (int) ($payload['order_id'] ?? 0)
-                        : 'Folosește tokenul de verificare transmis securizat de aplicație.';
+                    $statusLabels = [
+                        'new' => 'nouă', 'confirmed' => 'confirmată', 'preparing' => 'în pregătire',
+                        'shipped' => 'expediată', 'delivered' => 'livrată', 'cancelled' => 'anulată',
+                        'returned' => 'returnată', 'manual_review' => 'în verificare',
+                    ];
+                    if ($message['message_type'] === 'order_confirmation') {
+                        $subject = 'Confirmarea comenzii La Măriuca';
+                        $body = 'Comanda a fost înregistrată. Număr intern: ' . (int) ($payload['order_id'] ?? 0);
+                    } elseif ($message['message_type'] === 'order_status_update') {
+                        $orderNumber = (string) ($payload['order_number'] ?? ('#' . (int) ($payload['order_id'] ?? 0)));
+                        $status = $statusLabels[(string) ($payload['status'] ?? '')] ?? (string) ($payload['status'] ?? 'actualizată');
+                        $subject = 'Actualizare pentru comanda ' . $orderNumber;
+                        $body = 'Bună, ' . (string) ($payload['customer_name'] ?? '') . "!\n\n"
+                            . 'Comanda ' . $orderNumber . ' este acum ' . $status . '.';
+                        if (trim((string) ($payload['message'] ?? '')) !== '') {
+                            $body .= "\n\n" . trim((string) $payload['message']);
+                        }
+                        $body .= "\n\nÎți mulțumim,\nEchipa La Măriuca Boutique";
+                    } else {
+                        $subject = 'Verifică adresa de email';
+                        $body = 'Folosește tokenul de verificare transmis securizat de aplicație.';
+                    }
                     if ($transport !== null) {
                         $email = (new Email())->from($config->get('MAIL_FROM_ADDRESS', 'no-reply@example.test'))->to((string) $message['recipient'])->subject($subject)->text($body);
                         (new Mailer($transport))->send($email);

@@ -1010,19 +1010,7 @@ final class AdminController
             return $this->view->redirect($this->config->path('admin/comenzi/'));
         }
 
-        $statusLabels = [
-            'new' => 'Nouă', 'confirmed' => 'Confirmată', 'preparing' => 'În pregătire',
-            'shipped' => 'Expediată', 'delivered' => 'Livrată', 'cancelled' => 'Anulată',
-            'returned' => 'Returnată', 'manual_review' => 'De verificat',
-        ];
-        $paymentLabels = [
-            'pending' => 'În așteptare', 'paid' => 'Plătită', 'failed' => 'Eșuată',
-            'partially_refunded' => 'Rambursată parțial', 'refunded' => 'Rambursată',
-        ];
-        $createdAt = new \DateTimeImmutable((string) $order['created_at'], new \DateTimeZone('UTC'));
-        $order['display_created_at'] = $createdAt->setTimezone(new \DateTimeZone('Europe/Bucharest'))->format('d.m.Y, H:i');
-        $order['status_label'] = $statusLabels[(string) $order['status']] ?? ucfirst((string) $order['status']);
-        $order['payment_status_label'] = $paymentLabels[(string) $order['payment_status']] ?? ucfirst((string) $order['payment_status']);
+        $order = $this->decorateOrderForAdmin($order);
 
         return $this->view->render('admin/pages/order-detail.twig', [
             'order' => $order,
@@ -1030,6 +1018,21 @@ final class AdminController
             'admin_context' => 'Comenzi',
             'admin_unread_count' => $this->notificationService->unreadCount((int) ($this->auth->user()['id'] ?? 0)),
         ]);
+    }
+
+    public function orderStatusModal(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        return $this->orderActionForm($request, (int) $args['id'], 'status');
+    }
+
+    public function orderReturnModal(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        return $this->orderActionForm($request, (int) $args['id'], 'return');
+    }
+
+    public function orderEmailModal(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        return $this->orderActionForm($request, (int) $args['id'], 'email');
     }
 
     public function notifications(ServerRequestInterface $request): ResponseInterface
@@ -1158,12 +1161,172 @@ final class AdminController
         $data = (array) ($request->getParsedBody() ?? []);
         $user = $this->auth->user();
         try {
-            $this->orders->transition((int) $args['id'], (string) ($data['action'] ?? ''), isset($data['awb']) ? (string) $data['awb'] : null, (int) $user['id']);
-            Flash::set('success', 'Starea comenzii și stocul au fost actualizate.');
+            $this->orders->transition(
+                (int) $args['id'],
+                (string) ($data['action'] ?? ''),
+                null,
+                (int) $user['id'],
+                (string) ($data['reason'] ?? ''),
+                (string) ($data['notify_customer'] ?? '') === '1',
+            );
+            return $this->orderMutationResponse($request, (int) $args['id'], 'Starea comenzii a fost actualizată.');
         } catch (\Throwable $exception) {
-            Flash::set('error', $exception->getMessage());
+            return $this->orderMutationResponse($request, (int) $args['id'], '', $exception->getMessage());
         }
-        return $this->view->redirect($this->config->path('admin/comenzi/'));
+    }
+
+    public function returnOrder(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $data = (array) ($request->getParsedBody() ?? []);
+        $quantities = is_array($data['quantities'] ?? null) ? $data['quantities'] : [];
+        try {
+            $this->orders->registerReturn(
+                (int) $args['id'],
+                $quantities,
+                (string) ($data['reason'] ?? ''),
+                (string) ($data['notes'] ?? ''),
+                (string) ($data['restock'] ?? '') === '1',
+                (string) ($data['refund_mode'] ?? 'none'),
+                $this->parseMoneyToBani((string) ($data['refund_amount'] ?? '0')),
+                (int) ($this->auth->user()['id'] ?? 0),
+                (string) ($data['notify_customer'] ?? '') === '1',
+            );
+            return $this->orderMutationResponse($request, (int) $args['id'], 'Returul a fost înregistrat și istoricul comenzii a fost actualizat.');
+        } catch (\Throwable $exception) {
+            return $this->orderMutationResponse($request, (int) $args['id'], '', $exception->getMessage());
+        }
+    }
+
+    public function emailOrderStatus(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $data = (array) ($request->getParsedBody() ?? []);
+        try {
+            $this->orders->notifyCustomer(
+                (int) $args['id'],
+                (string) ($data['message'] ?? ''),
+                (int) ($this->auth->user()['id'] ?? 0),
+            );
+            return $this->orderMutationResponse($request, (int) $args['id'], 'Actualizarea pentru client a fost pusă în coada de e-mail.');
+        } catch (\Throwable $exception) {
+            return $this->orderMutationResponse($request, (int) $args['id'], '', $exception->getMessage());
+        }
+    }
+
+    private function orderActionForm(ServerRequestInterface $request, int $orderId, string $type): ResponseInterface
+    {
+        $order = $this->orders->findForAdmin($orderId);
+        if ($order === null) {
+            Flash::set('error', 'Comanda solicitată nu a fost găsită.');
+            return $this->view->redirect($this->config->path('admin/comenzi/'));
+        }
+        $order = $this->decorateOrderForAdmin($order);
+        $partials = [
+            'status' => 'admin/partials/order-status-form.twig',
+            'return' => 'admin/partials/order-return-form.twig',
+            'email' => 'admin/partials/order-email-form.twig',
+        ];
+        $titles = ['status' => 'Schimbă statusul', 'return' => 'Înregistrează un retur', 'email' => 'Trimite actualizare'];
+        if (!isset($partials[$type])) {
+            throw new \RuntimeException('Acțiune de comandă necunoscută.');
+        }
+        $data = [
+            'order' => $order,
+            'partial_template' => $partials[$type],
+            'form_title' => $titles[$type],
+            'admin_section' => 'orders',
+            'admin_context' => 'Comenzi',
+            'admin_unread_count' => $this->notificationService->unreadCount((int) ($this->auth->user()['id'] ?? 0)),
+        ];
+        if (strtolower($request->getHeaderLine('X-Requested-With')) === 'xmlhttprequest') {
+            return $this->view->render($partials[$type], $data);
+        }
+
+        return $this->view->render('admin/pages/order-action.twig', $data);
+    }
+
+    /** @param array<string,mixed> $order @return array<string,mixed> */
+    private function decorateOrderForAdmin(array $order): array
+    {
+        $statusLabels = [
+            'new' => 'Nouă', 'confirmed' => 'Confirmată', 'preparing' => 'În pregătire',
+            'shipped' => 'Expediată', 'delivered' => 'Livrată', 'cancelled' => 'Anulată',
+            'returned' => 'Returnată', 'manual_review' => 'De verificat',
+        ];
+        $paymentLabels = [
+            'pending' => 'În așteptare', 'paid' => 'Plătită', 'failed' => 'Eșuată',
+            'partially_refunded' => 'Rambursată parțial', 'refunded' => 'Rambursată',
+        ];
+        $actionCopy = [
+            'confirm' => ['Confirmă comanda', 'Comanda a fost verificată și poate intra în pregătire.'],
+            'prepare' => ['Începe pregătirea', 'Produsele sunt culese și pregătite pentru colet.'],
+            'ship' => ['Marchează expediată', 'Stocul rezervat se scade și poți atașa AWB-ul.'],
+            'deliver' => ['Marchează livrată', 'Coletul a ajuns la client.'],
+            'cancel' => ['Anulează comanda', 'Rezervările de stoc și cuponul se eliberează.'],
+        ];
+        $zone = new \DateTimeZone('Europe/Bucharest');
+        $utc = new \DateTimeZone('UTC');
+        $createdAt = new \DateTimeImmutable((string) $order['created_at'], $utc);
+        $order['display_created_at'] = $createdAt->setTimezone($zone)->format('d.m.Y, H:i');
+        $order['status_label'] = $statusLabels[(string) $order['status']] ?? ucfirst((string) $order['status']);
+        $order['payment_status_label'] = $paymentLabels[(string) $order['payment_status']] ?? ucfirst((string) $order['payment_status']);
+        $order['customer_name'] = trim((string) $order['first_name'] . ' ' . (string) $order['last_name']);
+        $order['returnable_quantity'] = array_sum(array_column((array) ($order['items'] ?? []), 'returnable_quantity'));
+        foreach ($order['available_actions'] as &$action) {
+            [$action['label'], $action['description']] = $actionCopy[$action['action']] ?? [ucfirst($action['action']), 'Actualizează starea comenzii.'];
+            $action['status_label'] = $statusLabels[$action['status']] ?? ucfirst($action['status']);
+        }
+        unset($action);
+        foreach ($order['returns'] as &$return) {
+            $date = new \DateTimeImmutable((string) $return['created_at'], $utc);
+            $return['display_created_at'] = $date->setTimezone($zone)->format('d.m.Y, H:i');
+        }
+        unset($return);
+        $historyLabels = [
+            'order.confirm' => 'Comandă confirmată', 'order.prepare' => 'Pregătire începută',
+            'order.ship' => 'Comandă expediată', 'order.deliver' => 'Comandă livrată',
+            'order.cancel' => 'Comandă anulată', 'order.return_full' => 'Retur integral înregistrat',
+            'order.return_partial' => 'Retur parțial înregistrat', 'order.email_queued' => 'E-mail pus în coadă',
+        ];
+        foreach ($order['history'] as &$event) {
+            $date = new \DateTimeImmutable((string) $event['created_at'], $utc);
+            $event['display_created_at'] = $date->setTimezone($zone)->format('d.m.Y, H:i');
+            $event['label'] = $historyLabels[(string) $event['action']] ?? 'Comandă actualizată';
+        }
+        unset($event);
+
+        return $order;
+    }
+
+    private function orderMutationResponse(ServerRequestInterface $request, int $orderId, string $success, string $error = ''): ResponseInterface
+    {
+        $redirect = $this->config->path('admin/comenzi/' . $orderId . '/');
+        if (str_contains(strtolower($request->getHeaderLine('Accept')), 'application/json')) {
+            $response = new \Slim\Psr7\Response($error === '' ? 200 : 422);
+            $response->getBody()->write(json_encode([
+                'ok' => $error === '',
+                'message' => $error === '' ? $success : $error,
+                'redirect' => $redirect,
+            ], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
+            return $response->withHeader('Content-Type', 'application/json; charset=utf-8')->withHeader('Cache-Control', 'no-store');
+        }
+        Flash::set($error === '' ? 'success' : 'error', $error === '' ? $success : $error);
+        return $this->view->redirect($redirect);
+    }
+
+    private function parseMoneyToBani(string $value): int
+    {
+        $normalized = trim(str_replace([' ', "\u{00A0}"], '', $value));
+        if ($normalized === '') {
+            return 0;
+        }
+        if (str_contains($normalized, ',') && str_contains($normalized, '.')) {
+            $normalized = str_replace('.', '', $normalized);
+        }
+        $normalized = str_replace(',', '.', $normalized);
+        if (!is_numeric($normalized)) {
+            throw new \RuntimeException('Suma rambursată nu este validă.');
+        }
+        return max(0, (int) round((float) $normalized * 100));
     }
 
     /** @param array<string,mixed> $data */

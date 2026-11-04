@@ -276,7 +276,12 @@ final class AppFactory
             $group->post('/furnizori/{id:[0-9]+}/sterge/', [$adminController, 'deleteSupplier']);
             $group->get('/comenzi/', [$adminController, 'orders']);
             $group->get('/comenzi/{id:[0-9]+}/', [$adminController, 'orderDetail']);
+            $group->get('/comenzi/{id:[0-9]+}/status/modal/', [$adminController, 'orderStatusModal']);
+            $group->get('/comenzi/{id:[0-9]+}/retur/modal/', [$adminController, 'orderReturnModal']);
+            $group->get('/comenzi/{id:[0-9]+}/email/modal/', [$adminController, 'orderEmailModal']);
             $group->post('/comenzi/{id:[0-9]+}/actiune/', [$adminController, 'transitionOrder']);
+            $group->post('/comenzi/{id:[0-9]+}/retur/', [$adminController, 'returnOrder']);
+            $group->post('/comenzi/{id:[0-9]+}/email/', [$adminController, 'emailOrderStatus']);
             $group->get('/notificari/', [$adminController, 'notifications']);
             $group->post('/notificari/citeste/', [$adminController, 'readNotification']);
             $group->post('/notificari/sterge/', [$adminController, 'deleteNotification']);
