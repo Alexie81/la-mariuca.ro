@@ -3655,30 +3655,11 @@ body.menu-open .whatsapp-float {
 }
 
 .footer-copyright-mark {
-  position: relative;
-  display: grid;
-  width: 38px;
-  height: 38px;
-  flex: 0 0 38px;
-  border: 1px solid rgba(205, 98, 104, .24);
-  border-radius: 50%;
-  place-items: center;
-  background: linear-gradient(145deg, #fff, #fff5f1);
-  color: var(--footer-coral-dark);
-  font-family: var(--serif);
-  font-size: 1.08rem;
-  line-height: 1;
-}
-
-.footer-copyright-mark::after {
-  position: absolute;
-  top: 2px;
-  right: 2px;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--footer-gold);
-  content: "";
+  display: block;
+  width: 64px;
+  height: 64px;
+  flex: 0 0 64px;
+  object-fit: contain;
 }
 
 .footer-copyright-copy {
@@ -4309,9 +4290,9 @@ body.menu-open .whatsapp-float {
   }
 
   .footer-copyright-mark {
-    width: 36px;
-    height: 36px;
-    flex-basis: 36px;
+    width: 56px;
+    height: 56px;
+    flex-basis: 56px;
   }
 
   .footer-copyright-primary {
