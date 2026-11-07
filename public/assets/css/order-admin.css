@@ -146,6 +146,9 @@
 .order-workspace .order-address-copy:focus-visible {outline:3px solid #d7bba0;outline-offset:3px}
 .order-workspace .order-address-copy:disabled {opacity:.35;cursor:default;box-shadow:none}
 .order-workspace .order-address-copy[hidden] {display:none!important}
+.order-contact--copyable {min-width:0}
+.order-contact--copyable>div {flex:1}
+.order-workspace .order-contact--copyable .order-address-copy {position:static;align-self:center;flex:0 0 40px;transform:none}
 .order-shipping-address__details {margin:0;padding:13px 0;border-top:1px solid #eee6dc;color:var(--order-ink);font-size:14px;line-height:1.6;overflow-wrap:anywhere}
 .order-shipping-address__details>span {display:block;margin-bottom:3px;color:#947e6d;font-size:12px;font-weight:600}
 .order-shipping-address+.order-address {margin-top:12px}
@@ -158,7 +161,7 @@
 .order-copy-toast.is-error .order-copy-toast__icon {background:#f8e4e7;color:#ac5867}
 @keyframes orderCopyBounceIn {0%{opacity:0;transform:translate(-50%,-90px)}60%{opacity:1;transform:translate(-50%,7px)}80%{transform:translate(-50%,-3px)}100%{opacity:1;transform:translate(-50%,0)}}
 @keyframes orderCopyBounceOut {0%{opacity:1;transform:translate(-50%,0)}25%{opacity:1;transform:translate(-50%,5px)}100%{opacity:0;transform:translate(-50%,-90px)}}
-@media(max-width:600px){.order-shipping-address{padding:15px 14px 3px}.order-workspace .order-address-copy{width:44px;height:44px}.order-copy-toast{top:calc(12px + env(safe-area-inset-top,0px));padding:11px 14px 11px 11px;font-size:13px;border-radius:14px}}
+@media(max-width:600px){.order-shipping-address{padding:15px 14px 3px}.order-workspace .order-address-copy{width:44px;height:44px}.order-workspace .order-contact--copyable .order-address-copy{flex-basis:44px}.order-copy-toast{top:calc(12px + env(safe-area-inset-top,0px));padding:11px 14px 11px 11px;font-size:13px;border-radius:14px}}
 @media(prefers-reduced-motion:reduce){.order-copy-toast{animation:none}.order-copy-toast.is-leaving{animation:none;opacity:0}.order-workspace .order-address-copy{transition:none}}
 .order-timeline {position:relative;display:grid;margin:8px 22px 12px}
 .order-timeline article {position:relative;display:grid;grid-template-columns:20px minmax(0,1fr) auto;align-items:start;gap:10px;padding:15px 0}
