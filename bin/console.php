@@ -11,14 +11,6 @@ use Database\Seeders\ExpandedCatalogSeeder;
 use Database\Seeders\NewsletterDemoSeeder;
 use App\Modules\Reviews\ProductReviewRepository;
 use App\Modules\Admin\AdminPushService;
-use Symfony\Component\Mailer\Mailer;
-use Symfony\Component\Mailer\Transport;
-use Symfony\Component\Mime\Email;
-use Symfony\Component\Mime\Address;
-use App\Modules\Orders\OrderConfirmationEmail;
-use App\Modules\Orders\OrderEmailImages;
-use Twig\Environment;
-use Twig\Loader\FilesystemLoader;
 
 $root = dirname(__DIR__);
 require $root . '/vendor/autoload.php';
@@ -89,81 +81,31 @@ try {
             fwrite(STDOUT, "Administratorul a fost creat. Activează TOTP înainte de producție.\n");
             break;
         case 'outbox:process':
-            $limit = 20;
-            $statement = $pdo->prepare("SELECT * FROM outbox_messages WHERE status IN ('pending','failed') AND available_at <= :now AND attempts < 5 ORDER BY id LIMIT {$limit}");
-            $statement->execute(['now' => gmdate('c')]);
-            $messages = $statement->fetchAll();
-            $transport = null;
-            if ($config->get('APP_ENV') === 'production') {
-                $dsn = $config->get('MAILER_DSN');
-                if ($dsn === '' || $dsn === 'null://null') {
-                    throw new RuntimeException('MAILER_DSN nu este configurat pentru producție.');
-                }
-                $transport = Transport::fromDsn($dsn);
+        case 'outbox:work':
+            $directory = $root . '/storage/private';
+            if (!is_dir($directory)) { mkdir($directory, 0770, true); }
+            $lock = fopen($directory . '/outbox-worker.lock', 'c');
+            if ($lock === false || !flock($lock, LOCK_EX | LOCK_NB)) {
+                throw new RuntimeException('Un proces de email rulează deja pentru acest magazin.');
             }
-            $trackingService = new \App\Modules\Orders\OrderTrackingService(new \App\Modules\Orders\OrderTrackingRepository($pdo), new \App\Modules\Orders\OrderService($pdo), $config, $root);
-            $confirmationEmail = new OrderConfirmationEmail($trackingService, $config,
-                new Environment(new FilesystemLoader($root . '/resources/views'), ['autoescape' => 'html']),
-                new OrderEmailImages($config, $root));
-            foreach ($messages as $message) {
-                $claim = $pdo->prepare("UPDATE outbox_messages SET status='processing',attempts=attempts+1 WHERE id=:id AND status IN ('pending','failed')");
-                $claim->execute(['id' => $message['id']]);
-                if ($claim->rowCount() !== 1) { continue; }
-                try {
-                    $payload = json_decode((string) $message['payload_json'], true) ?: [];
-                    $htmlBody = null;
-                    $statusLabels = [
-                        'new' => 'nouă', 'confirmed' => 'confirmată', 'preparing' => 'în pregătire',
-                        'shipped' => 'expediată', 'delivered' => 'livrată', 'cancelled' => 'anulată',
-                        'returned' => 'returnată', 'manual_review' => 'în verificare',
-                    ];
-                    if ($message['message_type'] === 'order_confirmation') {
-                        $confirmation = $confirmationEmail->render((int) ($payload['order_id'] ?? 0), (string) $message['recipient']);
-                        $subject = $confirmation['subject'];
-                        $body = $confirmation['text'];
-                        $htmlBody = $confirmation['html'];
-                    } elseif ($message['message_type'] === 'order_status_update') {
-                        $orderNumber = (string) ($payload['order_number'] ?? ('#' . (int) ($payload['order_id'] ?? 0)));
-                        $status = $statusLabels[(string) ($payload['status'] ?? '')] ?? (string) ($payload['status'] ?? 'actualizată');
-                        $subject = 'Actualizare pentru comanda ' . $orderNumber;
-                        $body = 'Bună, ' . (string) ($payload['customer_name'] ?? '') . "!\n\n"
-                            . 'Comanda ' . $orderNumber . ' este acum ' . $status . '.';
-                        if (trim((string) ($payload['message'] ?? '')) !== '') {
-                            $body .= "\n\n" . trim((string) $payload['message']);
-                        }
-                        $body .= "\n\nÎți mulțumim,\nEchipa La Măriuca Boutique";
-                    } else {
-                        $subject = 'Verifică adresa de email';
-                        $body = 'Folosește tokenul de verificare transmis securizat de aplicație.';
-                    }
-                    if ($message['message_type'] === 'order_status_update') {
-                        $trackingEmail = (new \App\Modules\Orders\OrderTrackingEmail($trackingService))->withTracking($body, (int) ($payload['order_id'] ?? 0), (string) $message['recipient']);
-                        $body = $trackingEmail['text'];
-                        $htmlBody = $trackingEmail['html'];
-                    }
-                    if ($transport !== null) {
-                        $email = (new Email())->from(new Address($config->get('MAIL_FROM_ADDRESS', 'no-reply@example.test'), $config->get('MAIL_FROM_NAME', 'La Măriuca Boutique')))
-                            ->replyTo($config->get('CONTACT_EMAIL', 'contact@la-mariuca.ro'))->to((string) $message['recipient'])->subject($subject)->text($body);
-                        if ($htmlBody !== null) {
-                            $email->html($htmlBody);
-                        }
-                        (new Mailer($transport))->send($email);
-                    } else {
-                        $mailDir = $root . '/storage/private/mail';
-                        if (!is_dir($mailDir)) {
-                            mkdir($mailDir, 0770, true);
-                        }
-                        file_put_contents($mailDir . '/' . (int) $message['id'] . '.txt', "To: " . $message['recipient'] . "\nSubject: {$subject}\n\n{$body}\n", LOCK_EX);
-                        if ($htmlBody !== null) {
-                            file_put_contents($mailDir . '/' . (int) $message['id'] . '.html', $htmlBody, LOCK_EX);
-                        }
-                    }
-                    $pdo->prepare("UPDATE outbox_messages SET status='sent',sent_at=:now,last_error=NULL WHERE id=:id")->execute(['now' => gmdate('c'), 'id' => $message['id']]);
-                } catch (Throwable $exception) {
-                    $pdo->prepare("UPDATE outbox_messages SET status='failed',available_at=:retry,last_error=:error WHERE id=:id")->execute(['retry' => gmdate('c', time() + 300), 'error' => mb_substr($exception->getMessage(), 0, 500), 'id' => $message['id']]);
-                }
+            $interval = max(1, min(60, (int) ($argv[2] ?? 5)));
+            $processor = new \App\Shared\Mail\OutboxProcessor($pdo, $config, $root);
+            $deliveryMode = \App\Shared\Mail\MailDeliveryPolicy::resolve($config);
+            if ($command === 'outbox:work') {
+                fwrite(STDOUT, 'Procesor email pornit; mod=' . $deliveryMode . '; verificare la ' . $interval . " secunde.\n");
             }
-            fwrite(STDOUT, 'Procesate: ' . count($messages) . " mesaje.\n");
+            try {
+                do {
+                    $result = $processor->process();
+                    if ($command === 'outbox:process' || $result['processed'] > 0) {
+                        fwrite(STDOUT, sprintf("Email: %d procesate, %d acceptate SMTP, %d preview-uri, %d eșuate.\n", $result['processed'], $result['sent'], $result['previewed'], $result['failed']));
+                    }
+                    if ($command === 'outbox:work') { sleep($interval); }
+                } while ($command === 'outbox:work');
+            } finally {
+                flock($lock, LOCK_UN);
+                fclose($lock);
+            }
             break;
         case 'push:process':
             $limit = max(1, min(200, (int) ($argv[2] ?? 50)));
@@ -278,13 +220,14 @@ try {
             break;
         case 'help':
         default:
-            fwrite(STDOUT, "Comenzi: migrate, seed:demo, seed:catalog, seed:orders-demo [număr], seed:customer-orders-demo <email-client> [număr], seed:newsletter-demo [număr], review:demo [slug], review:demo-pack [slug], admin:create, outbox:process, push:process [limită], reservations:expire, csv:export [fișier], csv:import <fișier> --dry-run\n");
+            fwrite(STDOUT, "Comenzi: migrate, seed:demo, seed:catalog, seed:orders-demo [număr], seed:customer-orders-demo <email-client> [număr], seed:newsletter-demo [număr], review:demo [slug], review:demo-pack [slug], admin:create, outbox:process, outbox:work [interval-secunde], push:process [limită], reservations:expire, csv:export [fișier], csv:import <fișier> --dry-run\n");
     }
 } catch (Throwable $exception) {
     if ($pdo->inTransaction()) {
         $pdo->rollBack();
     }
-    fwrite(STDERR, 'Eroare: ' . $exception->getMessage() . "\n");
+    $safeMessage = str_starts_with($command, 'outbox:') ? 'Procesorul de email nu a putut continua. Verifică configurația privată și dacă rulează deja.' : $exception->getMessage();
+    fwrite(STDERR, 'Eroare: ' . $safeMessage . "\n");
     exit(1);
 }
 
