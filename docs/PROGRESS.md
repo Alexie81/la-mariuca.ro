@@ -1062,3 +1062,8 @@ atribute și filtre fără schimbarea contractelor existente.
 ### 2026-11-07 — Bon compact pe telefon
 - Bonul are acum logo și etichetă pe același rând, data și ora grupate și un footer pe două coloane. Spațierile sunt reduse, fără eliminarea datelor comenzii; animația și marginea perforată sunt păstrate. Lățimea maximă este 270 px pe desktop și 260 px pe telefon, iar înălțimea măsurată pe telefon este aproximativ 285 px față de aproximativ 440 px anterior.
 - Verificat vizual în browserul intern la 1440×1000, 768×1024, 390×844 și 320×740: informațiile și totalul rămân încadrate, fără overflow orizontal și fără erori în consolă. Au trecut compilarea celor 77 template-uri Twig și `git diff --check`. Schimbarea privește numai prezentarea; nu s-au modificat comenzi sau trimis emailuri.
+
+### 2026-11-07 — Antet mobil compact și status imediat vizibil
+- Pe telefon, titlul și spațierile antetului sunt reduse, textul introductiv păstrează numai salutul, iar statusul curent apare într-o capsulă lângă acesta. Textele decorative și legătura către parcurs nu mai ocupă spațiu pe mobil. Bonul animat și informațiile sale rămân vizibile; aspectul pentru tabletă și desktop este păstrat.
+- Secțiunea parcursului este vizibilă imediat pe telefon, fără a aștepta pragul animației de apariție. La 320×740 px, titlul statusului din parcurs se încadrează în primul ecran; capsula superioară se vede și pe ecranul mai scund de 375×667 px.
+- Verificat în browserul intern la 320×740, 375×667, 390×844, 768×1024 și 1440×1000: fără overflow orizontal sau erori în consolă. Au trecut compilarea celor 77 template-uri Twig și `git diff --check`. Nu s-au schimbat datele comenzilor și nu s-au trimis emailuri.

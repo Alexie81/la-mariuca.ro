@@ -30,6 +30,7 @@
 .tracking-hero h1{font-size:clamp(38px,4.5vw,56px);line-height:1.08;letter-spacing:-.045em;margin:18px 0}
 .tracking h1 em{color:#a9546a}
 .tracking-hero p{font-size:14px;max-width:410px;line-height:1.8}
+.tracking-hero__mobile-status{display:none}
 .tracking-hero__jump{display:inline-flex;align-items:center;gap:15px;margin-top:21px;padding-bottom:5px;font-size:13px;font-weight:600;color:#925368;text-decoration:none;border-bottom:1px solid #d8aeb7;transition:gap .25s,color .25s}
 .tracking-hero__jump svg{width:17px;height:17px;transform:rotate(90deg);animation:tr-bob 2.8s ease-in-out infinite}
 .tracking-hero__jump:hover{gap:23px;color:#693649}
@@ -259,22 +260,27 @@
 }
 @keyframes tr-route-mobile{from{background-position:0 200%}to{background-position:0 0}}
 @media(max-width:560px){
-  .tracking-nav{gap:8px;margin-bottom:18px;font-size:12px}
+  .tracking{padding-top:12px}
+  .tracking-nav{gap:8px;margin-bottom:12px;font-size:12px}
   .tracking-private{display:none}
   .tracking .tracking-motion{width:42px;padding:0}
   .tracking-motion>span{display:none}
-  .tracking-hero{flex-direction:column;padding:24px 23px;gap:21px;border-radius:26px;align-items:stretch}
-  .tracking-eyebrow{font-size:10px;letter-spacing:.07em}
-  .tracking-hero h1{font-size:40px;margin-top:16px}
-  .tracking-hero p{font-size:14px;line-height:1.7}
-  .tracking-hero__jump{margin-top:17px;font-size:13px}
+  .tracking-hero{flex-direction:column;min-height:0;padding:16px 20px;gap:14px;border-radius:24px;align-items:stretch}
+  .tracking-hero__copy{text-align:center}
+  .tracking-eyebrow,.tracking-hero__intro-detail,.tracking-hero__jump{display:none}
+  .tracking-hero h1{font-size:30px;line-height:1.08;margin:0 0 6px}
+  .tracking-hero p{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:7px 10px;font-size:13px;line-height:1.5;margin:0 auto}
+  .tracking-hero__mobile-status{display:inline-flex;align-items:center;gap:6px;padding:4px 9px;border:1px solid #e6c7d0;border-radius:20px;background:#fff8;color:#8e435b;font-size:12px;font-weight:500}
+  .tracking-hero__mobile-status:before{content:'';width:5px;height:5px;flex:none;border-radius:50%;background:currentColor;box-shadow:0 0 0 3px #ad5c7610}
   .tracking-hero__scene{flex-basis:auto;min-width:0;perspective:none;transform:none!important}
   .tracking-receipt{max-width:260px;margin:0 auto;width:100%;filter:drop-shadow(0 10px 14px #7b4a5420)}
   .tracking-receipt__paper{padding-top:13px;padding-bottom:18px}
   .tracking-receipt__brand img{width:104px;height:35px}
   .tracking-receipt__number{margin:8px 0 10px}
   .tracking-receipt__total>strong{font-size:23px}
-  .tracking-journey{padding:25px 17px 20px;border-radius:24px;margin:20px 0}
+  .tracking-journey{padding:18px 17px 20px;border-radius:24px;margin:14px 0}
+  .tracking .tracking-journey.tr-reveal-pending{opacity:1;transform:none}
+  .tracking-journey.tr-reveal-visible{animation:none}
   .tracking-current{gap:13px}
   .tracking-status-icon{width:43px;height:43px;border-radius:15px;margin-top:3px}
   .tracking-status-icon svg{width:23px;height:23px}
@@ -328,15 +334,14 @@
   .tracking-ambient i{width:400px;height:400px}
 }
 @media(max-width:360px){
-  .tracking-hero{padding:26px 20px}
-  .tracking-hero h1{font-size:35px}
-  .tracking-eyebrow{font-size:9px}
+  .tracking-hero{padding:15px 17px}
+  .tracking-hero h1{font-size:28px}
   .tracking-receipt__paper{padding-left:17px;padding-right:17px}
   .tracking-receipt__tear{margin-left:-17px;margin-right:-17px}
   .tracking-receipt__number{font-size:15px}
   .tracking-receipt__total>strong{font-size:23px}
   .tracking-current h2{font-size:24px}
-  .tracking-journey{padding:23px 14px}
+  .tracking-journey{padding:18px 14px}
   .tracking-status-icon{display:none}
   .tracking-step__marker{width:36px;height:36px}
   .tracking-timeline li{gap:11px}
