@@ -4,6 +4,8 @@
   const workspace = document.querySelector('[data-admin-order-workspace], .order-action-page');
   if (!workspace) return;
 
+  workspace.querySelectorAll('[data-order-copy]').forEach((button) => { button.hidden = false; });
+
   const dialog = workspace.querySelector('[data-order-dialog]');
   const dialogContent = workspace.querySelector('[data-order-dialog-content]');
   const lightbox = workspace.querySelector('[data-order-lightbox]');
@@ -15,6 +17,108 @@
   let modalTrigger = null;
   let lightboxTrigger = null;
   let lightboxCloseTimer = null;
+  let copySequence = 0;
+  let copyToast = null;
+  let copyToastTimer = null;
+  let copyToastRemovalTimer = null;
+
+  const clearCopyToast = () => {
+    window.clearTimeout(copyToastTimer);
+    window.clearTimeout(copyToastRemovalTimer);
+    copyToast?.remove();
+    copyToast = null;
+  };
+
+  const showCopyToast = (message, failed = false) => {
+    clearCopyToast();
+    const toast = document.createElement('div');
+    toast.className = `order-copy-toast${failed ? ' is-error' : ''}`;
+    toast.setAttribute('role', 'status');
+    toast.setAttribute('aria-live', 'polite');
+    toast.setAttribute('aria-atomic', 'true');
+    toast.innerHTML = '<span class="order-copy-toast__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></svg></span><span class="order-copy-toast__text"></span>';
+    toast.querySelector('.order-copy-toast__text').textContent = message;
+    if (failed) toast.querySelector('path').setAttribute('d', 'M12 7v6M12 17h.01');
+    document.body.append(toast);
+    copyToast = toast;
+    // Start the upward exit after 1.7 seconds; its animation lasts another 300 ms.
+    copyToastTimer = window.setTimeout(() => {
+      if (copyToast !== toast) return;
+      toast.classList.add('is-leaving');
+      copyToastRemovalTimer = window.setTimeout(() => {
+        toast.remove();
+        if (copyToast === toast) copyToast = null;
+      }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 300);
+    }, failed ? 3500 : 1700);
+  };
+
+  const fallbackCopy = (value) => {
+    const focused = document.activeElement;
+    const selection = window.getSelection();
+    const ranges = selection ? [...Array(selection.rangeCount)].map((_, index) => selection.getRangeAt(index).cloneRange()) : [];
+    const inputSelection = focused && typeof focused.selectionStart === 'number'
+      ? [focused.selectionStart, focused.selectionEnd, focused.selectionDirection] : null;
+    const scroll = {left: window.scrollX, top: window.scrollY};
+    const field = document.createElement('textarea');
+    field.value = value;
+    field.readOnly = true;
+    field.tabIndex = -1;
+    field.setAttribute('aria-hidden', 'true');
+    field.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:1px;padding:0;border:0;opacity:0;font-size:16px;pointer-events:none;';
+    document.body.append(field);
+    try {
+      field.focus({preventScroll: true});
+      field.select();
+      field.setSelectionRange(0, value.length);
+      return document.execCommand('copy');
+    } finally {
+      field.remove();
+      if (focused?.isConnected && typeof focused.focus === 'function') focused.focus({preventScroll: true});
+      if (selection) {
+        selection.removeAllRanges();
+        ranges.forEach((range) => selection.addRange(range));
+      }
+      if (inputSelection && typeof focused?.setSelectionRange === 'function') {
+        focused.setSelectionRange(...inputSelection);
+      }
+      window.scrollTo(scroll.left, scroll.top);
+    }
+  };
+
+  const copyAddressValue = async (button) => {
+    if (button.disabled) return;
+    const value = button.dataset.copyValue || '';
+    if (!value.trim()) return;
+    const sequence = ++copySequence;
+    const wasDisabled = button.disabled;
+    const wasFocused = document.activeElement === button;
+    clearCopyToast();
+    button.disabled = true;
+    button.setAttribute('aria-busy', 'true');
+    try {
+      let copied = false;
+      if (window.isSecureContext && navigator.clipboard?.writeText) {
+        try {
+          await navigator.clipboard.writeText(value);
+          copied = true;
+        } catch {
+          // Older browsers and denied clipboard permissions may still allow a user-initiated copy.
+        }
+      }
+      if (sequence !== copySequence) return;
+      if (!copied) copied = fallbackCopy(value);
+      if (!copied) throw new Error('Clipboard unavailable');
+      showCopyToast(button.dataset.copyMessage || 'Copiat cu succes');
+    } catch {
+      if (sequence === copySequence) {
+        showCopyToast('Copierea nu a reușit. Selectează textul și copiază-l manual.', true);
+      }
+    } finally {
+      button.disabled = wasDisabled;
+      button.removeAttribute('aria-busy');
+      if (wasFocused && document.activeElement === document.body && button.isConnected) button.focus({preventScroll: true});
+    }
+  };
 
   const closeLightbox = () => {
     if (!lightbox?.open || lightbox.classList.contains('is-closing')) return;
@@ -113,6 +217,12 @@
   };
 
   workspace.addEventListener('click', (event) => {
+    const copyButton = event.target.closest('[data-order-copy]');
+    if (copyButton) {
+      event.preventDefault();
+      copyAddressValue(copyButton);
+      return;
+    }
     const modalOpen = event.target.closest('[data-order-modal-open]');
     if (modalOpen && dialog) {
       event.preventDefault();

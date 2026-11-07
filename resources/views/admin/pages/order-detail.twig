@@ -57,7 +57,25 @@
           <article class="order-contact order-contact--identity"><span class="order-contact__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span><div><small>Client</small><strong>{{ order.customer_name }}</strong><span>{{ order.customer_type == 'company' ? 'Persoană juridică' : 'Persoană fizică' }}</span></div></article>
           <article class="order-contact"><span class="order-contact__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v12H4zM4 8l8 6 8-6"/></svg></span><div><small>E-mail</small><a href="mailto:{{ order.email }}">{{ order.email }}</a><span>Adresă pentru notificări</span></div></article>
           <article class="order-contact"><span class="order-contact__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h3l2 5-2 1.5a14 14 0 0 0 3.5 3.5L15 12l5 2v3c0 1.7-1.3 3-3 3C9.8 20 4 14.2 4 7c0-1.7 1.3-3 3-3Z"/></svg></span><div><small>Telefon</small><a href="tel:{{ order.phone }}">{{ order.phone ?: 'Necompletat' }}</a><span>Contact pentru curier</span></div></article>
-          <article class="order-address"><span class="order-address__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s7-6.1 7-12a7 7 0 1 0-14 0c0 5.9 7 12 7 12Z"/><circle cx="12" cy="9" r="2.5"/></svg></span><div><small>Adresa de livrare</small><strong>{{ order.shipping_address.address|default('Adresă necompletată') }}</strong><p>{{ order.shipping_address.postal_code|default('') }} {{ order.shipping_address.city|default('') }}{% if order.shipping_address.county|default('') %}, {{ order.shipping_address.county }}{% endif %}</p>{% if order.shipping_address.details|default('') %}<span>{{ order.shipping_address.details }}</span>{% endif %}</div></article>
+          <article class="order-shipping-address" aria-labelledby="order-shipping-address-title">
+            <header><span class="order-address__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s7-6.1 7-12a7 7 0 1 0-14 0c0 5.9 7 12 7 12Z"/><circle cx="12" cy="9" r="2.5"/></svg></span><h3 id="order-shipping-address-title">Adresa de livrare</h3></header>
+            {% set address_fields = [
+              {key: 'county', label: 'Județ', copy_label: 'Copiază județul', message: 'Județ copiat cu succes'},
+              {key: 'city', label: 'Localitate', copy_label: 'Copiază localitatea', message: 'Localitate copiată cu succes'},
+              {key: 'address', label: 'Stradă și număr', copy_label: 'Copiază strada și numărul', message: 'Stradă și număr copiate cu succes'},
+              {key: 'postal_code', label: 'Cod poștal', copy_label: 'Copiază codul poștal', message: 'Cod poștal copiat cu succes'}
+            ] %}
+            <dl class="order-shipping-address__fields">
+              {% for field in address_fields %}
+                {% set value = attribute(order.shipping_address, field.key)|default('')|trim %}
+                <div class="order-shipping-address__field">
+                  <dt>{{ field.label }}</dt>
+                  <dd><span class="order-shipping-address__value{{ not value ? ' is-empty' : '' }}">{{ value ?: 'Necompletat' }}</span><button class="order-address-copy" type="button" data-order-copy data-copy-value="{{ value }}" data-copy-message="{{ field.message }}" aria-label="{{ field.copy_label }}" title="{{ value ? field.copy_label : field.label ~ ' necompletat' }}"{{ not value ? ' disabled' : '' }} hidden><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="3"/><path d="M15 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h2"/></svg></button></dd>
+                </div>
+              {% endfor %}
+            </dl>
+            {% if order.shipping_address.details|default('') %}<p class="order-shipping-address__details"><span>Detalii suplimentare</span>{{ order.shipping_address.details }}</p>{% endif %}
+          </article>
           {% if order.billing_address and order.billing_address != order.shipping_address %}<article class="order-address"><span class="order-address__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Z"/><path d="M9 8h6M9 12h6"/></svg></span><div><small>Adresa de facturare</small><strong>{{ order.billing_address.address|default('Adresă necompletată') }}</strong><p>{{ order.billing_address.postal_code|default('') }} {{ order.billing_address.city|default('') }}{% if order.billing_address.county|default('') %}, {{ order.billing_address.county }}{% endif %}</p></div></article>{% endif %}
         </div></section>
 

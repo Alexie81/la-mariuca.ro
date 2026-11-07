@@ -131,6 +131,35 @@
 .order-address+.order-address {margin-top:10px}
 .order-address__icon {background:#f0e8d8;color:#a68046}
 .order-address strong {line-height:1.6}
+.order-shipping-address {grid-column:1/-1;min-width:0;margin-top:4px;padding:17px 18px 4px;border:1px solid #e9e0d3;border-radius:16px;background:linear-gradient(135deg,#fcfaf5,#fffdfb)}
+.order-shipping-address>header {display:flex;align-items:center;gap:11px;padding-bottom:13px}
+.order-shipping-address h3 {margin:0;color:var(--order-ink);font:600 15px/1.4 var(--admin-sans)}
+.order-shipping-address__fields {margin:0}
+.order-shipping-address__field {position:relative;min-height:64px;padding:11px 52px 11px 0;border-top:1px solid #eee6dc}
+.order-shipping-address__field dt {margin:0 0 3px;color:#947e6d;font-size:12px;font-weight:600;line-height:1.4}
+.order-shipping-address__field dd {margin:0}
+.order-shipping-address__value {display:block;color:var(--order-ink);font-size:15px;font-weight:500;line-height:1.5;overflow-wrap:anywhere;user-select:text}
+.order-shipping-address__value.is-empty {color:#a79789;font-size:14px;font-weight:400}
+.order-workspace .order-address-copy {position:absolute;right:0;top:50%;display:grid;place-items:center;width:40px;height:40px;min-height:40px;margin:0;padding:0;transform:translateY(-50%);border:1px solid #e9ddd0;border-radius:12px;background:#fffdfb;color:#967451;box-shadow:0 2px 6px rgba(90,67,41,.025);cursor:pointer;transition:background .18s,border-color .18s,color .18s,box-shadow .18s}
+.order-workspace .order-address-copy svg {width:18px;height:18px;stroke-width:1.7}
+.order-workspace .order-address-copy:hover {border-color:#d9c5ae;background:#f6eddf;color:#795931;box-shadow:0 3px 9px rgba(90,67,41,.07)}
+.order-workspace .order-address-copy:focus-visible {outline:3px solid #d7bba0;outline-offset:3px}
+.order-workspace .order-address-copy:disabled {opacity:.35;cursor:default;box-shadow:none}
+.order-workspace .order-address-copy[hidden] {display:none!important}
+.order-shipping-address__details {margin:0;padding:13px 0;border-top:1px solid #eee6dc;color:var(--order-ink);font-size:14px;line-height:1.6;overflow-wrap:anywhere}
+.order-shipping-address__details>span {display:block;margin-bottom:3px;color:#947e6d;font-size:12px;font-weight:600}
+.order-shipping-address+.order-address {margin-top:12px}
+.order-copy-toast {position:fixed;z-index:12000;top:calc(16px + env(safe-area-inset-top,0px));left:50%;display:flex;align-items:center;gap:10px;width:max-content;max-width:calc(100vw - 28px);padding:12px 18px 12px 12px;border:1px solid #cce2d7;border-radius:16px;background:rgba(250,255,252,.98);color:#38634d;box-shadow:0 8px 28px rgba(43,73,55,.14);font:500 14px/1.45 var(--admin-sans);transform:translateX(-50%);pointer-events:none;animation:orderCopyBounceIn .42s both}
+.order-copy-toast__icon {display:grid;place-items:center;flex:0 0 29px;width:29px;height:29px;border-radius:50%;background:#e2f1e7;color:#438565}
+.order-copy-toast__icon svg {width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.order-copy-toast__text {min-width:0;max-width:390px;overflow-wrap:anywhere}
+.order-copy-toast.is-leaving {animation:orderCopyBounceOut .3s both}
+.order-copy-toast.is-error {border-color:#ebcacc;background:#fff7f7;color:#98535e}
+.order-copy-toast.is-error .order-copy-toast__icon {background:#f8e4e7;color:#ac5867}
+@keyframes orderCopyBounceIn {0%{opacity:0;transform:translate(-50%,-90px)}60%{opacity:1;transform:translate(-50%,7px)}80%{transform:translate(-50%,-3px)}100%{opacity:1;transform:translate(-50%,0)}}
+@keyframes orderCopyBounceOut {0%{opacity:1;transform:translate(-50%,0)}25%{opacity:1;transform:translate(-50%,5px)}100%{opacity:0;transform:translate(-50%,-90px)}}
+@media(max-width:600px){.order-shipping-address{padding:15px 14px 3px}.order-workspace .order-address-copy{width:44px;height:44px}.order-copy-toast{top:calc(12px + env(safe-area-inset-top,0px));padding:11px 14px 11px 11px;font-size:13px;border-radius:14px}}
+@media(prefers-reduced-motion:reduce){.order-copy-toast{animation:none}.order-copy-toast.is-leaving{animation:none;opacity:0}.order-workspace .order-address-copy{transition:none}}
 .order-timeline {position:relative;display:grid;margin:8px 22px 12px}
 .order-timeline article {position:relative;display:grid;grid-template-columns:20px minmax(0,1fr) auto;align-items:start;gap:10px;padding:15px 0}
 .order-timeline article:not(:last-child):before {content:"";position:absolute;left:5px;top:29px;bottom:-19px;width:1px;background:#e9d4cb}
