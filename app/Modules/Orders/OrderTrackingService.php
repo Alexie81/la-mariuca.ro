@@ -110,6 +110,11 @@ final class OrderTrackingService
             default=>$order['payment_method'] === 'cod' ? 'Ramburs la livrare' : 'Plată în așteptare',
         };
         $order['quantity'] = array_sum(array_column($order['items'], 'quantity'));
+        $order['cancellation_request'] = $this->repository->cancellationRequest($orderId);
+        $order['cancellation_deadline'] = gmdate('c', OrderCancellationPolicy::deadline((string) $order['created_at']));
+        $order['cancellation_remaining'] = max(0, OrderCancellationPolicy::deadline((string) $order['created_at']) - time());
+        $order['can_request_cancellation'] = $order['cancellation_request'] === null
+            && OrderCancellationPolicy::allows((string) $order['status'], (string) $order['created_at']);
         $order['invoices'] = [];
         foreach ($this->repository->documents($orderId) as $document) {
             if ($this->resolvePdf((string) $document['private_path']) !== null) {
@@ -117,6 +122,30 @@ final class OrderTrackingService
             }
         }
         return $order;
+    }
+
+    /** Records intent only. Approval, refunds and fiscal integrations are separate workflows. */
+    public function requestCancellation(int $orderId, string $reason): int
+    {
+        $reason = trim((string) preg_replace('/[\x{00A0}\x{200B}\x{FEFF}]/u', ' ', $reason));
+        if (mb_strlen($reason) < 5 || mb_strlen($reason) > 1000) {
+            throw new \DomainException('Scrie motivul anulării în 5–1.000 de caractere.');
+        }
+        return $this->repository->transaction(function () use ($orderId, $reason): int {
+            $order = $this->repository->lockCancellationOrder($orderId);
+            if ($order === null) {
+                throw new \DomainException('Comanda nu mai este disponibilă.');
+            }
+            $existing = $this->repository->cancellationRequest($orderId);
+            if ($existing !== null) {
+                return (int) $existing['id'];
+            }
+            // Recheck after acquiring the order lock; an open form grants no extra time.
+            if (!OrderCancellationPolicy::allows((string) $order['status'], (string) $order['created_at'])) {
+                throw new \DomainException('Cererea nu mai poate fi trimisă: au trecut 5 zile de la plasare sau comanda a depășit etapa de pregătire.');
+            }
+            return $this->repository->addCancellationRequest($orderId, $reason, (string) $order['status'], gmdate('c'));
+        });
     }
 
     /** @return array{path:string,name:string}|null */

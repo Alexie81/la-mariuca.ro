@@ -957,6 +957,7 @@ final class AdminController
             'returned' => 'Returnată', 'manual_review' => 'De verificat',
         ];
         $filterStatusLabels = $statusLabels;
+        $filterStatusLabels['cancellation_requested'] = 'Cu cerere de anulare';
         unset($filterStatusLabels['manual_review']);
         $search = trim(mb_substr((string) ($query['cautare'] ?? ''), 0, 120));
         $status = (string) ($query['status'] ?? '');
@@ -1286,6 +1287,7 @@ final class AdminController
             'order.ship' => 'Comandă expediată', 'order.deliver' => 'Comandă livrată',
             'order.cancel' => 'Comandă anulată', 'order.return_full' => 'Retur integral înregistrat',
             'order.return_partial' => 'Retur parțial înregistrat', 'order.email_queued' => 'E-mail pus în coadă',
+            'order.cancellation_requested' => 'Clientul a solicitat anularea',
         ];
         foreach ($order['history'] as &$event) {
             $date = new \DateTimeImmutable((string) $event['created_at'], $utc);

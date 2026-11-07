@@ -267,6 +267,20 @@ final class AdminNotificationService
             }
         }
 
+        if ($preferences['comenzi']) {
+            $requests = $this->pdo->query('SELECT cr.id,cr.order_id,cr.created_at,o.order_number,o.first_name,o.last_name '
+                . 'FROM order_cancellation_requests cr JOIN orders o ON o.id=cr.order_id ORDER BY cr.created_at DESC,cr.id DESC LIMIT 200')->fetchAll();
+            foreach ($requests as $cancellation) {
+                $events[] = [
+                    'key'=>'order-cancellation:' . $cancellation['id'], 'type'=>'comenzi', 'tone'=>'attention', 'priority'=>3,
+                    'title'=>'Cerere de anulare · ' . $cancellation['order_number'],
+                    'detail'=>trim($cancellation['first_name'] . ' ' . $cancellation['last_name']) . ' a solicitat anularea. Verifică motivul în comandă.',
+                    'meta'=>'Solicitare client', 'occurred_at'=>$cancellation['created_at'],
+                    'target_path'=>'admin/comenzi/' . $cancellation['order_id'] . '/#cerere-anulare',
+                ];
+            }
+        }
+
         if ($preferences['stoc']) {
             $rows = $this->pdo->query(
                 "SELECT v.id AS variant_id,v.product_id,v.sku,v.option_summary,p.name AS product_name,"

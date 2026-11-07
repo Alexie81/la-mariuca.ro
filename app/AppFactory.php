@@ -184,6 +184,8 @@ final class AppFactory
         $app->get('/urmarire-comanda/', [$tracking, 'show']);
         $app->post('/urmarire-comanda/', [$tracking, 'lookup']);
         $app->post('/urmarire-comanda/alta/', [$tracking, 'reset']);
+        $app->get('/urmarire-comanda/solicitare-anulare/', [$tracking, 'cancellationForm']);
+        $app->post('/urmarire-comanda/solicitare-anulare/', [$tracking, 'requestCancellation']);
         $app->get('/urmarire-comanda/acces/{id:[0-9]+}/{signature}/', [$tracking, 'access']);
         $app->get('/urmarire-comanda/factura/{id:[0-9]+}/', [$tracking, 'invoice']);
         $app->post('/contact/whatsapp/', [$storefront, 'contactWhatsApp']);

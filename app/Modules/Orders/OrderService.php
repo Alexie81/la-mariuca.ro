@@ -49,7 +49,8 @@ final class OrderService
         $offset = ($page - 1) * $perPage;
 
         $statement = $this->pdo->prepare(
-            'SELECT o.id,o.order_number,o.email,o.first_name,o.last_name,o.phone,o.total_bani,o.currency,o.status,o.payment_status,o.payment_method,o.created_at '
+            'SELECT o.id,o.order_number,o.email,o.first_name,o.last_name,o.phone,o.total_bani,o.currency,o.status,o.payment_status,o.payment_method,o.created_at,'
+            . 'EXISTS(SELECT 1 FROM order_cancellation_requests cr WHERE cr.order_id=o.id) AS cancellation_requested '
             . 'FROM orders o' . $whereSql . ' ORDER BY o.created_at DESC,o.id DESC LIMIT :limit OFFSET :offset'
         );
         foreach ($parameters as $name => $value) {
@@ -82,6 +83,9 @@ final class OrderService
         $where = [];
         $parameters = [];
         $allowedStatuses = ['new', 'confirmed', 'preparing', 'shipped', 'delivered', 'cancelled', 'returned', 'manual_review'];
+        if ($status === 'cancellation_requested') {
+            $where[] = 'EXISTS(SELECT 1 FROM order_cancellation_requests cr WHERE cr.order_id=o.id)';
+        }
         if ($status !== null && in_array($status, $allowedStatuses, true)) {
             $where[] = 'o.status = :filter_status';
             $parameters[':filter_status'] = $status;
@@ -257,6 +261,9 @@ final class OrderService
         }
         unset($event);
         $order['available_actions'] = $this->availableActions((string) $order['status']);
+        $cancellation = $this->pdo->prepare('SELECT id,reason,order_status_at_request,created_at FROM order_cancellation_requests WHERE order_id=:id');
+        $cancellation->execute(['id'=>$orderId]);
+        $order['cancellation_request'] = $cancellation->fetch() ?: null;
         $order['can_return'] = in_array((string) $order['status'], ['shipped', 'delivered', 'returned'], true)
             && array_sum(array_column($order['items'], 'returnable_quantity')) > 0;
 

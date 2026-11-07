@@ -82,6 +82,7 @@
               <tr>
                 <td data-label="Nr. comandă">
                   <a class="admin-orders-table__number" href="{{ url('admin/comenzi/' ~ order.id ~ '/') }}">{{ order.order_number ?: '#' ~ order.id }}</a>
+                  {% if order.cancellation_requested %}<a class="order-cancellation-badge" href="{{ url('admin/comenzi/' ~ order.id ~ '/#cerere-anulare') }}">Anulare solicitată</a>{% endif %}
                 </td>
                 <td data-label="Client" class="admin-orders-table__client">
                   <strong>{{ order.first_name }} {{ order.last_name }}</strong>

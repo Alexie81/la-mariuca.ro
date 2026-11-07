@@ -1,0 +1,28 @@
+<form class="tracking-cancel-form" action="{{ url('urmarire-comanda/solicitare-anulare/') }}" method="post" data-tracking-cancel-form data-cancel-remaining="{{ order.cancellation_remaining }}">
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  <header class="tracking-cancel-head">
+    <span class="tracking-cancel-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 7 4 12l5 5M5 12h9a5 5 0 0 1 5 5M7 4h10"/></svg></span>
+    <div><span class="tracking-kicker">O schimbare de plan?</span><h2 id="tracking-cancel-title">Solicită anularea</h2><p>Comanda <strong>{{ order.order_number }}</strong></p></div>
+    <a class="tracking-cancel-close" href="{{ url('urmarire-comanda/#cerere-anulare') }}" data-cancel-close aria-label="Închide solicitarea"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"/></svg></a>
+  </header>
+  <div class="tracking-cancel-body">
+    {% if order.can_request_cancellation %}
+      <p class="tracking-cancel-intro">Spune-ne ce s-a întâmplat. Vom verifica solicitarea înainte de a confirma anularea comenzii.</p>
+      <div class="tracking-cancel-deadline"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>Poți trimite cererea până la <strong>{{ order.cancellation_deadline|date('d.m.Y, H:i:s', 'Europe/Bucharest') }}</strong>, dacă nu a fost expediată comanda.</span></div>
+      <label for="tracking-cancel-reason">De ce dorești anularea? <span>Obligatoriu</span></label>
+      <textarea id="tracking-cancel-reason" name="reason" rows="4" minlength="5" maxlength="1000" required placeholder="De exemplu: am ales o mărime greșită și doresc să refac comanda." aria-describedby="tracking-cancel-hint tracking-cancel-error">{{ cancellation_reason|default('') }}</textarea>
+      <div class="tracking-cancel-hint" id="tracking-cancel-hint"><span>Câteva cuvinte ne ajută să înțelegem.</span><span data-cancel-count>{{ cancellation_reason|default('')|length }} / 1.000</span></div>
+      <div class="tracking-cancel-note"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10h.01"/></svg><p>Trimiterea cererii nu anulează automat comanda și nu inițiază o rambursare. Vei putea urmări statusul comenzii pe această pagină.</p></div>
+    {% elseif order.cancellation_request %}
+      <p class="tracking-cancel-intro">Cererea ta de anulare este deja înregistrată. Nu este nevoie să o trimiți din nou.</p>
+    {% else %}
+      <p class="tracking-cancel-intro">Anularea poate fi solicitată în primele 5 zile de la plasare, până la etapa „În pregătire” inclusiv. Această comandă nu mai îndeplinește condițiile.</p>
+      <a class="tracking-cancel-contact" href="{{ url('pagina/contact/') }}">Ai nevoie de ajutor? Scrie-ne.</a>
+    {% endif %}
+    <div class="tracking-cancel-error" id="tracking-cancel-error" role="alert" data-cancel-error{% if not cancellation_error|default('') %} hidden{% endif %}>{{ cancellation_error|default('') }}</div>
+  </div>
+  <footer class="tracking-cancel-footer">
+    <a href="{{ url('urmarire-comanda/#cerere-anulare') }}" class="tracking-cancel-back" data-cancel-close>Înapoi la comandă</a>
+    {% if order.can_request_cancellation %}<button class="tracking-button is-primary" type="submit" data-cancel-submit><span>Trimite cererea</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h16m-6-6 6 6-6 6"/></svg></button>{% endif %}
+  </footer>
+</form>

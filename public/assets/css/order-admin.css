@@ -454,3 +454,17 @@ html:has(.order-dialog[open],.order-lightbox[open]) {overflow:hidden}
   .order-dialog__loading>span {animation:none}
   .order-lightbox::backdrop,.order-lightbox.is-closing::backdrop {animation:none}
 }
+/* Customer cancellation requests remain separate from order/payment actions. */
+.order-cancellation-badge{display:table!important;margin-top:7px;padding:5px 8px;border:1px solid #e6c39c;border-radius:7px;background:#fff4e4;color:#91612f!important;font-size:11px!important;line-height:1.5;text-decoration:none}
+.order-cancellation-request{margin:22px 0;padding:23px 25px;border:1px solid #e9cfb3;border-radius:23px;background:linear-gradient(120deg,#fffaf2,#fffdfb);scroll-margin-top:110px}
+.order-cancellation-request header{display:flex;align-items:center;gap:14px}
+.order-cancellation-request__icon{display:grid;place-items:center;flex:none;width:46px;height:46px;border:1px solid #ead2b5;border-radius:15px;background:#f9ecda;color:#996c36}
+.order-cancellation-request svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.order-cancellation-request h2{margin:5px 0 7px;font:450 26px/1.2 var(--admin-serif);color:#684c3b}
+.order-cancellation-request time{font-size:12px;color:#907462}
+.order-cancellation-request__state{margin-left:auto;padding:6px 11px;border-radius:20px;background:#f3e6d3;color:#8b612f;font-size:12px;white-space:nowrap}
+.order-cancellation-request__reason{margin-top:19px;padding:15px 17px;border:1px solid #eddfcf;border-radius:14px;background:#fffdf9}
+.order-cancellation-request__reason>span{font-size:12px;color:#987a60}
+.order-cancellation-request blockquote{margin:7px 0 0;white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px;line-height:1.7;color:#634e41}
+.order-cancellation-request>p{font-size:12px;line-height:1.7;color:#8b7361;margin:12px 0 0}
+@media(max-width:600px){.order-cancellation-request{padding:18px}.order-cancellation-request header{flex-wrap:wrap;gap:10px}.order-cancellation-request__icon{width:38px;height:38px}.order-cancellation-request h2{font-size:23px}.order-cancellation-request__state{margin-left:0}.order-cancellation-request__reason{padding:12px}}

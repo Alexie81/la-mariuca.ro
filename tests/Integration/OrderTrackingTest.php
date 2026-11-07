@@ -200,6 +200,134 @@ final class OrderTrackingTest extends DatabaseTestCase
         self::assertSame('2026-11-07T11:00:00+00:00', $this->tracking->details($this->orderId)['status_date']);
     }
 
+    public function testCancellationRequiresTrackingAccessAndCsrf(): void
+    {
+        $this->request('GET');
+        $path = '/urmarire-comanda/solicitare-anulare/';
+        self::assertSame(401, $this->request('GET', $path)->getStatusCode());
+        self::assertSame(401, $this->request('POST', $path, ['_csrf'=>$_SESSION['_csrf'], 'reason'=>'Am ales altă mărime.'])->getStatusCode());
+        $_SESSION['tracked_order'] = ['id'=>$this->orderId, 'expires'=>time()+1800];
+        self::assertSame(419, $this->request('POST', $path, ['reason'=>'Am ales altă mărime.'])->getStatusCode());
+        $_SESSION['tracked_order']['expires'] = time() - 1;
+        self::assertSame(401, $this->request('POST', $path, ['_csrf'=>$_SESSION['_csrf'], 'reason'=>'Am ales altă mărime.'])->getStatusCode());
+        self::assertSame(0, (int) $this->pdo->query('SELECT COUNT(*) FROM order_cancellation_requests')->fetchColumn());
+    }
+
+    public function testCancellationRecordsIntentOnceWithoutChangingOrderPaymentStockOrEmail(): void
+    {
+        $this->request('GET');
+        $_SESSION['tracked_order'] = ['id'=>$this->orderId, 'expires'=>time()+1800];
+        $this->pdo->prepare("UPDATE orders SET status='preparing',payment_method='stripe',payment_status='paid' WHERE id=:id")->execute(['id'=>$this->orderId]);
+        $beforeOrder = $this->pdo->query('SELECT * FROM orders')->fetchAll();
+        $beforeInventory = $this->pdo->query('SELECT * FROM inventory')->fetchAll();
+        $beforeReservations = $this->pdo->query('SELECT * FROM inventory_reservations')->fetchAll();
+        $beforePayments = $this->pdo->query('SELECT * FROM payments')->fetchAll();
+        $beforeCoupons = $this->pdo->query('SELECT * FROM coupon_redemptions')->fetchAll();
+        $beforeMail = $this->pdo->query('SELECT * FROM outbox_messages')->fetchAll();
+        $reason = 'Am ales mărimea greșită. <script>alert(1)</script>';
+        $data = ['_csrf'=>$_SESSION['_csrf'], 'reason'=>$reason, 'order_id'=>(string) ($this->orderId + 999)];
+        $response = $this->request('POST', '/urmarire-comanda/solicitare-anulare/', $data);
+        self::assertSame(303, $response->getStatusCode());
+        self::assertSame('/urmarire-comanda/#cerere-anulare', $response->getHeaderLine('Location'));
+        $first = $this->pdo->query('SELECT * FROM order_cancellation_requests')->fetch();
+        self::assertSame($this->orderId, (int) $first['order_id']);
+        self::assertSame($reason, $first['reason']);
+        self::assertSame('preparing', $first['order_status_at_request']);
+        $data['reason'] = 'O nouă trimitere nu trebuie să suprascrie motivul.';
+        self::assertSame(303, $this->request('POST', '/urmarire-comanda/solicitare-anulare/', $data)->getStatusCode());
+        self::assertSame([$first], $this->pdo->query('SELECT * FROM order_cancellation_requests')->fetchAll());
+        self::assertSame(1, (int) $this->pdo->query("SELECT COUNT(*) FROM audit_log WHERE action='order.cancellation_requested'")->fetchColumn());
+        self::assertSame($beforeOrder, $this->pdo->query('SELECT * FROM orders')->fetchAll());
+        self::assertSame($beforeInventory, $this->pdo->query('SELECT * FROM inventory')->fetchAll());
+        self::assertSame($beforeReservations, $this->pdo->query('SELECT * FROM inventory_reservations')->fetchAll());
+        self::assertSame($beforePayments, $this->pdo->query('SELECT * FROM payments')->fetchAll());
+        self::assertSame($beforeCoupons, $this->pdo->query('SELECT * FROM coupon_redemptions')->fetchAll());
+        self::assertSame($beforeMail, $this->pdo->query('SELECT * FROM outbox_messages')->fetchAll());
+        $html = (string) $this->request('GET')->getBody();
+        self::assertStringContainsString('Cerere de anulare înregistrată', $html);
+        self::assertStringContainsString('&lt;script&gt;', $html);
+        self::assertStringNotContainsString('<script>alert', $html);
+        self::assertStringNotContainsString('data-tracking-cancel-open', $html);
+    }
+
+    public function testCancellationValidatesReasonAndHasUsableNonJavascriptForm(): void
+    {
+        $this->request('GET');
+        $_SESSION['tracked_order'] = ['id'=>$this->orderId, 'expires'=>time()+1800];
+        $path = '/urmarire-comanda/solicitare-anulare/';
+        $form = $this->request('GET', $path);
+        self::assertSame(200, $form->getStatusCode());
+        self::assertStringContainsString('name="reason"', (string) $form->getBody());
+        self::assertStringContainsString('tracking-cancel-page', (string) $form->getBody());
+        foreach (['', '   ', 'abc', "\u{200B}\u{200B}\u{200B}\u{200B}\u{200B}", str_repeat('ă', 1001)] as $reason) {
+            $response = $this->request('POST', $path, ['_csrf'=>$_SESSION['_csrf'], 'reason'=>$reason]);
+            self::assertSame(422, $response->getStatusCode());
+            self::assertStringContainsString('5–1.000 de caractere', (string) $response->getBody());
+        }
+        self::assertSame(0, (int) $this->pdo->query('SELECT COUNT(*) FROM order_cancellation_requests')->fetchColumn());
+    }
+
+    public function testCancellationRechecksAgeAndStatusAfterFormWasOpened(): void
+    {
+        $this->request('GET');
+        $_SESSION['tracked_order'] = ['id'=>$this->orderId, 'expires'=>time()+1800];
+        $path = '/urmarire-comanda/solicitare-anulare/';
+        self::assertStringContainsString('data-cancel-submit', (string) $this->request('GET', $path)->getBody());
+        foreach (['shipped', 'delivered', 'cancelled', 'returned', 'manual_review'] as $status) {
+            $this->pdo->prepare('UPDATE orders SET status=:status WHERE id=:id')->execute(['status'=>$status, 'id'=>$this->orderId]);
+            self::assertStringNotContainsString('data-tracking-cancel-open', (string) $this->request('GET')->getBody());
+            self::assertSame(422, $this->request('POST', $path, ['_csrf'=>$_SESSION['_csrf'], 'reason'=>'Doresc anularea comenzii.'])->getStatusCode());
+        }
+        $this->pdo->prepare("UPDATE orders SET status='preparing',created_at=:created WHERE id=:id")->execute(['created'=>gmdate('c', time()-432000), 'id'=>$this->orderId]);
+        self::assertSame(422, $this->request('POST', $path, ['_csrf'=>$_SESSION['_csrf'], 'reason'=>'Doresc anularea comenzii.'])->getStatusCode());
+        self::assertStringNotContainsString('data-tracking-cancel-open', (string) $this->request('GET')->getBody());
+        self::assertSame(0, (int) $this->pdo->query('SELECT COUNT(*) FROM order_cancellation_requests')->fetchColumn());
+    }
+
+    public function testCancellationAppearsInCrmFilterOrderHistoryAndNotifications(): void
+    {
+        $this->tracking->requestCancellation($this->orderId, 'Vreau să aleg alt produs.');
+        $orders = new OrderService($this->pdo);
+        $filtered = $orders->paginateForAdmin(1, 15, '', 'cancellation_requested');
+        self::assertSame(1, $filtered['total']);
+        self::assertSame(1, (int) $filtered['items'][0]['cancellation_requested']);
+        self::assertSame('Vreau să aleg alt produs.', $orders->findForAdmin($this->orderId)['cancellation_request']['reason']);
+        $now = gmdate('c');
+        $this->pdo->prepare("INSERT INTO users(email,password_hash,first_name,last_name,role,status,created_at,updated_at) VALUES ('cancel.admin@example.test',:password,'Admin','Test','administrator','active',:now,:now)")
+            ->execute(['password'=>password_hash('CancelTest2026!', PASSWORD_DEFAULT), 'now'=>$now]);
+        $adminId = (int) $this->pdo->lastInsertId();
+        self::assertSame(303, $this->request('GET', '/admin/comenzi/')->getStatusCode());
+        $this->request('GET', '/admin');
+        self::assertSame(303, $this->request('POST', '/admin', ['_csrf'=>$_SESSION['_csrf'], 'email'=>'cancel.admin@example.test', 'password'=>'CancelTest2026!'])->getStatusCode());
+        $detail = (string) $this->request('GET', '/admin/comenzi/' . $this->orderId . '/')->getBody();
+        self::assertStringContainsString('Clientul a cerut anularea', $detail);
+        self::assertStringContainsString('Vreau să aleg alt produs.', $detail);
+        self::assertStringContainsString('Clientul a solicitat anularea', $detail);
+        self::assertStringContainsString('Anulare solicitată', (string) $this->request('GET', '/admin/comenzi/')->getBody());
+        $feed = (new \App\Modules\Admin\AdminNotificationService($this->pdo))->feed($adminId, 1, 30, 'comenzi');
+        $notifications = array_values(array_filter($feed['items'], static fn(array $row): bool=>str_starts_with($row['key'], 'order-cancellation:')));
+        self::assertCount(1, $notifications);
+        self::assertStringContainsString('Cerere de anulare', $notifications[0]['title']);
+        self::assertFalse($notifications[0]['is_read']);
+    }
+
+    public function testCancellationJsonAndRateLimit(): void
+    {
+        $this->request('GET');
+        $_SESSION['tracked_order'] = ['id'=>$this->orderId, 'expires'=>time()+1800];
+        $path = '/urmarire-comanda/solicitare-anulare/';
+        for ($i=0; $i<10; $i++) {
+            $app = AppFactory::create($this->root);
+            $response = $app->handle((new ServerRequestFactory())->createServerRequest('POST', 'http://localhost' . $path)
+                ->withHeader('Accept', 'application/json')->withParsedBody(['_csrf'=>$_SESSION['_csrf'], 'reason'=>'']));
+            self::assertSame(422, $response->getStatusCode());
+            self::assertFalse(json_decode((string) $response->getBody(), true)['ok']);
+            self::assertSame('private, no-store', $response->getHeaderLine('Cache-Control'));
+            unset($app);
+        }
+        self::assertSame(429, $this->request('POST', $path, ['_csrf'=>$_SESSION['_csrf'], 'reason'=>'Cerere validă.'])->getStatusCode());
+    }
+
     /** @param array<string,string> $data */
     private function request(string $method, string $path = '/urmarire-comanda/', array $data = []): ResponseInterface
     {
