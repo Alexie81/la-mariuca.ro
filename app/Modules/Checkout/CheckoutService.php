@@ -6,6 +6,7 @@ namespace App\Modules\Checkout;
 
 use App\Modules\Admin\AdminPushService;
 use App\Modules\Cart\CartService;
+use App\Modules\Payments\CategoryPaymentPolicy;
 use App\Modules\Shipping\ShippingMethodService;
 use App\Shared\Config\Config;
 use App\Shared\Support\RomanianLocations;
@@ -16,11 +17,19 @@ final class CheckoutService
 {
     private readonly RomanianLocations $locations;
     private readonly ShippingMethodService $shippingMethods;
+    private readonly CategoryPaymentPolicy $paymentPolicy;
 
-    public function __construct(private readonly PDO $pdo, private readonly CartService $cart, private readonly Config $config, ?RomanianLocations $locations = null, private readonly ?AdminPushService $push = null, ?ShippingMethodService $shippingMethods = null)
+    public function __construct(private readonly PDO $pdo, private readonly CartService $cart, private readonly Config $config, ?RomanianLocations $locations = null, private readonly ?AdminPushService $push = null, ?ShippingMethodService $shippingMethods = null, ?CategoryPaymentPolicy $paymentPolicy = null)
     {
         $this->locations = $locations ?? RomanianLocations::fromProjectRoot();
         $this->shippingMethods = $shippingMethods ?? new ShippingMethodService($pdo);
+        $this->paymentPolicy = $paymentPolicy ?? new CategoryPaymentPolicy($pdo, $config);
+    }
+
+    /** @param array<string,mixed> $cart @return array<string,mixed> */
+    public function paymentOptions(array $cart): array
+    {
+        return $this->paymentPolicy->resolve($cart['items']);
     }
 
     /**
@@ -100,6 +109,10 @@ final class CheckoutService
 
         $this->pdo->beginTransaction();
         try {
+            $paymentOptions = $this->paymentPolicy->resolve($cart['items'], true);
+            if (!$paymentOptions['methods'][$method]['available']) {
+                throw new RuntimeException($paymentOptions['methods'][$method]['reason'] . ' Verifică metodele de plată disponibile mai jos.');
+            }
             $shippingMethod = $this->shippingMethods->requireActiveForCheckout((int) ($data['shipping_method_id'] ?? 0), true);
             $shippingQuote = $this->quoteShipping($cart, $shippingMethod);
             $shippingDiscount = $shippingQuote['shipping_discount_bani'];

@@ -2,7 +2,7 @@
 {% macro icon(name) %}<svg viewBox="0 0 24 24" aria-hidden="true">{% if name == 'arrow' %}<path d="M4 12h15m-6-6 6 6-6 6"/>{% elseif name == 'bag' %}<path d="M5 7h14l1 14H4L5 7ZM9 8V6a3 3 0 0 1 6 0v2"/>{% elseif name == 'pin' %}<path d="M20 10c0 6-8 11-8 11S4 16 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/>{% elseif name == 'truck' %}<path d="M3 5h11v12H3zM14 9h4l3 5v3h-7"/><circle cx="7" cy="18" r="2"/><circle cx="18" cy="18" r="2"/>{% elseif name == 'card' %}<rect x="3" y="5" width="18" height="14" rx="3"/><path d="M3 10h18M7 15h4"/>{% elseif name == 'check' %}<path d="m5 12 4 4L19 6"/>{% elseif name == 'lock' %}<rect x="5" y="10" width="14" height="11" rx="3"/><path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v3"/>{% elseif name == 'search' %}<circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/>{% elseif name == 'clock' %}<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>{% elseif name == 'heart' %}<path d="M20.8 5.6a5.5 5.5 0 0 0-8.8 1 5.5 5.5 0 0 0-8.8-1C-1 10.2 6 16.6 12 21c6-4.4 13-10.8 8.8-15.4Z"/>{% endif %}</svg>{% endmacro %}
 {% block head %}
   <link rel="stylesheet" href="{{ url('assets/css/storefront/romania-locations.css') }}?v=20261103-locations3">
-  <link rel="stylesheet" href="{{ url('assets/css/storefront/checkout.css') }}?v=20261103-checkout4">
+  <link rel="stylesheet" href="{{ url('assets/css/storefront/checkout.css') }}?v=20261107-payment-rules">
 {% endblock %}
 {% block body_class %}checkout-page-body{% endblock %}
 {% block content %}
@@ -91,10 +91,35 @@
         {% else %}<p class="checkout-notice" role="alert">Livrarea nu este disponibilă momentan. Te rugăm să revii puțin mai târziu.</p>{% endif %}
       </section>
       <section class="checkout-section" aria-labelledby="checkout-payment-title">
-        <header class="checkout-section-head"><span class="checkout-step">04</span><div><h2 id="checkout-payment-title">Cum dorești să plătești?</h2><p>Tu alegi varianta care îți este comodă.</p></div><span class="checkout-section-icon">{{ _self.icon('card') }}</span></header>
+        <header class="checkout-section-head"><span class="checkout-step">04</span><div><h2 id="checkout-payment-title">Cum dorești să plătești?</h2><p>Metodele disponibile pentru produsele tale.</p></div><span class="checkout-section-icon">{{ _self.icon('card') }}</span></header>
+        {% if payment_options.fallback_to_cod %}
+          <div class="checkout-payment-notice">{{ _self.icon('bag') }}<div><strong>Poți continua cu plata la livrare</strong><p>Plata cu cardul este momentan indisponibilă. Pentru această comandă am pus la dispoziție rambursul.</p></div></div>
+        {% elseif not payment_options.has_available %}
+          <div class="checkout-payment-notice is-warning" role="alert">{{ _self.icon('lock') }}<div><strong>Nicio metodă de plată disponibilă</strong><p>Te rugăm să <a href="{{ url('contact/') }}">ne contactezi</a> pentru a te ajuta să finalizezi comanda.</p></div></div>
+        {% endif %}
         <div class="checkout-options checkout-payment-options" role="radiogroup" aria-labelledby="checkout-payment-title">
-          <label class="checkout-option"><input type="radio" name="payment_method" value="cod"{{ values.payment_method|default('cod') != 'stripe' or not stripe_enabled ? ' checked' : '' }} required><span class="checkout-option-content"><i class="checkout-option-icon">{{ _self.icon('bag') }}</i><span class="checkout-option-copy"><strong>Ramburs</strong><small>Plătești la primirea comenzii.</small></span><i class="checkout-radio">{{ _self.icon('check') }}</i></span></label>
-          <label class="checkout-option{{ not stripe_enabled ? ' is-unavailable' : '' }}"><input type="radio" name="payment_method" value="stripe"{{ values.payment_method|default('cod') == 'stripe' and stripe_enabled ? ' checked' : '' }}{{ not stripe_enabled ? ' disabled' : '' }}><span class="checkout-option-content"><i class="checkout-option-icon">{{ _self.icon('card') }}</i><span class="checkout-option-copy"><strong>Card online</strong><small>{{ stripe_enabled ? 'Plată securizată prin Stripe.' : 'Momentan indisponibil.' }}</small></span><i class="checkout-radio">{{ _self.icon('check') }}</i></span></label>
+          {% for method, title in {stripe: 'Card online', cod: 'Ramburs'} %}
+            {% set option = payment_options.methods[method] %}
+            <div class="checkout-payment-card{{ not option.available ? ' is-unavailable' : '' }}">
+              <label class="checkout-option">
+                <input type="radio" name="payment_method" value="{{ method }}"{{ selected_payment_method == method ? ' checked' : '' }}{{ not option.available ? ' disabled' : ' required' }} aria-describedby="payment-{{ method }}-description">
+                <span class="checkout-option-content">
+                  <i class="checkout-option-icon">{{ _self.icon(method == 'stripe' ? 'card' : 'bag') }}</i>
+                  <span class="checkout-option-copy"><strong>{{ title }}</strong><small>{{ method == 'stripe' ? 'Online, în siguranță prin Stripe.' : 'Plătești la primirea comenzii.' }}</small><em class="checkout-payment-state">{{ option.available ? 'Disponibilă' : 'Indisponibilă pentru acest coș' }}</em></span>
+                  <i class="checkout-radio">{{ _self.icon(option.available ? 'check' : 'lock') }}</i>
+                </span>
+              </label>
+              <div id="payment-{{ method }}-description" class="checkout-payment-explanation">
+                {% if not option.available %}<p>{{ option.reason }}</p>{% else %}<p>{{ method == 'stripe' ? 'Datele cardului se introduc în pasul următor.' : 'Achită curierului când ajunge coletul.' }}</p>{% endif %}
+                {% if option.blocked_products %}
+                  <details class="checkout-payment-products" open>
+                    <summary>{{ option.blocked_products|length == 1 ? 'Produsul care limitează această metodă' : 'Produsele care limitează această metodă' }}<span>{{ option.blocked_products|length }}</span></summary>
+                    <ul>{% for product in option.blocked_products %}<li>{% if product.image_path %}<img src="{{ url(product.image_path) }}" alt="" width="36" height="44" loading="lazy">{% else %}<i>{{ _self.icon('bag') }}</i>{% endif %}<span>{{ product.name }}</span></li>{% endfor %}</ul>
+                  </details>
+                {% endif %}
+              </div>
+            </div>
+          {% endfor %}
         </div>
       </section>
     </form>
@@ -122,7 +147,7 @@
             <span class="checkout-consent-switch" aria-hidden="true"><span>{{ _self.icon('check') }}</span></span>
           </span>
         </label>
-        <button class="checkout-submit" form="checkout-form" type="submit"{{ shipping_methods|default([]) ? '' : ' disabled' }}><span>Plasează comanda</span>{{ _self.icon('arrow') }}</button>
+        <button class="checkout-submit" form="checkout-form" type="submit"{{ shipping_methods|default([]) and payment_options.has_available ? '' : ' disabled' }}><span>Plasează comanda</span>{{ _self.icon('arrow') }}</button>
         <p class="checkout-obligation">Prin plasarea comenzii îți asumi obligația de plată.</p>
         <span class="checkout-security">{{ _self.icon('lock') }} Datele tale sunt folosite pentru comandă</span>
       </div>

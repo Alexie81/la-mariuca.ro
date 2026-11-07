@@ -43,6 +43,11 @@ final class CheckoutController
         $hasOldInput = is_array($oldInput);
         $values = $hasOldInput ? $oldInput : [];
         $cart = $this->cart->summary();
+        $paymentOptions = $this->checkout->paymentOptions($cart);
+        $selectedPayment = (string) ($values['payment_method'] ?? '');
+        if (!($paymentOptions['methods'][$selectedPayment]['available'] ?? false)) {
+            $selectedPayment = $paymentOptions['preferred'];
+        }
         $shippingMethods = $this->shippingMethods->activeForCheckout();
         foreach ($shippingMethods as &$shippingMethod) {
             $quote = $this->checkout->quoteShipping($cart, $shippingMethod);
@@ -71,7 +76,8 @@ final class CheckoutController
                 'total_bani' => (int) ($selectedMethod['total_bani'] ?? $cart['total_bani']),
                 'shipping_name' => (string) ($selectedMethod['name'] ?? ''),
             ],
-            'stripe_enabled' => $this->config->bool('STRIPE_ENABLED') && $this->config->get('STRIPE_SECRET_KEY') !== '',
+            'payment_options' => $paymentOptions,
+            'selected_payment_method' => $selectedPayment,
             'meta' => ['title' => 'Finalizare comandă', 'noindex' => true],
         ]);
     }
