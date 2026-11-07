@@ -7,6 +7,7 @@ namespace App\Modules\Checkout;
 use App\Modules\Admin\AdminPushService;
 use App\Modules\Cart\CartService;
 use App\Modules\Payments\CategoryPaymentPolicy;
+use App\Modules\Orders\InternalOrderNotificationService;
 use App\Modules\Shipping\ShippingMethodService;
 use App\Shared\Config\Config;
 use App\Shared\Support\RomanianLocations;
@@ -18,12 +19,14 @@ final class CheckoutService
     private readonly RomanianLocations $locations;
     private readonly ShippingMethodService $shippingMethods;
     private readonly CategoryPaymentPolicy $paymentPolicy;
+    private readonly InternalOrderNotificationService $internalNotifications;
 
-    public function __construct(private readonly PDO $pdo, private readonly CartService $cart, private readonly Config $config, ?RomanianLocations $locations = null, private readonly ?AdminPushService $push = null, ?ShippingMethodService $shippingMethods = null, ?CategoryPaymentPolicy $paymentPolicy = null)
+    public function __construct(private readonly PDO $pdo, private readonly CartService $cart, private readonly Config $config, ?RomanianLocations $locations = null, private readonly ?AdminPushService $push = null, ?ShippingMethodService $shippingMethods = null, ?CategoryPaymentPolicy $paymentPolicy = null, ?InternalOrderNotificationService $internalNotifications = null)
     {
         $this->locations = $locations ?? RomanianLocations::fromProjectRoot();
         $this->shippingMethods = $shippingMethods ?? new ShippingMethodService($pdo);
         $this->paymentPolicy = $paymentPolicy ?? new CategoryPaymentPolicy($pdo, $config);
+        $this->internalNotifications = $internalNotifications ?? new InternalOrderNotificationService($pdo);
     }
 
     /** @param array<string,mixed> $cart @return array<string,mixed> */
@@ -236,6 +239,7 @@ final class CheckoutService
                 $this->pdo->prepare("INSERT INTO outbox_messages (message_type, recipient, payload_json, status, attempts, available_at, created_at) VALUES ('order_confirmation', :recipient, :payload, 'pending', 0, :now, :now)")->execute([
                     'recipient' => mb_strtolower(trim((string) $data['email'])), 'payload' => json_encode(['order_id' => $orderId], JSON_THROW_ON_ERROR), 'now' => $now,
                 ]);
+                $this->internalNotifications->queue($orderId);
             }
             $this->pdo->prepare("UPDATE carts SET status = 'converted', updated_at = :now WHERE id = :id AND status = 'active'")->execute(['now' => $now, 'id' => $this->cart->cartId()]);
             $this->push?->queueOrder($orderId);

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Payments;
 
 use App\Modules\Admin\AdminPushService;
+use App\Modules\Orders\InternalOrderNotificationService;
 use App\Shared\Config\Config;
 use PDO;
 use Psr\Http\Message\ResponseInterface;
@@ -14,8 +15,11 @@ use Stripe\Webhook;
 
 final class StripeWebhookController
 {
-    public function __construct(private readonly PDO $pdo, private readonly Config $config, private readonly ?AdminPushService $push = null)
+    private readonly InternalOrderNotificationService $internalNotifications;
+
+    public function __construct(private readonly PDO $pdo, private readonly Config $config, private readonly ?AdminPushService $push = null, ?InternalOrderNotificationService $internalNotifications = null)
     {
+        $this->internalNotifications = $internalNotifications ?? new InternalOrderNotificationService($pdo);
     }
 
     public function __invoke(ServerRequestInterface $request): ResponseInterface
@@ -85,6 +89,7 @@ final class StripeWebhookController
                         $this->pdo->prepare("INSERT INTO outbox_messages (message_type,recipient,payload_json,status,attempts,available_at,created_at) VALUES ('order_confirmation',:recipient,:payload,'pending',0,:now,:now)")
                             ->execute(['recipient' => $order['email'], 'payload' => $confirmationPayload, 'now' => $now]);
                     }
+                    $this->internalNotifications->queue($orderId);
                 }
                 if ($order['payment_status'] !== 'paid' && in_array($order['status'], ['new', 'cancelled'], true)) {
                     $nextStatus = $order['status'] === 'new' ? 'confirmed' : 'manual_review';
