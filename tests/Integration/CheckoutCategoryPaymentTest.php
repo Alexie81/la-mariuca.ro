@@ -7,6 +7,7 @@ namespace Tests\Integration;
 use App\AppFactory;
 use App\Modules\Cart\CartService;
 use App\Modules\Checkout\CheckoutService;
+use App\Modules\Payments\PaymentMethodSettingsService;
 use App\Shared\Config\Config;
 use App\Shared\Security\Csrf;
 use DOMDocument;
@@ -111,6 +112,54 @@ final class CheckoutCategoryPaymentTest extends DatabaseTestCase
         self::assertSame('pending', $order['payment_status']);
         self::assertSame(2, (int) $this->pdo->query('SELECT COUNT(*) FROM order_items')->fetchColumn());
         self::assertSame(0, (int) $this->pdo->query('SELECT COUNT(*) FROM outbox_messages')->fetchColumn());
+    }
+
+    public function testPersistedCardSwitchOffMovesTheSameMixedCartFromCardPriorityToCash(): void
+    {
+        $card = $this->addProduct(1, 0);
+        $cash = $this->addProduct(0, 1, (int) $card['product_id']);
+        $categoryFlags = $this->pdo->query('SELECT id,allow_card,allow_cod FROM categories ORDER BY id')->fetchAll(PDO::FETCH_ASSOC);
+        $this->pdo->prepare("INSERT INTO users (email,password_hash,first_name,last_name,role,status,created_at,updated_at) VALUES ('mixed-payment-admin@example.test','unused','Ana','Admin','administrator','active',?,?)")
+            ->execute([gmdate('c'), gmdate('c')]);
+        $adminId = (int) $this->pdo->lastInsertId();
+        $settings = new PaymentMethodSettingsService($this->pdo, Config::load($this->root));
+        $settings->save(true, true, $adminId);
+
+        $page = $this->document();
+        self::assertSame(1, $page->query('//input[@name="payment_method" and @value="stripe" and @checked and not(@disabled)]')->length);
+        self::assertSame(1, $page->query('//input[@name="payment_method" and @value="cod" and @disabled]')->length);
+        $explanation = (string) $page->evaluate('string(//*[@id="payment-cod-description"])');
+        self::assertStringContainsString($card['name'], $explanation);
+        self::assertStringNotContainsString($cash['name'], $explanation);
+        $before = $this->businessSnapshot();
+        self::assertSame('/finalizare-comanda/', $this->post('cod')->getHeaderLine('Location'));
+        self::assertSame($before, $this->businessSnapshot());
+
+        // Persist the same change as the CRM switch; the ENV default deliberately stays enabled.
+        $settings->save(true, false, $adminId);
+        self::assertTrue(Config::load($this->root)->bool('STRIPE_ENABLED'));
+        $_SESSION['checkout_old_input'] = ['payment_method' => 'stripe'];
+        $page = $this->document();
+        self::assertSame(0, $page->query('//input[@name="payment_method" and @value="stripe"]')->length);
+        self::assertSame(0, $page->query('//*[@id="payment-stripe-description"]')->length);
+        self::assertSame(1, $page->query('//input[@name="payment_method" and @value="cod" and @checked and not(@disabled)]')->length);
+        self::assertSame(0, $page->query('//input[@name="payment_method" and @checked and @disabled]')->length);
+        self::assertStringContainsString('Poți continua cu plata la livrare', (string) $page->evaluate('string(//body)'));
+        self::assertSame(1, $page->query('//button[@form="checkout-form" and @type="submit" and not(@name) and not(@disabled)]')->length);
+        self::assertSame($categoryFlags, $this->pdo->query('SELECT id,allow_card,allow_cod FROM categories ORDER BY id')->fetchAll(PDO::FETCH_ASSOC));
+        self::assertCount(2, (new CartService($this->pdo))->summary()['items']);
+
+        self::assertSame('/finalizare-comanda/', $this->post('stripe')->getHeaderLine('Location'));
+        self::assertSame($before, $this->businessSnapshot());
+        $response = $this->post('cod');
+        self::assertSame(303, $response->getStatusCode());
+        self::assertMatchesRegularExpression('~^/comanda/[a-f0-9]{64}/$~', $response->getHeaderLine('Location'));
+        self::assertSame('cod', $this->pdo->query('SELECT payment_method FROM orders')->fetchColumn());
+        self::assertSame(2, (int) $this->pdo->query('SELECT COUNT(*) FROM order_items')->fetchColumn());
+        self::assertSame(2, (int) $this->pdo->query('SELECT COUNT(*) FROM inventory_reservations')->fetchColumn());
+        self::assertSame($categoryFlags, $this->pdo->query('SELECT id,allow_card,allow_cod FROM categories ORDER BY id')->fetchAll(PDO::FETCH_ASSOC));
+        $outbox = $this->pdo->query('SELECT message_type,status,attempts FROM outbox_messages')->fetchAll(PDO::FETCH_ASSOC);
+        self::assertSame([['message_type' => 'order_confirmation', 'status' => 'pending', 'attempts' => 0]], $outbox);
     }
 
     public function testGlobalCardOffAllowsCashForCardOnlyProductsAndQueuesOnlyOneEmail(): void
