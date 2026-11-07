@@ -8,6 +8,7 @@ use App\Shared\Config\Config;
 use App\Shared\Http\RateLimiter;
 use App\Shared\Http\View;
 use App\Shared\Security\AdminRememberMe;
+use App\Shared\Security\AdminOrderDestination;
 use App\Shared\Security\Auth;
 use App\Shared\Security\TotpService;
 use App\Shared\Support\Flash;
@@ -42,7 +43,8 @@ final class TwoFactorController
         $remember = (bool) ($_SESSION['admin_remember_after_2fa'] ?? false);
         unset($_SESSION['admin_remember_after_2fa']);
         Flash::set('success', 'Autentificare completă.');
-        $response = $this->view->redirect($this->config->path('admin'));
+        $destination = (new AdminOrderDestination($this->config))->consume($this->auth);
+        $response = $this->view->redirect($destination ?? $this->config->path('admin'));
         $authenticated = $this->auth->user();
         if ($remember && $authenticated !== null) {
             return $this->rememberMe->withCookie($response, $this->rememberMe->issue((int) $authenticated['id'], $request->getHeaderLine('User-Agent')));

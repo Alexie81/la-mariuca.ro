@@ -19,6 +19,7 @@ use App\Shared\Config\Config;
 use App\Shared\Http\RateLimiter;
 use App\Shared\Http\View;
 use App\Shared\Security\AdminRememberMe;
+use App\Shared\Security\AdminOrderDestination;
 use App\Shared\Security\Auth;
 use App\Shared\Support\Flash;
 use App\Shared\Support\Money;
@@ -77,7 +78,8 @@ final class AdminController
 
         unset($_SESSION['admin_remember_after_2fa']);
         Flash::set('success', 'Bine ai revenit în panoul de administrare.');
-        $response = $this->view->redirect($this->config->path('admin'));
+        $destination = (new AdminOrderDestination($this->config))->consume($this->auth);
+        $response = $this->view->redirect($destination ?? $this->config->path('admin'));
         $user = $this->auth->user();
         if ($remember && $user !== null) {
             return $this->rememberMe->withCookie($response, $this->rememberMe->issue((int) $user['id'], $request->getHeaderLine('User-Agent')));

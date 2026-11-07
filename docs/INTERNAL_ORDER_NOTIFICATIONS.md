@@ -26,11 +26,15 @@ Footerul comercial, linkurile pentru consumatori și siglele ANPC/CAB IT ale ema
 
 CTA-ul intern folosește `APP_URL` + `APP_BASE_PATH` + `/admin/comenzi/{id}/`. Este un URL administrativ obișnuit, care necesită autentificare și autorizare; nu include tokenul public de urmărire al clientului. Destinatarul configurat nu primește implicit un cont sau drepturi administrative.
 
+Dacă autentificarea este necesară, aplicația reține numai ID-ul numeric al comenzii timp de 15 minute și revine la aceasta după login/TOTP reușit. Destinația este consumată o singură dată și nu acceptă URL-uri externe, parametri de redirect sau o cale de bază diferită.
+
 HTML-ul folosește layoutul fluid de 760 px al emailului existent, tabele de prezentare, stiluri inline, media queries și CTA VML pentru Outlook clasic. Fotografiile folosesc miniaturile JPEG existente. Imaginile locale validate sunt atașate inline prin CID la expediere. Nu sunt necesare JavaScript, fonturi externe sau descărcarea de imagini de pe servicii terțe.
 
 ## Expediere și verificare
 
 Procesorul `OutboxProcessor` acceptă tipul `internal_order_notification`. Pentru o configurație care filtrează tipurile, `MAIL_MESSAGE_TYPES` trebuie să includă atât `order_confirmation`, cât și `internal_order_notification`. Se păstrează pragul existent `MAIL_SEND_AFTER_ID`; acesta nu se recalculează la restart.
+
+În mediul local, la 08.11.2026, migrarea 037 este aplicată, filtrul SMTP include ambele tipuri și procesorul a fost repornit. Lista reală este inițial goală; adresele se configurează din modal. Nu au fost copiate adresele fictive folosite în QA. Configurația push existentă este păstrată; livrarea efectivă la dispozitive nu a fost testată în această intervenție.
 
 Un eșec de expediere la o adresă nu împiedică procesarea celorlalți destinatari sau emailul clientului. Reîncercarea se aplică numai mesajului eșuat, cu politica existentă de maximum cinci încercări și pauză de cinci minute. SMTP nu se apelează în tranzacția bazei de date. După acceptarea SMTP urmată de o eroare de persistare, mesajul necesită verificare manuală și nu este retrimis automat.
 

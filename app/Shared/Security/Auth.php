@@ -139,6 +139,7 @@ final class Auth
         unset($_SESSION['user_id']);
         unset($_SESSION['pending_2fa_user_id']);
         unset($_SESSION['admin_remember_after_2fa']);
+        unset($_SESSION['admin_order_destination']);
         session_regenerate_id(true);
     }
 

@@ -6,6 +6,7 @@ namespace App\Shared\Http;
 
 use App\Shared\Config\Config;
 use App\Shared\Security\Auth;
+use App\Shared\Security\AdminOrderDestination;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
@@ -21,6 +22,7 @@ final class AdminMiddleware implements MiddlewareInterface
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
         if (!$this->auth->hasRole(['administrator', 'operator'])) {
+            (new AdminOrderDestination($this->config))->remember($request);
             return (new Response(303))->withHeader('Location', $this->config->path('admin'));
         }
         return $handler->handle($request);
