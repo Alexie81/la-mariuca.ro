@@ -142,6 +142,36 @@ final class OutboxProcessorTest extends DatabaseTestCase
         self::assertCount(1, $transport->messages);
     }
 
+    public function testSavingsAnimationRemainsAnUnmodifiedInlineGifInTheSentEmail(): void
+    {
+        $asset = $this->root . '/public/assets/images/email-savings-confetti.gif';
+        self::assertFileExists($asset);
+        $originalGif = file_get_contents($asset);
+        self::assertIsString($originalGif);
+        self::assertStringStartsWith('GIF8', $originalGif);
+        $this->pdo->prepare('UPDATE orders SET discount_bani=1000,total_bani=total_bani-1000 WHERE id=?')->execute([$this->orderId]);
+        $transport = new RecordingOutboxTransport($this->pdo);
+
+        self::assertSame(['processed'=>1, 'sent'=>1, 'previewed'=>0, 'failed'=>0], $this->processor($transport)->process());
+        self::assertCount(1, $transport->messages);
+        $message = $transport->messages[0]->getOriginalMessage();
+        self::assertInstanceOf(Email::class, $message);
+        $animations = array_values(array_filter($message->getAttachments(), static fn ($part): bool => $part->getContentType() === 'image/gif'));
+        self::assertCount(1, $animations);
+        $animation = $animations[0];
+        self::assertSame('inline', $animation->getDisposition());
+        // Byte equality protects every animation frame; no flattening or image conversion is allowed.
+        self::assertSame($originalGif, $animation->getBody());
+        self::assertStringContainsString('src="cid:' . $animation->getName() . '"', (string) $message->getHtmlBody());
+        self::assertStringNotContainsString('/assets/images/email-savings-confetti.gif', (string) $message->getHtmlBody());
+
+        $wire = $transport->messages[0]->toString();
+        self::assertStringContainsString('Content-Type: image/gif', $wire);
+        self::assertStringContainsString('Content-ID: <' . $animation->getContentId() . '>', $wire);
+        self::assertStringContainsString('src="cid:' . $animation->getContentId() . '"', quoted_printable_decode($wire));
+        self::assertSame([false], $transport->transactionStates);
+    }
+
     public function testUnpaidCardConfirmationDoesNotReachTransport(): void
     {
         $this->pdo->prepare("UPDATE orders SET payment_method='stripe',payment_status='pending',status='new' WHERE id=:id")->execute(['id'=>$this->orderId]);

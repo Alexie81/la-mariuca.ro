@@ -36,6 +36,10 @@ Pentru calcul dinamic se injectează o implementare `DeliveryEstimateProvider` �
 
 ## Verificare și activare
 
+Pictogramele de status sunt PNG-uri la densitate triplă, generate reproductibil prin `bin/generate-email-status-icons.php`: bifă cu contrast puternic pentru card confirmat, sacoșă cu bifă pentru comandă primită și ceas pentru plata în verificare. Cercul decorativ este păstrat, fără a comunica vizual o confirmare pentru o comandă încă în verificare.
+
+Mesajul „Ai economisit” și GIF-ul de confetti apar numai dacă suma reducerilor de produse și livrare este pozitivă. Suma este calculată din snapshotul comenzii, nu din prețurile curente ale catalogului; și o reducere exclusiv de livrare produce mesajul. Assetul se generează reproductibil cu `bin/generate-email-savings-icon.php`: 12 cadre într-un ciclu de două secunde, repetat de două ori, apoi static. GIF-ul păstrează o primă imagine completă pentru clienții care afișează doar un cadru și este atașat inline prin CID, fără transcodare.
+
 Au fost verificate local variantele ramburs/card, intervalele de livrare, calculele reducerilor, imaginile, escapingul, legătura privată și lipsa confirmărilor premature/duplicate. Preview-urile vizuale au folosit clienți și comenzi fictive într-o bază SQLite separată, fără a procesa outboxul real.
 
 `MAIL_DELIVERY_MODE=auto` păstrează comportamentul implicit: SMTP în `production`, preview în celelalte medii. `smtp` activează explicit expedierea și în `development`, fără a schimba mediul aplicației; `preview` scrie numai în `storage/private/mail`. `testing` nu folosește niciodată SMTP, chiar dacă moștenește configurația locală. Un DSN invalid este respins, fără fallback care să ascundă o expediere nereușită și fără afișarea credențialelor.

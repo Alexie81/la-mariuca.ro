@@ -60,6 +60,8 @@ final class OrderConfirmationEmailTest extends DatabaseTestCase
         $mail = $this->email->render($this->orderId, 'ana.email@example.test');
         self::assertStringStartsWith('Comanda LM-', $mail['subject']);
         self::assertStringEndsWith('a fost primită cu succes', $mail['subject']);
+        self::assertStringContainsString('/assets/images/email-status-received.png', $mail['html']);
+        self::assertStringContainsString('/assets/images/email-savings-confetti.gif', $mail['html']);
         foreach (['Bună, Ana!', 'Comanda a fost plasată cu succes.', 'Ramburs', 'De achitat la livrare',
             'Ana Pop', 'Strada Florilor 10, apartament 2', 'București', '010101', '0700000000',
             'Curier la adresă — Standard', '07.11.2026 · 12:30', '200,00 Lei', '−25,00 Lei',
@@ -83,6 +85,7 @@ final class OrderConfirmationEmailTest extends DatabaseTestCase
         $this->pdo->exec("UPDATE orders SET payment_method='stripe',payment_status='paid',status='confirmed'");
         $mail = $this->email->render($this->orderId, 'ana.email@example.test');
         self::assertStringEndsWith('a fost confirmată cu succes', $mail['subject']);
+        self::assertStringContainsString('/assets/images/email-status-confirmed.png', $mail['html']);
         foreach (['Comanda a fost confirmată cu succes.', 'Card online', 'Plătit', 'Achitat integral.'] as $text) {
             self::assertStringContainsString($text, $mail['html']);
         }
@@ -102,6 +105,7 @@ final class OrderConfirmationEmailTest extends DatabaseTestCase
         $this->pdo->exec("UPDATE orders SET payment_method='stripe',payment_status='paid',status='manual_review'");
         $mail = $this->email->render($this->orderId, 'ana.email@example.test');
         self::assertStringContainsString('Verificăm comanda.', $mail['html']);
+        self::assertStringContainsString('/assets/images/email-status-review.png', $mail['html']);
         self::assertStringNotContainsString('Comanda a fost confirmată', $mail['html']);
         self::assertStringContainsString('Card online — Plătit', $mail['text']);
     }
@@ -127,12 +131,23 @@ final class OrderConfirmationEmailTest extends DatabaseTestCase
         $mail = $this->email->render($this->orderId, 'ana.email@example.test');
         self::assertStringNotContainsString('Reducere produse', $mail['html']);
         self::assertStringNotContainsString('Ai economisit', $mail['html']);
+        self::assertStringNotContainsString('email-savings-confetti.gif', $mail['html']);
         self::assertStringNotContainsString('src=""', $mail['html']);
         self::assertStringContainsString('Gratuită', $mail['html']);
         $images = new OrderEmailImages($this->config, $this->root);
         self::assertNull($images->productUrl('../.env'));
         self::assertNull($images->productUrl('https://external.example.test/image.jpg'));
         self::assertNull($images->productUrl('/missing-image.webp'));
+    }
+
+    public function testShippingSavingsAloneAlsoDisplayTheCelebration(): void
+    {
+        $this->pdo->exec('UPDATE orders SET discount_bani=0,shipping_bani=0,shipping_discount_bani=1900,total_bani=subtotal_bani');
+        $mail = $this->email->render($this->orderId, 'ana.email@example.test');
+        self::assertStringContainsString('Ai economisit', $mail['html']);
+        self::assertStringContainsString('19,00 Lei', $mail['html']);
+        self::assertStringContainsString('/assets/images/email-savings-confetti.gif', $mail['html']);
+        self::assertStringNotContainsString('Reducere produse', $mail['html']);
     }
 
     public function testDeliveryEstimateRetainsCheckoutSettingsAndSupportsADynamicProvider(): void
