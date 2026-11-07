@@ -147,6 +147,10 @@ final class CheckoutService
             $orderId = (int) $this->pdo->lastInsertId();
             $orderNumber = 'LM-' . gmdate('Y') . '-' . str_pad((string) $orderId, 6, '0', STR_PAD_LEFT);
             $this->pdo->prepare('UPDATE orders SET order_number = :number WHERE id = :id')->execute(['number' => $orderNumber, 'id' => $orderId]);
+            $this->pdo->prepare('UPDATE orders SET shipping_estimate_json=:estimate WHERE id=:id')->execute([
+                'estimate' => json_encode(\App\Modules\Shipping\StoredDeliveryEstimate::snapshot($shippingMethod), JSON_THROW_ON_ERROR),
+                'id' => $orderId,
+            ]);
 
             if (is_array($couponToRedeem)) {
                 $lockSql = 'SELECT * FROM coupons WHERE id=:id' . ($this->pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql' ? ' FOR UPDATE' : '');

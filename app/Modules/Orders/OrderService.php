@@ -321,6 +321,17 @@ final class OrderService
         $payment = $this->pdo->prepare('SELECT status FROM payments WHERE order_id=:order AND provider=:provider ORDER BY id DESC LIMIT 1');
         $payment->execute(['order' => $order['id'], 'provider' => $order['payment_method']]);
         $order['latest_payment_status'] = $payment->fetchColumn() ?: null;
+        $order['shipping_estimate'] = $this->decodeJson((string) ($order['shipping_estimate_json'] ?? ''));
+        if ($order['shipping_estimate'] === [] && !empty($order['shipping_method_id'])) {
+            // Historical orders have no snapshot: use known method settings, never an invented deadline.
+            $estimate = $this->pdo->prepare('SELECT estimated_min_days,estimated_max_days,type FROM shipping_methods WHERE id=:id');
+            $estimate->execute(['id' => $order['shipping_method_id']]);
+            $method = $estimate->fetch();
+            if (is_array($method)) {
+                $order['shipping_estimate'] = \App\Modules\Shipping\StoredDeliveryEstimate::snapshot($method);
+                $order['shipping_estimate']['source'] = 'current_shipping_method';
+            }
+        }
         $order['shipping_address'] = $this->decodeJson((string) $order['shipping_address_json']);
         $order['billing_address'] = $this->decodeJson((string) $order['billing_address_json']);
         $order['company'] = $this->decodeJson((string) $order['company_json']);
