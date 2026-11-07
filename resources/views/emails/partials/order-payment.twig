@@ -1,0 +1,7 @@
+    <tr><td class="section-pad" bgcolor="#ffffff" style="padding:24px 30px;background-color:#ffffff;border:1px solid #e8ebef;border-radius:28px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+        <td width="44"><img class="payment-icon" src="{{ payment_icon }}" width="42" height="42" alt="" style="display:block;width:42px;height:42px;"></td>
+        <td class="payment-copy" style="padding-left:14px;"><p style="margin:0 0 4px;color:#89939f;font-size:14px;line-height:22px;">Metoda de plată</p><p class="payment-title" style="margin:0;color:#3e4956;font-size:18px;line-height:27px;font-weight:bold;">{{ payment_method }}</p></td>
+        <td align="right"><table role="presentation" cellpadding="0" cellspacing="0"><tr><td class="payment-state" bgcolor="{{ paid ? '#e9f5ed' : '#f3f0f8' }}" style="padding:9px 13px;border-radius:24px;background-color:{{ paid ? '#e9f5ed' : '#f3f0f8' }};color:{{ paid ? '#2f8056' : '#79638d' }};font-size:15px;line-height:23px;">{{ payment_state }}</td></tr></table></td>
+      </tr></table>
+    </td></tr>

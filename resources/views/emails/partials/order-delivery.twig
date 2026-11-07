@@ -1,0 +1,22 @@
+    <tr><td class="section-pad" bgcolor="#ffffff" style="padding:28px 30px;background-color:#ffffff;border:1px solid #e8ebef;border-radius:28px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td width="46"><img src="{{ delivery_icon }}" width="42" height="42" alt="" style="display:block;width:42px;height:42px;"></td><td style="padding-left:12px;"><h2 class="section-title" style="margin:0;color:#303740;font-size:23px;line-height:31px;font-weight:600;letter-spacing:-0.4px;">Detalii de livrare</h2></td></tr></table>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:22px;table-layout:fixed;"><tr>
+        <td class="stack delivery-left" width="55%" valign="top" style="width:55%;padding-right:24px;">
+          <p style="margin:0 0 9px;color:#3c4652;font-size:17px;line-height:26px;font-weight:bold;">{{ recipient_name }}</p>
+          <p style="margin:0;color:#6e7a87;font-size:16px;line-height:27px;word-wrap:break-word;">{{ address.address|default('') }}<br>{{ address.city|default('') }}{% if address.county|default('') %}, {{ address.county }}{% endif %}{% if address.postal_code|default('') %}<br>Cod poștal {{ address.postal_code }}{% endif %}</p>
+        </td>
+        <td class="stack delivery-right" width="45%" valign="top" style="width:45%;padding-left:24px;border-left:1px solid #e9ebee;">
+          <p style="margin:0 0 5px;color:#8a94a0;font-size:14px;line-height:22px;">Metoda de livrare</p>
+          <p style="margin:0 0 13px;color:#46515f;font-size:16px;line-height:25px;font-weight:bold;">{{ shipping_method }}</p>
+          <p style="margin:0 0 4px;color:#8a94a0;font-size:14px;line-height:22px;">Telefon</p>
+          <p style="margin:0;color:#46515f;font-size:16px;line-height:25px;">{{ phone }}</p>
+          {% if internal_email|default(false) %}<p style="margin:13px 0 4px;color:#8a94a0;font-size:14px;line-height:22px;">Email client</p><p style="margin:0;color:#46515f;font-size:16px;line-height:25px;overflow-wrap:anywhere;word-wrap:break-word;">{{ email }}</p>{% endif %}
+        </td>
+      </tr></table>
+      {% if delivery_estimate %}<table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="#edf6f0" style="margin-top:22px;background-color:#edf6f0;border-radius:16px;"><tr><td style="padding:17px 19px;">
+        <p style="margin:0 0 5px;color:#668273;font-size:14px;line-height:22px;">Termen estimat de livrare</p>
+        <p style="margin:0;color:#2f6d4d;font-size:18px;line-height:28px;font-weight:bold;">{{ delivery_estimate.label }}</p>
+        <p style="margin:5px 0 0;color:#688172;font-size:14px;line-height:23px;">{{ delivery_estimate.detail }}</p>
+      </td></tr></table>{% endif %}
+    </td></tr>
+    <tr><td height="16" style="height:16px;font-size:0;line-height:16px;">&nbsp;</td></tr>

@@ -59,11 +59,12 @@ final class OutboxProcessorTest extends DatabaseTestCase
     {
         if ($this->previewRoot !== null) {
             foreach (['storage/private/mail/' . $this->originalMessageId . '.txt', 'storage/private/mail/' . $this->originalMessageId . '.html',
-                'resources/views/emails/order-confirmation.twig', 'resources/views/emails/order-confirmation-text.twig'] as $path) {
+                'resources/views/emails/order-confirmation.twig', 'resources/views/emails/order-confirmation-text.twig',
+                'resources/views/emails/partials/order-delivery.twig', 'resources/views/emails/partials/order-payment.twig'] as $path) {
                 $file = $this->previewRoot . '/' . $path;
                 if (is_file($file)) { unlink($file); }
             }
-            foreach (['storage/private/mail', 'storage/private', 'storage', 'resources/views/emails', 'resources/views', 'resources', 'public', ''] as $directory) {
+            foreach (['storage/private/mail', 'storage/private', 'storage', 'resources/views/emails/partials', 'resources/views/emails', 'resources/views', 'resources', 'public', ''] as $directory) {
                 $path = $this->previewRoot . ($directory === '' ? '' : '/' . $directory);
                 if (is_dir($path)) { rmdir($path); }
             }
@@ -182,6 +183,44 @@ final class OutboxProcessorTest extends DatabaseTestCase
         self::assertNull($this->message($this->originalMessageId)['sent_at']);
     }
 
+    public function testInternalRecipientsAreIndependentAndCustomerConfirmationStillSends(): void
+    {
+        $_ENV['MAIL_MESSAGE_TYPES'] = 'order_confirmation,internal_order_notification';
+        $first = $this->queue('internal_order_notification', 'orders-first@example.test');
+        $second = $this->queue('internal_order_notification', 'orders-second@example.test');
+        $transport = new RecordingOutboxTransport($this->pdo);
+        $transport->failRecipients = ['orders-first@example.test'];
+
+        self::assertSame(['processed'=>3, 'sent'=>2, 'previewed'=>0, 'failed'=>1], $this->processor($transport)->process());
+        self::assertCount(2, $transport->messages);
+        $customer = $transport->messages[0]->getOriginalMessage();
+        $internal = $transport->messages[1]->getOriginalMessage();
+        self::assertInstanceOf(Email::class, $customer);
+        self::assertInstanceOf(Email::class, $internal);
+        self::assertSame('ana.outbox@example.test', $customer->getTo()[0]->getAddress());
+        self::assertStringContainsString('Urmărește comanda', (string) $customer->getHtmlBody());
+        self::assertCount(1, $internal->getTo());
+        self::assertSame([], $internal->getCc());
+        self::assertSame([], $internal->getBcc());
+        self::assertSame('orders-second@example.test', $internal->getTo()[0]->getAddress());
+        self::assertStringStartsWith('Ai primit o nouă comandă!', (string) $internal->getSubject());
+        self::assertStringContainsString('Deschide comanda', (string) $internal->getHtmlBody());
+        self::assertStringContainsString('src="cid:', (string) $internal->getHtmlBody());
+        self::assertStringNotContainsString('urmarire-comanda', (string) $internal->getHtmlBody());
+        self::assertStringNotContainsString('orders-first@example.test', (string) $internal->getHtmlBody());
+        self::assertSame('failed', $this->message($first)['status']);
+        self::assertSame('sent', $this->message($second)['status']);
+        self::assertSame([false, false, false], $transport->transactionStates);
+
+        $transport->failRecipients = [];
+        $this->pdo->prepare('UPDATE outbox_messages SET available_at=:now WHERE id=:id')->execute(['now'=>gmdate('c', time()-1), 'id'=>$first]);
+        self::assertSame(['processed'=>1, 'sent'=>1, 'previewed'=>0, 'failed'=>0], $this->processor($transport)->process());
+        self::assertCount(3, $transport->messages);
+        self::assertSame('sent', $this->message($first)['status']);
+        self::assertSame(1, (int) $this->message($second)['attempts']);
+        self::assertSame(1, (int) $this->message($this->originalMessageId)['attempts']);
+    }
+
     public function testAcceptedSmtpIsNotRetriedWhenFinalDatabaseUpdateFails(): void
     {
         $this->pdo->exec("CREATE TRIGGER fail_outbox_completion BEFORE UPDATE ON outbox_messages WHEN NEW.status='sent' BEGIN SELECT RAISE(ABORT, 'fixture completion failure'); END");
@@ -210,8 +249,9 @@ final class OutboxProcessorTest extends DatabaseTestCase
         $_ENV['MAIL_DELIVERY_MODE'] = 'preview';
         $this->previewRoot = sys_get_temp_dir() . '/la-mariuca-outbox-preview-' . bin2hex(random_bytes(8));
         mkdir($this->previewRoot . '/resources/views/emails', 0770, true);
+        mkdir($this->previewRoot . '/resources/views/emails/partials', 0770, true);
         mkdir($this->previewRoot . '/public', 0770, true);
-        foreach (['order-confirmation.twig', 'order-confirmation-text.twig'] as $template) {
+        foreach (['order-confirmation.twig', 'order-confirmation-text.twig', 'partials/order-delivery.twig', 'partials/order-payment.twig'] as $template) {
             copy($this->root . '/resources/views/emails/' . $template, $this->previewRoot . '/resources/views/emails/' . $template);
         }
         $transport = new RecordingOutboxTransport($this->pdo);
@@ -244,10 +284,10 @@ final class OutboxProcessorTest extends DatabaseTestCase
         return new OutboxProcessor($this->pdo, Config::load($this->root), $this->root, $transport);
     }
 
-    private function queue(string $type): int
+    private function queue(string $type, string $recipient = 'ana.outbox@example.test'): int
     {
         $this->pdo->prepare("INSERT INTO outbox_messages(message_type,recipient,payload_json,status,attempts,available_at,created_at) VALUES(:type,:recipient,:payload,'pending',0,:now,:now)")
-            ->execute(['type'=>$type, 'recipient'=>'ana.outbox@example.test', 'payload'=>json_encode(['order_id'=>$this->orderId], JSON_THROW_ON_ERROR), 'now'=>gmdate('c')]);
+            ->execute(['type'=>$type, 'recipient'=>$recipient, 'payload'=>json_encode(['order_id'=>$this->orderId], JSON_THROW_ON_ERROR), 'now'=>gmdate('c')]);
         return (int) $this->pdo->lastInsertId();
     }
 
@@ -268,6 +308,8 @@ final class RecordingOutboxTransport extends AbstractTransport
     public array $transactionStates = [];
     public int $attempts = 0;
     public bool $fail = false;
+    /** @var list<string> */
+    public array $failRecipients = [];
 
     public function __construct(private readonly PDO $pdo)
     {
@@ -278,7 +320,7 @@ final class RecordingOutboxTransport extends AbstractTransport
     {
         $this->attempts++;
         $this->transactionStates[] = $this->pdo->inTransaction();
-        if ($this->fail) {
+        if ($this->fail || in_array($message->getEnvelope()->getRecipients()[0]->getAddress(), $this->failRecipients, true)) {
             throw new TransportException('AUTH fixture-secret at smtp://fixture-user:fixture-secret@127.0.0.1:2525');
         }
         $this->messages[] = $message;

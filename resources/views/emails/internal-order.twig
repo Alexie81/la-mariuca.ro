@@ -1,0 +1,25 @@
+{% extends 'emails/order-confirmation.twig' %}
+
+{% block brand_note %}Notificare internă<br><span style="color:#465463;">Administrarea comenzilor</span>{% endblock %}
+
+{% block introduction %}
+  <h1 class="greeting" style="margin:24px 0 16px;color:#2d333d;font-size:36px;line-height:45px;letter-spacing:-0.8px;font-weight:600;">Ai primit o nouă comandă în valoare de <span style="color:#a34663;white-space:nowrap;">{{ total }}</span></h1>
+  <p style="margin:0;color:#697583;font-size:17px;line-height:28px;">Conectează-te în administrarea magazinului sau apasă pe butonul de mai jos pentru a gestiona comanda.</p>
+  {% if review %}<p style="margin:16px 0 0;padding:14px 17px;background-color:#fff6e8;border:1px solid #f1dfc2;border-radius:14px;color:#94662e;font-size:16px;line-height:25px;">Plata a fost primită, dar comanda necesită verificare înainte de pregătire.</p>{% endif %}
+  <table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:25px;"><tr><td>
+    <!--[if mso]><v:roundrect href="{{ admin_order_url }}" style="height:56px;v-text-anchor:middle;width:244px;" arcsize="50%" stroke="f" fillcolor="#b44968"><w:anchorlock xmlns:w="urn:schemas-microsoft-com:office:word"/><center style="color:#ffffff;font-family:Arial,sans-serif;font-size:17px;font-weight:bold;">Deschide comanda</center></v:roundrect><![endif]-->
+    <!--[if !mso]><!--><a href="{{ admin_order_url }}" style="display:inline-block;min-width:198px;padding:17px 22px;background-color:#b44968;border:1px solid #b44968;border-radius:28px;color:#ffffff;font-size:17px;font-weight:bold;line-height:22px;text-align:center;text-decoration:none;">Deschide comanda</a><!--<![endif]-->
+  </td></tr></table>
+  <p style="margin:12px 0 0;color:#7c8792;font-size:14px;line-height:22px;">Acces securizat, doar pentru administratorii magazinului.</p>
+{% endblock %}
+
+{% block products_heading %}Produsele comandate{% endblock %}
+{% block savings_copy %}Reduceri aplicate: <strong style="color:#3e7e5d;white-space:nowrap;">{{ savings }}</strong>{% endblock %}
+
+{% block delivery_and_payment %}
+  {% include 'emails/partials/order-payment.twig' %}
+  <tr><td height="16" style="height:16px;font-size:0;line-height:16px;">&nbsp;</td></tr>
+  {% include 'emails/partials/order-delivery.twig' %}
+{% endblock %}
+
+{% block customer_footer %}{% endblock %}

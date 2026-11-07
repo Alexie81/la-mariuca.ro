@@ -54,10 +54,11 @@
   <!--[if mso]><table role="presentation" align="center" width="760" style="width:100%;max-width:760px;" cellpadding="0" cellspacing="0"><tr><td><![endif]-->
   <table role="presentation" class="email-shell" width="100%" cellpadding="0" cellspacing="0" style="width:100%;max-width:760px;">
     <tr><td class="brand-pad" style="padding:0 12px 25px;">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td><a href="{{ shop_url }}" style="text-decoration:none;"><img class="brand-logo" src="{{ logo_url }}" width="190" height="64" alt="La Măriuca Boutique" style="display:block;width:190px;height:64px;font-size:20px;color:#ac4f65;"></a></td><td class="brand-note" align="right" style="color:#74808f;font-size:14px;line-height:22px;">Cu grijă pentru<br><span style="color:#465463;">fiecare mică bucurie.</span></td></tr></table>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td><a href="{{ shop_url }}" style="text-decoration:none;"><img class="brand-logo" src="{{ logo_url }}" width="190" height="64" alt="La Măriuca Boutique" style="display:block;width:190px;height:64px;font-size:20px;color:#ac4f65;"></a></td><td class="brand-note" align="right" style="color:#74808f;font-size:14px;line-height:22px;">{% block brand_note %}Cu grijă pentru<br><span style="color:#465463;">fiecare mică bucurie.</span>{% endblock %}</td></tr></table>
     </td></tr>
     <tr><td class="section-pad" bgcolor="#ffffff" style="padding:34px 36px;background-color:#ffffff;border:1px solid #e8ebef;border-radius:28px;">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td width="56" valign="middle" style="width:56px;"><img src="{{ status_icon }}" width="56" height="56" alt="" style="display:block;width:56px;height:56px;"></td><td valign="middle" style="padding-left:14px;color:{{ status_color }};font-size:16px;line-height:24px;font-weight:bold;">{{ badge }}</td></tr></table>
+      {% block introduction %}
       <h1 class="greeting" style="margin:24px 0 10px;color:#2d333d;font-size:40px;line-height:48px;letter-spacing:-1px;font-weight:600;">Bună{% if first_name %}, {{ first_name }}{% endif %}!</h1>
       <h2 class="intro-title" style="margin:0 0 14px;color:#414b59;font-size:25px;line-height:34px;font-weight:normal;">{{ message }}</h2>
       <p style="margin:0;color:#697583;font-size:17px;line-height:28px;">{{ introduction }}</p>
@@ -66,13 +67,14 @@
         <!--[if !mso]><!--><a href="{{ tracking_url }}" style="display:inline-block;min-width:198px;padding:17px 22px;background-color:#b44968;border:1px solid #b44968;border-radius:28px;color:#ffffff;font-size:17px;font-weight:bold;line-height:22px;text-align:center;text-decoration:none;">Urmărește comanda</a><!--<![endif]-->
       </td></tr></table>
       <p style="margin:12px 0 0;color:#7c8792;font-size:14px;line-height:22px;">Acces direct la detalii, fără autentificare.</p>
+      {% endblock %}
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="#f6f7f9" style="margin-top:26px;background-color:#f6f7f9;border-radius:16px;"><tr><td style="padding:15px 18px;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td class="order-details" style="font-size:16px;line-height:25px;color:#45515e;"><strong>{{ number }}</strong></td><td class="order-details order-date" align="right" style="font-size:15px;line-height:25px;color:#7a8591;">{{ date }}</td></tr></table>
       </td></tr></table>
     </td></tr>
     <tr><td height="16" style="height:16px;font-size:0;line-height:16px;">&nbsp;</td></tr>
     <tr><td class="section-pad" bgcolor="#ffffff" style="padding:28px 30px;background-color:#ffffff;border:1px solid #e8ebef;border-radius:28px;">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td><h2 class="section-title" style="margin:0;font-size:24px;line-height:32px;letter-spacing:-0.4px;font-weight:600;color:#303740;">Alegerile tale</h2></td><td align="right" style="font-size:15px;line-height:25px;color:#7a8591;">{{ quantity }} {{ quantity == 1 ? 'bucată' : 'bucăți' }}</td></tr></table>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td><h2 class="section-title" style="margin:0;font-size:24px;line-height:32px;letter-spacing:-0.4px;font-weight:600;color:#303740;">{% block products_heading %}Alegerile tale{% endblock %}</h2></td><td align="right" style="font-size:15px;line-height:25px;color:#7a8591;">{{ quantity }} {{ quantity == 1 ? 'bucată' : 'bucăți' }}</td></tr></table>
       {% for item in items %}
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="#f7f8fa" style="margin-top:15px;background-color:#f7f8fa;border-radius:18px;"><tr><td class="product-pad" style="padding:16px;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="table-layout:fixed;"><tr>
@@ -107,38 +109,15 @@
           </tr></table>
           <table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:12px;"><tr><td style="padding:5px 10px;border-radius:20px;background-color:{{ paid ? '#edf7f0' : '#f6f3f9' }};color:{{ paid ? '#2e805a' : '#85708e' }};font-size:14px;line-height:22px;">{{ paid ? '✓ Achitat integral.' : 'De achitat la livrare' }}</td></tr></table>
         </td></tr></table>
-        {% if savings %}<table role="presentation" align="center" cellpadding="0" cellspacing="0" style="margin:14px auto 0;"><tr><td width="34" valign="middle" style="width:34px;padding-right:7px;"><img src="{{ savings_icon }}" width="28" height="28" alt="" style="display:block;width:28px;height:28px;"></td><td valign="middle" style="color:#7f727b;font-size:14px;line-height:23px;text-align:left;">Ai economisit <strong style="color:#3e7e5d;white-space:nowrap;">{{ savings }}</strong> la această comandă.</td></tr></table>{% endif %}
+        {% if savings %}<table role="presentation" align="center" cellpadding="0" cellspacing="0" style="margin:14px auto 0;"><tr><td width="34" valign="middle" style="width:34px;padding-right:7px;"><img src="{{ savings_icon }}" width="28" height="28" alt="" style="display:block;width:28px;height:28px;"></td><td valign="middle" style="color:#7f727b;font-size:14px;line-height:23px;text-align:left;">{% block savings_copy %}Ai economisit <strong style="color:#3e7e5d;white-space:nowrap;">{{ savings }}</strong> la această comandă.{% endblock %}</td></tr></table>{% endif %}
       </td></tr></table>
     </td></tr>
     <tr><td height="16" style="height:16px;font-size:0;line-height:16px;">&nbsp;</td></tr>
-    <tr><td class="section-pad" bgcolor="#ffffff" style="padding:28px 30px;background-color:#ffffff;border:1px solid #e8ebef;border-radius:28px;">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td width="46"><img src="{{ delivery_icon }}" width="42" height="42" alt="" style="display:block;width:42px;height:42px;"></td><td style="padding-left:12px;"><h2 class="section-title" style="margin:0;color:#303740;font-size:23px;line-height:31px;font-weight:600;letter-spacing:-0.4px;">Detalii de livrare</h2></td></tr></table>
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:22px;table-layout:fixed;"><tr>
-        <td class="stack delivery-left" width="55%" valign="top" style="width:55%;padding-right:24px;">
-          <p style="margin:0 0 9px;color:#3c4652;font-size:17px;line-height:26px;font-weight:bold;">{{ recipient_name }}</p>
-          <p style="margin:0;color:#6e7a87;font-size:16px;line-height:27px;word-wrap:break-word;">{{ address.address|default('') }}<br>{{ address.city|default('') }}{% if address.county|default('') %}, {{ address.county }}{% endif %}{% if address.postal_code|default('') %}<br>Cod poștal {{ address.postal_code }}{% endif %}</p>
-        </td>
-        <td class="stack delivery-right" width="45%" valign="top" style="width:45%;padding-left:24px;border-left:1px solid #e9ebee;">
-          <p style="margin:0 0 5px;color:#8a94a0;font-size:14px;line-height:22px;">Metoda de livrare</p>
-          <p style="margin:0 0 13px;color:#46515f;font-size:16px;line-height:25px;font-weight:bold;">{{ shipping_method }}</p>
-          <p style="margin:0 0 4px;color:#8a94a0;font-size:14px;line-height:22px;">Telefon</p>
-          <p style="margin:0;color:#46515f;font-size:16px;line-height:25px;">{{ phone }}</p>
-        </td>
-      </tr></table>
-      {% if delivery_estimate %}<table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="#edf6f0" style="margin-top:22px;background-color:#edf6f0;border-radius:16px;"><tr><td style="padding:17px 19px;">
-        <p style="margin:0 0 5px;color:#668273;font-size:14px;line-height:22px;">Termen estimat de livrare</p>
-        <p style="margin:0;color:#2f6d4d;font-size:18px;line-height:28px;font-weight:bold;">{{ delivery_estimate.label }}</p>
-        <p style="margin:5px 0 0;color:#688172;font-size:14px;line-height:23px;">{{ delivery_estimate.detail }}</p>
-      </td></tr></table>{% endif %}
-    </td></tr>
-    <tr><td height="16" style="height:16px;font-size:0;line-height:16px;">&nbsp;</td></tr>
-    <tr><td class="section-pad" bgcolor="#ffffff" style="padding:24px 30px;background-color:#ffffff;border:1px solid #e8ebef;border-radius:28px;">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
-        <td width="44"><img class="payment-icon" src="{{ payment_icon }}" width="42" height="42" alt="" style="display:block;width:42px;height:42px;"></td>
-        <td class="payment-copy" style="padding-left:14px;"><p style="margin:0 0 4px;color:#89939f;font-size:14px;line-height:22px;">Metoda de plată</p><p class="payment-title" style="margin:0;color:#3e4956;font-size:18px;line-height:27px;font-weight:bold;">{{ payment_method }}</p></td>
-        <td align="right"><table role="presentation" cellpadding="0" cellspacing="0"><tr><td class="payment-state" bgcolor="{{ paid ? '#e9f5ed' : '#f3f0f8' }}" style="padding:9px 13px;border-radius:24px;background-color:{{ paid ? '#e9f5ed' : '#f3f0f8' }};color:{{ paid ? '#2f8056' : '#79638d' }};font-size:15px;line-height:23px;">{{ payment_state }}</td></tr></table></td>
-      </tr></table>
-    </td></tr>
+    {% block delivery_and_payment %}
+    {% include 'emails/partials/order-delivery.twig' %}
+    {% include 'emails/partials/order-payment.twig' %}
+    {% endblock %}
+    {% block customer_footer %}
     <tr><td height="20" style="height:20px;font-size:0;line-height:20px;">&nbsp;</td></tr>
     <tr><td>
       <table role="presentation" class="email-footer" width="100%" cellpadding="0" cellspacing="0" bgcolor="#ffffff" style="background-color:#ffffff;border:1px solid #e3e8ec;border-radius:26px;">
@@ -203,6 +182,7 @@
         </td></tr>
       </table>
     </td></tr>
+    {% endblock %}
     <tr><td class="email-copyright" align="center" style="padding:26px 12px 6px;">
       <table role="presentation" align="center" cellpadding="0" cellspacing="0" style="margin:0 auto;"><tr>
         <td width="36" valign="middle" style="width:36px;"><img src="{{ heart_icon_url }}" width="26" height="21" alt="" style="display:block;width:26px;height:21px;"></td>

@@ -1,0 +1,49 @@
+{% autoescape false %}
+LA MĂRIUCA BOUTIQUE — NOTIFICARE INTERNĂ
+
+Ai primit o nouă comandă în valoare de {{ total }}
+Conectează-te în administrarea magazinului pentru a gestiona comanda.
+{% if review %}Plata a fost primită, dar comanda necesită verificare înainte de pregătire.
+{% endif %}
+
+Comanda {{ number }}
+Plasată la {{ date }}
+
+Deschide comanda:
+{{ admin_order_url }}
+Acces securizat, doar pentru administratorii magazinului.
+
+PRODUSELE COMANDATE
+{% for item in items %}
+{{ item.name }}{% if item.variant %} — {{ item.variant }}{% endif %}
+SKU: {{ item.sku }}
+Cantitate: {{ item.quantity }} buc. × {{ item.unit_price }} / buc.
+Total produs: {{ item.total }}
+
+{% endfor %}
+REZUMATUL COMENZII
+{% for row in totals %}
+{{ row.label }}: {{ row.value }}
+{% endfor %}
+Total comandă: {{ total }}
+{% if savings %}Reduceri aplicate: {{ savings }}
+{% endif %}
+
+METODA DE PLATĂ
+{{ payment_method }} — {{ payment_state }}
+
+DETALII DE LIVRARE
+{{ recipient_name }}
+{{ address.address|default('') }}
+{{ address.city|default('') }}, {{ address.county|default('') }}
+{% if address.postal_code|default('') %}Cod poștal: {{ address.postal_code }}
+{% endif %}
+Telefon: {{ phone }}
+Email: {{ email }}
+Metoda de livrare: {{ shipping_method }}
+{% if delivery_estimate %}Termen estimat: {{ delivery_estimate.label }}
+{{ delivery_estimate.detail }}
+{% endif %}
+
+© {{ year }} La Măriuca Boutique. Toate drepturile rezervate.
+{% endautoescape %}

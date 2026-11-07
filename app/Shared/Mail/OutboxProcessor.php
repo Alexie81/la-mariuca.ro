@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Shared\Mail;
 
 use App\Modules\Orders\OrderConfirmationEmail;
+use App\Modules\Orders\InternalOrderEmail;
 use App\Modules\Orders\OrderEmailImages;
 use App\Modules\Orders\OrderService;
 use App\Modules\Orders\OrderTrackingEmail;
@@ -40,7 +41,7 @@ final class OutboxProcessor
         if (!ctype_digit($floor)) { throw new RuntimeException('MAIL_SEND_AFTER_ID trebuie să fie un ID pozitiv sau zero.'); }
         $types = array_values(array_filter(array_map('trim', explode(',', $this->config->get('MAIL_MESSAGE_TYPES')))));
         foreach ($types as $type) {
-            if (!in_array($type, ['order_confirmation', 'order_status_update', 'verify_email'], true)) {
+            if (!in_array($type, ['order_confirmation', 'internal_order_notification', 'order_status_update', 'verify_email'], true)) {
                 throw new RuntimeException('MAIL_MESSAGE_TYPES conține un tip necunoscut.');
             }
         }
@@ -66,6 +67,9 @@ final class OutboxProcessor
         $confirmation = new OrderConfirmationEmail($tracking, $this->config,
             new Environment(new FilesystemLoader($this->root . '/resources/views'), ['autoescape' => 'html']),
             new OrderEmailImages($this->config, $this->root));
+        $internalNotification = new InternalOrderEmail($tracking, $this->config,
+            new Environment(new FilesystemLoader($this->root . '/resources/views'), ['autoescape' => 'html']),
+            new OrderEmailImages($this->config, $this->root));
         foreach ($messages as $message) {
             // Repeat the full eligibility check: a stale worker must not bypass retries or activation scope.
             $claim = $this->pdo->prepare("UPDATE outbox_messages SET status='processing',attempts=attempts+1 WHERE id=:id AND " . $eligible);
@@ -78,6 +82,9 @@ final class OutboxProcessor
                 $html = null;
                 if ($message['message_type'] === 'order_confirmation') {
                     $rendered = $confirmation->render((int) ($payload['order_id'] ?? 0), (string) $message['recipient']);
+                    $subject = $rendered['subject']; $body = $rendered['text']; $html = $rendered['html'];
+                } elseif ($message['message_type'] === 'internal_order_notification') {
+                    $rendered = $internalNotification->render((int) ($payload['order_id'] ?? 0), (string) $message['recipient']);
                     $subject = $rendered['subject']; $body = $rendered['text']; $html = $rendered['html'];
                 } elseif ($message['message_type'] === 'order_status_update') {
                     $labels = ['new'=>'nouă','confirmed'=>'confirmată','preparing'=>'în pregătire','shipped'=>'expediată','delivered'=>'livrată','cancelled'=>'anulată','returned'=>'returnată','manual_review'=>'în verificare'];
