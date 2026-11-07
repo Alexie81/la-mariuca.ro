@@ -9,6 +9,7 @@ use App\Modules\Admin\AdminDashboardService;
 use App\Modules\Admin\AdminNotificationService;
 use App\Modules\Admin\AdminPushController;
 use App\Modules\Admin\AdminPushService;
+use App\Modules\Admin\OrderNotificationSettingsController;
 use App\Modules\Cart\CartController;
 use App\Modules\Cart\CartService;
 use App\Modules\Catalog\CatalogAdminService;
@@ -34,6 +35,8 @@ use App\Modules\Media\MediaService;
 use App\Modules\Newsletter\NewsletterAdminService;
 use App\Modules\Newsletter\NewsletterSubscriptionService;
 use App\Modules\Orders\OrderService;
+use App\Modules\Orders\InternalOrderNotificationService;
+use App\Modules\Orders\OrderNotificationSettingsService;
 use App\Modules\Payments\StripeWebhookController;
 use App\Modules\Payments\StripeCheckoutService;
 use App\Modules\Promotions\PromotionAdminService;
@@ -143,6 +146,7 @@ final class AppFactory
         $rateLimiter = new RateLimiter($pdo);
         $content = new ContentRepository($pdo);
         $orders = new OrderService($pdo);
+        $internalOrderNotifications = new InternalOrderNotificationService($pdo);
         $tracking = new \App\Modules\Orders\OrderTrackingController(new \App\Modules\Orders\OrderTrackingService(new \App\Modules\Orders\OrderTrackingRepository($pdo), $orders, $config, $root), $rateLimiter, $view, $config);
 
         $storefront = new StorefrontController($catalog, $catalogSearch, $categoryPaths, new ProductRecommendationService($catalog), $content, $contactWhatsApp, $newsletterSubscriptions, $reviews, $rateLimiter, $auth, $view, $config);
@@ -150,11 +154,12 @@ final class AppFactory
         $romanianLocations = RomanianLocations::fromProjectRoot($root);
         $postalCodeController = new PostalCodeController(RomanianPostalCodes::fromProjectRoot($root));
         $customerAccount = new CustomerAccountService(new CustomerAccountRepository($pdo), $romanianLocations);
-        $checkoutController = new CheckoutController(new CheckoutService($pdo, $cart, $config, $romanianLocations, $push, $shippingMethods), $cart, $orders, new StripeCheckoutService($pdo, $config), $auth, $customerAccount, $rateLimiter, $view, $config, $shippingMethods, new OrderResultPresenter($config));
+        $checkoutController = new CheckoutController(new CheckoutService($pdo, $cart, $config, $romanianLocations, $push, $shippingMethods, internalNotifications: $internalOrderNotifications), $cart, $orders, new StripeCheckoutService($pdo, $config), $auth, $customerAccount, $rateLimiter, $view, $config, $shippingMethods, new OrderResultPresenter($config));
         $authController = new AuthController($pdo, $auth, new GoogleOAuthService($pdo, $config), $customerAccount, $rateLimiter, $view, $config);
         $twoFactorController = new TwoFactorController($pdo, $auth, new TotpService($config), $adminRememberMe, $rateLimiter, $view, $config);
         $adminController = new AdminController($pdo, new AdminDashboardService($pdo), new AdminNotificationService($pdo), $push, $catalog, new CatalogAdminService($pdo, $productDescriptions), new CustomerAdminService($pdo), new NewsletterAdminService($pdo), $promotions, $shippingMethods, new SupplierAdminService($pdo), $orders, $reviews, new MediaService($pdo, $root), new ContentAdminService($pdo), $auth, $adminRememberMe, $rateLimiter, $view, $config);
         $adminPushController = new AdminPushController($push, $auth, $view, $config);
+        $orderNotificationSettingsController = new OrderNotificationSettingsController(new OrderNotificationSettingsService($pdo), new AdminNotificationService($pdo), $auth, $view, $config);
 
         $app = SlimAppFactory::create();
         $basePath = '/' . trim($config->get('APP_BASE_PATH'), '/');
@@ -193,7 +198,7 @@ final class AppFactory
         $app->get('/pagina/{slug}/', [$storefront, 'page']);
         $app->get('/robots.txt', [$storefront, 'robots']);
         $app->get('/sitemap.xml', [$storefront, 'sitemap']);
-        $app->post('/stripe/webhook', new StripeWebhookController($pdo, $config, $push));
+        $app->post('/stripe/webhook', new StripeWebhookController($pdo, $config, $push, $internalOrderNotifications));
         $app->get('/admin-manifest.webmanifest', [$adminPushController, 'manifest']);
 
         $app->get('/cont/autentificare/', [$authController, 'loginForm']);
@@ -217,7 +222,7 @@ final class AppFactory
         $app->post('/admin/', [$adminController, 'login']);
         $app->post('/admin/deconectare/', [$adminController, 'logout']);
 
-        $app->group('/admin', function (RouteCollectorProxy $group) use ($adminController, $adminPushController, $twoFactorController): void {
+        $app->group('/admin', function (RouteCollectorProxy $group) use ($adminController, $adminPushController, $twoFactorController, $orderNotificationSettingsController): void {
             $group->get('/categorii/', [$adminController, 'categories']);
             $group->get('/categorii/verifica-nume/', [$adminController, 'categoryNameAvailability']);
             $group->get('/categorii/verifica-slug/', [$adminController, 'categorySlugAvailability']);
@@ -283,6 +288,9 @@ final class AppFactory
             $group->post('/furnizori/{id:[0-9]+}/editare/', [$adminController, 'saveSupplier']);
             $group->post('/furnizori/{id:[0-9]+}/sterge/', [$adminController, 'deleteSupplier']);
             $group->get('/comenzi/', [$adminController, 'orders']);
+            $group->get('/comenzi/notificari/', [$orderNotificationSettingsController, 'form']);
+            $group->get('/comenzi/notificari/modal/', [$orderNotificationSettingsController, 'form']);
+            $group->post('/comenzi/notificari/', [$orderNotificationSettingsController, 'save']);
             $group->get('/comenzi/{id:[0-9]+}/', [$adminController, 'orderDetail']);
             $group->get('/comenzi/{id:[0-9]+}/status/modal/', [$adminController, 'orderStatusModal']);
             $group->get('/comenzi/{id:[0-9]+}/retur/modal/', [$adminController, 'orderReturnModal']);

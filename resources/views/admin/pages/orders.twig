@@ -9,10 +9,15 @@
       <h1 id="admin-orders-title">Comenzi</h1>
       <p>Urmărește fiecare comandă, clientul, plata și starea livrării dintr-o singură privire.</p>
     </div>
+    <div class="admin-orders-hero__tools">
+      <a class="order-notification-trigger order-notification-trigger--desktop" href="{{ url('admin/comenzi/notificari/') }}" data-order-notifications-open data-modal-url="{{ url('admin/comenzi/notificari/modal/') }}" aria-label="Setări notificări de comenzi" title="Setări notificări de comenzi">
+        {% include 'admin/partials/order-notification-gear.twig' %}
+      </a>
     <div class="admin-orders-hero__summary" aria-label="Total comenzi">
       <span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 7h12l1 13H5L6 7Z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg></span>
       <strong>{{ pagination.total }}</strong>
       <small>{% if has_filters %}{{ pagination.total == 1 ? 'comandă relevantă' : 'comenzi relevante' }}{% else %}{{ pagination.total == 1 ? 'comandă înregistrată' : 'comenzi înregistrate' }}{% endif %}</small>
+    </div>
     </div>
   </section>
 
@@ -20,7 +25,9 @@
     <header class="admin-orders-card__head">
       <div>
         <span class="admin-eyebrow">Registrul comenzilor</span>
-        <h2 id="admin-orders-table-title">Toate comenzile</h2>
+        <div class="admin-orders-title-line"><h2 id="admin-orders-table-title">Toate comenzile</h2>
+          <a class="order-notification-trigger order-notification-trigger--mobile" href="{{ url('admin/comenzi/notificari/') }}" data-order-notifications-open data-modal-url="{{ url('admin/comenzi/notificari/modal/') }}" aria-label="Setări notificări de comenzi" title="Setări notificări de comenzi">{% include 'admin/partials/order-notification-gear.twig' %}</a>
+        </div>
       </div>
       {% if pagination.total > 0 %}
         <p>Se afișează <strong>{{ pagination.from }}–{{ pagination.to }}</strong> din <strong>{{ pagination.total }}</strong></p>
@@ -136,4 +143,8 @@
       </div>
     {% endif %}
   </section>
+  <dialog class="order-notification-dialog" data-order-notifications-dialog aria-labelledby="order-notifications-title">
+    <button class="order-notification-close" type="button" aria-label="Închide setările" data-order-notifications-close><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
+    <div class="order-notification-content" data-order-notifications-content><div class="order-notification-loading"><span aria-hidden="true"></span><h2 id="order-notifications-title">Notificări de comenzi</h2><p>Se încarcă setările…</p></div></div>
+  </dialog>
 {% endblock %}

@@ -1,0 +1,30 @@
+<header class="order-notification-head">
+  <span class="order-notification-head__icon">{% include 'admin/partials/order-notification-gear.twig' %}</span>
+  <div><span class="order-notification-eyebrow">Pentru echipa magazinului</span><h2 id="order-notifications-title">Notificări de comenzi</h2><p>O comandă nouă. Toată echipa la curent.</p></div>
+</header>
+<form class="order-notification-form" action="{{ url('admin/comenzi/notificari/') }}" method="post" data-order-notifications-form>
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  <div class="order-notification-body">
+    <section class="order-notification-recipients" aria-labelledby="order-notification-recipients-title">
+      <div class="order-notification-section-title"><div><h3 id="order-notification-recipients-title">Unde ajung comenzile noi?</h3><p>Adaugă adresele de email ale persoanelor care gestionează comenzile.</p></div><span class="order-notification-count" data-order-notifications-count>{{ notification_recipients|default([])|length }} / 10</span></div>
+      <div class="order-notification-addresses" data-order-notifications-addresses>
+        {% for i in 0..9 %}
+          <div class="order-notification-address" data-order-notifications-row>
+            <span class="order-notification-address__mark" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="m4 7 8 6 8-6"/></svg></span>
+            <label for="order-notification-email-{{ i }}"><span data-order-notifications-label>Email {{ i + 1 }}</span><input id="order-notification-email-{{ i }}" type="email" name="recipients[]" value="{{ notification_recipients[i]|default('') }}" maxlength="254" inputmode="email" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="Ex: comenzi@magazin.ro" data-order-notifications-email></label>
+            <button type="button" class="order-notification-remove" aria-label="Elimină adresa de email {{ i + 1 }}" data-order-notifications-remove hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 8 8 8M16 8l-8 8"/></svg></button>
+          </div>
+        {% endfor %}
+      </div>
+      <button class="order-notification-add" type="button" data-order-notifications-add hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Adaugă o adresă de email</span></button>
+      <p class="order-notification-address-help"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7h.01"/></svg><span>Fiecare adresă primește propriul email. Maximum 10 adrese.</span></p>
+    </section>
+    <section class="order-notification-delivery" aria-label="Cum funcționează notificările">
+      <div class="order-notification-delivery__intro"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16v12H4zM4 7l8 6 8-6M8 3h8"/></svg></span><div><h3>Detaliile comenzii, direct în inbox</h3><p>Produse, total, plată și livrare — cu acces direct la comandă.</p></div></div>
+      <div class="order-notification-channels"><span><i aria-hidden="true"></i>Emailul clientului rămâne activ</span><span><i aria-hidden="true"></i>Notificările push se păstrează</span></div>
+      <p>Se trimit pentru comenzile noi cu ramburs și după confirmarea plății cu cardul. Dacă lași lista goală, oprești doar emailurile interne.</p>
+    </section>
+    <p class="order-notification-feedback{{ notification_error|default('') ? ' is-error' : '' }}" role="status" aria-live="polite" data-order-notifications-feedback{% if not notification_error|default('') %} hidden{% endif %}>{{ notification_error|default('') }}</p>
+  </div>
+  <footer class="order-notification-footer"><a class="order-notification-cancel" href="{{ url('admin/comenzi/') }}" data-order-notifications-close>Renunță</a><button class="order-notification-save" type="submit"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg><span data-order-notifications-save-label>Salvează setările</span></button></footer>
+</form>

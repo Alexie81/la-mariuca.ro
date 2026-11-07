@@ -1,0 +1,5 @@
+{% extends 'admin/layouts/base.twig' %}
+{% block title %}Notificări de comenzi{% endblock %}
+{% block content %}
+  <div class="order-notification-page"><a class="order-notification-back" href="{{ url('admin/comenzi/') }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6"/></svg>Înapoi la comenzi</a><section class="order-notification-page__card">{% include 'admin/partials/order-notification-settings.twig' %}</section></div>
+{% endblock %}
