@@ -231,16 +231,17 @@
 .admin-promotions-search-hints a:hover { border-color: #dc7b87; color: #c64b5b; }
 
 .admin-promotions-table-wrap { border-top: 1px solid #efd9d4; overflow-x: auto; }
-.admin-promotions-table { width: 100%; min-width: 1040px; border-collapse: collapse; table-layout: fixed; }
+.admin-promotions-table { width: 100%; min-width: 1240px; border-collapse: collapse; table-layout: fixed; }
 .admin-promotions-table th { padding: 13px 14px; color: #aa716b; background: #fff8f5; font-size: 9px; font-weight: 800; letter-spacing: .13em; text-align: left; text-transform: uppercase; }
-.admin-promotions-table th:first-child { width: 21%; padding-left: 27px; }
-.admin-promotions-table th:nth-child(2) { width: 11%; }
-.admin-promotions-table th:nth-child(3) { width: 14%; }
-.admin-promotions-table th:nth-child(4) { width: 14%; }
+.admin-promotions-table th:first-child { width: 17%; padding-left: 27px; }
+.admin-promotions-table th:nth-child(2) { width: 10%; }
+.admin-promotions-table th:nth-child(3) { width: 10%; }
+.admin-promotions-table th:nth-child(4) { width: 11%; }
 .admin-promotions-table th:nth-child(5) { width: 8%; }
-.admin-promotions-table th:nth-child(6) { width: 14%; }
-.admin-promotions-table th:nth-child(7) { width: 9%; }
-.admin-promotions-table th:last-child { width: 240px; }
+.admin-promotions-table th:nth-child(6) { width: 13%; }
+.admin-promotions-table th:nth-child(7) { width: 11%; }
+.admin-promotions-table th:nth-child(8) { width: 8%; }
+.admin-promotions-table th:last-child { width: 220px; }
 .admin-promotions-table td { padding: 15px 14px; border-top: 1px solid #f1ddd8; color: #513934; font-size: 12px; vertical-align: middle; }
 .admin-promotions-table td:first-child { padding-left: 27px; }
 .admin-promotions-table tbody tr { transition: background .18s ease; }
@@ -267,6 +268,19 @@
 .admin-promotion-validity small,
 .admin-promotion-usage small { color: #a1837c; font-size: 10px; line-height: 1.35; }
 .admin-promotion-usage strong { color: #3f2b27; font: 500 22px/1 var(--admin-serif, Georgia, serif); }
+.admin-promotions-metrics-note { display: flex; align-items: flex-start; gap: 9px; margin: 0; padding: 0 27px 18px; color: #8d7770; font-size: 12px; line-height: 1.65; }
+.admin-promotions-metrics-note > svg { flex: 0 0 17px; width: 17px; height: 17px; margin-top: 2px; fill: none; stroke: #b18b73; stroke-width: 1.65; stroke-linecap: round; }
+.admin-promotion-usage-cell .admin-promotion-usage { gap: 5px; }
+.admin-promotion-usage-cell .admin-promotion-usage > strong { font: 550 22px/1.2 var(--admin-sans, Arial, sans-serif); font-variant-numeric: tabular-nums; }
+.admin-promotion-usage-cell .admin-promotion-usage > small { font-size: 11.5px; color: #927c74; }
+.admin-promotion-usage__pending { display: inline-flex; align-items: flex-start; gap: 5px; margin-top: 2px; color: #9a7736; font-size: 11.5px; line-height: 1.45; }
+.admin-promotion-usage__pending svg { flex: 0 0 14px; width: 14px; height: 14px; margin-top: 1px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; }
+.admin-promotion-discount-total { display: grid; gap: 4px; width: fit-content; max-width: 100%; padding: 11px 12px; border: 1px solid #dcece3; border-radius: 13px; color: #39755c; background: #f2faf5; }
+.admin-promotion-discount-total strong { color: inherit; font: 600 16px/1.3 var(--admin-sans, Arial, sans-serif); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.admin-promotion-discount-total small { color: #6e887a; font-size: 11.5px; line-height: 1.4; }
+.admin-promotion-discount-total.is-zero { color: #7c706b; border-color: #ebe4df; background: #faf8f5; }
+.admin-promotion-discount-total.is-zero small { color: #96877f; }
+.admin-promotions-table .admin-promotion-validity { grid-template-columns: 1fr; }
 
 .admin-promotion-topbar { min-width: 0; display: flex; align-items: center; gap: 8px; color: #9a817b; }
 .admin-promotion-topbar > svg { width: 27px; height: 27px; flex: 0 0 auto; padding: 6px; border-radius: 8px; background: #f5efec; fill: none; stroke: currentColor; stroke-width: 1.6; box-sizing: border-box; }
@@ -725,7 +739,7 @@ html.has-admin-promotion-dialog { overflow: hidden; }
   .admin-promotions-summary__icon { width: 39px; height: 39px; }
 }
 
-@media (max-width: 1420px) {
+@media (max-width: 1580px) {
   .admin-promotions-hero { border-radius: 24px; }
   .admin-promotions-summary { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .admin-promotions-panel { border-radius: 24px; }
@@ -738,7 +752,12 @@ html.has-admin-promotion-dialog { overflow: hidden; }
   .admin-promotions-table td::before { content: attr(data-label); color: #bb7772; font-size: 8px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
   .admin-promotions-table td:first-child { grid-column: 1/-1; padding: 14px; border-top: 0; background: #fff9f7; }
   .admin-promotions-table td:first-child::before { display: none; }
+  .admin-promotions-table .admin-promotion-usage-cell { grid-column: 1; order: 1; background: #fdfbf8; }
+  .admin-promotions-table .admin-promotion-discount-cell { grid-column: 2; order: 1; background: #f7fbf8; }
+  .admin-promotions-table .admin-promotion-discount-total { width: auto; padding: 0; border: 0; background: transparent; }
+  .admin-promotions-table .admin-promotion-discount-total strong { font-size: 18px; }
   .admin-promotions-table__action { grid-column: 1/-1; display: flex !important; justify-content: flex-end; align-items: center; min-height: 57px; }
+  .admin-promotions-table td.admin-promotions-table__action { order: 2; }
   .admin-promotions-table__action::before { margin-right: auto; }
   .admin-promotion-offer strong,.admin-promotion-topbar small { white-space: normal; }
   .admin-promotion-actions a { width: auto; padding: 0 12px; }
@@ -749,6 +768,7 @@ html.has-admin-promotion-dialog { overflow: hidden; }
 }
 
 @media (max-width: 720px) {
+  .admin-promotions-metrics-note { padding: 0 17px 17px; font-size: 12px; }
   .admin-promotions-hero { gap: 20px; padding: 21px 16px; }
   .admin-promotions-hero h1 { font-size: 35px; }
   .admin-promotions-hero__actions { gap: 8px; margin-top: 20px; }
@@ -903,6 +923,11 @@ html.has-admin-promotion-dialog { overflow: hidden; }
 
 @media (max-width: 480px) {
   .admin-promotions-table td.admin-promotions-table__action { display: block !important; }
+  .admin-promotions-table tr { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .admin-promotions-table td { grid-column: 1/-1 !important; }
+  .admin-promotions-table td.admin-promotion-usage-cell { grid-column: 1 !important; }
+  .admin-promotions-table td.admin-promotion-discount-cell { grid-column: 2 !important; }
+  .admin-promotions-table .admin-promotion-discount-total strong { font-size: 16px; white-space: normal; }
   .admin-promotions-table__action::before { display: none; }
   .admin-promotion-actions { width: 100%; }
   .admin-promotion-actions a { flex: 1 1 0; padding: 0 6px; min-height: 44px; }

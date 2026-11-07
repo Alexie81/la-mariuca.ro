@@ -47,7 +47,7 @@
     <form class="admin-promotions-search" action="{{ url('admin/cupoane-promotii/') }}" method="get" role="search">
       <label>
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m16.5 16.5 4 4"/></svg>
-        <span><small>Căutare inteligentă</small><input type="search" name="cautare" value="{{ current_search }}" placeholder="Cod, nume, produs, categorie sau stare…" autocomplete="off"></span>
+        <span><small>Căutare inteligentă</small><input type="search" name="cautare" value="{{ current_search }}" aria-label="Căutare inteligentă" placeholder="Cod, nume, produs, categorie sau stare…" autocomplete="off"></span>
       </label>
       {% if has_search %}<a class="admin-promotions-search__clear" href="{{ url('admin/cupoane-promotii/') }}" aria-label="Șterge căutarea"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"/></svg></a>{% endif %}
       <button class="admin-promotions-search__submit" type="submit"><span>Caută</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
@@ -55,9 +55,10 @@
     <div class="admin-promotions-search-hints" aria-label="Exemple de căutare"><span>Încearcă:</span><a href="{{ url('admin/cupoane-promotii/?cautare=active') }}">active</a><a href="{{ url('admin/cupoane-promotii/?cautare=livrare') }}">livrare</a><a href="{{ url('admin/cupoane-promotii/?cautare=bara+de+sus') }}">bara de sus</a></div>
 
     {% if offers %}
+      <p class="admin-promotions-metrics-note" id="promotion-metrics-help"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7h.01"/></svg><span>Utilizările și sumele includ comenzile valide. Plățile cu cardul în așteptare apar separat; comenzile anulate și retururile integrale sunt excluse. La retururi parțiale, suma păstrează reducerea acordată inițial.</span></p>
       <div class="admin-promotions-table-wrap">
-        <table class="admin-promotions-table">
-          <thead><tr><th>Ofertă</th><th>Beneficiu</th><th>Se aplică la</th><th>Valabilitate</th><th>Utilizări</th><th>Bară sus</th><th>Stare</th><th><span class="sr-only">Acțiuni</span></th></tr></thead>
+        <table class="admin-promotions-table" aria-describedby="promotion-metrics-help">
+          <thead><tr><th>Ofertă</th><th>Beneficiu</th><th>Se aplică la</th><th>Valabilitate</th><th>Utilizări</th><th>Total reduceri</th><th>Bară sus</th><th>Stare</th><th><span class="sr-only">Acțiuni</span></th></tr></thead>
           <tbody>
           {% for offer in offers %}
             {% set kind = offer.offer_kind|default(offer.kind|default('promotion')) %}
@@ -76,7 +77,8 @@
               <td data-label="Beneficiu"><span class="admin-promotion-benefit"><strong>{{ offer.value_label|default(offer.discount_label|default('—')) }}</strong><small>{{ offer.minimum_label|default('Fără prag minim') }}</small></span></td>
               <td data-label="Se aplică la"><span class="admin-promotion-scope"><strong>{{ offer.scope_label|default(offer.target_type_label|default('Toată comanda')) }}</strong><small>{{ offer.target_name|default(offer.target_label|default('Fără restricții')) }}</small></span></td>
               <td data-label="Valabilitate"><span class="admin-promotion-validity"><strong>{{ offer.validity_label|default(offer.display_validity|default('Fără termen')) }}</strong><small>{{ offer.validity_detail|default(offer.display_period|default('Până la dezactivare')) }}</small></span></td>
-              <td data-label="Utilizări"><span class="admin-promotion-usage"><strong>{{ offer.usage_count|default(offer.redemptions_count|default(0)) }}</strong><small>{% if offer.usage_limit|default(null) %}din {{ offer.usage_limit }}{% else %}fără limită{% endif %}</small></span></td>
+              <td class="admin-promotion-usage-cell" data-label="Utilizări"><span class="admin-promotion-usage"><strong>{{ offer.usage_count|default(offer.redemptions_count|default(0)) }}</strong><small>{% if offer.usage_limit|default(null) %}limită {{ offer.usage_limit }}{% else %}fără limită{% endif %}</small>{% if offer.pending_usage_count|default(0) > 0 %}<span class="admin-promotion-usage__pending"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>{{ offer.pending_usage_count }} în așteptare</span></span>{% endif %}</span></td>
+              <td class="admin-promotion-discount-cell" data-label="Total reduceri"><span class="admin-promotion-discount-total{{ offer.total_discount_bani|default(0) == 0 ? ' is-zero' : '' }}"><strong>{{ money(offer.total_discount_bani|default(0)) }}</strong><small>acordați clienților</small></span></td>
               <td data-label="Bară sus">{% if offer.show_in_topbar|default(false) %}<span class="admin-promotion-topbar is-visible"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v12H4zM4 9h16"/></svg><span><strong>Vizibilă</strong><small>{{ offer.topbar_message|default('Mesaj activ') }}</small></span></span>{% else %}<span class="admin-promotion-topbar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v12H4zM4 9h16"/></svg><span><strong>Oprită</strong><small>Nu apare în magazin</small></span></span>{% endif %}</td>
               <td data-label="Stare"><span class="admin-promotion-status is-{{ state }}"><i></i>{{ offer.status_label|default(offer.state_label|default(is_active ? 'Activă' : 'Inactivă')) }}</span></td>
               <td class="admin-promotions-table__action" data-label="Acțiuni">

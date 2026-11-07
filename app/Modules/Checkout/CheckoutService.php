@@ -187,8 +187,10 @@ final class CheckoutService
                         throw new RuntimeException('Cuponul a fost deja folosit de acest client de numărul maxim de ori.');
                     }
                 }
-                $this->pdo->prepare("INSERT INTO coupon_redemptions (coupon_id,order_id,email,status,created_at,updated_at) VALUES (:coupon,:order,:email,'reserved',:now,:now)")->execute([
+                $this->pdo->prepare("INSERT INTO coupon_redemptions (coupon_id,order_id,email,status,merchandise_discount_bani,shipping_discount_bani,created_at,updated_at) VALUES (:coupon,:order,:email,'reserved',:merchandise_discount,:shipping_discount,:now,:now)")->execute([
                     'coupon' => $coupon['id'], 'order' => $orderId, 'email' => mb_strtolower(trim((string) $data['email'])), 'now' => $now,
+                    'merchandise_discount' => is_array($merchandiseBenefit) && ($merchandiseBenefit['offer_source'] ?? '') === 'coupon' ? $discount : 0,
+                    'shipping_discount' => is_array($shippingOffer) && ($shippingOffer['offer_source'] ?? '') === 'coupon' ? $shippingDiscount : 0,
                 ]);
             }
 

@@ -90,6 +90,9 @@ final class PromotionAdminService
         $items = $statement->fetchAll();
         foreach ($items as &$item) {
             $item['lifecycle_status'] = $this->lifecycleStatus($item, $now);
+            foreach (['usage_count', 'pending_usage_count', 'total_discount_bani'] as $metric) {
+                $item[$metric] = (int) $item[$metric];
+            }
         }
         unset($item);
 
@@ -439,22 +442,41 @@ final class PromotionAdminService
 
     private function registrySql(): string
     {
+        $couponUsage = $this->usageStatisticsSql("SELECT redemption.coupon_id AS offer_id,redemption.order_id,
+                redemption.merchandise_discount_bani+redemption.shipping_discount_bani AS discount_bani
+            FROM coupon_redemptions redemption WHERE redemption.status IN ('reserved','confirmed')");
+        $promotionUsage = $this->usageStatisticsSql('SELECT promotion_id AS offer_id,id AS order_id,discount_bani FROM orders WHERE promotion_id IS NOT NULL
+            UNION ALL SELECT shipping_promotion_id AS offer_id,id AS order_id,shipping_discount_bani AS discount_bani FROM orders WHERE shipping_promotion_id IS NOT NULL');
         return "SELECT c.id,'coupon' AS offer_type,COALESCE(NULLIF(c.name,''),c.code) AS name,c.code,c.scope,COALESCE(c.value_type,c.type) AS value_type,
                 CASE WHEN COALESCE(c.value_type,c.type)='free' THEN 0 ELSE c.value END AS value,c.target_id,
                 CASE WHEN c.scope='product' THEN (SELECT p.name FROM products p WHERE p.id=c.target_id)
                      WHEN c.scope='category' THEN (SELECT category.name FROM categories category WHERE category.id=c.target_id)
                      ELSE NULL END AS target_name,
                 c.minimum_bani,c.usage_limit,c.per_customer_limit,c.starts_at,c.ends_at,c.status,c.topbar_enabled,c.topbar_message,c.topbar_priority,c.created_by_user_id,c.created_at,c.updated_at,
-                (SELECT COUNT(*) FROM coupon_redemptions redemption WHERE redemption.coupon_id=c.id AND redemption.status IN ('reserved','confirmed')) AS usage_count
-            FROM coupons c WHERE c.deleted_at IS NULL
+                COALESCE(coupon_usage.usage_count,0) AS usage_count,COALESCE(coupon_usage.pending_usage_count,0) AS pending_usage_count,COALESCE(coupon_usage.total_discount_bani,0) AS total_discount_bani
+            FROM coupons c LEFT JOIN ({$couponUsage}) coupon_usage ON coupon_usage.offer_id=c.id WHERE c.deleted_at IS NULL
             UNION ALL
             SELECT promotion.id,'promotion' AS offer_type,promotion.name,NULL AS code,promotion.scope,promotion.value_type,promotion.value,promotion.target_id,
                 CASE WHEN promotion.scope='product' THEN (SELECT p.name FROM products p WHERE p.id=promotion.target_id)
                      WHEN promotion.scope='category' THEN (SELECT category.name FROM categories category WHERE category.id=promotion.target_id)
                      ELSE NULL END AS target_name,
                 promotion.minimum_bani,NULL AS usage_limit,NULL AS per_customer_limit,promotion.starts_at,promotion.ends_at,promotion.status,promotion.topbar_enabled,promotion.topbar_message,promotion.topbar_priority,promotion.created_by_user_id,promotion.created_at,promotion.updated_at,
-                (SELECT COUNT(*) FROM orders customer_order WHERE customer_order.promotion_id=promotion.id OR customer_order.shipping_promotion_id=promotion.id) AS usage_count
-            FROM promotions promotion WHERE promotion.deleted_at IS NULL";
+                COALESCE(promotion_usage.usage_count,0) AS usage_count,COALESCE(promotion_usage.pending_usage_count,0) AS pending_usage_count,COALESCE(promotion_usage.total_discount_bani,0) AS total_discount_bani
+            FROM promotions promotion LEFT JOIN ({$promotionUsage}) promotion_usage ON promotion_usage.offer_id=promotion.id WHERE promotion.deleted_at IS NULL";
+    }
+
+    /** The report measures granted discounts, not coupon-limit reservations or net accounting refunds. */
+    private function usageStatisticsSql(string $contributions): string
+    {
+        $eligible = "customer_order.status NOT IN ('cancelled','returned') AND customer_order.payment_status NOT IN ('failed','refunded')";
+        $valid = "{$eligible} AND (customer_order.payment_method='cod' OR customer_order.payment_status IN ('paid','partially_refunded'))";
+        $pending = "{$eligible} AND customer_order.payment_method='stripe' AND customer_order.payment_status='pending'";
+        return "SELECT contribution.offer_id,
+                COUNT(DISTINCT CASE WHEN {$valid} THEN customer_order.id END) AS usage_count,
+                COUNT(DISTINCT CASE WHEN {$pending} THEN customer_order.id END) AS pending_usage_count,
+                COALESCE(SUM(CASE WHEN {$valid} THEN contribution.discount_bani ELSE 0 END),0) AS total_discount_bani
+            FROM ({$contributions}) contribution JOIN orders customer_order ON customer_order.id=contribution.order_id
+            WHERE contribution.discount_bani>0 GROUP BY contribution.offer_id";
     }
 
     /** @param array<string,mixed> $data */
