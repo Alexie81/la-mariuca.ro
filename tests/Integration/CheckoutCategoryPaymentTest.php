@@ -135,23 +135,55 @@ final class CheckoutCategoryPaymentTest extends DatabaseTestCase
         self::assertSame(0, (int) $outbox[0]['attempts']);
     }
 
-    public function testGlobalCashOffCannotBeBypassedAndCashOnlyCartHasNoSelectableMethod(): void
+    public function testGlobalCashOffCannotBeBypassedButCashOnlyCartCanUseCardFallback(): void
     {
         $this->addProduct(0, 1);
         $_ENV['COD_ENABLED'] = 'false';
+        $_SESSION['checkout_old_input'] = ['payment_method' => 'cod'];
         $page = $this->document();
-        self::assertSame(2, $page->query('//input[@name="payment_method" and @disabled]')->length);
-        self::assertSame(0, $page->query('//input[@name="payment_method" and @checked]')->length);
-        self::assertSame(1, $page->query('//button[@form="checkout-form" and @type="submit" and not(@name) and @disabled]')->length);
-        self::assertStringContainsString('Nicio metodă de plată disponibilă', (string) $page->evaluate('string(//body)'));
+        self::assertSame(1, $page->query('//input[@name="payment_method" and @value="cod" and @disabled]')->length);
+        self::assertSame(1, $page->query('//input[@name="payment_method" and @value="stripe" and @checked and not(@disabled)]')->length);
+        self::assertSame(0, $page->query('//input[@name="payment_method" and @checked and @disabled]')->length);
+        self::assertSame(1, $page->query('//button[@form="checkout-form" and @type="submit" and not(@name) and not(@disabled)]')->length);
+        self::assertStringContainsString('Poți continua cu plata online', (string) $page->evaluate('string(//body)'));
         self::assertStringContainsString('Plata ramburs nu este disponibilă momentan în magazin.', (string) $page->evaluate('string(//*[@id="payment-cod-description"])'));
-        self::assertStringContainsString('nu acceptă plata cu cardul', (string) $page->evaluate('string(//*[@id="payment-stripe-description"])'));
+        self::assertSame(0, $page->query('//*[@id="payment-stripe-description"]//li')->length);
+        self::assertStringNotContainsString('nu acceptă plata cu cardul', (string) $page->evaluate('string(//*[@id="payment-stripe-description"])'));
         $before = $this->businessSnapshot();
 
         $response = $this->post('cod');
         self::assertSame('/finalizare-comanda/', $response->getHeaderLine('Location'));
         self::assertSame($before, $this->businessSnapshot());
         self::assertStringContainsString('Plata ramburs nu este disponibilă', (string) ($_SESSION['_flash'][0]['message'] ?? ''));
+
+        // The checkout transaction accepts Stripe; its provider redirect is deliberately not invoked.
+        $service = new CheckoutService($this->pdo, new CartService($this->pdo), Config::load($this->root));
+        $result = $service->place($this->checkoutData('stripe'));
+        self::assertSame('stripe', $result['payment_method']);
+        self::assertSame('stripe', $this->pdo->query('SELECT payment_method FROM orders')->fetchColumn());
+        self::assertSame('pending', $this->pdo->query('SELECT payment_status FROM orders')->fetchColumn());
+        self::assertSame(1, (int) $this->pdo->query('SELECT COUNT(*) FROM inventory_reservations')->fetchColumn());
+        self::assertSame(0, (int) $this->pdo->query('SELECT COUNT(*) FROM outbox_messages')->fetchColumn());
+    }
+
+    public function testBothGlobalMethodsOffDisableSubmissionAndRejectEitherForgedChoice(): void
+    {
+        $this->addProduct(0, 1);
+        $_ENV['COD_ENABLED'] = 'false';
+        $_ENV['STRIPE_ENABLED'] = 'false';
+        $_SESSION['checkout_old_input'] = ['payment_method' => 'stripe'];
+        $page = $this->document();
+        self::assertSame(2, $page->query('//input[@name="payment_method" and @disabled]')->length);
+        self::assertSame(0, $page->query('//input[@name="payment_method" and @checked]')->length);
+        self::assertSame(1, $page->query('//button[@form="checkout-form" and @type="submit" and not(@name) and @disabled]')->length);
+        self::assertStringContainsString('Nicio metodă de plată disponibilă', (string) $page->evaluate('string(//body)'));
+        self::assertStringNotContainsString('Poți continua cu plata', (string) $page->evaluate('string(//body)'));
+        $before = $this->businessSnapshot();
+
+        foreach (['cod', 'stripe'] as $method) {
+            self::assertSame('/finalizare-comanda/', $this->post($method)->getHeaderLine('Location'));
+            self::assertSame($before, $this->businessSnapshot());
+        }
     }
 
     public function testGlobalMethodsChangedAfterGetAreAppliedAtPost(): void

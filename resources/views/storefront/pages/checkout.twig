@@ -94,8 +94,10 @@
         <header class="checkout-section-head"><span class="checkout-step">04</span><div><h2 id="checkout-payment-title">Cum dorești să plătești?</h2><p>Metodele disponibile pentru produsele tale.</p></div><span class="checkout-section-icon">{{ _self.icon('card') }}</span></header>
         {% if payment_options.fallback_to_cod %}
           <div class="checkout-payment-notice">{{ _self.icon('bag') }}<div><strong>Poți continua cu plata la livrare</strong><p>Plata cu cardul este momentan indisponibilă. Pentru această comandă am pus la dispoziție rambursul.</p></div></div>
+        {% elseif payment_options.fallback_to_stripe %}
+          <div class="checkout-payment-notice">{{ _self.icon('card') }}<div><strong>Poți continua cu plata online</strong><p>Plata ramburs este momentan indisponibilă. Pentru această comandă am pus la dispoziție plata cu cardul.</p></div></div>
         {% elseif not payment_options.has_available %}
-          <div class="checkout-payment-notice is-warning" role="alert">{{ _self.icon('lock') }}<div><strong>Nicio metodă de plată disponibilă</strong><p>Te rugăm să <a href="{{ url('contact/') }}">ne contactezi</a> pentru a te ajuta să finalizezi comanda.</p></div></div>
+          <div class="checkout-payment-notice is-warning" role="alert">{{ _self.icon('lock') }}<div><strong>Nicio metodă de plată disponibilă</strong><p>Te rugăm să <a href="{{ url('pagina/contact/') }}">ne contactezi</a> pentru a te ajuta să finalizezi comanda.</p></div></div>
         {% endif %}
         <div class="checkout-options checkout-payment-options" role="radiogroup" aria-labelledby="checkout-payment-title">
           {% for method, title in {stripe: 'Card online', cod: 'Ramburs'} %}

@@ -30,6 +30,9 @@ final class CatalogAdminService
             throw new RuntimeException('Există deja o categorie cu acest nume. Alege o denumire unică.');
         }
         $description = trim((string) ($data['description'] ?? ''));
+        if ($description === '' || preg_match('/^[\s\p{Z}]+$/u', $description) === 1) {
+            throw new RuntimeException('Descrierea scurtă este obligatorie. Spune pe scurt ce găsește clientul în această categorie.');
+        }
         if (mb_strlen($description) > 100) {
             throw new RuntimeException('Descrierea scurtă poate avea maximum 100 de caractere.');
         }

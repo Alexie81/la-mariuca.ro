@@ -15,10 +15,10 @@ final class CatalogTest extends DatabaseTestCase
     public function testCategoryCycleIsRejected(): void
     {
         $service = new CatalogAdminService($this->pdo);
-        $parent = $service->saveCategory(['name' => 'Părinte', 'status' => 'draft', 'indexable' => '1']);
-        $child = $service->saveCategory(['name' => 'Copil', 'parent_id' => (string) $parent, 'status' => 'draft', 'indexable' => '1']);
+        $parent = $service->saveCategory(['name' => 'Părinte', 'description' => 'Colecția principală pentru copii.', 'status' => 'draft', 'indexable' => '1']);
+        $child = $service->saveCategory(['name' => 'Copil', 'description' => 'O selecție din colecția principală.', 'parent_id' => (string) $parent, 'status' => 'draft', 'indexable' => '1']);
         $this->expectException(RuntimeException::class);
-        $service->saveCategory(['name' => 'Părinte', 'parent_id' => (string) $child, 'status' => 'draft', 'indexable' => '1'], $parent);
+        $service->saveCategory(['name' => 'Părinte', 'description' => 'Colecția principală pentru copii.', 'parent_id' => (string) $child, 'status' => 'draft', 'indexable' => '1'], $parent);
     }
 
     public function testPublishedEntitiesHaveOwnContentAndSitemapData(): void
@@ -36,8 +36,8 @@ final class CatalogTest extends DatabaseTestCase
     public function testChangingSlugCreatesPermanentRedirectRecord(): void
     {
         $service = new CatalogAdminService($this->pdo);
-        $id = $service->saveCategory(['name' => 'Veche', 'slug' => 'veche', 'status' => 'draft', 'indexable' => '1']);
-        $service->saveCategory(['name' => 'Nouă', 'slug' => 'noua', 'status' => 'draft', 'indexable' => '1'], $id);
+        $id = $service->saveCategory(['name' => 'Veche', 'description' => 'O selecție pentru cei mici.', 'slug' => 'veche', 'status' => 'draft', 'indexable' => '1']);
+        $service->saveCategory(['name' => 'Nouă', 'description' => 'O selecție pentru cei mici.', 'slug' => 'noua', 'status' => 'draft', 'indexable' => '1'], $id);
         $repository = new CatalogRepository($this->pdo);
         self::assertSame('noua', $repository->redirectFor('category', 'veche')['new_slug']);
     }

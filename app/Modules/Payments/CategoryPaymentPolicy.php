@@ -17,7 +17,7 @@ final class CategoryPaymentPolicy
 
     /**
      * @param list<array<string,mixed>> $items Authoritative cart lines, not browser-submitted products.
-     * @return array{methods:array<string,array{available:bool,reason:string,blocked_products:list<array{id:int,name:string,slug:string,image_path:?string}>}>,preferred:?string,fallback_to_cod:bool,has_available:bool}
+     * @return array{methods:array<string,array{available:bool,reason:string,blocked_products:list<array{id:int,name:string,slug:string,image_path:?string}>}>,preferred:?string,fallback_to_cod:bool,fallback_to_stripe:bool,has_available:bool}
      */
     public function resolve(array $items, bool $lock = false): array
     {
@@ -90,33 +90,36 @@ final class CategoryPaymentPolicy
                 $method['blocked_products'] = $invalid;
             }
             unset($method);
-            return ['methods' => $methods, 'preferred' => null, 'fallback_to_cod' => false, 'has_available' => false];
+            return ['methods' => $methods, 'preferred' => null, 'fallback_to_cod' => false, 'fallback_to_stripe' => false, 'has_available' => false];
         }
 
         // Card-only rules win over cash-only rules, both within a product and across the cart.
         $requiresCard = $cardRequired !== [];
         $requiresCod = !$requiresCard && $codRequired !== [];
-        $fallback = !$stripeGlobal && $codGlobal && $requiresCard;
-        $methods['stripe']['available'] = $stripeGlobal && !$requiresCod;
+        $fallbackToCod = !$stripeGlobal && $codGlobal && $requiresCard;
+        $fallbackToStripe = !$codGlobal && $stripeGlobal && $requiresCod;
+        $methods['stripe']['available'] = $stripeGlobal && (!$requiresCod || !$codGlobal);
         $methods['cod']['available'] = $codGlobal && (!$requiresCard || !$stripeGlobal);
 
         if (!$stripeGlobal) {
             $methods['stripe']['reason'] = 'Plata online cu cardul nu este disponibilă momentan în magazin.';
-        } elseif ($requiresCod) {
+        } elseif ($requiresCod && $codGlobal) {
             $methods['stripe']['reason'] = $this->restrictionReason(count($codRequired), count($cartProducts), 'cu cardul');
             $methods['stripe']['blocked_products'] = $codRequired;
+        } elseif ($fallbackToStripe) {
+            $methods['stripe']['reason'] = 'Plata ramburs este indisponibilă momentan. Poți finaliza comanda cu plata online cu cardul.';
         }
         if (!$codGlobal) {
             $methods['cod']['reason'] = 'Plata ramburs nu este disponibilă momentan în magazin.';
         } elseif ($requiresCard && $stripeGlobal) {
             $methods['cod']['reason'] = $this->restrictionReason(count($cardRequired), count($cartProducts), 'ramburs');
             $methods['cod']['blocked_products'] = $cardRequired;
-        } elseif ($fallback) {
+        } elseif ($fallbackToCod) {
             $methods['cod']['reason'] = 'Plata cu cardul este indisponibilă momentan. Poți finaliza comanda cu plata ramburs.';
         }
 
         $preferred = $methods['stripe']['available'] ? 'stripe' : ($methods['cod']['available'] ? 'cod' : null);
-        return ['methods' => $methods, 'preferred' => $preferred, 'fallback_to_cod' => $fallback, 'has_available' => $preferred !== null];
+        return ['methods' => $methods, 'preferred' => $preferred, 'fallback_to_cod' => $fallbackToCod, 'fallback_to_stripe' => $fallbackToStripe, 'has_available' => $preferred !== null];
     }
 
     /** @param list<int> $categoryIds @param array<int,array<string,mixed>> $categories */

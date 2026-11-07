@@ -48,28 +48,33 @@ final class CategoryPaymentPolicyTest extends DatabaseTestCase
         $result = $this->policy()->resolve([$this->product([$category]), $this->product()]);
         $this->assertMethods($result, true, true, 'stripe');
         self::assertFalse($result['fallback_to_cod']);
+        self::assertFalse($result['fallback_to_stripe']);
     }
 
-    /** @return iterable<string,array{list<string>,bool,bool,bool,bool,?string,bool}> */
+    /** @return iterable<string,array{list<string>,bool,bool,bool,bool,?string,bool,bool}> */
     public static function combinations(): iterable
     {
-        yield 'unrestricted' => [['both'], true, true, true, true, 'stripe', false];
-        yield 'card required' => [['card', 'both'], true, true, true, false, 'stripe', false];
-        yield 'cash required' => [['cod', 'both'], true, true, false, true, 'cod', false];
-        yield 'conflicting products favor card' => [['cod', 'card'], true, true, true, false, 'stripe', false];
-        yield 'conflicting products reverse order' => [['card', 'cod'], true, true, true, false, 'stripe', false];
-        yield 'card global off overrides card-only' => [['card'], false, true, false, true, 'cod', true];
-        yield 'card global off overrides mixed restrictions' => [['card', 'cod'], false, true, false, true, 'cod', true];
-        yield 'card global off unrestricted' => [['both'], false, true, false, true, 'cod', false];
-        yield 'cash global off unrestricted' => [['both'], true, false, true, false, 'stripe', false];
-        yield 'cash-only no reverse fallback' => [['cod'], true, false, false, false, null, false];
-        yield 'both globally off' => [['both'], false, false, false, false, null, false];
-        yield 'invalid category despite other card rule' => [['invalid', 'card'], true, true, false, false, null, false];
-        yield 'invalid category cannot fallback' => [['invalid', 'card'], false, true, false, false, null, false];
+        yield 'unrestricted' => [['both'], true, true, true, true, 'stripe', false, false];
+        yield 'card required' => [['card', 'both'], true, true, true, false, 'stripe', false, false];
+        yield 'cash required' => [['cod', 'both'], true, true, false, true, 'cod', false, false];
+        yield 'conflicting products favor card' => [['cod', 'card'], true, true, true, false, 'stripe', false, false];
+        yield 'conflicting products reverse order' => [['card', 'cod'], true, true, true, false, 'stripe', false, false];
+        yield 'card global off overrides card-only' => [['card'], false, true, false, true, 'cod', true, false];
+        yield 'card global off overrides mixed restrictions' => [['card', 'cod'], false, true, false, true, 'cod', true, false];
+        yield 'card global off unrestricted' => [['both'], false, true, false, true, 'cod', false, false];
+        yield 'cash global off unrestricted' => [['both'], true, false, true, false, 'stripe', false, false];
+        yield 'cash global off overrides cash-only' => [['cod'], true, false, true, false, 'stripe', false, true];
+        yield 'cash global off overrides cash-only mixed cart' => [['cod', 'both'], true, false, true, false, 'stripe', false, true];
+        yield 'cash global off card priority needs no exception' => [['card', 'cod'], true, false, true, false, 'stripe', false, false];
+        yield 'both globally off' => [['both'], false, false, false, false, null, false, false];
+        yield 'both globally off cash-only' => [['cod'], false, false, false, false, null, false, false];
+        yield 'invalid category despite other card rule' => [['invalid', 'card'], true, true, false, false, null, false, false];
+        yield 'invalid category cannot fallback to cash' => [['invalid', 'card'], false, true, false, false, null, false, false];
+        yield 'invalid category cannot fallback to card' => [['invalid', 'cod'], true, false, false, false, null, false, false];
     }
 
     #[DataProvider('combinations')]
-    public function testCartAndGlobalPaymentCombinations(array $rules, bool $stripeEnabled, bool $codEnabled, bool $stripeAvailable, bool $codAvailable, ?string $preferred, bool $fallback): void
+    public function testCartAndGlobalPaymentCombinations(array $rules, bool $stripeEnabled, bool $codEnabled, bool $stripeAvailable, bool $codAvailable, ?string $preferred, bool $fallback, bool $fallbackToStripe): void
     {
         $_ENV['STRIPE_ENABLED'] = $stripeEnabled ? 'true' : 'false';
         $_ENV['COD_ENABLED'] = $codEnabled ? 'true' : 'false';
@@ -86,6 +91,7 @@ final class CategoryPaymentPolicyTest extends DatabaseTestCase
         $result = $this->policy()->resolve($items);
         $this->assertMethods($result, $stripeAvailable, $codAvailable, $preferred);
         self::assertSame($fallback, $result['fallback_to_cod']);
+        self::assertSame($fallbackToStripe, $result['fallback_to_stripe']);
         foreach ($result['methods'] as $method) {
             if (!$method['available']) {
                 self::assertNotSame('', $method['reason']);
@@ -157,6 +163,26 @@ final class CategoryPaymentPolicyTest extends DatabaseTestCase
         $child = $this->category(1, 1, $root);
         $this->pdo->prepare('UPDATE categories SET parent_id=? WHERE id=?')->execute([$child, $root]);
         $this->assertMethods($this->policy()->resolve([$this->product([$child])]), false, false, null);
+    }
+
+    public function testCashOnlyFallbackRequiresAConfiguredStripeKeyAndPreservesCategoryFlags(): void
+    {
+        $_ENV['COD_ENABLED'] = 'false';
+        $category = $this->category(0, 1);
+        $item = $this->product([$category]);
+        $result = $this->policy()->resolve([$item]);
+        $this->assertMethods($result, true, false, 'stripe');
+        self::assertTrue($result['fallback_to_stripe']);
+        self::assertFalse($result['fallback_to_cod']);
+        self::assertSame([], $result['methods']['stripe']['blocked_products']);
+        self::assertStringContainsString('Plata ramburs este indisponibilă', $result['methods']['stripe']['reason']);
+        self::assertSame(0, (int) $this->pdo->query('SELECT allow_card FROM categories WHERE id=' . $category)->fetchColumn());
+
+        $_ENV['STRIPE_SECRET_KEY'] = '';
+        $unconfigured = $this->policy()->resolve([$item]);
+        $this->assertMethods($unconfigured, false, false, null);
+        self::assertFalse($unconfigured['fallback_to_stripe']);
+        self::assertFalse($unconfigured['fallback_to_cod']);
     }
 
     public function testMissingProductAndEmptyCartCannotAcquirePaymentEligibility(): void

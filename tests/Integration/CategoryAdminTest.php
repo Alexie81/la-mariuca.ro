@@ -73,7 +73,7 @@ final class CategoryAdminTest extends DatabaseTestCase
         self::assertStringContainsString('name="position"', $modal);
         self::assertStringContainsString('name="image"', $modal);
         self::assertStringContainsString('enctype="multipart/form-data"', $modal);
-        self::assertStringContainsString('name="description" rows="5" maxlength="100"', $modal);
+        self::assertStringContainsString('name="description" rows="5" maxlength="100" required', $modal);
         self::assertStringContainsString('name="seo_title"', $modal);
         self::assertStringContainsString('name="meta_description"', $modal);
         self::assertStringContainsString('data-slug-auto="true"', $modal);
@@ -123,7 +123,7 @@ final class CategoryAdminTest extends DatabaseTestCase
             'name' => 'Colecții de vară',
             'slug' => 'alta-colectie',
             'parent_id' => '',
-            'description' => '',
+            'description' => 'Ținute luminoase pentru zilele calde.',
             'status' => 'draft',
             'visibility' => 'public',
         ], ['Accept' => 'application/json']);
@@ -206,7 +206,7 @@ final class CategoryAdminTest extends DatabaseTestCase
     public function testCategoryPaymentRulesPersistInCreateEditAndLegacyRequests(): void
     {
         $data = ['_csrf'=>$_SESSION['_csrf'], 'name'=>'Colecție plătită online', 'status'=>'published',
-            'parent_id'=>'', 'payment_rules_present'=>'1', 'allow_card'=>'1'];
+            'description'=>'O selecție pentru cumpărături online.', 'parent_id'=>'', 'payment_rules_present'=>'1', 'allow_card'=>'1'];
         $created = $this->request('POST', '/admin/categorii/noua/', $data, ['Accept'=>'application/json']);
         self::assertSame(200, $created->getStatusCode());
         $id = (int) $this->json($created)['id'];
@@ -243,6 +243,65 @@ final class CategoryAdminTest extends DatabaseTestCase
         gc_collect_cycles();
     }
 
+    public function testShortDescriptionIsRequiredForCreationAndEveryEdit(): void
+    {
+        $service = new \App\Modules\Catalog\CatalogAdminService($this->pdo);
+        $id = $service->saveCategory(['name'=>'Categorie cu descriere', 'description'=>'Hăinuțe delicate pentru cei mici.']);
+        $before = $this->category($id);
+        $categoryCount = (int) $this->pdo->query('SELECT COUNT(*) FROM categories')->fetchColumn();
+        $invalidDescriptions = [[], ['description'=>''], ['description'=>" \t\r\n "], ['description'=>"\u{00A0}\u{2003}"]];
+
+        foreach ($invalidDescriptions as $description) {
+            $base = ['_csrf'=>$_SESSION['_csrf'], 'name'=>'Descriere obligatorie la creare'];
+            $created = $this->request('POST', '/admin/categorii/noua/', $base + $description, ['Accept'=>'application/json']);
+            self::assertSame(422, $created->getStatusCode());
+            self::assertStringContainsString('Descrierea scurtă este obligatorie.', $this->json($created)['message']);
+            self::assertSame($categoryCount, (int) $this->pdo->query('SELECT COUNT(*) FROM categories')->fetchColumn());
+
+            $base['name'] = 'O editare care nu trebuie salvată';
+            $edited = $this->request('POST', '/admin/categorii/' . $id . '/editare/', $base + $description, ['Accept'=>'application/json']);
+            self::assertSame(422, $edited->getStatusCode());
+            self::assertStringContainsString('Descrierea scurtă este obligatorie.', $this->json($edited)['message']);
+            self::assertSame($before, $this->category($id), 'Nici formularul vechi fără descriere nu poate ocoli validarea la editare.');
+        }
+
+        foreach (['/admin/categorii/noua/modal/', '/admin/categorii/' . $id . '/editare/modal/'] as $path) {
+            $modal = (string) $this->get($path)->getBody();
+            self::assertMatchesRegularExpression('/<textarea[^>]*name="description"[^>]*\\brequired\\b/', $modal);
+            self::assertStringContainsString('Descriere scurtă <b>*</b>', $modal);
+            self::assertStringContainsString('Obligatorie ·', $modal);
+            self::assertStringContainsString('Fotografia este opțională', $modal);
+            self::assertStringNotContainsString('Le poți completa și mai târziu.', $modal);
+        }
+    }
+
+    public function testShortDescriptionAcceptsOneHundredCharactersAndRejectsOneMore(): void
+    {
+        $description = str_repeat('ă', 100);
+        $data = ['_csrf'=>$_SESSION['_csrf'], 'name'=>'Descriere la limită', 'description'=>"  $description  "];
+        $created = $this->request('POST', '/admin/categorii/noua/', $data, ['Accept'=>'application/json']);
+        self::assertSame(200, $created->getStatusCode());
+        $id = (int) $this->json($created)['id'];
+        self::assertSame($description, $this->category($id)['description']);
+        $before = $this->category($id);
+
+        $data['description'] = str_repeat('ș', 101);
+        $edited = $this->request('POST', '/admin/categorii/' . $id . '/editare/', $data, ['Accept'=>'application/json']);
+        self::assertSame(422, $edited->getStatusCode());
+        self::assertStringContainsString('maximum 100 de caractere', $this->json($edited)['message']);
+        self::assertSame($before, $this->category($id));
+
+        $data['name'] = 'Descriere prea lungă la creare';
+        $tooLong = $this->request('POST', '/admin/categorii/noua/', $data, ['Accept'=>'application/json']);
+        self::assertSame(422, $tooLong->getStatusCode());
+        self::assertStringContainsString('maximum 100 de caractere', $this->json($tooLong)['message']);
+
+        $data['description'] = " \nO propoziție clară despre categorie.\t ";
+        $updated = $this->request('POST', '/admin/categorii/' . $id . '/editare/', $data, ['Accept'=>'application/json']);
+        self::assertSame(200, $updated->getStatusCode());
+        self::assertSame('O propoziție clară despre categorie.', $this->category($id)['description']);
+    }
+
     public function testNewCategoryPaymentDefaultsDoNotFollowGlobalDisabledMethods(): void
     {
         $stripeBefore = $_ENV['STRIPE_ENABLED'] ?? null;
@@ -253,7 +312,8 @@ final class CategoryAdminTest extends DatabaseTestCase
             $modal = (string) $this->get('/admin/categorii/noua/modal/')->getBody();
             self::assertMatchesRegularExpression('/name="allow_card"[^>]*\\bchecked\\b/', $modal);
             self::assertMatchesRegularExpression('/name="allow_cod"[^>]*\\bchecked\\b/', $modal);
-            self::assertStringContainsString('fără să schimbe aceste opțiuni', $modal);
+            self::assertStringContainsString('Opțiunile categoriei se păstrează.', $modal);
+            self::assertStringContainsString('cealaltă metodă disponibilă: card sau ramburs', $modal);
         } finally {
             if ($stripeBefore === null) { unset($_ENV['STRIPE_ENABLED']); } else { $_ENV['STRIPE_ENABLED'] = $stripeBefore; }
             if ($codBefore === null) { unset($_ENV['COD_ENABLED']); } else { $_ENV['COD_ENABLED'] = $codBefore; }
@@ -262,7 +322,7 @@ final class CategoryAdminTest extends DatabaseTestCase
 
     public function testBothPaymentMethodsCannotBeDisabledOrSubmittedWithInvalidValues(): void
     {
-        $data = ['_csrf'=>$_SESSION['_csrf'], 'name'=>'Categorie fără plată', 'status'=>'published', 'payment_rules_present'=>'1'];
+        $data = ['_csrf'=>$_SESSION['_csrf'], 'name'=>'Categorie fără plată', 'description'=>'O selecție pentru cei mici.', 'status'=>'published', 'payment_rules_present'=>'1'];
         $rejected = $this->request('POST', '/admin/categorii/noua/', $data, ['Accept'=>'application/json']);
         self::assertSame(422, $rejected->getStatusCode());
         self::assertStringContainsString('cel puțin o metodă de plată', $this->json($rejected)['message']);
@@ -290,8 +350,8 @@ final class CategoryAdminTest extends DatabaseTestCase
     public function testNewSubcategoryKeepsBothLocalDefaultsUnderARestrictedParent(): void
     {
         $service = new \App\Modules\Catalog\CatalogAdminService($this->pdo);
-        $parent = $service->saveCategory(['name'=>'Părinte numai card', 'payment_rules_present'=>'1', 'allow_card'=>'1']);
-        $child = $service->saveCategory(['name'=>'Subcategorie cu reguli implicite', 'parent_id'=>(string) $parent]);
+        $parent = $service->saveCategory(['name'=>'Părinte numai card', 'description'=>'Selecție principală pentru copii.', 'payment_rules_present'=>'1', 'allow_card'=>'1']);
+        $child = $service->saveCategory(['name'=>'Subcategorie cu reguli implicite', 'description'=>'Selecție din colecția principală.', 'parent_id'=>(string) $parent]);
         self::assertSame(1, (int) $this->category($child)['allow_card']);
         self::assertSame(1, (int) $this->category($child)['allow_cod']);
         self::assertSame(0, (int) $this->category($parent)['allow_cod']);
