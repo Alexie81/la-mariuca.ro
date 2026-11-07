@@ -14,6 +14,11 @@ use App\Modules\Admin\AdminPushService;
 use Symfony\Component\Mailer\Mailer;
 use Symfony\Component\Mailer\Transport;
 use Symfony\Component\Mime\Email;
+use Symfony\Component\Mime\Address;
+use App\Modules\Orders\OrderConfirmationEmail;
+use App\Modules\Orders\OrderEmailImages;
+use Twig\Environment;
+use Twig\Loader\FilesystemLoader;
 
 $root = dirname(__DIR__);
 require $root . '/vendor/autoload.php';
@@ -96,18 +101,27 @@ try {
                 }
                 $transport = Transport::fromDsn($dsn);
             }
+            $trackingService = new \App\Modules\Orders\OrderTrackingService(new \App\Modules\Orders\OrderTrackingRepository($pdo), new \App\Modules\Orders\OrderService($pdo), $config, $root);
+            $confirmationEmail = new OrderConfirmationEmail($trackingService, $config,
+                new Environment(new FilesystemLoader($root . '/resources/views'), ['autoescape' => 'html']),
+                new OrderEmailImages($config, $root));
             foreach ($messages as $message) {
-                $pdo->prepare("UPDATE outbox_messages SET status='processing',attempts=attempts+1 WHERE id=:id AND status IN ('pending','failed')")->execute(['id' => $message['id']]);
+                $claim = $pdo->prepare("UPDATE outbox_messages SET status='processing',attempts=attempts+1 WHERE id=:id AND status IN ('pending','failed')");
+                $claim->execute(['id' => $message['id']]);
+                if ($claim->rowCount() !== 1) { continue; }
                 try {
                     $payload = json_decode((string) $message['payload_json'], true) ?: [];
+                    $htmlBody = null;
                     $statusLabels = [
                         'new' => 'nouă', 'confirmed' => 'confirmată', 'preparing' => 'în pregătire',
                         'shipped' => 'expediată', 'delivered' => 'livrată', 'cancelled' => 'anulată',
                         'returned' => 'returnată', 'manual_review' => 'în verificare',
                     ];
                     if ($message['message_type'] === 'order_confirmation') {
-                        $subject = 'Confirmarea comenzii La Măriuca';
-                        $body = 'Comanda a fost înregistrată. Număr intern: ' . (int) ($payload['order_id'] ?? 0);
+                        $confirmation = $confirmationEmail->render((int) ($payload['order_id'] ?? 0), (string) $message['recipient']);
+                        $subject = $confirmation['subject'];
+                        $body = $confirmation['text'];
+                        $htmlBody = $confirmation['html'];
                     } elseif ($message['message_type'] === 'order_status_update') {
                         $orderNumber = (string) ($payload['order_number'] ?? ('#' . (int) ($payload['order_id'] ?? 0)));
                         $status = $statusLabels[(string) ($payload['status'] ?? '')] ?? (string) ($payload['status'] ?? 'actualizată');
@@ -122,19 +136,14 @@ try {
                         $subject = 'Verifică adresa de email';
                         $body = 'Folosește tokenul de verificare transmis securizat de aplicație.';
                     }
-                    $htmlBody = null;
-                    if (in_array($message['message_type'], ['order_confirmation', 'order_status_update'], true)) {
-                        $trackingService = new \App\Modules\Orders\OrderTrackingService(new \App\Modules\Orders\OrderTrackingRepository($pdo), new \App\Modules\Orders\OrderService($pdo), $config, $root);
-                        if ($message['message_type'] === 'order_confirmation') {
-                            $trackedOrder = $trackingService->details((int) ($payload['order_id'] ?? 0));
-                            $body = 'Îți mulțumim! Comanda ' . ($trackedOrder['order_number'] ?? '') . ' a fost înregistrată. Poți vedea oricând starea și detaliile ei folosind butonul de mai jos.';
-                        }
+                    if ($message['message_type'] === 'order_status_update') {
                         $trackingEmail = (new \App\Modules\Orders\OrderTrackingEmail($trackingService))->withTracking($body, (int) ($payload['order_id'] ?? 0), (string) $message['recipient']);
                         $body = $trackingEmail['text'];
                         $htmlBody = $trackingEmail['html'];
                     }
                     if ($transport !== null) {
-                        $email = (new Email())->from($config->get('MAIL_FROM_ADDRESS', 'no-reply@example.test'))->to((string) $message['recipient'])->subject($subject)->text($body);
+                        $email = (new Email())->from(new Address($config->get('MAIL_FROM_ADDRESS', 'no-reply@example.test'), $config->get('MAIL_FROM_NAME', 'La Măriuca Boutique')))
+                            ->replyTo($config->get('CONTACT_EMAIL', 'contact@la-mariuca.ro'))->to((string) $message['recipient'])->subject($subject)->text($body);
                         if ($htmlBody !== null) {
                             $email->html($htmlBody);
                         }

@@ -1,0 +1,60 @@
+{% autoescape false %}
+LA MĂRIUCA BOUTIQUE
+
+Bună{% if first_name %}, {{ first_name }}{% endif %}!
+{{ message }}
+{{ introduction }}
+
+Comanda {{ number }}
+Plasată la {{ date }}
+
+Urmărește comanda:
+{{ tracking_url }}
+
+ALEGERILE TALE
+{% for item in items %}
+{{ item.name }}{% if item.variant %} — {{ item.variant }}{% endif %}
+SKU: {{ item.sku }}
+Cantitate: {{ item.quantity }} buc. × {{ item.unit_price }} / buc.
+Total produs: {{ item.total }}
+
+{% endfor %}
+REZUMATUL COMENZII
+{% for row in totals %}
+{{ row.label }}: {{ row.value }}
+{% endfor %}
+Total comandă: {{ total }}
+{% if savings %}Ai economisit {{ savings }}.
+{% endif %}
+Metoda de plată: {{ payment_method }} — {{ payment_state }}
+
+DETALII DE LIVRARE
+{{ recipient_name }}
+{{ address.address|default('') }}
+{{ address.city|default('') }}, {{ address.county|default('') }}
+{% if address.postal_code|default('') %}Cod poștal: {{ address.postal_code }}
+{% endif %}
+Telefon: {{ phone }}
+Email: {{ email }}
+Metoda de livrare: {{ shipping_method }}
+{% if delivery_estimate %}Termen estimat: {{ delivery_estimate.label }}
+{{ delivery_estimate.detail }}
+{% endif %}
+
+Ai o întrebare? Scrie-ne la {{ contact_email }}.
+
+Cu drag,
+La Măriuca Boutique
+{{ shop_url }}
+
+INFORMAȚII UTILE
+Livrare și retur: {{ delivery_url }}
+Termeni și condiții: {{ terms_url }}
+Confidențialitate: {{ privacy_url }}
+ANPC — Soluționarea Alternativă a Litigiilor: https://anpc.ro/sal/
+
+Magazin dezvoltat, susținut și întreținut de CAB IT — https://cab-it.ro/
+
+Acest email a fost generat automat în urma comenzii {{ number }}.
+Păstrează linkul de urmărire privat: oferă acces la detaliile comenzii tale.
+{% endautoescape %}

@@ -218,9 +218,12 @@ final class CheckoutService
             $this->pdo->prepare("INSERT INTO payments (order_id, provider, amount_bani, refunded_bani, currency, status, created_at, updated_at) VALUES (:order_id, :provider, :amount, 0, 'RON', 'pending', :now, :now)")->execute([
                 'order_id' => $orderId, 'provider' => $method, 'amount' => $total, 'now' => $now,
             ]);
-            $this->pdo->prepare("INSERT INTO outbox_messages (message_type, recipient, payload_json, status, attempts, available_at, created_at) VALUES ('order_confirmation', :recipient, :payload, 'pending', 0, :now, :now)")->execute([
-                'recipient' => $data['email'], 'payload' => json_encode(['order_id' => $orderId], JSON_THROW_ON_ERROR), 'now' => $now,
-            ]);
+            // Card confirmation is queued only by the verified, successful payment webhook.
+            if ($method === 'cod') {
+                $this->pdo->prepare("INSERT INTO outbox_messages (message_type, recipient, payload_json, status, attempts, available_at, created_at) VALUES ('order_confirmation', :recipient, :payload, 'pending', 0, :now, :now)")->execute([
+                    'recipient' => mb_strtolower(trim((string) $data['email'])), 'payload' => json_encode(['order_id' => $orderId], JSON_THROW_ON_ERROR), 'now' => $now,
+                ]);
+            }
             $this->pdo->prepare("UPDATE carts SET status = 'converted', updated_at = :now WHERE id = :id AND status = 'active'")->execute(['now' => $now, 'id' => $this->cart->cartId()]);
             $this->push?->queueOrder($orderId);
             $this->push?->queueLowStockForOrder($orderId);

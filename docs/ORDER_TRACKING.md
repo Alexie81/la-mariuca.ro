@@ -14,7 +14,7 @@ Pagina `/urmarire-comanda/` poate fi accesată din „Informații” în footer.
 
 Procesorul `outbox:process` adaugă automat butonul „Urmărește comanda” în emailurile `order_confirmation` și `order_status_update`, plus alternativa text. Destinatarul trebuie să fie emailul comenzii. Textul și URL-ul sunt escapate în HTML.
 
-În modul local, rezultatele sunt scrise privat în `storage/private/mail/<id>.txt` și `.html`; în producție, transportul configurat primește ambele variante. Această modificare nu configurează și nu verifică SMTP live. Pentru alt șablon de email se poate folosi `OrderTrackingEmail::withTracking($body, $orderId, $recipient)`.
+În modul local, rezultatele sunt scrise privat în `storage/private/mail/<id>.txt` și `.html`; în producție, transportul configurat primește ambele variante. Confirmările folosesc acum `OrderConfirmationEmail`, cu produse, livrare, plăți și estimare; detaliile sunt în `ORDER_EMAILS.md`. Pentru actualizări de status sau alt șablon de email se poate folosi `OrderTrackingEmail::withTracking($body, $orderId, $recipient)`. Autentificarea SMTP a fost verificată separat; livrarea efectivă în inbox nu a fost testată.
 
 ## Datele statusurilor
 

@@ -536,6 +536,7 @@ final class CheckoutTest extends DatabaseTestCase
                 $this->checkoutData('stripe-paid-order'),
                 ['payment_method' => 'stripe'],
             ));
+            self::assertSame(0, (int) $this->pdo->query("SELECT COUNT(*) FROM outbox_messages WHERE message_type='order_confirmation'")->fetchColumn(), 'Card confirmation must wait for payment.');
             self::assertSame('reserved', $this->redemptionStatus((int) $paidOrder['id']));
 
             $completedUnpaid = $this->stripeWebhook('evt_checkout_completed_unpaid', 'checkout.session.completed', (int) $paidOrder['id'], 'unpaid');
@@ -544,6 +545,7 @@ final class CheckoutTest extends DatabaseTestCase
             $unpaidState = $this->pdo->query('SELECT status,payment_status FROM orders WHERE id=' . (int) $paidOrder['id'])->fetch();
             self::assertSame('new', $unpaidState['status']);
             self::assertSame('pending', $unpaidState['payment_status']);
+            self::assertSame(0, (int) $this->pdo->query("SELECT COUNT(*) FROM outbox_messages WHERE message_type='order_confirmation'")->fetchColumn());
 
             $completed = $this->stripeWebhook('evt_checkout_async_succeeded', 'checkout.session.async_payment_succeeded', (int) $paidOrder['id']);
             self::assertSame(200, $completed->getStatusCode());
@@ -551,6 +553,7 @@ final class CheckoutTest extends DatabaseTestCase
             $paidState = $this->pdo->query('SELECT status,payment_status FROM orders WHERE id=' . (int) $paidOrder['id'])->fetch();
             self::assertSame('confirmed', $paidState['status']);
             self::assertSame('paid', $paidState['payment_status']);
+            self::assertSame(1, (int) $this->pdo->query("SELECT COUNT(*) FROM outbox_messages WHERE message_type='order_confirmation'")->fetchColumn());
             $statusEntry = $this->pdo->query("SELECT created_at FROM audit_log WHERE entity_type='order' AND entity_id=" . (int) $paidOrder['id'] . " AND action='order.confirm'")->fetchColumn();
             self::assertNotFalse($statusEntry, 'Confirmarea automată trebuie să înregistreze data intrării în status.');
             $payment = $this->pdo->query('SELECT status,provider_payment_id FROM payments WHERE order_id=' . (int) $paidOrder['id'])->fetch();
@@ -563,6 +566,8 @@ final class CheckoutTest extends DatabaseTestCase
             self::assertSame(200, $duplicate->getStatusCode());
             self::assertSame(1, (int) $this->pdo->query("SELECT COUNT(*) FROM payment_events WHERE provider_event_id='evt_checkout_async_succeeded'")->fetchColumn());
             self::assertSame(1, (int) $this->pdo->query("SELECT COUNT(*) FROM audit_log WHERE entity_type='order' AND entity_id=" . (int) $paidOrder['id'] . " AND action='order.confirm'")->fetchColumn());
+            self::assertSame(200, $this->stripeWebhook('evt_distinct_success', 'checkout.session.completed', (int) $paidOrder['id'])->getStatusCode());
+            self::assertSame(1, (int) $this->pdo->query("SELECT COUNT(*) FROM outbox_messages WHERE message_type='order_confirmation'")->fetchColumn(), 'Retries and distinct success events must not duplicate the confirmation.');
             self::assertSame('confirmed', $this->redemptionStatus((int) $paidOrder['id']));
             self::assertSame(200, $this->stripeWebhook('evt_paid_order_expired_late', 'checkout.session.expired', (int) $paidOrder['id'])->getStatusCode());
             self::assertSame('confirmed', $this->redemptionStatus((int) $paidOrder['id']));
