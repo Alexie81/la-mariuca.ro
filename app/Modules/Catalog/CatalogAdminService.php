@@ -69,20 +69,22 @@ final class CatalogAdminService
         $this->pdo->beginTransaction();
         try {
             if ($id === null) {
+                $paymentRules = $this->categoryPaymentRules($data);
                 $publishedAt = $status === 'published' ? $now : null;
-                $statement = $this->pdo->prepare('INSERT INTO categories (parent_id,name,slug,description,image_media_id,position,status,visibility,seo_title,meta_description,indexable,published_at,created_at,updated_at) VALUES (:parent_id,:name,:slug,:description,:image_media_id,:position,:status,:visibility,:seo_title,:meta_description,:indexable,:published_at,:created_at,:updated_at)');
-                $statement->execute($this->categoryParams($data, $name, $slug, $description, $parentId, $position, $status, $seoTitle, $metaDescription, $imageMediaId, $publishedAt, $now) + ['created_at' => $now]);
+                $statement = $this->pdo->prepare('INSERT INTO categories (parent_id,name,slug,description,image_media_id,position,status,visibility,seo_title,meta_description,indexable,allow_card,allow_cod,published_at,created_at,updated_at) VALUES (:parent_id,:name,:slug,:description,:image_media_id,:position,:status,:visibility,:seo_title,:meta_description,:indexable,:allow_card,:allow_cod,:published_at,:created_at,:updated_at)');
+                $statement->execute($this->categoryParams($data, $name, $slug, $description, $parentId, $position, $status, $seoTitle, $metaDescription, $imageMediaId, $publishedAt, $now) + $paymentRules + ['created_at' => $now]);
                 $id = (int) $this->pdo->lastInsertId();
             } else {
-                $old = $this->pdo->prepare('SELECT slug,published_at FROM categories WHERE id=:id');
+                $old = $this->pdo->prepare('SELECT slug,published_at,allow_card,allow_cod FROM categories WHERE id=:id');
                 $old->execute(['id' => $id]);
                 $oldCategory = $old->fetch();
                 if (!is_array($oldCategory)) {
                     throw new RuntimeException('Categoria nu există.');
                 }
+                $paymentRules = $this->categoryPaymentRules($data, $oldCategory);
                 $publishedAt = $status === 'published' ? ((string) ($oldCategory['published_at'] ?? '') ?: $now) : null;
-                $statement = $this->pdo->prepare('UPDATE categories SET parent_id=:parent_id,name=:name,slug=:slug,description=:description,image_media_id=:image_media_id,position=:position,status=:status,visibility=:visibility,seo_title=:seo_title,meta_description=:meta_description,indexable=:indexable,published_at=:published_at,updated_at=:updated_at WHERE id=:id');
-                $statement->execute($this->categoryParams($data, $name, $slug, $description, $parentId, $position, $status, $seoTitle, $metaDescription, $imageMediaId, $publishedAt, $now) + ['id' => $id]);
+                $statement = $this->pdo->prepare('UPDATE categories SET parent_id=:parent_id,name=:name,slug=:slug,description=:description,image_media_id=:image_media_id,position=:position,status=:status,visibility=:visibility,seo_title=:seo_title,meta_description=:meta_description,indexable=:indexable,allow_card=:allow_card,allow_cod=:allow_cod,published_at=:published_at,updated_at=:updated_at WHERE id=:id');
+                $statement->execute($this->categoryParams($data, $name, $slug, $description, $parentId, $position, $status, $seoTitle, $metaDescription, $imageMediaId, $publishedAt, $now) + $paymentRules + ['id' => $id]);
                 if ((string) $oldCategory['slug'] !== $slug) {
                     $this->saveRedirect('category', (string) $oldCategory['slug'], $slug);
                 }
@@ -189,7 +191,7 @@ final class CatalogAdminService
     public function categoriesForAdmin(string $search = ''): array
     {
         $rows = $this->pdo->query("SELECT c.id,c.parent_id,c.name,c.slug,c.description,c.position,c.status,c.visibility,
-                c.seo_title,c.meta_description,c.indexable,c.image_media_id,c.updated_at,
+                c.seo_title,c.meta_description,c.indexable,c.image_media_id,c.updated_at,c.allow_card,c.allow_cod,
                 parent.name AS parent_name,media.public_path AS image_path,media.alt_text AS image_alt,
                 (SELECT COUNT(*) FROM categories child WHERE child.parent_id=c.id) AS child_count,
                 (SELECT COUNT(*) FROM product_categories pc WHERE pc.category_id=c.id) AS product_count
@@ -204,6 +206,8 @@ final class CatalogAdminService
             $row['id'] = (int) $row['id'];
             $row['parent_id'] = $row['parent_id'] === null ? null : (int) $row['parent_id'];
             $row['position'] = (int) $row['position'];
+            $row['allow_card'] = (int) $row['allow_card'];
+            $row['allow_cod'] = (int) $row['allow_cod'];
             $row['child_count'] = (int) $row['child_count'];
             $row['product_count'] = (int) $row['product_count'];
             $byId[$row['id']] = $row;
@@ -1270,6 +1274,30 @@ final class CatalogAdminService
             $statement = $this->pdo->prepare('DELETE FROM cart_items WHERE variant_id IN (SELECT id FROM product_variants WHERE product_id=? AND status=\'inactive\' AND id NOT IN (' . $placeholders . '))');
             $statement->execute(array_merge([$productId], $activeIds));
         }
+    }
+
+    /** @param array<string,mixed> $data @param array<string,mixed>|null $current @return array{allow_card:int,allow_cod:int} */
+    private function categoryPaymentRules(array $data, ?array $current = null): array
+    {
+        $submitted = array_key_exists('payment_rules_present', $data)
+            || array_key_exists('allow_card', $data) || array_key_exists('allow_cod', $data);
+        if (!$submitted) {
+            // Legacy forms cannot silently reset restrictions saved through the current editor.
+            $rules = ['allow_card' => (int) ($current['allow_card'] ?? 1), 'allow_cod' => (int) ($current['allow_cod'] ?? 1)];
+        } else {
+            $rules = [];
+            foreach (['allow_card', 'allow_cod'] as $key) {
+                $value = $data[$key] ?? '0';
+                if (!in_array($value, [0, 1, '0', '1', 'on', '', false, true], true)) {
+                    throw new RuntimeException('Setările metodelor de plată nu sunt valide. Alege card online sau ramburs.');
+                }
+                $rules[$key] = in_array($value, [1, '1', 'on', true], true) ? 1 : 0;
+            }
+        }
+        if ($rules['allow_card'] === 0 && $rules['allow_cod'] === 0) {
+            throw new RuntimeException('Lasă activă cel puțin o metodă de plată: card online sau ramburs.');
+        }
+        return ['allow_card' => $rules['allow_card'], 'allow_cod' => $rules['allow_cod']];
     }
 
     /** @param array<string,mixed> $data @return array<string,mixed> */

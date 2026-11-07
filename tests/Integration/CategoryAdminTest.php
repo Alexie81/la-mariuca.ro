@@ -109,6 +109,8 @@ final class CategoryAdminTest extends DatabaseTestCase
         $rootId = (int) $payload['id'];
         $root = $this->category($rootId);
         self::assertSame('colectii-de-vara', $root['slug']);
+        self::assertSame(1, (int) $root['allow_card']);
+        self::assertSame(1, (int) $root['allow_cod']);
         self::assertNull($root['parent_id']);
         self::assertSame(33, (int) $root['position']);
         self::assertSame('Colecții de vară', $root['seo_title']);
@@ -199,6 +201,104 @@ final class CategoryAdminTest extends DatabaseTestCase
         self::assertSame(303, $this->post('/admin/categorii/' . $rootId . '/sterge/', ['_csrf' => $_SESSION['_csrf']])->getStatusCode());
         self::assertSame(0, (int) $this->pdo->query('SELECT COUNT(*) FROM categories WHERE id=' . $rootId)->fetchColumn());
         self::assertSame(0, (int) $this->pdo->query("SELECT COUNT(*) FROM slug_redirects WHERE entity_type='category' AND (old_slug='vara-copii' OR new_slug='vara-copii')")->fetchColumn());
+    }
+
+    public function testCategoryPaymentRulesPersistInCreateEditAndLegacyRequests(): void
+    {
+        $data = ['_csrf'=>$_SESSION['_csrf'], 'name'=>'Colecție plătită online', 'status'=>'published',
+            'parent_id'=>'', 'payment_rules_present'=>'1', 'allow_card'=>'1'];
+        $created = $this->request('POST', '/admin/categorii/noua/', $data, ['Accept'=>'application/json']);
+        self::assertSame(200, $created->getStatusCode());
+        $id = (int) $this->json($created)['id'];
+        self::assertSame(1, (int) $this->category($id)['allow_card']);
+        self::assertSame(0, (int) $this->category($id)['allow_cod']);
+
+        $modal = (string) $this->get('/admin/categorii/' . $id . '/editare/modal/')->getBody();
+        self::assertMatchesRegularExpression('/name="allow_card"[^>]*\\bchecked\\b/', $modal);
+        self::assertDoesNotMatchRegularExpression('/name="allow_cod"[^>]*\\bchecked\\b/', $modal);
+        self::assertStringContainsString('name="payment_rules_present" value="1"', $modal);
+        self::assertStringContainsString('data-admin-category-payment-notice', $modal);
+
+        unset($data['allow_card']);
+        $data['allow_cod'] = '1';
+        $updated = $this->request('POST', '/admin/categorii/' . $id . '/editare/', $data, ['Accept'=>'application/json']);
+        self::assertSame(200, $updated->getStatusCode());
+        self::assertSame(0, (int) $this->category($id)['allow_card']);
+        self::assertSame(1, (int) $this->category($id)['allow_cod']);
+
+        unset($data['payment_rules_present'], $data['allow_cod']);
+        $data['description'] = 'Un formular vechi păstrează regulile de plată.';
+        $legacy = $this->request('POST', '/admin/categorii/' . $id . '/editare/', $data, ['Accept'=>'application/json']);
+        self::assertSame(200, $legacy->getStatusCode());
+        self::assertSame(0, (int) $this->category($id)['allow_card']);
+        self::assertSame(1, (int) $this->category($id)['allow_cod']);
+        self::assertSame($data['description'], $this->category($id)['description']);
+
+        $data += ['payment_rules_present'=>'1', 'allow_card'=>'1', 'allow_cod'=>'1'];
+        self::assertSame(200, $this->request('POST', '/admin/categorii/' . $id . '/editare/', $data, ['Accept'=>'application/json'])->getStatusCode());
+        $rows = (new \App\Modules\Catalog\CatalogAdminService($this->pdo))->categoriesForAdmin();
+        $saved = array_values(array_filter($rows, static fn(array $row): bool => (int) $row['id'] === $id))[0];
+        self::assertSame(1, $saved['allow_card']);
+        self::assertSame(1, $saved['allow_cod']);
+        gc_collect_cycles();
+    }
+
+    public function testNewCategoryPaymentDefaultsDoNotFollowGlobalDisabledMethods(): void
+    {
+        $stripeBefore = $_ENV['STRIPE_ENABLED'] ?? null;
+        $codBefore = $_ENV['COD_ENABLED'] ?? null;
+        try {
+            $_ENV['STRIPE_ENABLED'] = 'false';
+            $_ENV['COD_ENABLED'] = 'false';
+            $modal = (string) $this->get('/admin/categorii/noua/modal/')->getBody();
+            self::assertMatchesRegularExpression('/name="allow_card"[^>]*\\bchecked\\b/', $modal);
+            self::assertMatchesRegularExpression('/name="allow_cod"[^>]*\\bchecked\\b/', $modal);
+            self::assertStringContainsString('fără să schimbe aceste opțiuni', $modal);
+        } finally {
+            if ($stripeBefore === null) { unset($_ENV['STRIPE_ENABLED']); } else { $_ENV['STRIPE_ENABLED'] = $stripeBefore; }
+            if ($codBefore === null) { unset($_ENV['COD_ENABLED']); } else { $_ENV['COD_ENABLED'] = $codBefore; }
+        }
+    }
+
+    public function testBothPaymentMethodsCannotBeDisabledOrSubmittedWithInvalidValues(): void
+    {
+        $data = ['_csrf'=>$_SESSION['_csrf'], 'name'=>'Categorie fără plată', 'status'=>'published', 'payment_rules_present'=>'1'];
+        $rejected = $this->request('POST', '/admin/categorii/noua/', $data, ['Accept'=>'application/json']);
+        self::assertSame(422, $rejected->getStatusCode());
+        self::assertStringContainsString('cel puțin o metodă de plată', $this->json($rejected)['message']);
+        self::assertSame(0, (int) $this->pdo->query("SELECT COUNT(*) FROM categories WHERE name='Categorie fără plată'")->fetchColumn());
+
+        $data['allow_cod'] = '1';
+        $created = $this->request('POST', '/admin/categorii/noua/', $data, ['Accept'=>'application/json']);
+        self::assertSame(200, $created->getStatusCode());
+        $id = (int) $this->json($created)['id'];
+        $before = $this->category($id);
+        $data['name'] = 'Nu trebuie salvat';
+        $data['allow_card'] = '0';
+        $data['allow_cod'] = '0';
+        self::assertSame(422, $this->request('POST', '/admin/categorii/' . $id . '/editare/', $data, ['Accept'=>'application/json'])->getStatusCode());
+        self::assertSame($before, $this->category($id));
+
+        $data['allow_card'] = ['1'];
+        $data['allow_cod'] = '1';
+        $invalid = $this->request('POST', '/admin/categorii/' . $id . '/editare/', $data, ['Accept'=>'application/json']);
+        self::assertSame(422, $invalid->getStatusCode());
+        self::assertStringContainsString('nu sunt valide', $this->json($invalid)['message']);
+        self::assertSame($before, $this->category($id));
+    }
+
+    public function testNewSubcategoryKeepsBothLocalDefaultsUnderARestrictedParent(): void
+    {
+        $service = new \App\Modules\Catalog\CatalogAdminService($this->pdo);
+        $parent = $service->saveCategory(['name'=>'Părinte numai card', 'payment_rules_present'=>'1', 'allow_card'=>'1']);
+        $child = $service->saveCategory(['name'=>'Subcategorie cu reguli implicite', 'parent_id'=>(string) $parent]);
+        self::assertSame(1, (int) $this->category($child)['allow_card']);
+        self::assertSame(1, (int) $this->category($child)['allow_cod']);
+        self::assertSame(0, (int) $this->category($parent)['allow_cod']);
+        $modal = (string) $this->get('/admin/categorii/' . $child . '/editare/modal/')->getBody();
+        self::assertMatchesRegularExpression('/name="allow_card"[^>]*\\bchecked\\b/', $modal);
+        self::assertMatchesRegularExpression('/name="allow_cod"[^>]*\\bchecked\\b/', $modal);
+        self::assertStringContainsString('împreună cu regulile categoriilor părinte', $modal);
     }
 
     /** @return array<string,mixed> */

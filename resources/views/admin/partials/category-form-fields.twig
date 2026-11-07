@@ -18,17 +18,21 @@
 {% set selected_parent_id = category.parent_id|default(null) %}
 {% set category_name = category.name|default('') %}
 {% set category_status = category.status|default('published') %}
+{% set allow_card = category.allow_card is defined ? category.allow_card == 1 : true %}
+{% set allow_cod = category.allow_cod is defined ? category.allow_cod == 1 : true %}
 {% set seo_title_auto = not category or not category.seo_title or category.seo_title == category.name %}
 {% set seo_description_auto = not category or not category.meta_description or category.meta_description == category.name %}
 <form class="admin-category-form" action="{{ form_action }}" method="post" enctype="multipart/form-data" data-admin-category-form data-category-id="{{ category.id|default('') }}" data-name-check-url="{{ url('admin/categorii/verifica-nume/') }}" data-slug-check-url="{{ url('admin/categorii/verifica-slug/') }}">
   <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
   <input type="hidden" name="image_media_id" value="{{ category.image_media_id|default('') }}" data-admin-category-image-id>
   <input type="hidden" name="remove_image" value="0" data-admin-category-remove-image>
+  <input type="hidden" name="payment_rules_present" value="1">
   <nav class="admin-category-editor-nav" aria-label="Secțiunile formularului" data-admin-category-editor-nav>
     <a href="#category-identity" data-category-section-link="identity" aria-current="step"><b>01</b><span>Identitate</span></a>
     <a href="#category-placement" data-category-section-link="placement"><b>02</b><span>Organizare</span></a>
-    <a href="#category-presentation" data-category-section-link="presentation"><b>03</b><span>Prezentare</span></a>
-    <a href="#category-google" data-category-section-link="google"><b>04</b><span>Google</span></a>
+    <a href="#category-payment" data-category-section-link="payment"><b>03</b><span>Plată</span></a>
+    <a href="#category-presentation" data-category-section-link="presentation"><b>04</b><span>Prezentare</span></a>
+    <a href="#category-google" data-category-section-link="google"><b>05</b><span>Google</span></a>
   </nav>
   {% if category_modal|default(false) %}<div class="admin-category-form__scroll">{% endif %}
 
@@ -92,8 +96,29 @@
     </div>
   </section>
 
+  <section class="admin-category-form__section admin-category-payment" id="category-payment" data-category-section="payment">
+    <header><span class="admin-category-form__step" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M3 10h18M7 15h4"/></svg></span><div><small>03 · Metode de plată</small><h3>Cum se pot plăti produsele?</h3><p>Alege metodele permise pentru această categorie și pentru toate subcategoriile ei.</p></div></header>
+    <fieldset class="admin-category-payment__choices" aria-describedby="category-payment-help category-payment-notice">
+      <legend>Metode permise în această categorie</legend>
+      <label class="admin-category-payment-card">
+        <input type="checkbox" role="switch" name="allow_card" value="1" {{ allow_card ? 'checked' }} aria-label="Permite plata cu cardul online" data-admin-category-payment>
+        <span class="admin-category-payment-card__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M3 10h18M7 15h4"/></svg></span>
+        <span class="admin-category-payment-card__copy"><strong>Card online</strong><small>Plată la finalizarea comenzii.</small><em data-category-payment-state>{{ allow_card ? 'Permisă' : 'Oprită' }}</em></span>
+        <span class="admin-category-payment-card__switch" aria-hidden="true"></span>
+      </label>
+      <label class="admin-category-payment-card">
+        <input type="checkbox" role="switch" name="allow_cod" value="1" {{ allow_cod ? 'checked' }} aria-label="Permite plata ramburs" data-admin-category-payment>
+        <span class="admin-category-payment-card__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="3"/><circle cx="12" cy="12" r="3"/><path d="M6 9h.01M18 15h.01"/></svg></span>
+        <span class="admin-category-payment-card__copy"><strong>Ramburs</strong><small>Plată la primirea coletului.</small><em data-category-payment-state>{{ allow_cod ? 'Permisă' : 'Oprită' }}</em></span>
+        <span class="admin-category-payment-card__switch" aria-hidden="true"></span>
+      </label>
+    </fieldset>
+    <p class="admin-category-payment__notice" id="category-payment-notice" role="status" aria-live="polite" data-admin-category-payment-notice hidden></p>
+    <div class="admin-category-payment__help" id="category-payment-help"><span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3 4 6v6c0 4 4 7 8 9 4-2 8-5 8-9V6l-8-3Z"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg></span><div><strong>Cel puțin o metodă rămâne activă</strong><p>Regulile se aplică acestei categorii și subcategoriilor, împreună cu regulile categoriilor părinte. Când regulile diferă, cardul are prioritate; dacă plata online nu este disponibilă în magazin, se folosește rambursul când este activ.</p><small>Setările generale ale magazinului pot limita metodele disponibile la comandă, fără să schimbe aceste opțiuni.</small></div></div>
+  </section>
+
   <section class="admin-category-form__section" id="category-presentation" data-category-section="presentation">
-    <header><span class="admin-category-form__step" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="8" cy="9" r="1.5"/><path d="m4 17 5-5 4 4 3-3 5 5"/></svg></span><div><small>03 · Prezentare</small><h3>O primă impresie frumoasă</h3><p>Adaugă o fotografie și o descriere scurtă. Le poți completa și mai târziu.</p></div></header>
+    <header><span class="admin-category-form__step" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="8" cy="9" r="1.5"/><path d="m4 17 5-5 4 4 3-3 5 5"/></svg></span><div><small>04 · Prezentare</small><h3>O primă impresie frumoasă</h3><p>Adaugă o fotografie și o descriere scurtă. Le poți completa și mai târziu.</p></div></header>
     <div class="admin-category-media-grid">
       <div class="admin-category-image {{ category.image_path|default('') ? 'has-image' : '' }}" data-admin-category-image>
         <div class="admin-category-image__preview"><img src="{{ category.image_path|default('') ? url(category.image_path) : '' }}" alt="" {{ not category.image_path|default('') ? 'hidden' }} data-admin-category-image-preview><span data-admin-category-image-empty {{ category.image_path|default('') ? 'hidden' }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h6l2 2h8v11H4z"/><circle cx="9" cy="12" r="1.5"/><path d="m7 17 3-3 2 2 2-2 3 3"/></svg><strong>Nicio fotografie încă</strong><small>JPG, PNG sau WebP · maximum 8 MB</small></span></div>
@@ -105,7 +130,7 @@
   </section>
 
   <section class="admin-category-form__section admin-category-form__section--seo" id="category-google" data-category-section="google">
-    <header><span class="admin-category-form__step" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg></span><div><small>04 · Google</small><h3>Pregătită să fie descoperită</h3><p>Textele se completează din nume. Le poți personaliza oricând.</p></div></header>
+    <header><span class="admin-category-form__step" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg></span><div><small>05 · Google</small><h3>Pregătită să fie descoperită</h3><p>Textele se completează din nume. Le poți personaliza oricând.</p></div></header>
     <div class="admin-category-seo">
       <div class="admin-category-seo__fields">
         <label class="admin-category-field"><span>Meta titlu <em>automat sau manual</em></span><input name="seo_title" value="{{ category.seo_title|default(category_name) }}" maxlength="255" data-admin-category-seo-title data-seo-auto="{{ seo_title_auto ? 'true' : 'false' }}"><small><b data-admin-category-seo-title-count>{{ category.seo_title|default(category_name)|length }}</b> caractere · golește pentru revenire la automat</small></label>

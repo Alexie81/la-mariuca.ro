@@ -14,7 +14,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>{% block title %}Dashboard{% endblock %} · Administrare La Măriuca</title>
   <link rel="stylesheet" href="{{ url('assets/css/admin.css?v=20261031-category-tree-v17') }}">
-  {% if admin_section|default('') == 'categories' %}<link rel="stylesheet" href="{{ url('assets/css/category-editor.css?v=20261101-v2') }}">{% endif %}
+  {% if admin_section|default('') == 'categories' %}<link rel="stylesheet" href="{{ url('assets/css/category-editor.css?v=20261107-payment-rules') }}">{% endif %}
   {% if admin_section|default('') in ['customers', 'newsletter'] %}<link rel="stylesheet" href="{{ url('assets/css/customer-admin.css?v=20261101-v15') }}">{% endif %}
   {% if admin_section|default('') == 'newsletter' %}<link rel="stylesheet" href="{{ url('assets/css/newsletter-admin.css?v=20261103-v2') }}">{% endif %}
   {% if admin_section|default('') == 'promotions' %}<link rel="stylesheet" href="{{ url('assets/css/promotion-admin.css?v=20261103-actions-v7') }}">{% endif %}
@@ -157,7 +157,7 @@
   </div>
 
   <script src="{{ url('assets/js/admin-rich-editor.js?v=20261031-rich-description-v1') }}" defer></script>
-  <script src="{{ url('assets/js/admin.js?v=20261103-promotions-v4') }}" defer></script>
+  <script src="{{ url('assets/js/admin.js?v=20261107-category-payments') }}" defer></script>
   {% if admin_section|default('') == 'orders' %}<script src="{{ url('assets/js/order-admin.js?v=20261107-v8') }}" defer></script>{% endif %}
 </body>
 </html>

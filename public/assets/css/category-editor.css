@@ -13,7 +13,7 @@
 .admin-category-modal__header p{font-size:12px;line-height:1.4;color:#806b64;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .admin-category-form{grid-template-rows:auto minmax(0,1fr) auto;color:#59443e;background:#faf7f5;min-width:0}
 .admin-category-form [hidden]{display:none!important}
-.admin-category-editor-nav{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;padding:10px 28px;border-bottom:1px solid #eaddd7;background:#fffdfb}
+.admin-category-editor-nav{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;padding:10px 28px;border-bottom:1px solid #eaddd7;background:#fffdfb}
 .admin-category-editor-nav a{display:flex;align-items:center;justify-content:center;gap:10px;min-height:44px;padding:7px 10px;border:1px solid transparent;border-radius:12px;color:#89736c;text-decoration:none;font:750 12px/1.3 var(--admin-sans);transition:color .18s,background .18s,border-color .18s}
 .admin-category-editor-nav b{display:grid;place-items:center;width:27px;height:27px;border-radius:50%;background:#f4eeeb;color:#967c73;font-size:10px}
 .admin-category-editor-nav a:hover{background:#fbf2ef;color:#a34955}
@@ -29,6 +29,32 @@
 .admin-category-form__section>header h3{margin:5px 0 7px;color:#513b35;font:27px/1.1 var(--admin-serif);letter-spacing:-.015em}
 .admin-category-form__section>header p{max-width:650px;color:#85716a;font-size:12px;line-height:1.6}
 .admin-category-form__grid{gap:18px}
+.admin-category-payment>header p{font-size:14px;line-height:1.6}
+.admin-category-payment__choices{position:relative;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;min-width:0;margin:0;padding:0;border:0}
+.admin-category-payment__choices>legend{position:absolute;width:1px;height:1px;padding:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.admin-category-form .admin-category-payment-card{position:relative;display:grid;grid-template-columns:42px minmax(0,1fr) 46px;align-items:center;gap:13px;min-width:0;padding:19px 17px;border:1px solid #e6ddd8;border-radius:17px;background:#faf8f6;cursor:pointer;transition:border-color .2s,background .2s,box-shadow .2s}
+.admin-category-payment-card:has(input:checked){border-color:#deb8ba;background:linear-gradient(135deg,#fff8f5,#fff2f0);box-shadow:0 4px 14px #a5525c08}
+.admin-category-payment-card:hover{border-color:#c88f97;box-shadow:0 5px 18px #a5525c12}
+.admin-category-payment-card:has(input:focus-visible){outline:3px solid #c85e7040;outline-offset:3px}
+.admin-category-payment-card>input{position:absolute;width:1px;height:1px;margin:0;padding:0;opacity:0}
+.admin-category-payment-card__icon{display:grid;place-items:center;width:42px;height:42px;border:1px solid #ead9d2;border-radius:13px;background:#fff;color:#aa6a71}
+.admin-category-payment-card__icon svg{width:23px;height:23px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.admin-category-payment-card__copy{display:grid;justify-items:start;gap:6px;min-width:0;text-align:left}
+.admin-category-payment-card__copy strong{color:#593f3c;font:750 15px/1.35 var(--admin-sans)}
+.admin-category-payment-card__copy small{color:#826d67;font:400 14px/1.5 var(--admin-sans)}
+.admin-category-payment-card__copy em{padding:3px 8px;border-radius:7px;background:#eee8e4;color:#81736b;font:600 12px/1.4 var(--admin-sans);font-style:normal}
+.admin-category-payment-card input:checked~.admin-category-payment-card__copy em{background:#e7f3ed;color:#35785d}
+.admin-category-payment-card__switch{position:relative;display:block;width:46px;height:28px;border:1px solid #d7cac3;border-radius:99px;background:#e7ded8;box-shadow:inset 0 1px 2px #674d4610;transition:background .2s,border-color .2s}
+.admin-category-payment-card__switch::after{position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 2px 5px #48352e20;content:"";transition:transform .2s}
+.admin-category-payment-card input:checked~.admin-category-payment-card__switch{border-color:#bd5665;background:#c75f6e}
+.admin-category-payment-card input:checked~.admin-category-payment-card__switch::after{transform:translateX(18px)}
+.admin-category-payment__notice{margin:13px 0 0;padding:12px 15px;border:1px solid #ead5b5;border-radius:12px;background:#fff8eb;color:#896434;font:500 13px/1.6 var(--admin-sans)}
+.admin-category-payment__help{display:grid;grid-template-columns:36px minmax(0,1fr);gap:12px;margin-top:18px;padding:16px 17px;border:1px solid #e0e9e2;border-radius:14px;background:#f5f9f6}
+.admin-category-payment__help>span{display:grid;place-items:center;width:36px;height:36px;border-radius:11px;background:#e6f0e9;color:#4f8467}
+.admin-category-payment__help svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.admin-category-payment__help strong{display:block;color:#466e56;font:700 13px/1.5 var(--admin-sans)}
+.admin-category-payment__help p{margin:6px 0 0;color:#657d6c;font:400 13px/1.6 var(--admin-sans)}
+.admin-category-payment__help small{display:block;margin-top:8px;color:#6d7f72;font:400 13px/1.6 var(--admin-sans)}
 .admin-category-field{gap:8px}
 .admin-category-field>span,.admin-category-description>span,.admin-category-image__alt>span,.admin-category-order-field>span{display:flex;align-items:center;flex-wrap:wrap;gap:4px;color:#655049;font-size:12px;font-weight:750;line-height:1.4;letter-spacing:0}
 .admin-category-field>span em,.admin-category-description>span em,.admin-category-image__alt>span em{margin-left:auto;font-size:10px;font-weight:600;color:#8f7770;background:#f5f0ed;border-radius:5px;padding:2px 5px}
@@ -224,6 +250,14 @@
   .admin-category-delete-dialog__confirm{order:-1}
 }
 @media(max-width:560px){
+  .admin-category-payment__choices{grid-template-columns:1fr;gap:12px}
+  .admin-category-form .admin-category-payment-card{grid-template-columns:38px minmax(0,1fr) 44px;gap:11px;padding:17px 14px;border-radius:15px}
+  .admin-category-payment-card__icon{width:38px;height:38px;border-radius:12px}
+  .admin-category-payment-card__switch{width:44px}
+  .admin-category-payment-card input:checked~.admin-category-payment-card__switch::after{transform:translateX(16px)}
+  .admin-category-payment__help{grid-template-columns:1fr;gap:10px;padding:15px}
+  .admin-category-payment__help>span{width:32px;height:32px}
+  .admin-category-payment__help p,.admin-category-payment__help small{font-size:13px}
   .admin-category-editor-dialog{width:100vw;height:100dvh;border-radius:0}
   .admin-category-editor-dialog__surface{border:0;border-radius:0}
   .admin-category-modal__header{grid-template-columns:1fr;padding:19px 56px 17px 20px}

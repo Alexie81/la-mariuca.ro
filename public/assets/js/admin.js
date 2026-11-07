@@ -2125,7 +2125,7 @@
     if (status) status.textContent = message;
     if (!input) return;
     if (state === 'unavailable') input.setCustomValidity(message);
-    else if (state === 'checking') input.setCustomValidity('Așteaptă o clipă să verificăm disponibilitatea.');
+    // Availability is checked again by the server; a blur-triggered request must not trap submission.
     else input.setCustomValidity('');
   };
 
@@ -2231,6 +2231,27 @@
     };
     statusInput?.addEventListener('change', updateStatusHelp);
     updateStatusHelp();
+
+    const paymentInputs = Array.from(form.querySelectorAll('[data-admin-category-payment]'));
+    const paymentNotice = form.querySelector('[data-admin-category-payment-notice]');
+    const updatePaymentRules = () => {
+      const selected = paymentInputs.some((input) => input.checked);
+      paymentInputs.forEach((input, index) => {
+        input.setCustomValidity(!selected && index === 0 ? 'Lasă activă cel puțin o metodă de plată.' : '');
+        const state = input.closest('.admin-category-payment-card')?.querySelector('[data-category-payment-state]');
+        if (state) state.textContent = input.checked ? 'Permisă' : 'Oprită';
+      });
+    };
+    paymentInputs.forEach((input) => input.addEventListener('change', () => {
+      const lastMethod = !paymentInputs.some((method) => method.checked);
+      if (lastMethod) input.checked = true;
+      if (paymentNotice) {
+        paymentNotice.textContent = lastMethod ? 'Cel puțin o metodă trebuie să rămână activă. Activează mai întâi cealaltă opțiune, apoi o poți opri pe aceasta.' : '';
+        paymentNotice.hidden = !lastMethod;
+      }
+      updatePaymentRules();
+    }));
+    updatePaymentRules();
 
     const updateSeoPreview = () => {
       const fallbackName = nameInput?.value.trim() || 'Numele categoriei';
