@@ -9,9 +9,26 @@
   const lightbox = workspace.querySelector('[data-order-lightbox]');
   const lightboxImage = lightbox?.querySelector('[data-order-lightbox-image]');
   const lightboxCaption = lightbox?.querySelector('[data-order-lightbox-caption]');
+  const lightboxClose = lightbox?.querySelector('[data-order-lightbox-close]');
   const loadingMarkup = dialogContent?.innerHTML || '';
   let modalRequest = null;
   let modalTrigger = null;
+  let lightboxTrigger = null;
+  let lightboxCloseTimer = null;
+
+  const closeLightbox = () => {
+    if (!lightbox?.open || lightbox.classList.contains('is-closing')) return;
+    lightbox.classList.add('is-closing');
+    lightbox.classList.remove('is-visible');
+    window.clearTimeout(lightboxCloseTimer);
+    lightboxCloseTimer = window.setTimeout(() => {
+      if (lightbox.open) lightbox.close();
+      lightbox.classList.remove('is-closing');
+      lightboxTrigger?.focus({ preventScroll: true });
+      lightboxTrigger = null;
+      lightboxCloseTimer = null;
+    }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 240);
+  };
 
   const closeDialog = () => {
     if (!dialog?.open) return;
@@ -109,18 +126,27 @@
     }
     const imageOpen = event.target.closest('[data-order-image-open]');
     if (imageOpen && lightbox && lightboxImage) {
+      window.clearTimeout(lightboxCloseTimer);
+      lightboxCloseTimer = null;
+      lightbox.classList.remove('is-visible', 'is-closing');
+      lightboxTrigger = imageOpen;
       lightboxImage.src = imageOpen.dataset.imageSrc || '';
       lightboxImage.alt = imageOpen.dataset.imageAlt || '';
       if (lightboxCaption) lightboxCaption.textContent = imageOpen.dataset.imageAlt || '';
       lightbox.showModal();
+      window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
+        lightbox.classList.add('is-visible');
+        lightboxClose?.focus({ preventScroll: true });
+      }));
       return;
     }
-    if (event.target.closest('[data-order-lightbox-close]')) lightbox?.close();
+    if (event.target.closest('[data-order-lightbox-close]')) closeLightbox();
   });
 
   dialog?.addEventListener('cancel', (event) => { event.preventDefault(); closeDialog(); });
   dialog?.addEventListener('click', (event) => { if (event.target === dialog) closeDialog(); });
-  lightbox?.addEventListener('click', (event) => { if (event.target === lightbox) lightbox.close(); });
+  lightbox?.addEventListener('cancel', (event) => { event.preventDefault(); closeLightbox(); });
+  lightbox?.addEventListener('click', (event) => { if (event.target === lightbox) closeLightbox(); });
 
   dialogContent?.addEventListener('submit', async (event) => {
     const form = event.target.closest('[data-order-async-form]');

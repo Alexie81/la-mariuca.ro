@@ -200,7 +200,12 @@ final class OrderService
             'SELECT item.*,product.slug AS product_slug,product.status AS product_status,'
             . 'COALESCE(variant_media.public_path,'
             . ' (SELECT product_media.public_path FROM product_images pi JOIN media product_media ON product_media.id=pi.media_id'
-            . '  WHERE pi.product_id=item.product_id AND product_media.public_path IS NOT NULL ORDER BY pi.position,pi.media_id LIMIT 1)'
+            . '  WHERE pi.product_id=item.product_id AND product_media.public_path IS NOT NULL ORDER BY pi.position,pi.media_id LIMIT 1),'
+            . ' (SELECT category_media.public_path FROM product_categories image_pc'
+            . '  JOIN categories image_category ON image_category.id=image_pc.category_id'
+            . '  JOIN media category_media ON category_media.id=image_category.image_media_id'
+            . '  WHERE image_pc.product_id=item.product_id AND category_media.public_path IS NOT NULL'
+            . '  ORDER BY CASE WHEN image_category.parent_id IS NULL THEN 0 ELSE 1 END,image_category.position,image_category.id LIMIT 1)'
             . ') AS image_path,'
             . 'COALESCE((SELECT SUM(return_item.quantity) FROM order_return_items return_item WHERE return_item.order_item_id=item.id),0) AS returned_quantity '
             . 'FROM order_items item '
@@ -267,15 +272,34 @@ final class OrderService
         $statement = $this->pdo->prepare('SELECT * FROM orders WHERE public_token_hash = :token');
         $statement->execute(['token' => hash('sha256', $token)]);
         $order = $statement->fetch();
-        if (!is_array($order)) {
-            return null;
-        }
+        return is_array($order) ? $this->hydratePublicOrder($order) : null;
+    }
+
+    /** Caller must authorize access to this order before rendering these details.
+     * @return array<string,mixed>|null
+     */
+    public function detailsForTracking(int $orderId): ?array
+    {
+        $statement = $this->pdo->prepare('SELECT * FROM orders WHERE id=:id');
+        $statement->execute(['id' => $orderId]);
+        $order = $statement->fetch();
+        return is_array($order) ? $this->hydratePublicOrder($order) : null;
+    }
+
+    /** @param array<string,mixed> $order @return array<string,mixed> */
+    private function hydratePublicOrder(array $order): array
+    {
         $items = $this->pdo->prepare('SELECT item.*,
                 COALESCE(variant_media.public_path,
                     (SELECT product_media.public_path FROM product_images pi
                      JOIN media product_media ON product_media.id=pi.media_id
                      WHERE pi.product_id=item.product_id AND product_media.public_path IS NOT NULL
-                     ORDER BY pi.position,pi.media_id LIMIT 1)
+                     ORDER BY pi.position,pi.media_id LIMIT 1),
+                    (SELECT category_media.public_path FROM product_categories image_pc
+                     JOIN categories image_category ON image_category.id=image_pc.category_id
+                     JOIN media category_media ON category_media.id=image_category.image_media_id
+                     WHERE image_pc.product_id=item.product_id AND category_media.public_path IS NOT NULL
+                     ORDER BY CASE WHEN image_category.parent_id IS NULL THEN 0 ELSE 1 END,image_category.position,image_category.id LIMIT 1)
                 ) AS image_path
             FROM order_items item
             LEFT JOIN product_variants variant ON variant.id=item.variant_id

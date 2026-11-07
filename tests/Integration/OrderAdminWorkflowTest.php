@@ -48,6 +48,18 @@ final class OrderAdminWorkflowTest extends DatabaseTestCase
 
     public function testOrderWorkspaceRendersProductsContactActionsAndResponsiveAssets(): void
     {
+        $productId = (int) $this->pdo->query('SELECT product_id FROM order_items WHERE order_id=' . $this->deliveredOrderId . ' LIMIT 1')->fetchColumn();
+        $productName = (string) $this->pdo->query('SELECT product_name FROM order_items WHERE order_id=' . $this->deliveredOrderId . ' LIMIT 1')->fetchColumn();
+        $categoryImage = $this->pdo->query(
+            'SELECT media.public_path FROM product_categories pc '
+            . 'JOIN categories category ON category.id=pc.category_id '
+            . 'JOIN media ON media.id=category.image_media_id '
+            . 'WHERE pc.product_id=' . $productId . ' AND media.public_path IS NOT NULL LIMIT 1'
+        )->fetchColumn();
+        self::assertIsString($categoryImage);
+        $this->pdo->exec('DELETE FROM product_images WHERE product_id=' . $productId);
+        $this->pdo->exec('UPDATE product_variants SET image_media_id=NULL WHERE product_id=' . $productId);
+
         $page = $this->get('/admin/comenzi/' . $this->deliveredOrderId . '/');
         self::assertSame(200, $page->getStatusCode());
         $html = (string) $page->getBody();
@@ -58,9 +70,13 @@ final class OrderAdminWorkflowTest extends DatabaseTestCase
         self::assertStringContainsString('Istoricul comenzii', $html);
         self::assertStringContainsString('data-order-modal-open', $html);
         self::assertStringContainsString('data-order-lightbox', $html);
+        self::assertStringContainsString('data-order-image-open', $html);
+        self::assertStringContainsString((string) $categoryImage, $html);
+        self::assertStringContainsString('alt="' . htmlspecialchars($productName, ENT_QUOTES) . '"', $html);
         self::assertStringContainsString('target="_blank" rel="noopener"', $html);
         self::assertStringContainsString('SKU-ADMIN-TEST', $html);
         self::assertStringNotContainsString('Număr AWB', $html);
+        self::assertStringNotContainsString('order-action--return', $html);
         self::assertStringContainsString('assets/css/order-admin.css', $html);
         self::assertStringContainsString('assets/js/order-admin.js', $html);
 
