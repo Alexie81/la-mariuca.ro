@@ -122,8 +122,22 @@ try {
                         $subject = 'Verifică adresa de email';
                         $body = 'Folosește tokenul de verificare transmis securizat de aplicație.';
                     }
+                    $htmlBody = null;
+                    if (in_array($message['message_type'], ['order_confirmation', 'order_status_update'], true)) {
+                        $trackingService = new \App\Modules\Orders\OrderTrackingService(new \App\Modules\Orders\OrderTrackingRepository($pdo), new \App\Modules\Orders\OrderService($pdo), $config, $root);
+                        if ($message['message_type'] === 'order_confirmation') {
+                            $trackedOrder = $trackingService->details((int) ($payload['order_id'] ?? 0));
+                            $body = 'Îți mulțumim! Comanda ' . ($trackedOrder['order_number'] ?? '') . ' a fost înregistrată. Poți vedea oricând starea și detaliile ei folosind butonul de mai jos.';
+                        }
+                        $trackingEmail = (new \App\Modules\Orders\OrderTrackingEmail($trackingService))->withTracking($body, (int) ($payload['order_id'] ?? 0), (string) $message['recipient']);
+                        $body = $trackingEmail['text'];
+                        $htmlBody = $trackingEmail['html'];
+                    }
                     if ($transport !== null) {
                         $email = (new Email())->from($config->get('MAIL_FROM_ADDRESS', 'no-reply@example.test'))->to((string) $message['recipient'])->subject($subject)->text($body);
+                        if ($htmlBody !== null) {
+                            $email->html($htmlBody);
+                        }
                         (new Mailer($transport))->send($email);
                     } else {
                         $mailDir = $root . '/storage/private/mail';
@@ -131,6 +145,9 @@ try {
                             mkdir($mailDir, 0770, true);
                         }
                         file_put_contents($mailDir . '/' . (int) $message['id'] . '.txt', "To: " . $message['recipient'] . "\nSubject: {$subject}\n\n{$body}\n", LOCK_EX);
+                        if ($htmlBody !== null) {
+                            file_put_contents($mailDir . '/' . (int) $message['id'] . '.html', $htmlBody, LOCK_EX);
+                        }
                     }
                     $pdo->prepare("UPDATE outbox_messages SET status='sent',sent_at=:now,last_error=NULL WHERE id=:id")->execute(['now' => gmdate('c'), 'id' => $message['id']]);
                 } catch (Throwable $exception) {

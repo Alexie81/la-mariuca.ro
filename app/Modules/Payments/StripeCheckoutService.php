@@ -57,9 +57,11 @@ final class StripeCheckoutService
         $this->pdo->beginTransaction();
         try {
             $now = gmdate('c');
-            $this->pdo->prepare("UPDATE orders SET status='manual_review',updated_at=:now WHERE id=:id AND status='new'")->execute(['now' => $now, 'id' => $orderId]);
+            $statusUpdate = $this->pdo->prepare("UPDATE orders SET status='manual_review',updated_at=:now WHERE id=:id AND status='new'");
+            $statusUpdate->execute(['now' => $now, 'id' => $orderId]);
+            $statusChanged = $statusUpdate->rowCount() === 1;
             $this->pdo->prepare("UPDATE payments SET status='failed',updated_at=:now WHERE order_id=:id AND provider='stripe' AND status='pending'")->execute(['now' => $now, 'id' => $orderId]);
-            $this->pdo->prepare("INSERT INTO audit_log (actor_user_id,action,entity_type,entity_id,context_json,created_at) VALUES (NULL,'stripe.session_failed','order',:id,:context,:now)")->execute(['id' => $orderId, 'context' => json_encode(['error' => mb_substr($message, 0, 300)], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR), 'now' => $now]);
+            $this->pdo->prepare("INSERT INTO audit_log (actor_user_id,action,entity_type,entity_id,context_json,created_at) VALUES (NULL,'stripe.session_failed','order',:id,:context,:now)")->execute(['id' => $orderId, 'context' => json_encode(['error' => mb_substr($message, 0, 300), 'status_changed'=>$statusChanged], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR), 'now' => $now]);
             $this->pdo->commit();
         } catch (\Throwable $exception) {
             if ($this->pdo->inTransaction()) {

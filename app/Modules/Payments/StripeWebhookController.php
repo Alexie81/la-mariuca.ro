@@ -64,7 +64,7 @@ final class StripeWebhookController
                     $this->pdo->commit();
                     return new Response(200);
                 }
-                $lockSql = 'SELECT total_bani,currency,payment_status FROM orders WHERE id=:id AND payment_method=\'stripe\''
+                $lockSql = 'SELECT total_bani,currency,status,payment_status FROM orders WHERE id=:id AND payment_method=\'stripe\''
                     . ($this->pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql' ? ' FOR UPDATE' : '');
                 $statement = $this->pdo->prepare($lockSql);
                 $statement->execute(['id' => $orderId]);
@@ -76,6 +76,15 @@ final class StripeWebhookController
                 }
                 $this->pdo->prepare("UPDATE payments SET provider_payment_id=:provider_id,status='paid',updated_at=:now WHERE order_id=:order_id AND provider='stripe' AND status<>'paid'")->execute(['provider_id' => (string) ($objectData['payment_intent'] ?? ''), 'now' => $now, 'order_id' => $orderId]);
                 $this->pdo->prepare("UPDATE orders SET payment_status='paid',status=CASE WHEN status='new' THEN 'confirmed' WHEN status='cancelled' THEN 'manual_review' ELSE status END,updated_at=:now WHERE id=:id AND payment_status<>'paid'")->execute(['now' => $now, 'id' => $orderId]);
+                if ($order['payment_status'] !== 'paid' && in_array($order['status'], ['new', 'cancelled'], true)) {
+                    $nextStatus = $order['status'] === 'new' ? 'confirmed' : 'manual_review';
+                    $this->pdo->prepare("INSERT INTO audit_log (actor_user_id,action,entity_type,entity_id,context_json,created_at) VALUES (NULL,:action,'order',:id,:context,:now)")->execute([
+                        'action' => $nextStatus === 'confirmed' ? 'order.confirm' : 'order.manual_review',
+                        'id' => $orderId,
+                        'context' => json_encode(['from'=>$order['status'], 'to'=>$nextStatus, 'source'=>'stripe'], JSON_THROW_ON_ERROR),
+                        'now' => $now,
+                    ]);
+                }
                 $this->pdo->prepare("UPDATE coupon_redemptions SET status='confirmed',updated_at=:now WHERE order_id=:order AND status IN ('reserved','released')")
                     ->execute(['now' => $now, 'order' => $orderId]);
                 $this->pdo->prepare("UPDATE payment_events SET status='processed',processed_at=:now WHERE provider_event_id=:id")->execute(['now' => $now, 'id' => $event->id]);
@@ -127,6 +136,13 @@ final class StripeWebhookController
                     }
                     $this->pdo->prepare("UPDATE orders SET status='cancelled',payment_status='failed',cancelled_at=COALESCE(cancelled_at,:cancelled),updated_at=:updated WHERE id=:id AND payment_status<>'paid'")
                         ->execute(['cancelled' => $now, 'updated' => $now, 'id' => $orderId]);
+                    if ($order['status'] !== 'cancelled') {
+                        $this->pdo->prepare("INSERT INTO audit_log (actor_user_id,action,entity_type,entity_id,context_json,created_at) VALUES (NULL,'order.cancel','order',:id,:context,:now)")->execute([
+                            'id' => $orderId,
+                            'context' => json_encode(['from'=>$order['status'], 'to'=>'cancelled', 'source'=>'stripe'], JSON_THROW_ON_ERROR),
+                            'now' => $now,
+                        ]);
+                    }
                     $this->pdo->prepare("UPDATE payments SET status='failed',updated_at=:now WHERE order_id=:order AND provider='stripe' AND status='pending'")
                         ->execute(['now' => $now, 'order' => $orderId]);
                     $this->pdo->prepare("UPDATE coupon_redemptions SET status='released',updated_at=:now WHERE order_id=:order AND status='reserved'")

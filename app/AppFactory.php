@@ -143,6 +143,7 @@ final class AppFactory
         $rateLimiter = new RateLimiter($pdo);
         $content = new ContentRepository($pdo);
         $orders = new OrderService($pdo);
+        $tracking = new \App\Modules\Orders\OrderTrackingController(new \App\Modules\Orders\OrderTrackingService(new \App\Modules\Orders\OrderTrackingRepository($pdo), $orders, $config, $root), $rateLimiter, $view, $config);
 
         $storefront = new StorefrontController($catalog, $catalogSearch, $categoryPaths, new ProductRecommendationService($catalog), $content, $contactWhatsApp, $newsletterSubscriptions, $reviews, $rateLimiter, $auth, $view, $config);
         $cartController = new CartController($cart, $view, $config);
@@ -180,6 +181,11 @@ final class AppFactory
         $app->post('/finalizare-comanda/', [$checkoutController, 'place']);
         $app->post('/finalizare-comanda/adresa/', [$checkoutController, 'saveAddress']);
         $app->get('/comanda/{token}/', [$checkoutController, 'confirmation']);
+        $app->get('/urmarire-comanda/', [$tracking, 'show']);
+        $app->post('/urmarire-comanda/', [$tracking, 'lookup']);
+        $app->post('/urmarire-comanda/alta/', [$tracking, 'reset']);
+        $app->get('/urmarire-comanda/acces/{id:[0-9]+}/{signature}/', [$tracking, 'access']);
+        $app->get('/urmarire-comanda/factura/{id:[0-9]+}/', [$tracking, 'invoice']);
         $app->post('/contact/whatsapp/', [$storefront, 'contactWhatsApp']);
         $app->post('/newsletter/abonare/', [$storefront, 'newsletterSubscribe']);
         $app->get('/pagina/{slug}/', [$storefront, 'page']);
