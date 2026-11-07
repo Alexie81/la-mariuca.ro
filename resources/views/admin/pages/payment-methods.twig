@@ -1,0 +1,61 @@
+{% extends 'admin/layouts/base.twig' %}
+
+{% block title %}Metode de plată{% endblock %}
+
+{% block content %}
+  {% set methods = payment_methods|default({cod_enabled: true, stripe_enabled: false, stripe_configured: false}) %}
+  {% set available_count = (methods.cod_enabled ? 1 : 0) + (methods.stripe_enabled and methods.stripe_configured ? 1 : 0) %}
+  <div class="payment-methods-page">
+    <header class="payment-methods-hero">
+      <div class="payment-methods-hero__copy">
+        <span class="payment-methods-eyebrow">Configurarea magazinului</span>
+        <h1>Metode de plată</h1>
+        <p>Oferă clienților tăi libertatea de a alege cum plătesc.</p>
+      </div>
+      <div class="payment-methods-availability{{ available_count == 0 ? ' is-empty' : '' }}" data-payment-availability>
+        <span class="payment-methods-availability__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M3 10h18M7 15h3"/></svg></span>
+        <span><strong data-payment-count>{{ available_count }} {{ available_count == 1 ? 'metodă vizibilă' : 'metode vizibile' }}</strong><small>la finalizarea comenzii</small></span>
+      </div>
+    </header>
+
+    <form class="payment-methods-form" action="{{ url('admin/metode-plata/') }}" method="post" data-payment-methods-form data-stripe-configured="{{ methods.stripe_configured ? 'true' : 'false' }}">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <div class="payment-methods-error" data-payment-error role="alert"{% if not payment_error|default('') %} hidden{% endif %}>{{ payment_error|default('') }}</div>
+      <fieldset class="payment-methods-options">
+        <legend class="payment-methods-sr-only">Metode acceptate în magazin</legend>
+
+        <label class="payment-method-card payment-method-card--cod">
+          <input class="payment-method-card__input" type="checkbox" role="switch" name="cod_enabled" value="1"{% if methods.cod_enabled %} checked{% endif %} aria-labelledby="payment-cod-title" aria-describedby="payment-cod-description">
+          <span class="payment-method-card__top">
+            <span class="payment-method-card__icon" aria-hidden="true"><svg viewBox="0 0 32 32"><rect x="4" y="8" width="24" height="17" rx="4"/><path d="M8 8V6.5A2.5 2.5 0 0 1 10.5 4H24M4 14h24"/><circle cx="16" cy="20" r="2.5"/><path d="M8 20h1M23 20h1"/></svg></span>
+            <span class="payment-method-card__control"><span class="payment-method-card__state"><span class="payment-state-on">Activată</span><span class="payment-state-off">Oprită</span></span><span class="payment-method-switch" aria-hidden="true"><span><svg viewBox="0 0 16 16"><path d="m4 8 2.5 2.5L12 5"/></svg></span></span></span>
+          </span>
+          <span class="payment-method-card__intro"><span class="payment-method-card__eyebrow">Plata la primirea coletului</span><strong id="payment-cod-title">Ramburs</strong><span id="payment-cod-description">Clientul achită comanda atunci când primește coletul, prin metoda acceptată de curier.</span></span>
+          <span class="payment-method-card__details"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h11v11H3zM14 10h4l3 4v3h-7z"/><circle cx="7" cy="18" r="2"/><circle cx="18" cy="18" r="2"/></svg><span>Comanda se plasează fără plată online.</span></span><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h10v18l-2.5-1.5L12 21l-2.5-1.5L7 21zM10 8h4M10 12h4"/></svg><span>Plata rămâne în așteptare până la încasare.</span></span></span>
+          <span class="payment-method-card__foot"><span class="payment-state-on"><i></i>Disponibilă pentru comenzile eligibile</span><span class="payment-state-off"><i></i>Ascunsă din finalizarea comenzii</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4.5 6v5c0 4.5 3 7.7 7.5 10 4.5-2.3 7.5-5.5 7.5-10V6L12 3Z"/><path d="m8.5 12 2.3 2.3 4.7-4.7"/></svg></span>
+        </label>
+
+        <label class="payment-method-card payment-method-card--card">
+          <input class="payment-method-card__input" type="checkbox" role="switch" name="stripe_enabled" value="1"{% if methods.stripe_enabled %} checked{% endif %} aria-labelledby="payment-stripe-title" aria-describedby="payment-stripe-description{% if not methods.stripe_configured %} payment-stripe-setup{% endif %}">
+          <span class="payment-method-card__top">
+            <span class="payment-method-card__icon" aria-hidden="true"><svg viewBox="0 0 32 32"><rect x="3" y="6" width="26" height="20" rx="4"/><path d="M3 13h26M8 20h5M23 19v3M26 18v5"/></svg></span>
+            <span class="payment-method-card__control"><span class="payment-method-card__state"><span class="payment-state-on">Activată</span><span class="payment-state-off">Oprită</span></span><span class="payment-method-switch" aria-hidden="true"><span><svg viewBox="0 0 16 16"><path d="m4 8 2.5 2.5L12 5"/></svg></span></span></span>
+          </span>
+          <span class="payment-method-card__intro"><span class="payment-method-card__eyebrow">Plată online prin Stripe</span><strong id="payment-stripe-title">Card online</strong><span id="payment-stripe-description">Clientul plătește online, într-un pas securizat. Comanda este confirmată după confirmarea plății.</span></span>
+          <span class="payment-method-card__details"><span><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="3"/><path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v3"/></svg><span>Datele cardului sunt procesate de Stripe.</span></span><span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/></svg><span>Starea „Plătit” apare după confirmarea plății.</span></span></span>
+          <span class="payment-method-card__foot"><span class="payment-state-on"><i></i>{{ methods.stripe_configured ? 'Disponibilă pentru comenzile eligibile' : 'Se activează după conectarea Stripe' }}</span><span class="payment-state-off"><i></i>Ascunsă din finalizarea comenzii</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4.5 6v5c0 4.5 3 7.7 7.5 10 4.5-2.3 7.5-5.5 7.5-10V6L12 3Z"/><path d="m8.5 12 2.3 2.3 4.7-4.7"/></svg></span>
+        </label>
+      </fieldset>
+
+      {% if not methods.stripe_configured %}
+        <aside class="payment-methods-note payment-methods-note--setup" id="payment-stripe-setup"><span class="payment-methods-note__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 7V3M15 7V3M7 7h10v3a5 5 0 0 1-10 0V7ZM12 15v6"/></svg></span><div><strong>Mai întâi, conectarea Stripe</strong><p>Poți salva alegerea pentru card online. Metoda va apărea clienților după ce conexiunea cu procesatorul de plăți este configurată.</p></div></aside>
+      {% endif %}
+
+      <aside class="payment-methods-note payment-methods-note--warning" data-payment-none{% if available_count > 0 %} hidden{% endif %} role="status"><span class="payment-methods-note__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m10.3 4.8-8 14A1.5 1.5 0 0 0 3.6 21h16.8a1.5 1.5 0 0 0 1.3-2.2l-8-14a2 2 0 0 0-3.4 0Z"/><path d="M12 9v5M12 17h.01"/></svg></span><div><strong>Nicio metodă de plată disponibilă</strong><p>Cu aceste setări, clienții nu vor putea finaliza comenzi. Activează cel puțin o metodă disponibilă pentru a primi comenzi noi.</p></div></aside>
+
+      <aside class="payment-methods-note payment-methods-note--rules"><span class="payment-methods-note__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/><path d="M6.5 14v3.5H10M17.5 10V6.5H14"/></svg></span><div><strong>Magazinul stabilește opțiunile. Categoriile le adaptează.</strong><p>Metodele oprite aici nu apar la finalizarea comenzii. Regulile categoriilor includ subcategoriile; când produsele cer metode diferite, cardul are prioritate. Dacă o metodă nu este disponibilă în magazin, se folosește cealaltă, dacă este disponibilă.</p></div><a href="{{ url('admin/categorii/') }}">Vezi categoriile<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a></aside>
+
+      <noscript><button class="payment-methods-submit" type="submit">Salvează setările</button></noscript>
+    </form>
+  </div>
+{% endblock %}

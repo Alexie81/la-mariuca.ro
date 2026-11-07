@@ -81,10 +81,6 @@ final class CheckoutService
         if (!in_array($method, ['cod', 'stripe'], true)) {
             throw new RuntimeException('Metodă de plată invalidă.');
         }
-        if ($method === 'stripe' && (!$this->config->bool('STRIPE_ENABLED') || $this->config->get('STRIPE_SECRET_KEY') === '')) {
-            throw new RuntimeException('Plata cu cardul nu este configurată încă.');
-        }
-
         $cart = $this->cart->summary();
         if ($cart['items'] === []) {
             throw new RuntimeException('Coșul este gol.');

@@ -24,7 +24,8 @@ final class StripeWebhookController
 
     public function __invoke(ServerRequestInterface $request): ResponseInterface
     {
-        if (!$this->config->bool('STRIPE_ENABLED') || $this->config->get('STRIPE_WEBHOOK_SECRET') === '') {
+        // A later admin switch-off must not discard confirmations for payments already initiated.
+        if (trim($this->config->get('STRIPE_WEBHOOK_SECRET')) === '') {
             return new Response(404);
         }
         $payload = (string) $request->getBody();

@@ -102,6 +102,7 @@
         <div class="checkout-options checkout-payment-options" role="radiogroup" aria-labelledby="checkout-payment-title">
           {% for method, title in {stripe: 'Card online', cod: 'Ramburs'} %}
             {% set option = payment_options.methods[method] %}
+            {% if option.globally_available %}
             <div class="checkout-payment-card{{ not option.available ? ' is-unavailable' : '' }}">
               <label class="checkout-option">
                 <input type="radio" name="payment_method" value="{{ method }}"{{ selected_payment_method == method ? ' checked' : '' }}{{ not option.available ? ' disabled' : ' required' }} aria-describedby="payment-{{ method }}-description">
@@ -121,6 +122,7 @@
                 {% endif %}
               </div>
             </div>
+            {% endif %}
           {% endfor %}
         </div>
       </section>

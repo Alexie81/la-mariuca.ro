@@ -118,7 +118,9 @@ final class CheckoutCategoryPaymentTest extends DatabaseTestCase
         $this->addProduct(1, 0);
         $_ENV['STRIPE_ENABLED'] = 'false';
         $page = $this->document();
-        self::assertSame(1, $page->query('//input[@name="payment_method" and @value="stripe" and @disabled]')->length);
+        self::assertSame(0, $page->query('//input[@name="payment_method" and @value="stripe"]')->length);
+        self::assertSame(0, $page->query('//*[@id="payment-stripe-description"]')->length);
+        self::assertStringNotContainsString('Card online', (string) $page->evaluate('string(//body)'));
         self::assertSame(1, $page->query('//input[@name="payment_method" and @value="cod" and @checked and not(@disabled)]')->length);
         self::assertStringContainsString('Poți continua cu plata la livrare', (string) $page->evaluate('string(//body)'));
         self::assertSame(1, $page->query('//button[@form="checkout-form" and @type="submit" and not(@name) and not(@disabled)]')->length);
@@ -135,18 +137,40 @@ final class CheckoutCategoryPaymentTest extends DatabaseTestCase
         self::assertSame(0, (int) $outbox[0]['attempts']);
     }
 
+    public function testGloballyEnabledCardRemainsVisibleWithTheCashOnlyProductExplanation(): void
+    {
+        $item = $this->addProduct(0, 1);
+        $page = $this->document();
+        self::assertSame(1, $page->query('//input[@name="payment_method" and @value="stripe" and @disabled]')->length);
+        self::assertSame(1, $page->query('//input[@name="payment_method" and @value="cod" and @checked and not(@disabled)]')->length);
+        self::assertSame(1, $page->query('//*[@id="payment-stripe-description"]//li')->length);
+        $explanation = (string) $page->evaluate('string(//*[@id="payment-stripe-description"])');
+        self::assertStringContainsString('nu acceptă plata cu cardul', $explanation);
+        self::assertStringContainsString($item['name'], $explanation);
+    }
+
+    public function testCardWithoutProviderConfigurationIsNotDisplayed(): void
+    {
+        $this->addProduct(1, 1);
+        $_ENV['STRIPE_SECRET_KEY'] = '';
+        $page = $this->document();
+        self::assertSame(0, $page->query('//input[@name="payment_method" and @value="stripe"]')->length);
+        self::assertSame(0, $page->query('//*[@id="payment-stripe-description"]')->length);
+        self::assertSame(1, $page->query('//input[@name="payment_method" and @value="cod" and @checked and not(@disabled)]')->length);
+    }
+
     public function testGlobalCashOffCannotBeBypassedButCashOnlyCartCanUseCardFallback(): void
     {
         $this->addProduct(0, 1);
         $_ENV['COD_ENABLED'] = 'false';
         $_SESSION['checkout_old_input'] = ['payment_method' => 'cod'];
         $page = $this->document();
-        self::assertSame(1, $page->query('//input[@name="payment_method" and @value="cod" and @disabled]')->length);
+        self::assertSame(0, $page->query('//input[@name="payment_method" and @value="cod"]')->length);
+        self::assertSame(0, $page->query('//*[@id="payment-cod-description"]')->length);
         self::assertSame(1, $page->query('//input[@name="payment_method" and @value="stripe" and @checked and not(@disabled)]')->length);
         self::assertSame(0, $page->query('//input[@name="payment_method" and @checked and @disabled]')->length);
         self::assertSame(1, $page->query('//button[@form="checkout-form" and @type="submit" and not(@name) and not(@disabled)]')->length);
         self::assertStringContainsString('Poți continua cu plata online', (string) $page->evaluate('string(//body)'));
-        self::assertStringContainsString('Plata ramburs nu este disponibilă momentan în magazin.', (string) $page->evaluate('string(//*[@id="payment-cod-description"])'));
         self::assertSame(0, $page->query('//*[@id="payment-stripe-description"]//li')->length);
         self::assertStringNotContainsString('nu acceptă plata cu cardul', (string) $page->evaluate('string(//*[@id="payment-stripe-description"])'));
         $before = $this->businessSnapshot();
@@ -173,7 +197,8 @@ final class CheckoutCategoryPaymentTest extends DatabaseTestCase
         $_ENV['STRIPE_ENABLED'] = 'false';
         $_SESSION['checkout_old_input'] = ['payment_method' => 'stripe'];
         $page = $this->document();
-        self::assertSame(2, $page->query('//input[@name="payment_method" and @disabled]')->length);
+        self::assertSame(0, $page->query('//input[@name="payment_method"]')->length);
+        self::assertSame(0, $page->query('//*[contains(concat(" ", normalize-space(@class), " "), " checkout-payment-card ")]')->length);
         self::assertSame(0, $page->query('//input[@name="payment_method" and @checked]')->length);
         self::assertSame(1, $page->query('//button[@form="checkout-form" and @type="submit" and not(@name) and @disabled]')->length);
         self::assertStringContainsString('Nicio metodă de plată disponibilă', (string) $page->evaluate('string(//body)'));

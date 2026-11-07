@@ -11,14 +11,17 @@ use Stripe\StripeClient;
 
 final class StripeCheckoutService
 {
-    public function __construct(private readonly PDO $pdo, private readonly Config $config)
+    private readonly PaymentMethodSettingsService $paymentSettings;
+
+    public function __construct(private readonly PDO $pdo, private readonly Config $config, ?PaymentMethodSettingsService $paymentSettings = null)
     {
+        $this->paymentSettings = $paymentSettings ?? new PaymentMethodSettingsService($pdo, $config);
     }
 
     public function createSession(int $orderId, string $publicToken, string $idempotencyKey): string
     {
-        if (!$this->config->bool('STRIPE_ENABLED') || $this->config->get('STRIPE_SECRET_KEY') === '') {
-            throw new RuntimeException('Stripe nu este configurat.');
+        if (!$this->paymentSettings->available()['stripe']) {
+            throw new RuntimeException('Plata online cu cardul nu este disponibilă momentan în magazin.');
         }
         $statement = $this->pdo->prepare("SELECT * FROM orders WHERE id=:id AND payment_method='stripe' AND payment_status='pending'");
         $statement->execute(['id' => $orderId]);

@@ -90,6 +90,8 @@ final class CategoryPaymentPolicyTest extends DatabaseTestCase
         }
         $result = $this->policy()->resolve($items);
         $this->assertMethods($result, $stripeAvailable, $codAvailable, $preferred);
+        self::assertSame($stripeEnabled, $result['methods']['stripe']['globally_available']);
+        self::assertSame($codEnabled, $result['methods']['cod']['globally_available']);
         self::assertSame($fallback, $result['fallback_to_cod']);
         self::assertSame($fallbackToStripe, $result['fallback_to_stripe']);
         foreach ($result['methods'] as $method) {

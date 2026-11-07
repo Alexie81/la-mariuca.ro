@@ -22,17 +22,21 @@ Atunci când ambele metode sunt disponibile global, în conflicte între categor
 | Orice combinație validă, inclusiv numai ramburs | Da | Nu | Card |
 | Orice combinație validă | Nu | Nu | Nicio metodă; plasare blocată |
 
-Cardul global este disponibil când `STRIPE_ENABLED=true` și cheia este configurată. `COD_ENABLED` este implicit `true`. Fallbackul este simetric: când cardul nu este disponibil global, rambursul activ poate fi folosit chiar și pentru produse numai card; când rambursul este oprit global, cardul disponibil și configurat poate fi folosit chiar și pentru produse numai ramburs. Valorile salvate pe categorii se păstrează. Checkoutul blochează plasarea dacă ambele metode sunt indisponibile global.
+Setările globale se administrează din **Produse și clienți → Metode de plată**, imediat sub Livrare. Migrarea 038 introduce o singură înregistrare de setări: până la prima salvare se păstrează configurația existentă (`COD_ENABLED`, implicit `true`, respectiv `STRIPE_ENABLED`). După salvare, switchurile din CRM devin sursa disponibilității globale. Cardul necesită în continuare configurarea privată Stripe; cheia nu este afișată în CRM și nu poate fi modificată de aici.
+
+Cu JavaScript, fiecare toggle salvează automat, fără refresh ori mesaj de succes. Cererile sunt serializate și păstrează ultima alegere dacă switchurile sunt schimbate rapid. La eroare revine ultima stare confirmată, cu mesaj vizibil deasupra opțiunilor. Fără JavaScript rămâne un submit explicit în `noscript`.
+
+Fallbackul este simetric: când cardul nu este disponibil global, rambursul activ poate fi folosit chiar și pentru produse numai card; când rambursul este oprit global, cardul disponibil și configurat poate fi folosit chiar și pentru produse numai ramburs. Valorile salvate pe categorii se păstrează. Checkoutul blochează plasarea dacă ambele metode sunt indisponibile global; pagina setărilor explică această consecință înainte de salvare.
 
 Produsele fără categorii permit ambele metode. Înregistrările invalide (ambele metode oprite, ascendenți inexistenți/ciclici, produs dispărut) blochează plata și cer contactarea magazinului.
 
 ## Checkout și integritate
 
-`CategoryPaymentPolicy` furnizează aceeași decizie pentru afișare și plasare. Metodele indisponibile rămân vizibile, cu motiv și lista deduplicată a produselor care le limitează. Cardul are prioritate la selecția inițială; o selecție anterioară încă validă este păstrată. Fallbackul global, la ramburs sau la card, are explicație separată. Câmpurile `fallback_to_cod` și `fallback_to_stripe` indică înlocuirea metodei cerute de regulile catalogului cu alternativa disponibilă global.
+`CategoryPaymentPolicy` furnizează aceeași decizie pentru afișare și plasare. Metodele indisponibile global sunt ascunse complet, inclusiv inputul aferent. Numai metodele active global, dar restricționate de categorii, rămân vizibile cu motiv și lista deduplicată a produselor care le limitează. `globally_available` separă cele două cazuri. Cardul are prioritate la selecția inițială; o selecție anterioară încă validă este păstrată. Fallbackul global, la ramburs sau la card, are explicație separată. Câmpurile `fallback_to_cod` și `fallback_to_stripe` indică înlocuirea metodei cerute de regulile catalogului cu alternativa disponibilă global.
 
-La POST se recitesc regulile în tranzacție înainte de orice comandă, rezervare de stoc, cupon sau mesaj email. O metodă falsificată ori devenită indisponibilă este respinsă; serverul nu schimbă în tăcere plata aleasă. Pentru MySQL sunt folosite locking reads pe produsele, asocierile și categoriile relevante. Verificarea concurenței pe MySQL rămâne de efectuat pe infrastructura de găzduire.
+La POST se recitesc regulile în tranzacție înainte de orice comandă, rezervare de stoc, cupon sau mesaj email. O metodă falsificată ori devenită indisponibilă este respinsă; serverul nu schimbă în tăcere plata aleasă. Pentru MySQL sunt folosite locking reads pe produsele, asocierile, categoriile relevante și setările globale. Modificările globale sunt autorizate server-side, protejate CSRF, salvate atomic și înregistrate în audit. Verificarea concurenței pe MySQL rămâne de efectuat pe infrastructura de găzduire.
 
-Regulile noi se referă la checkout; nu rescriu metoda de plată a comenzilor istorice. Nu schimbă procesarea webhookurilor Stripe sau condițiile de expediere a confirmărilor.
+Regulile noi se referă la checkout; nu rescriu metoda de plată a comenzilor istorice. Oprirea globală blochează inițierea unor sesiuni Stripe noi, dar webhookurile semnate continuă să proceseze confirmările plăților deja începute. Verificările semnăturii, sumei și idempotentei, precum și condițiile de expediere a confirmărilor sunt păstrate.
 
 ## Verificări
 

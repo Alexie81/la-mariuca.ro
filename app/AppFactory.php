@@ -10,6 +10,7 @@ use App\Modules\Admin\AdminNotificationService;
 use App\Modules\Admin\AdminPushController;
 use App\Modules\Admin\AdminPushService;
 use App\Modules\Admin\OrderNotificationSettingsController;
+use App\Modules\Admin\PaymentMethodSettingsController;
 use App\Modules\Cart\CartController;
 use App\Modules\Cart\CartService;
 use App\Modules\Catalog\CatalogAdminService;
@@ -39,6 +40,8 @@ use App\Modules\Orders\InternalOrderNotificationService;
 use App\Modules\Orders\OrderNotificationSettingsService;
 use App\Modules\Payments\StripeWebhookController;
 use App\Modules\Payments\StripeCheckoutService;
+use App\Modules\Payments\CategoryPaymentPolicy;
+use App\Modules\Payments\PaymentMethodSettingsService;
 use App\Modules\Promotions\PromotionAdminService;
 use App\Modules\Reviews\ProductReviewRepository;
 use App\Modules\Reviews\ProductReviewService;
@@ -154,12 +157,14 @@ final class AppFactory
         $romanianLocations = RomanianLocations::fromProjectRoot($root);
         $postalCodeController = new PostalCodeController(RomanianPostalCodes::fromProjectRoot($root));
         $customerAccount = new CustomerAccountService(new CustomerAccountRepository($pdo), $romanianLocations);
-        $checkoutController = new CheckoutController(new CheckoutService($pdo, $cart, $config, $romanianLocations, $push, $shippingMethods, internalNotifications: $internalOrderNotifications), $cart, $orders, new StripeCheckoutService($pdo, $config), $auth, $customerAccount, $rateLimiter, $view, $config, $shippingMethods, new OrderResultPresenter($config));
+        $paymentMethodSettings = new PaymentMethodSettingsService($pdo, $config);
+        $checkoutController = new CheckoutController(new CheckoutService($pdo, $cart, $config, $romanianLocations, $push, $shippingMethods, new CategoryPaymentPolicy($pdo, $config, $paymentMethodSettings), $internalOrderNotifications), $cart, $orders, new StripeCheckoutService($pdo, $config, $paymentMethodSettings), $auth, $customerAccount, $rateLimiter, $view, $config, $shippingMethods, new OrderResultPresenter($config));
         $authController = new AuthController($pdo, $auth, new GoogleOAuthService($pdo, $config), $customerAccount, $rateLimiter, $view, $config);
         $twoFactorController = new TwoFactorController($pdo, $auth, new TotpService($config), $adminRememberMe, $rateLimiter, $view, $config);
         $adminController = new AdminController($pdo, new AdminDashboardService($pdo), new AdminNotificationService($pdo), $push, $catalog, new CatalogAdminService($pdo, $productDescriptions), new CustomerAdminService($pdo), new NewsletterAdminService($pdo), $promotions, $shippingMethods, new SupplierAdminService($pdo), $orders, $reviews, new MediaService($pdo, $root), new ContentAdminService($pdo), $auth, $adminRememberMe, $rateLimiter, $view, $config);
         $adminPushController = new AdminPushController($push, $auth, $view, $config);
         $orderNotificationSettingsController = new OrderNotificationSettingsController(new OrderNotificationSettingsService($pdo), new AdminNotificationService($pdo), $auth, $view, $config);
+        $paymentMethodSettingsController = new PaymentMethodSettingsController($paymentMethodSettings, new AdminNotificationService($pdo), $auth, $view, $config);
 
         $app = SlimAppFactory::create();
         $basePath = '/' . trim($config->get('APP_BASE_PATH'), '/');
@@ -222,7 +227,7 @@ final class AppFactory
         $app->post('/admin/', [$adminController, 'login']);
         $app->post('/admin/deconectare/', [$adminController, 'logout']);
 
-        $app->group('/admin', function (RouteCollectorProxy $group) use ($adminController, $adminPushController, $twoFactorController, $orderNotificationSettingsController): void {
+        $app->group('/admin', function (RouteCollectorProxy $group) use ($adminController, $adminPushController, $twoFactorController, $orderNotificationSettingsController, $paymentMethodSettingsController): void {
             $group->get('/categorii/', [$adminController, 'categories']);
             $group->get('/categorii/verifica-nume/', [$adminController, 'categoryNameAvailability']);
             $group->get('/categorii/verifica-slug/', [$adminController, 'categorySlugAvailability']);
@@ -272,6 +277,8 @@ final class AppFactory
             $group->post('/cupoane-promotii/{offer_type:cupon|reducere}/{id:[0-9]+}/sterge/', [$adminController, 'deletePromotionOffer']);
             $group->post('/cupoane-promotii/{offer_type:cupon|reducere}/{id:[0-9]+}/dezactiveaza/', [$adminController, 'deactivatePromotionOffer']);
             $group->get('/livrare/', [$adminController, 'shippingMethods']);
+            $group->get('/metode-plata/', [$paymentMethodSettingsController, 'index']);
+            $group->post('/metode-plata/', [$paymentMethodSettingsController, 'save']);
             $group->get('/livrare/noua/', [$adminController, 'shippingMethodForm']);
             $group->get('/livrare/noua/modal/', [$adminController, 'shippingMethodModal']);
             $group->post('/livrare/noua/', [$adminController, 'saveShippingMethod']);

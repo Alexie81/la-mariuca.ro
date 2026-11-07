@@ -11,13 +11,16 @@ use PDO;
 /** Resolves category restrictions from the current catalog, including every ancestor. */
 final class CategoryPaymentPolicy
 {
-    public function __construct(private readonly PDO $pdo, private readonly Config $config)
+    private readonly PaymentMethodSettingsService $paymentSettings;
+
+    public function __construct(private readonly PDO $pdo, Config $config, ?PaymentMethodSettingsService $paymentSettings = null)
     {
+        $this->paymentSettings = $paymentSettings ?? new PaymentMethodSettingsService($pdo, $config);
     }
 
     /**
      * @param list<array<string,mixed>> $items Authoritative cart lines, not browser-submitted products.
-     * @return array{methods:array<string,array{available:bool,reason:string,blocked_products:list<array{id:int,name:string,slug:string,image_path:?string}>}>,preferred:?string,fallback_to_cod:bool,fallback_to_stripe:bool,has_available:bool}
+     * @return array{methods:array<string,array{globally_available:bool,available:bool,reason:string,blocked_products:list<array{id:int,name:string,slug:string,image_path:?string}>}>,preferred:?string,fallback_to_cod:bool,fallback_to_stripe:bool,has_available:bool}
      */
     public function resolve(array $items, bool $lock = false): array
     {
@@ -75,11 +78,12 @@ final class CategoryPaymentPolicy
             }
         }
 
-        $stripeGlobal = $this->config->bool('STRIPE_ENABLED') && trim($this->config->get('STRIPE_SECRET_KEY')) !== '';
-        $codGlobal = $this->config->bool('COD_ENABLED', true);
+        $global = $this->paymentSettings->available($lock);
+        $stripeGlobal = $global['stripe'];
+        $codGlobal = $global['cod'];
         $methods = [
-            'stripe' => ['available' => false, 'reason' => '', 'blocked_products' => []],
-            'cod' => ['available' => false, 'reason' => '', 'blocked_products' => []],
+            'stripe' => ['globally_available' => $stripeGlobal, 'available' => false, 'reason' => '', 'blocked_products' => []],
+            'cod' => ['globally_available' => $codGlobal, 'available' => false, 'reason' => '', 'blocked_products' => []],
         ];
         if ($cartProducts === [] || $invalid !== []) {
             $reason = $cartProducts === []
