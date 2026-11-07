@@ -11,13 +11,6 @@
 .tracking-nav__tools{gap:18px}
 .tracking-private{font-size:12px;color:var(--tr-muted)}
 .tracking-private svg{width:16px}
-.tracking .tracking-motion{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:42px;padding:8px 13px;border:1px solid #e7d6d9;border-radius:24px;background:#fff9;color:#8b5364;font:500 12px var(--sans);cursor:pointer;transition:background .2s,box-shadow .2s}
-.tracking-motion[hidden]{display:none!important}
-.tracking-motion:hover{background:white;box-shadow:0 4px 16px #7b4a5410}
-.tracking-motion svg{width:16px;height:16px}
-.tracking-motion__play{display:none}
-.tracking--still .tracking-motion__pause{display:none}
-.tracking--still .tracking-motion__play{display:block}
 
 /* A luminous hero, with a floating parcel and an animated paper receipt. */
 .tracking-hero,.tracking-entry{position:relative;overflow:hidden;border:1px solid #ffffff;border-radius:32px;box-shadow:0 1px 0 #e6d2ce,0 18px 55px #8955650c;background:linear-gradient(120deg,#fffdfb 10%,#fcf0ec 58%,#f3dfe6 100%);animation:tr-arrive .85s cubic-bezier(.2,.7,.2,1) both}
@@ -263,8 +256,6 @@
   .tracking{padding-top:12px}
   .tracking-nav{gap:8px;margin-bottom:12px;font-size:12px}
   .tracking-private{display:none}
-  .tracking .tracking-motion{width:42px;padding:0}
-  .tracking-motion>span{display:none}
   .tracking-hero{flex-direction:column;min-height:0;padding:16px 20px;gap:14px;border-radius:24px;align-items:stretch}
   .tracking-hero__copy{text-align:center}
   .tracking-eyebrow,.tracking-hero__intro-detail,.tracking-hero__jump{display:none}

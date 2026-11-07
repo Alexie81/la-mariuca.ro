@@ -4,27 +4,11 @@
   if (!root) return;
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
   const finePointer = window.matchMedia('(hover: hover) and (pointer: fine)');
-  const motionButton = root.querySelector('[data-tracking-motion]');
-  let pausedByUser = false;
-  try { pausedByUser = localStorage.getItem('lamariuca-tracking-motion') === 'paused'; } catch (_) { /* Optional preference. */ }
-  const motionEnabled = () => !reducedMotion.matches && !pausedByUser;
+  const motionEnabled = () => !reducedMotion.matches;
   const updateMotion = () => {
     const paused = !motionEnabled();
     root.classList.toggle('tracking--still', paused);
-    if (motionButton) {
-      motionButton.hidden = false;
-      motionButton.setAttribute('aria-pressed', String(paused));
-      motionButton.setAttribute('aria-label', reducedMotion.matches ? 'Animații oprite conform preferinței dispozitivului' : (paused ? 'Pornește animațiile' : 'Oprește animațiile'));
-      motionButton.title = reducedMotion.matches ? 'Mișcare redusă conform preferinței dispozitivului' : (paused ? 'Pornește animațiile' : 'Oprește animațiile');
-      motionButton.disabled = reducedMotion.matches;
-      motionButton.querySelector('span').textContent = reducedMotion.matches ? 'Mișcare redusă' : (paused ? 'Animații oprite' : 'Animații active');
-    }
   };
-  motionButton?.addEventListener('click', () => {
-    pausedByUser = !pausedByUser;
-    try { localStorage.setItem('lamariuca-tracking-motion', pausedByUser ? 'paused' : 'active'); } catch (_) { /* Optional preference. */ }
-    updateMotion();
-  });
   reducedMotion.addEventListener('change', updateMotion);
   updateMotion();
 
@@ -70,7 +54,6 @@
     });
     scene.addEventListener('pointerleave', reset);
     reducedMotion.addEventListener('change', reset);
-    motionButton?.addEventListener('click', reset);
   });
   document.addEventListener('visibilitychange', () => root.classList.toggle('tracking--paused', document.hidden));
   root.querySelector('.tracking-hero__jump')?.addEventListener('click', (event) => {

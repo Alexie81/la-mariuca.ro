@@ -1075,3 +1075,7 @@ atribute și filtre fără schimbarea contractelor existente.
 - Au trecut lint PHP, 79 template-uri Twig compilate, sintaxa JavaScript, PHPStan fără erori, `git diff --check` și întreaga suită PHPUnit: **160 teste / 2027 aserțiuni**. Testele noi verifică limita la secundă, schimbarea orei, stările interzise, formulare expirate, autorizarea, CSRF, motivul, idempotenta, lipsa efectelor financiare/de stoc, CRM-ul și notificările.
 - Browserul intern a verificat modalul la 1440×1000, 768×1024, 390×844 și 320×640, inclusiv scrollul numai în corp, motivul obligatoriu, trimiterea, confirmarea, filtrul CRM, motivul în pagina comenzii și notificarea. Un termen apropiat în baza QA a confirmat dezactivarea formularului și dispariția linkului la expirare. Fără erori în consolă. Datele de verificare au fost create exclusiv într-o bază SQLite QA separată; comenzile existente nu au fost modificate și nu s-au trimis emailuri.
 - Migrarea SQLite este aplicată local. MySQL și concurența sa reală, Apache, SMTP, rambursările Stripe și integrările fiscale nu au fost verificate sau activate în această intervenție. Nu s-a făcut deploy în producție.
+
+### 2026-11-07 — Eliminarea controlului de animații
+- Eliminat butonul „Animații active”, stilurile și logica lui din urmărirea comenzii. Animațiile continuă automat, respectând preferința dispozitivului pentru mișcare redusă și pauza când fila este ascunsă.
+- Au trecut compilarea celor 79 template-uri Twig, verificarea sintaxei JavaScript și `git diff --check`. Răspunsul HTTP local nu mai conține controlul de animații.
