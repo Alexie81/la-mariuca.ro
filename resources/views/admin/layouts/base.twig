@@ -23,6 +23,7 @@
   {% if admin_section|default('') == 'orders' %}<link rel="stylesheet" href="{{ url('assets/css/order-admin.css?v=20261108-cancellation-v13') }}"><link rel="stylesheet" href="{{ url('assets/css/order-history.css?v=20261108-1') }}"><link rel="stylesheet" href="{{ url('assets/css/order-cancellation.css?v=20261108-1') }}">{% endif %}
   {% if admin_section|default('') == 'orders' %}<link rel="stylesheet" href="{{ url('assets/css/order-notifications.css?v=20261108-v1') }}">{% endif %}
   {% if admin_section|default('') == 'orders' %}<link rel="stylesheet" href="{{ url('assets/css/order-contact-actions.css?v=20261108-1') }}">{% endif %}
+  {% if admin_section|default('') == 'companies' %}<link rel="stylesheet" href="{{ url('assets/css/company-admin.css?v=20261108-1') }}">{% endif %}
 </head>
 {% set operator = admin_user|default(current_user()) %}
 {% set first_name = operator.first_name|default('Administrator') %}
@@ -121,6 +122,10 @@
           <span class="admin-nav__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m2 7 3-2 3 2-3 7-3-1V7ZM22 7l-3-2-3 2 3 7 3-1V7Z"/><path d="M8 7h3M16 7h-3.4a2 2 0 0 0-1.4.6l-2.6 2.5a1.5 1.5 0 0 0 2.1 2.1l1.3-1.3 5.4 4.8a1.5 1.5 0 0 1-2 2.2L12 15M5 14l5.4 5a1.5 1.5 0 0 0 2.1-2.1M14 17l.7.6a1.5 1.5 0 0 1-2 2.2L11 18.3M19 14l-1.6 1.7"/></svg></span>
           <span><strong>Furnizori</strong><small>Parteneri și contacte</small></span>
         </a>
+        <a class="admin-nav__item{{ active_admin_section == 'companies' ? ' is-active' : '' }}" href="{{ url('admin/detaliile-firmei/') }}"{% if active_admin_section == 'companies' %} aria-current="page"{% endif %}>
+          <span class="admin-nav__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16M16 9h3a1 1 0 0 1 1 1v11M2 21h20M8 7h4M8 11h4M8 15h4M9 21v-3h3v3"/></svg></span>
+          <span><strong>Detaliile firmei</strong><small>Date și gestiuni</small></span>
+        </a>
       </nav>
 
       <div class="admin-sidebar__spacer"></div>
@@ -168,5 +173,6 @@
   {% if admin_section|default('') == 'payment_methods' %}<script src="{{ url('assets/js/payment-methods-admin.js?v=20261108-v2') }}" defer></script>{% endif %}
   {% if admin_section|default('') == 'orders' %}<script src="{{ url('assets/js/order-admin.js?v=20261108-cancellation-v10') }}" defer></script><script src="{{ url('assets/js/order-history.js?v=20261108-1') }}" defer></script>{% endif %}
   {% if admin_section|default('') == 'orders' %}<script src="{{ url('assets/js/order-notifications.js?v=20261108-v2') }}" defer></script>{% endif %}
+  {% if admin_section|default('') == 'companies' %}<script src="{{ url('assets/js/company-admin.js?v=20261108-1') }}" defer></script>{% endif %}
 </body>
 </html>

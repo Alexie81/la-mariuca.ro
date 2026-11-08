@@ -23,6 +23,10 @@ use App\Modules\Checkout\CheckoutController;
 use App\Modules\Checkout\CheckoutService;
 use App\Modules\Checkout\OrderResultPresenter;
 use App\Modules\Checkout\PostalCodeController;
+use App\Modules\Companies\CompanyAdminController;
+use App\Modules\Companies\CompanyAdminService;
+use App\Modules\Companies\CompanyRepository;
+use App\Modules\Companies\CompanyStampStorage;
 use App\Modules\Content\ContentRepository;
 use App\Modules\Content\ContactWhatsAppService;
 use App\Modules\Content\ContentAdminService;
@@ -165,6 +169,7 @@ final class AppFactory
         $adminPushController = new AdminPushController($push, $auth, $view, $config);
         $orderNotificationSettingsController = new OrderNotificationSettingsController(new OrderNotificationSettingsService($pdo), new AdminNotificationService($pdo), $auth, $view, $config);
         $paymentMethodSettingsController = new PaymentMethodSettingsController($paymentMethodSettings, new AdminNotificationService($pdo), $auth, $view, $config);
+        $companyAdminController = new CompanyAdminController(new CompanyAdminService(new CompanyRepository($pdo), new CompanyStampStorage($root)), new AdminNotificationService($pdo), $auth, $view, $config);
 
         $app = SlimAppFactory::create();
         $basePath = '/' . trim($config->get('APP_BASE_PATH'), '/');
@@ -227,7 +232,7 @@ final class AppFactory
         $app->post('/admin/', [$adminController, 'login']);
         $app->post('/admin/deconectare/', [$adminController, 'logout']);
 
-        $app->group('/admin', function (RouteCollectorProxy $group) use ($adminController, $adminPushController, $twoFactorController, $orderNotificationSettingsController, $paymentMethodSettingsController): void {
+        $app->group('/admin', function (RouteCollectorProxy $group) use ($adminController, $adminPushController, $twoFactorController, $orderNotificationSettingsController, $paymentMethodSettingsController, $companyAdminController): void {
             $group->get('/categorii/', [$adminController, 'categories']);
             $group->get('/categorii/verifica-nume/', [$adminController, 'categoryNameAvailability']);
             $group->get('/categorii/verifica-slug/', [$adminController, 'categorySlugAvailability']);
@@ -294,6 +299,26 @@ final class AppFactory
             $group->get('/furnizori/{id:[0-9]+}/editare/modal/', [$adminController, 'supplierModalForm']);
             $group->post('/furnizori/{id:[0-9]+}/editare/', [$adminController, 'saveSupplier']);
             $group->post('/furnizori/{id:[0-9]+}/sterge/', [$adminController, 'deleteSupplier']);
+            $group->get('/detaliile-firmei/', [$companyAdminController, 'index']);
+            $group->get('/detaliile-firmei/nou/', [$companyAdminController, 'companyForm']);
+            $group->get('/detaliile-firmei/nou/modal/', [$companyAdminController, 'companyForm']);
+            $group->post('/detaliile-firmei/nou/', [$companyAdminController, 'saveCompany']);
+            $group->get('/detaliile-firmei/{id:[0-9]+}/editare/', [$companyAdminController, 'companyForm']);
+            $group->get('/detaliile-firmei/{id:[0-9]+}/editare/modal/', [$companyAdminController, 'companyForm']);
+            $group->post('/detaliile-firmei/{id:[0-9]+}/editare/', [$companyAdminController, 'saveCompany']);
+            $group->get('/detaliile-firmei/{id:[0-9]+}/sterge/', [$companyAdminController, 'companyDeleteForm']);
+            $group->get('/detaliile-firmei/{id:[0-9]+}/sterge/modal/', [$companyAdminController, 'companyDeleteForm']);
+            $group->post('/detaliile-firmei/{id:[0-9]+}/sterge/', [$companyAdminController, 'deleteCompany']);
+            $group->get('/detaliile-firmei/{id:[0-9]+}/stampila/', [$companyAdminController, 'stamp']);
+            $group->get('/detaliile-firmei/{companyId:[0-9]+}/gestiuni/nou/', [$companyAdminController, 'warehouseForm']);
+            $group->get('/detaliile-firmei/{companyId:[0-9]+}/gestiuni/nou/modal/', [$companyAdminController, 'warehouseForm']);
+            $group->post('/detaliile-firmei/{companyId:[0-9]+}/gestiuni/nou/', [$companyAdminController, 'saveWarehouse']);
+            $group->get('/detaliile-firmei/{companyId:[0-9]+}/gestiuni/{id:[0-9]+}/editare/', [$companyAdminController, 'warehouseForm']);
+            $group->get('/detaliile-firmei/{companyId:[0-9]+}/gestiuni/{id:[0-9]+}/editare/modal/', [$companyAdminController, 'warehouseForm']);
+            $group->post('/detaliile-firmei/{companyId:[0-9]+}/gestiuni/{id:[0-9]+}/editare/', [$companyAdminController, 'saveWarehouse']);
+            $group->get('/detaliile-firmei/{companyId:[0-9]+}/gestiuni/{id:[0-9]+}/sterge/', [$companyAdminController, 'warehouseDeleteForm']);
+            $group->get('/detaliile-firmei/{companyId:[0-9]+}/gestiuni/{id:[0-9]+}/sterge/modal/', [$companyAdminController, 'warehouseDeleteForm']);
+            $group->post('/detaliile-firmei/{companyId:[0-9]+}/gestiuni/{id:[0-9]+}/sterge/', [$companyAdminController, 'deleteWarehouse']);
             $group->get('/comenzi/', [$adminController, 'orders']);
             $group->get('/comenzi/notificari/', [$orderNotificationSettingsController, 'form']);
             $group->get('/comenzi/notificari/modal/', [$orderNotificationSettingsController, 'form']);

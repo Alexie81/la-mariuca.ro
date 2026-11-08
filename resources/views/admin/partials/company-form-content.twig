@@ -1,0 +1,85 @@
+{% import 'admin/partials/company-ui.twig' as ui %}
+{% set is_company = form_kind == 'company' %}
+{% set is_warehouse = form_kind == 'warehouse' %}
+{% set is_delete = form_kind in ['delete_company', 'delete_warehouse'] %}
+{% set values = values|default({}) %}
+{% set errors = errors|default({}) %}
+{% set company_default_locked = first_company|default(false) or (is_edit and company.is_default|default(false)) %}
+{% set warehouse_default_locked = first_warehouse|default(false) or (is_edit and warehouse.is_default|default(false)) %}
+<form class="company-form{{ is_delete ? ' company-form--delete' : '' }}{{ is_warehouse ? ' company-form--warehouse' : '' }}" action="{{ form_action }}" method="post"{% if is_company %} enctype="multipart/form-data"{% endif %} data-company-form>
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  <header class="company-form__header">
+    <span class="company-form__mark{{ is_delete ? ' is-danger' : '' }}">{{ ui.icon(is_delete ? 'trash' : (is_company ? 'building' : 'warehouse')) }}</span>
+    <div class="company-form__intro"><span class="company-eyebrow">{{ is_delete ? 'Confirmă alegerea' : (is_company ? (is_edit ? 'Fișa firmei' : 'Firmă nouă') : 'Organizarea firmei') }}</span><h2 id="company-dialog-title">{{ form_title }}</h2><p>{{ is_delete ? 'Verifică detaliile înainte de a continua.' : (is_company ? 'Datele importante, organizate pas cu pas.' : company.legal_name) }}</p></div>
+    <a class="company-form__close" href="{{ back_url }}" data-company-modal-close aria-label="Închide">{{ ui.icon('close') }}</a>
+  </header>
+
+  <div class="company-form__body">
+    <div class="company-form__errors" data-company-errors role="alert" tabindex="-1"{% if not errors %} hidden{% endif %}>{% if errors %}Verifică informațiile evidențiate mai jos.{% endif %}</div>
+    {% if is_company %}
+      <div class="company-form__guidance"><span>{{ ui.icon('document') }}</span><p><strong>Doar denumirea legală este obligatorie.</strong> Restul datelor pot fi completate acum sau mai târziu.</p></div>
+      <section class="company-form-section" aria-labelledby="company-identity-form-title">
+        <header class="company-form-section__header"><span class="company-form-section__number">01</span><div><span class="company-eyebrow">Identitate</span><h3 id="company-identity-form-title">Cum se numește firma?</h3><p>Folosește datele din documentele firmei.</p></div><span class="company-form-section__icon">{{ ui.icon('building') }}</span></header>
+        <div class="company-fields">
+          {{ ui.field('legal_name', 'Denumire legală', values.legal_name|default(''), errors, {required:true, max:190, autocomplete:'organization', placeholder:'De exemplu, Atelier Măriuca SRL'}) }}
+          {{ ui.field('trade_name', 'Nume comercial', values.trade_name|default(''), errors, {max:190, placeholder:'Numele cunoscut de clienți'}) }}
+          {{ ui.field('tax_id', 'CUI', values.tax_id|default(''), errors, {max:60, placeholder:'Codul unic de identificare'}) }}
+          {{ ui.field('trade_register', 'Registrul Comerțului', values.trade_register|default(''), errors, {max:80, placeholder:'Numărul de înregistrare'}) }}
+        </div>
+        {% if company_default_locked %}<input type="hidden" name="is_default" value="1">{% endif %}
+        <label class="company-switchbox{{ company_default_locked ? ' is-locked' : '' }}" for="company-is-default"><input id="company-is-default" type="checkbox" name="is_default" value="1" role="switch"{% if values.is_default|default(false) or company_default_locked %} checked{% endif %}{% if company_default_locked %} disabled{% endif %} aria-describedby="company-default-help"><span class="company-switchbox__icon">{{ ui.icon('star') }}</span><span class="company-switchbox__copy"><strong>Firmă implicită</strong><small id="company-default-help">{{ first_company|default(false) ? 'Prima firmă adăugată devine automat implicită.' : (company_default_locked ? 'Pentru a schimba alegerea implicită, selectează o altă firmă.' : 'Va fi alegerea principală. O singură firmă poate fi implicită.') }}</small></span><span class="company-switch" aria-hidden="true"><i>{{ ui.icon('check') }}</i></span></label>
+        <small class="company-field__error" data-field-error="is_default"{% if not errors.is_default|default('') %} hidden{% endif %}>{{ errors.is_default|default('') }}</small>
+      </section>
+
+      <section class="company-form-section" aria-labelledby="company-location-form-title">
+        <header class="company-form-section__header"><span class="company-form-section__number">02</span><div><span class="company-eyebrow">Adresă și contact</span><h3 id="company-location-form-title">Unde vă găsesc clienții?</h3><p>Completează sediul social și modalitățile de contact.</p></div><span class="company-form-section__icon">{{ ui.icon('pin') }}</span></header>
+        <div class="company-fields">
+          {{ ui.field('registered_address', 'Adresa sediului social', values.registered_address|default(''), errors, {max:1000, wide:true, type:'textarea', placeholder:'Stradă, număr și alte detalii ale sediului'}) }}
+          {{ ui.field('city', 'Localitate', values.city|default(''), errors, {max:120, autocomplete:'address-level2'}) }}
+          {{ ui.field('county', 'Județ', values.county|default(''), errors, {max:120, autocomplete:'address-level1'}) }}
+          {{ ui.field('postal_code', 'Cod poștal', values.postal_code|default(''), errors, {max:20, autocomplete:'postal-code'}) }}
+          {{ ui.field('country', 'Țară', values.country|default('România'), errors, {max:100, autocomplete:'country-name'}) }}
+          {{ ui.field('email', 'Email', values.email|default(''), errors, {max:254, type:'email', autocomplete:'email', placeholder:'contact@firma.ro'}) }}
+          {{ ui.field('phone', 'Telefon', values.phone|default(''), errors, {max:50, type:'tel', autocomplete:'tel', placeholder:'Numărul de contact al firmei'}) }}
+          {{ ui.field('website', 'Website', values.website|default(''), errors, {max:500, wide:true, inputmode:'url', placeholder:'www.firma.ro'}) }}
+        </div>
+        <div class="company-form-subsection"><span>{{ ui.icon('globe') }}</span><div><strong>Prezență fizică și zonă deservită</strong><p>Poate fi diferită de adresa sediului social.</p></div></div>
+        <div class="company-fields">
+          {{ ui.field('physical_address', 'Adresă fizică', values.physical_address|default(''), errors, {max:1000, type:'textarea', placeholder:'Adresă de magazin, atelier sau punct de lucru'}) }}
+          {{ ui.field('service_area', 'Zonă deservită', values.service_area|default(''), errors, {max:500, type:'textarea', placeholder:'De exemplu, România sau județele deservite'}) }}
+        </div>
+      </section>
+
+      <section class="company-form-section" aria-labelledby="company-bank-form-title">
+        <header class="company-form-section__header"><span class="company-form-section__number">03</span><div><span class="company-eyebrow">Date bancare</span><h3 id="company-bank-form-title">Contul firmei</h3><p>Adaugă banca și IBAN-ul, exact ca în documentele bancare.</p></div><span class="company-form-section__icon is-sage">{{ ui.icon('bank') }}</span></header>
+        <div class="company-fields">
+          {{ ui.field('bank_name', 'Bancă', values.bank_name|default(''), errors, {max:190, placeholder:'De exemplu, BCR, BRD sau Banca Transilvania'}) }}
+          <label class="company-field" for="company-field-share_capital"><span>Capital social</span><span class="company-field__suffix"><input id="company-field-share_capital" name="share_capital" type="text" inputmode="decimal" value="{{ values.share_capital|default('') }}" maxlength="20" placeholder="0,00" aria-describedby="company-error-share_capital"{% if errors.share_capital|default('') %} aria-invalid="true"{% endif %}><i>Lei</i></span><small class="company-field__error" id="company-error-share_capital" data-field-error="share_capital"{% if not errors.share_capital|default('') %} hidden{% endif %}>{{ errors.share_capital|default('') }}</small></label>
+          {{ ui.field('iban', 'IBAN', values.iban|default(''), errors, {max:42, wide:true, placeholder:'RO…'}) }}
+        </div>
+      </section>
+
+      <section class="company-form-section" aria-labelledby="company-stamp-form-title">
+        <header class="company-form-section__header"><span class="company-form-section__number">04</span><div><span class="company-eyebrow">Imagine</span><h3 id="company-stamp-form-title">Ștampila firmei</h3><p>Alege o imagine clară, cu ștampila întreagă.</p></div><span class="company-form-section__icon">{{ ui.icon('stamp') }}</span></header>
+        <div class="company-stamp-editor">
+          <div class="company-stamp-editor__preview"><img data-company-stamp-preview{% if company.stamp_url|default('') %} src="{{ company.stamp_url }}"{% else %} hidden{% endif %} alt="Previzualizare ștampilă"><span data-company-stamp-empty{% if company.stamp_url|default('') %} hidden{% endif %}>{{ ui.icon('stamp') }}<small>Previzualizare</small></span></div>
+          <div class="company-stamp-editor__controls"><strong>{{ company.stamp_url|default('') ? 'Înlocuiește imaginea existentă' : 'Adaugă imaginea ștampilei' }}</strong><p>PNG, JPG sau WebP, maximum 2 MB.<br>Fundalul transparent este păstrat.</p><label class="company-upload"><input type="file" name="stamp_file" accept="image/png,image/jpeg,image/webp" data-company-stamp-input>{{ ui.icon('upload') }}<span>Alege imaginea</span></label><small class="company-upload__filename" data-company-stamp-filename></small><small class="company-field__error" data-field-error="stamp_file"{% if not errors.stamp_file|default('') %} hidden{% endif %}>{{ errors.stamp_file|default('') }}</small>
+            {% if company.stamp_url|default('') %}<label class="company-stamp-remove"><input type="checkbox" name="remove_stamp" value="1" data-company-stamp-remove{% if values.remove_stamp|default(false) %} checked{% endif %}><span>{{ ui.icon('trash') }}Elimină ștampila la salvare</span></label>{% endif %}
+          </div>
+        </div>
+      </section>
+    {% elseif is_warehouse %}
+      <div class="company-warehouse-context"><span>{{ ui.icon('building') }}</span><div><small>Gestiune pentru</small><strong>{{ company.legal_name }}</strong></div></div>
+      <section class="company-form-section company-form-section--simple" aria-labelledby="warehouse-name-title"><header class="company-form-section__header"><div><span class="company-eyebrow">Un nume ușor de recunoscut</span><h3 id="warehouse-name-title">Cum se numește gestiunea?</h3><p>De exemplu, „Magazin”, „Depozit” sau „Atelier”.</p></div></header>{{ ui.field('name', 'Denumire gestiune', values.name|default(''), errors, {required:true,max:120,placeholder:'Introdu denumirea gestiunii'}) }}
+        {% if warehouse_default_locked %}<input type="hidden" name="is_default" value="1">{% endif %}
+        <label class="company-switchbox{{ warehouse_default_locked ? ' is-locked' : '' }}" for="warehouse-is-default"><input id="warehouse-is-default" type="checkbox" name="is_default" value="1" role="switch"{% if values.is_default|default(false) or warehouse_default_locked %} checked{% endif %}{% if warehouse_default_locked %} disabled{% endif %} aria-describedby="warehouse-default-help"><span class="company-switchbox__icon">{{ ui.icon('star') }}</span><span class="company-switchbox__copy"><strong>Gestiune implicită</strong><small id="warehouse-default-help">{{ first_warehouse|default(false) ? 'Prima gestiune a firmei devine automat implicită.' : (warehouse_default_locked ? 'Pentru a schimba alegerea implicită, selectează o altă gestiune.' : 'Va fi gestiunea principală a acestei firme.') }}</small></span><span class="company-switch" aria-hidden="true"><i>{{ ui.icon('check') }}</i></span></label><small class="company-field__error" data-field-error="is_default"{% if not errors.is_default|default('') %} hidden{% endif %}>{{ errors.is_default|default('') }}</small>
+      </section>
+    {% elseif is_delete %}
+      <div class="company-delete-summary"><span>{{ ui.icon(form_kind == 'delete_company' ? 'building' : 'warehouse') }}</span><div><small>{{ form_kind == 'delete_company' ? 'Firma selectată' : 'Gestiunea selectată' }}</small><strong>{{ form_kind == 'delete_company' ? company.legal_name : warehouse.name }}</strong>{% if form_kind == 'delete_warehouse' %}<p>{{ company.legal_name }}</p>{% endif %}</div></div>
+      <div class="company-delete-notice"><strong>{{ form_kind == 'delete_company' ? 'Datele acestei firme vor fi șterse.' : 'Această gestiune va fi ștearsă.' }}</strong><p>{% if form_kind == 'delete_company' %}{% if company.warehouse_count|default(0) > 0 %}Se vor șterge și {{ company.warehouse_count }} {{ company.warehouse_count == 1 ? 'gestiune asociată' : 'gestiuni asociate' }}.{% else %}Firma nu are gestiuni asociate.{% endif %} Ștampila salvată va fi eliminată.{% else %}Denumirea și setarea implicită vor fi eliminate din această firmă.{% endif %} Această acțiune nu poate fi anulată.</p></div>
+      {% if (form_kind == 'delete_company' and company.is_default) or (form_kind == 'delete_warehouse' and warehouse.is_default) %}<p class="company-delete-default">{{ ui.icon('star') }}<span>Dacă mai există alte {{ form_kind == 'delete_company' ? 'firme' : 'gestiuni' }}, una dintre ele va deveni automat implicită.</span></p>{% endif %}
+    {% endif %}
+  </div>
+
+  <footer class="company-form__footer"><a class="company-button company-button--cancel" href="{{ back_url }}" data-company-modal-close>Renunță</a><div class="company-form__footer-end">{% if not is_delete %}<span class="company-form__footer-note">{{ ui.icon('shield') }}Poți reveni oricând pentru modificări.</span>{% endif %}<button type="submit" class="company-button {{ is_delete ? 'company-button--danger' : 'company-button--primary' }}">{{ ui.icon(is_delete ? 'trash' : 'check') }}<span>{{ is_delete ? (form_kind == 'delete_company' ? 'Șterge firma' : 'Șterge gestiunea') : (is_company ? (is_edit ? 'Salvează modificările' : 'Adaugă firma') : (is_edit ? 'Salvează gestiunea' : 'Adaugă gestiunea')) }}</span></button></div></footer>
+</form>

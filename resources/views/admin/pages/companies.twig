@@ -1,0 +1,72 @@
+{% extends 'admin/layouts/base.twig' %}
+{% import 'admin/partials/company-ui.twig' as ui %}
+{% block title %}Detaliile firmei{% endblock %}
+{% block content %}
+<div class="company-admin">
+  <div data-company-page>
+    <header class="company-hero">
+      <div class="company-hero__copy"><span class="company-eyebrow">Stoc și achiziții</span><h1>Detaliile firmei</h1><p>O imagine clară a firmei tale.<br>Datele importante și gestiunile, în același loc.</p></div>
+      <div class="company-hero__aside">
+        <div class="company-hero__numbers"><span><strong>{{ totals.company_count|default(companies|length) }}</strong><small>{{ companies|length == 1 ? 'firmă' : 'firme' }}</small></span><i aria-hidden="true"></i><span><strong>{{ totals.warehouse_count|default(0) }}</strong><small>{{ totals.warehouse_count|default(0) == 1 ? 'gestiune' : 'gestiuni' }}</small></span></div>
+        <a class="company-button company-button--primary" href="{{ url('admin/detaliile-firmei/nou/') }}" data-company-modal-open data-modal-url="{{ url('admin/detaliile-firmei/nou/modal/') }}">{{ ui.icon('plus') }}<span>Adaugă firmă</span></a>
+      </div>
+    </header>
+
+    {% if companies %}
+      <nav class="company-picker" aria-label="Alege firma">
+        <span class="company-picker__label">Firmele tale</span>
+        <div class="company-picker__list">
+          {% for entry in companies %}
+            <a class="company-picker__item{{ selected_company and selected_company.id == entry.id ? ' is-current' : '' }}" href="{{ url('admin/detaliile-firmei/?firma=' ~ entry.id) }}"{% if selected_company and selected_company.id == entry.id %} aria-current="page"{% endif %}>
+              <span class="company-picker__icon">{{ ui.icon('building') }}</span><span class="company-picker__name">{{ entry.trade_name ?: entry.legal_name }}{% if entry.trade_name %}<small>{{ entry.legal_name }}</small>{% endif %}</span>{% if entry.is_default %}<span class="company-picker__default" title="Firma implicită">{{ ui.icon('star') }}<span class="sr-only">Implicită</span></span>{% endif %}
+            </a>
+          {% endfor %}
+        </div>
+      </nav>
+    {% endif %}
+
+    {% if selected_company %}
+      {% set company = selected_company %}
+      <section class="company-profile" aria-labelledby="company-profile-title">
+        <header class="company-profile__header">
+          <span class="company-profile__mark">{{ ui.icon('building') }}</span>
+          <div class="company-profile__identity"><span class="company-eyebrow">Fișa firmei</span><h2 id="company-profile-title">{{ company.legal_name }}</h2><div class="company-profile__subline">{% if company.trade_name %}<span>{{ company.trade_name }}</span>{% endif %}{% if company.is_default %}<span class="company-badge company-badge--default">{{ ui.icon('check') }}Firmă implicită</span>{% else %}<span class="company-profile__secondary">Firmă secundară</span>{% endif %}</div></div>
+          <div class="company-profile__actions">
+            <a class="company-button company-button--soft" href="{{ url('admin/detaliile-firmei/' ~ company.id ~ '/editare/') }}" data-company-modal-open data-modal-url="{{ url('admin/detaliile-firmei/' ~ company.id ~ '/editare/modal/') }}">{{ ui.icon('edit') }}<span>Editează datele</span></a>
+            <a class="company-icon-button company-icon-button--danger" href="{{ url('admin/detaliile-firmei/' ~ company.id ~ '/sterge/') }}" data-company-modal-open data-modal-url="{{ url('admin/detaliile-firmei/' ~ company.id ~ '/sterge/modal/') }}" aria-label="Șterge firma {{ company.legal_name }}" title="Șterge firma">{{ ui.icon('trash') }}</a>
+          </div>
+        </header>
+        <div class="company-profile__columns">
+          <div class="company-profile__column">
+            <section class="company-info-card" aria-labelledby="company-identity-title"><header><span class="company-info-card__icon">{{ ui.icon('document') }}</span><h3 id="company-identity-title">Identitate legală</h3></header><dl class="company-detail-grid">{{ ui.detail('Denumire legală', company.legal_name) }}{{ ui.detail('Nume comercial', company.trade_name) }}{{ ui.detail('CUI', company.tax_id) }}{{ ui.detail('Registrul Comerțului', company.trade_register) }}</dl></section>
+            <section class="company-info-card" aria-labelledby="company-address-title"><header><span class="company-info-card__icon is-amber">{{ ui.icon('pin') }}</span><h3 id="company-address-title">Adrese și zonă deservită</h3></header><dl class="company-detail-grid">{{ ui.detail('Sediu social', company.registered_address, true) }}{{ ui.detail('Localitate', company.city) }}{{ ui.detail('Județ', company.county) }}{{ ui.detail('Cod poștal', company.postal_code) }}{{ ui.detail('Țară', company.country) }}{{ ui.detail('Adresă fizică', company.physical_address, true) }}{{ ui.detail('Zonă deservită', company.service_area, true) }}</dl></section>
+          </div>
+          <div class="company-profile__column">
+            <section class="company-info-card" aria-labelledby="company-contact-title"><header><span class="company-info-card__icon is-blue">{{ ui.icon('mail') }}</span><h3 id="company-contact-title">Date de contact</h3></header><dl class="company-detail-grid">
+              <div class="company-detail"><dt>Email</dt><dd>{% if company.email %}<a href="mailto:{{ company.email }}">{{ company.email }}</a>{% else %}<span class="is-empty">Necompletat</span>{% endif %}</dd></div>
+              <div class="company-detail"><dt>Telefon</dt><dd>{% if company.phone %}<a href="tel:{{ company.phone }}">{{ company.phone }}</a>{% else %}<span class="is-empty">Necompletat</span>{% endif %}</dd></div>
+              <div class="company-detail company-detail--wide"><dt>Website</dt><dd>{% if company.website %}<a href="{{ company.website }}" target="_blank" rel="noopener noreferrer">{{ company.website }}<span class="company-external" aria-hidden="true">↗</span></a>{% else %}<span class="is-empty">Necompletat</span>{% endif %}</dd></div>
+            </dl></section>
+            <section class="company-info-card" aria-labelledby="company-bank-title"><header><span class="company-info-card__icon is-sage">{{ ui.icon('bank') }}</span><h3 id="company-bank-title">Date bancare</h3></header><dl class="company-detail-grid">{{ ui.detail('Bancă', company.bank_name) }}{{ ui.detail('Capital social', company.share_capital_bani is not null ? money(company.share_capital_bani) : '') }}<div class="company-detail company-detail--wide"><dt>IBAN</dt><dd class="company-iban{{ not company.iban ? ' is-empty' : '' }}">{{ company.iban ?: 'Necompletat' }}</dd></div></dl></section>
+            <section class="company-info-card company-stamp-card" aria-labelledby="company-stamp-title"><div><span class="company-info-card__icon">{{ ui.icon('stamp') }}</span><h3 id="company-stamp-title">Ștampila firmei</h3><p>{{ company.stamp_url|default('') ? 'Imaginea salvată pentru această firmă.' : 'Poți adăuga o imagine din „Editează datele”.' }}</p></div><div class="company-stamp-card__image">{% if company.stamp_url|default('') %}<img src="{{ company.stamp_url }}" alt="Ștampila {{ company.legal_name }}" loading="lazy">{% else %}<span>{{ ui.icon('stamp') }}<small>Fără ștampilă</small></span>{% endif %}</div></section>
+          </div>
+        </div>
+      </section>
+
+      <section class="company-warehouses" aria-labelledby="company-warehouses-title">
+        <header class="company-section-heading"><div class="company-section-heading__intro"><span class="company-section-heading__icon">{{ ui.icon('warehouse') }}</span><div><span class="company-eyebrow">Organizarea firmei</span><h2 id="company-warehouses-title">Gestiuni</h2><p>{{ company.trade_name ?: company.legal_name }}{% if warehouses %} · {{ warehouses|length }} {{ warehouses|length == 1 ? 'gestiune' : 'gestiuni' }}{% endif %}</p></div></div><a class="company-button company-button--soft" href="{{ url('admin/detaliile-firmei/' ~ company.id ~ '/gestiuni/nou/') }}" data-company-modal-open data-modal-url="{{ url('admin/detaliile-firmei/' ~ company.id ~ '/gestiuni/nou/modal/') }}">{{ ui.icon('plus') }}<span>Adaugă gestiune</span></a></header>
+        {% if warehouses %}
+          <div class="company-warehouses__table-wrap"><table class="company-warehouses__table"><thead><tr><th>Denumire gestiune</th><th>Preferință</th><th><span class="sr-only">Acțiuni</span></th></tr></thead><tbody>{% for warehouse in warehouses %}<tr><td><span class="company-warehouse-name"><span>{{ ui.icon('warehouse') }}</span><strong>{{ warehouse.name }}</strong></span></td><td>{% if warehouse.is_default %}<span class="company-badge company-badge--default">{{ ui.icon('check') }}Implicită</span>{% else %}<span class="company-warehouse-secondary">Gestiune secundară</span>{% endif %}</td><td><div class="company-row-actions"><a class="company-icon-button" href="{{ url('admin/detaliile-firmei/' ~ company.id ~ '/gestiuni/' ~ warehouse.id ~ '/editare/') }}" data-company-modal-open data-modal-url="{{ url('admin/detaliile-firmei/' ~ company.id ~ '/gestiuni/' ~ warehouse.id ~ '/editare/modal/') }}" aria-label="Editează gestiunea {{ warehouse.name }}" title="Editează gestiunea">{{ ui.icon('edit') }}<span>Editează</span></a><a class="company-icon-button company-icon-button--danger" href="{{ url('admin/detaliile-firmei/' ~ company.id ~ '/gestiuni/' ~ warehouse.id ~ '/sterge/') }}" data-company-modal-open data-modal-url="{{ url('admin/detaliile-firmei/' ~ company.id ~ '/gestiuni/' ~ warehouse.id ~ '/sterge/modal/') }}" aria-label="Șterge gestiunea {{ warehouse.name }}" title="Șterge gestiunea">{{ ui.icon('trash') }}<span>Șterge</span></a></div></td></tr>{% endfor %}</tbody></table></div>
+        {% else %}
+          <div class="company-empty company-empty--inline"><span class="company-empty__icon">{{ ui.icon('warehouse') }}</span><div><h3>Prima gestiune începe cu un nume</h3><p>Adaugă o gestiune pentru această firmă, de exemplu „Magazin” sau „Depozit”.</p></div><a href="{{ url('admin/detaliile-firmei/' ~ company.id ~ '/gestiuni/nou/') }}" data-company-modal-open data-modal-url="{{ url('admin/detaliile-firmei/' ~ company.id ~ '/gestiuni/nou/modal/') }}" class="company-text-link">Adaugă prima gestiune{{ ui.icon('arrow') }}</a></div>
+        {% endif %}
+      </section>
+    {% else %}
+      <section class="company-empty company-empty--welcome"><div class="company-empty__illustration"><span>{{ ui.icon('building') }}</span><i>{{ ui.icon('check') }}</i></div><span class="company-eyebrow">Totul începe aici</span><h2>Un loc pentru datele firmei tale</h2><p>Adaugă firma, apoi completează datele de contact, contul bancar și gestiunile. Poți reveni oricând pentru modificări.</p><a class="company-button company-button--primary" href="{{ url('admin/detaliile-firmei/nou/') }}" data-company-modal-open data-modal-url="{{ url('admin/detaliile-firmei/nou/modal/') }}">{{ ui.icon('plus') }}<span>Adaugă prima firmă</span></a><div class="company-empty__steps"><span><i>1</i>Datele firmei</span><span><i>2</i>Contact și bancă</span><span><i>3</i>Gestiuni</span></div></section>
+    {% endif %}
+  </div>
+
+  <dialog class="company-dialog" data-company-dialog aria-labelledby="company-dialog-title"><div class="company-dialog__content" data-company-dialog-content></div></dialog>
+  <div class="company-toast" data-company-toast hidden role="status"><span class="company-toast__icon">{{ ui.icon('check') }}</span><span data-company-toast-message>Modificările au fost salvate.</span></div>
+</div>
+{% endblock %}

@@ -1,0 +1,6 @@
+{% extends 'admin/layouts/base.twig' %}
+{% import 'admin/partials/company-ui.twig' as ui %}
+{% block title %}{{ form_title }}{% endblock %}
+{% block content %}
+<div class="company-admin company-form-page"><a class="company-back" href="{{ back_url }}">{{ ui.icon('back') }}<span>Înapoi la detaliile firmei</span></a>{% include 'admin/partials/company-form-content.twig' %}</div>
+{% endblock %}
