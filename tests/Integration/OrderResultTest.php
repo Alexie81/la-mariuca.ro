@@ -89,6 +89,24 @@ final class OrderResultTest extends DatabaseTestCase
         self::assertStringContainsString('data-order-result="card_failed"', (string) $this->getResult($result['token'], ['plata' => 'anulata'])->getBody());
     }
 
+    public function testPendingReturnExposesOnlyStoredStatusToReadOnlyWatcher(): void
+    {
+        $result = $this->placeOrder('stripe');
+        $before = $this->order($result['token']);
+        $html = (string) $this->getResult($result['token'], ['plata' => 'verificare'])->getBody();
+        self::assertStringContainsString('data-order-status="new"', $html);
+        self::assertStringContainsString('data-payment-status="pending"', $html);
+        self::assertStringContainsString('order-payment-status.js', $html);
+        self::assertSame($before, $this->order($result['token']));
+
+        $this->pdo->prepare("UPDATE orders SET status='confirmed',payment_status='paid' WHERE id=:id")
+            ->execute(['id' => $result['id']]);
+        $html = (string) $this->getResult($result['token'], ['plata' => 'verificare'])->getBody();
+        self::assertStringContainsString('data-order-result="card_paid"', $html);
+        self::assertStringContainsString('data-payment-status="paid"', $html);
+        self::assertStringNotContainsString('order-payment-status.js', $html);
+    }
+
     public function testPaidManualReviewRefundAndCancellationAlwaysTakePrecedence(): void
     {
         $result = $this->placeOrder('stripe');

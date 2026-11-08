@@ -17,10 +17,21 @@ if (form instanceof HTMLFormElement) {
     const total = document.querySelector('[data-checkout-total]');
     if (shipping) shipping.textContent = Number(selected.dataset.shippingBani) === 0 ? 'Gratuit' : money(selected.dataset.shippingBani);
     if (name) name.textContent = selected.dataset.shippingName;
-    if (total) total.textContent = money(selected.dataset.totalBani);
+    const payment = form.querySelector('[name="payment_method"]:checked');
+    const fee = Number(payment?.dataset.paymentFeeBani || 0);
+    if (total) total.textContent = money(Number(selected.dataset.totalBani) + fee);
+    document.querySelectorAll('[data-checkout-fees]').forEach((group) => { group.hidden = group.dataset.checkoutFees !== payment?.value; });
   };
   form.querySelectorAll('[name="shipping_method_id"]').forEach((radio) => radio.addEventListener('change', updateTotals));
   updateTotals();
+
+  const submitLabel = document.querySelector('[data-checkout-submit-label]');
+  const updatePaymentAction = () => {
+    if (submitLabel) submitLabel.textContent = form.querySelector('[name="payment_method"]:checked')?.value === 'stripe' ? 'Continuă la plată' : 'Plasează comanda';
+    updateTotals();
+  };
+  form.querySelectorAll('[name="payment_method"]').forEach((radio) => radio.addEventListener('change', updatePaymentAction));
+  updatePaymentAction();
 
   const postal = form.querySelector('[data-postal-lookup]');
   const postalInput = field('postal_code');

@@ -62,6 +62,7 @@ final class CheckoutController
                 break;
             }
         }
+        $selectedFees = (int) ($paymentOptions['methods'][$selectedPayment]['fee_bani'] ?? 0);
         return $this->view->render('storefront/pages/checkout.twig', [
             'cart' => $cart, 'idempotency_key' => $_SESSION['checkout_idempotency'],
             'checkout_customer' => $customer,
@@ -73,11 +74,13 @@ final class CheckoutController
             'checkout_totals' => [
                 'shipping_bani' => (int) ($selectedMethod['shipping_bani'] ?? 0),
                 'shipping_discount_bani' => (int) ($selectedMethod['shipping_discount_bani'] ?? 0),
-                'total_bani' => (int) ($selectedMethod['total_bani'] ?? $cart['total_bani']),
+                'total_bani' => (int) ($selectedMethod['total_bani'] ?? $cart['total_bani']) + $selectedFees,
+                'payment_fee_bani' => $selectedFees,
                 'shipping_name' => (string) ($selectedMethod['name'] ?? ''),
             ],
             'payment_options' => $paymentOptions,
             'selected_payment_method' => $selectedPayment,
+            'stripe_test_mode' => $this->config->get('STRIPE_MODE', 'test') === 'test',
             'meta' => ['title' => 'Finalizare comandă', 'noindex' => true],
         ]);
     }

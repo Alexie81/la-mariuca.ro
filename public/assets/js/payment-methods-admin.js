@@ -97,3 +97,89 @@
 
   update();
 })();
+
+(() => {
+  const dialog = document.querySelector('[data-payment-fee-dialog]');
+  const register = document.querySelector('[data-payment-fee-register]');
+  if (!(dialog instanceof HTMLDialogElement) || !register) return;
+  const content = dialog.querySelector('[data-payment-fee-content]');
+  const toast = document.querySelector('[data-payment-fee-toast]');
+  let loading = false;
+  let saving = false;
+  let toastTimer;
+  let opener;
+  const announce = (message, error = false) => {
+    clearTimeout(toastTimer);
+    toast.textContent = message;
+    toast.classList.toggle('is-error', error);
+    toast.hidden = false;
+    toastTimer = setTimeout(() => { toast.hidden = true; }, error ? 5000 : 2400);
+  };
+  const close = () => {
+    if (saving) return;
+    dialog.classList.add('is-closing');
+    setTimeout(() => { dialog.close(); dialog.classList.remove('is-closing'); }, matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 160);
+  };
+  register.addEventListener('click', async (event) => {
+    const link = event.target.closest('[data-payment-fee-open]');
+    if (!link || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    if (loading) return;
+    loading = true;
+    link.setAttribute('aria-busy', 'true');
+    try {
+      const response = await fetch(link.href, { headers: { 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' });
+      if (!response.ok) throw new Error('Formularul nu este disponibil. Reîncarcă pagina și încearcă din nou.');
+      content.innerHTML = await response.text();
+      if (!content.querySelector('[data-payment-fee-form]')) throw new Error('Sesiunea a expirat. Reîncarcă pagina pentru autentificare.');
+      opener = link;
+      dialog.showModal();
+      document.body.classList.add('payment-fee-modal-open');
+    } catch (error) { announce(error.message || 'Formularul nu a putut fi încărcat.', true); }
+    finally { loading = false; link.removeAttribute('aria-busy'); }
+  });
+  dialog.addEventListener('close', () => {
+    document.body.classList.remove('payment-fee-modal-open');
+    const focusTarget = opener?.isConnected ? opener : register.querySelector('[data-payment-fee-open]');
+    focusTarget?.focus({ preventScroll: true });
+  });
+  dialog.addEventListener('cancel', (event) => { event.preventDefault(); close(); });
+  dialog.addEventListener('click', (event) => {
+    if (event.target.closest('[data-payment-fee-close]')) { event.preventDefault(); close(); }
+    if (event.target === dialog) close();
+  });
+  dialog.addEventListener('input', () => {
+    const name = dialog.querySelector('[name="name"]');
+    const price = dialog.querySelector('[name="price"]');
+    if (!name || !price) return;
+    dialog.querySelector('[data-fee-preview-name]').textContent = name.value.trim() || 'Denumirea costului';
+    const amount = Number(price.value.replace(',', '.'));
+    dialog.querySelector('[data-fee-preview-price]').textContent = `${new Intl.NumberFormat('ro-RO', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number.isFinite(amount) ? amount : 0)} Lei`;
+  });
+  dialog.addEventListener('submit', async (event) => {
+    const form = event.target.closest('[data-payment-fee-form]');
+    if (!form) return;
+    event.preventDefault();
+    if (saving || !form.reportValidity()) return;
+    saving = true;
+    const submit = form.querySelector('[type="submit"]');
+    const error = form.querySelector('[data-payment-fee-error]');
+    const body = new FormData(form);
+    submit.disabled = true;
+    error.hidden = true;
+    form.setAttribute('aria-busy', 'true');
+    try {
+      const response = await fetch(form.action, { method: 'POST', body, headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' });
+      const result = await response.json().catch(() => null);
+      if (!response.ok || !result?.ok) throw new Error(result?.error || 'Salvarea nu a putut fi confirmată. Încearcă din nou.');
+      register.innerHTML = result.html;
+      saving = false;
+      close();
+      announce(result.message);
+    } catch (failure) {
+      error.textContent = failure.message || 'Conexiunea a fost întreruptă. Încearcă din nou.';
+      error.hidden = false;
+      error.focus();
+    } finally { saving = false; submit.disabled = false; form.removeAttribute('aria-busy'); }
+  });
+})();

@@ -19,7 +19,7 @@
   {% if admin_section|default('') == 'newsletter' %}<link rel="stylesheet" href="{{ url('assets/css/newsletter-admin.css?v=20261103-v2') }}">{% endif %}
   {% if admin_section|default('') == 'promotions' %}<link rel="stylesheet" href="{{ url('assets/css/promotion-admin.css?v=20261108-usage-v8') }}">{% endif %}
   {% if admin_section|default('') == 'shipping' %}<link rel="stylesheet" href="{{ url('assets/css/shipping-admin.css?v=20261103-v4') }}">{% endif %}
-  {% if admin_section|default('') == 'payment_methods' %}<link rel="stylesheet" href="{{ url('assets/css/payment-methods-admin.css?v=20261108-v2') }}">{% endif %}
+  {% if admin_section|default('') == 'payment_methods' %}<link rel="stylesheet" href="{{ url('assets/css/payment-methods-admin.css?v=20261108-fees') }}">{% endif %}
   {% if admin_section|default('') == 'orders' %}<link rel="stylesheet" href="{{ url('assets/css/order-admin.css?v=20261108-cancellation-v13') }}"><link rel="stylesheet" href="{{ url('assets/css/order-history.css?v=20261108-1') }}"><link rel="stylesheet" href="{{ url('assets/css/order-cancellation.css?v=20261108-1') }}">{% endif %}
   {% if admin_section|default('') == 'orders' %}<link rel="stylesheet" href="{{ url('assets/css/order-notifications.css?v=20261108-v1') }}">{% endif %}
   {% if admin_section|default('') == 'orders' %}<link rel="stylesheet" href="{{ url('assets/css/order-contact-actions.css?v=20261108-1') }}">{% endif %}
@@ -170,7 +170,7 @@
 
   <script src="{{ url('assets/js/admin-rich-editor.js?v=20261031-rich-description-v1') }}" defer></script>
   <script src="{{ url('assets/js/admin.js?v=20261107-category-payments') }}" defer></script>
-  {% if admin_section|default('') == 'payment_methods' %}<script src="{{ url('assets/js/payment-methods-admin.js?v=20261108-v2') }}" defer></script>{% endif %}
+  {% if admin_section|default('') == 'payment_methods' %}<script src="{{ url('assets/js/payment-methods-admin.js?v=20261108-fees') }}" defer></script>{% endif %}
   {% if admin_section|default('') == 'orders' %}<script src="{{ url('assets/js/order-admin.js?v=20261108-cancellation-v10') }}" defer></script><script src="{{ url('assets/js/order-history.js?v=20261108-1') }}" defer></script>{% endif %}
   {% if admin_section|default('') == 'orders' %}<script src="{{ url('assets/js/order-notifications.js?v=20261108-v2') }}" defer></script>{% endif %}
   {% if admin_section|default('') == 'companies' %}<script src="{{ url('assets/js/company-admin.js?v=20261108-3') }}" defer></script>{% endif %}

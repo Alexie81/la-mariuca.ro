@@ -168,7 +168,7 @@ final class AppFactory
         $adminController = new AdminController($pdo, new AdminDashboardService($pdo), new AdminNotificationService($pdo), $push, $catalog, new CatalogAdminService($pdo, $productDescriptions), new CustomerAdminService($pdo), new NewsletterAdminService($pdo), $promotions, $shippingMethods, new SupplierAdminService($pdo), $orders, $reviews, new MediaService($pdo, $root), new ContentAdminService($pdo), $auth, $adminRememberMe, $rateLimiter, $view, $config, new \App\Modules\Orders\OrderCancellationService(new \App\Modules\Orders\OrderTrackingRepository($pdo), $orders));
         $adminPushController = new AdminPushController($push, $auth, $view, $config);
         $orderNotificationSettingsController = new OrderNotificationSettingsController(new OrderNotificationSettingsService($pdo), new AdminNotificationService($pdo), $auth, $view, $config);
-        $paymentMethodSettingsController = new PaymentMethodSettingsController($paymentMethodSettings, new AdminNotificationService($pdo), $auth, $view, $config);
+        $paymentMethodSettingsController = new PaymentMethodSettingsController($paymentMethodSettings, new AdminNotificationService($pdo), $auth, $view, $config, new \App\Modules\Payments\PaymentFeeService($pdo));
         $companyAdminController = new CompanyAdminController(new CompanyAdminService(new CompanyRepository($pdo), new CompanyStampStorage($root)), new AdminNotificationService($pdo), $auth, $view, $config);
 
         $app = SlimAppFactory::create();
@@ -284,6 +284,10 @@ final class AppFactory
             $group->get('/livrare/', [$adminController, 'shippingMethods']);
             $group->get('/metode-plata/', [$paymentMethodSettingsController, 'index']);
             $group->post('/metode-plata/', [$paymentMethodSettingsController, 'save']);
+            $group->get('/metode-plata/costuri/nou/', [$paymentMethodSettingsController, 'feeForm']);
+            $group->post('/metode-plata/costuri/nou/', [$paymentMethodSettingsController, 'saveFee']);
+            $group->get('/metode-plata/costuri/{id:[0-9]+}/{action:editare|sterge}/', [$paymentMethodSettingsController, 'feeForm']);
+            $group->post('/metode-plata/costuri/{id:[0-9]+}/{action:editare|sterge}/', [$paymentMethodSettingsController, 'saveFee']);
             $group->get('/livrare/noua/', [$adminController, 'shippingMethodForm']);
             $group->get('/livrare/noua/modal/', [$adminController, 'shippingMethodModal']);
             $group->post('/livrare/noua/', [$adminController, 'saveShippingMethod']);

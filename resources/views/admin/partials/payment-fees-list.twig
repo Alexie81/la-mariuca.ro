@@ -1,0 +1,14 @@
+{% import 'admin/partials/company-ui.twig' as ui %}
+<header class="payment-fees-heading"><span class="payment-fees-heading__icon">{{ ui.icon('document') }}</span><div><span class="payment-methods-eyebrow">Detalii transparente, înainte de comandă</span><h2>Costuri operaționale</h2><p>Adaugă costuri fixe pentru servicii reale, precum ambalarea. Clientul vede fiecare cost și totalul înainte de confirmare.</p></div></header>
+<div class="payment-fees-grid">
+{% for method, label in {cod: 'Ramburs', stripe: 'Card online'} %}
+  {% set entries = payment_fees|filter(fee => fee.payment_method == method) %}
+  <section class="payment-fees-card">
+    <header><div><span class="payment-fees-method">{{ label }}</span><p>{{ entries|length }} {{ entries|length == 1 ? 'cost configurat' : 'costuri configurate' }}</p></div><a class="payment-fee-button" href="{{ url('admin/metode-plata/costuri/nou/?metoda=' ~ method) }}" data-payment-fee-open>{{ ui.icon('plus') }}<span>Adaugă cost</span></a></header>
+    {% for fee in entries %}<article class="payment-fee-row"><span class="payment-fee-row__icon">{{ ui.icon('document') }}</span><div><strong>{{ fee.name }}</strong><small>O singură dată pe comandă</small></div><strong class="payment-fee-price">{{ money(fee.amount_bani) }}</strong><div class="payment-fee-actions"><a href="{{ url('admin/metode-plata/costuri/' ~ fee.id ~ '/editare/') }}" data-payment-fee-open aria-label="Editează {{ fee.name }}">{{ ui.icon('edit') }}</a><a class="is-danger" href="{{ url('admin/metode-plata/costuri/' ~ fee.id ~ '/sterge/') }}" data-payment-fee-open aria-label="Elimină {{ fee.name }}">{{ ui.icon('trash') }}</a></div></article>
+    {% else %}<div class="payment-fees-empty"><span>{{ ui.icon('check') }}</span><div><strong>Fără costuri suplimentare</strong><p>Poți adăuga un cost când ai nevoie.</p></div></div>{% endfor %}
+    {% if entries %}{% set sum = 0 %}{% for fee in entries %}{% set sum = sum + fee.amount_bani %}{% endfor %}<footer><span>Total costuri pe comandă</span><strong>{{ money(sum) }}</strong></footer>{% endif %}
+  </section>
+{% endfor %}
+</div>
+<p class="payment-fees-help">Costurile se aplică doar comenzilor noi, pentru metoda aleasă. Modificarea sau eliminarea lor păstrează sumele comenzilor deja plasate.</p>

@@ -2,7 +2,7 @@
 {% macro icon(name) %}<svg viewBox="0 0 24 24" aria-hidden="true">{% if name == 'arrow' %}<path d="M4 12h15m-6-6 6 6-6 6"/>{% elseif name == 'bag' %}<path d="M5 7h14l1 14H4L5 7ZM9 8V6a3 3 0 0 1 6 0v2"/>{% elseif name == 'pin' %}<path d="M20 10c0 6-8 11-8 11S4 16 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/>{% elseif name == 'truck' %}<path d="M3 5h11v12H3zM14 9h4l3 5v3h-7"/><circle cx="7" cy="18" r="2"/><circle cx="18" cy="18" r="2"/>{% elseif name == 'card' %}<rect x="3" y="5" width="18" height="14" rx="3"/><path d="M3 10h18M7 15h4"/>{% elseif name == 'check' %}<path d="m5 12 4 4L19 6"/>{% elseif name == 'lock' %}<rect x="5" y="10" width="14" height="11" rx="3"/><path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v3"/>{% elseif name == 'search' %}<circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/>{% elseif name == 'clock' %}<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>{% elseif name == 'heart' %}<path d="M20.8 5.6a5.5 5.5 0 0 0-8.8 1 5.5 5.5 0 0 0-8.8-1C-1 10.2 6 16.6 12 21c6-4.4 13-10.8 8.8-15.4Z"/>{% endif %}</svg>{% endmacro %}
 {% block head %}
   <link rel="stylesheet" href="{{ url('assets/css/storefront/romania-locations.css') }}?v=20261103-locations3">
-  <link rel="stylesheet" href="{{ url('assets/css/storefront/checkout.css') }}?v=20261108-brand-heart">
+  <link rel="stylesheet" href="{{ url('assets/css/storefront/checkout.css') }}?v=20261108-stripe-fees">
 {% endblock %}
 {% block body_class %}checkout-page-body{% endblock %}
 {% block content %}
@@ -105,15 +105,17 @@
             {% if option.globally_available %}
             <div class="checkout-payment-card{{ not option.available ? ' is-unavailable' : '' }}">
               <label class="checkout-option">
-                <input type="radio" name="payment_method" value="{{ method }}"{{ selected_payment_method == method ? ' checked' : '' }}{{ not option.available ? ' disabled' : ' required' }} aria-describedby="payment-{{ method }}-description">
+                <input type="radio" name="payment_method" value="{{ method }}" data-payment-fee-bani="{{ option.fee_bani|default(0) }}"{{ selected_payment_method == method ? ' checked' : '' }}{{ not option.available ? ' disabled' : ' required' }} aria-describedby="payment-{{ method }}-description">
                 <span class="checkout-option-content">
                   <i class="checkout-option-icon">{{ _self.icon(method == 'stripe' ? 'card' : 'bag') }}</i>
-                  <span class="checkout-option-copy"><strong>{{ title }}</strong><small>{{ method == 'stripe' ? 'Online, în siguranță prin Stripe.' : 'Plătești la primirea comenzii.' }}</small><em class="checkout-payment-state">{{ option.available ? 'Disponibilă' : 'Indisponibilă pentru acest coș' }}</em></span>
+                  <span class="checkout-option-copy"><strong>{{ title }}{% if method == 'stripe' and stripe_test_mode %}<span class="checkout-test-badge">Test</span>{% endif %}</strong><small>{{ method == 'stripe' ? 'Online, în siguranță prin Stripe.' : 'Plătești la primirea comenzii.' }}</small><em class="checkout-payment-state">{{ option.available ? 'Disponibilă' : 'Indisponibilă pentru acest coș' }}</em></span>
                   <i class="checkout-radio">{{ _self.icon(option.available ? 'check' : 'lock') }}</i>
                 </span>
               </label>
               <div id="payment-{{ method }}-description" class="checkout-payment-explanation">
                 {% if not option.available %}<p>{{ option.reason }}</p>{% else %}<p>{{ method == 'stripe' ? 'Datele cardului se introduc în pasul următor.' : 'Achită curierului când ajunge coletul.' }}</p>{% endif %}
+                {% if option.fees|default([]) %}<p class="checkout-fee-note">Costuri incluse în rezumat: {% for fee in option.fees %}{{ fee.name }} ({{ money(fee.amount_bani) }}){{ not loop.last ? ', ' : '.' }}{% endfor %}</p>{% endif %}
+                {% if method == 'stripe' and stripe_test_mode and option.available %}<p class="checkout-test-notice">{{ _self.icon('card') }}<span><strong>Plată de test</strong>Nu se debitează bani. Folosește un card Stripe de test.</span></p>{% endif %}
                 {% if option.blocked_products %}
                   <details class="checkout-payment-products" open>
                     <summary>{{ option.blocked_products|length == 1 ? 'Produsul care limitează această metodă' : 'Produsele care limitează această metodă' }}<span>{{ option.blocked_products|length }}</span></summary>
@@ -134,8 +136,9 @@
       </div>
       <a class="checkout-edit-cart" href="{{ url('cos/') }}">Modifică produsele din coș {{ _self.icon('arrow') }}</a>
       <div class="checkout-calculation"><div><span>Subtotal produse</span><strong>{{ money(cart.subtotal_bani) }}</strong></div>{% if cart.discount_bani %}<div class="checkout-discount"><span>Reducere <small>{{ cart.discount_label|default('') }}</small></span><strong>−{{ money(cart.discount_bani) }}</strong></div>{% endif %}<div><span>Livrare <small data-checkout-shipping-name>{% for method in shipping_methods %}{% if method.id == selected_shipping_method_id|default(default_shipping_method_id) %}{{ method.name }}{% endif %}{% endfor %}</small></span><strong data-checkout-shipping>{{ shipping_methods|default([]) ? (checkout_totals.shipping_bani|default(0) == 0 ? 'Gratuit' : money(checkout_totals.shipping_bani)) : 'Indisponibilă' }}</strong></div></div>
-      <div class="checkout-total" aria-live="polite" aria-atomic="true"><div><strong>Total de plată</strong><small>Produse și livrare incluse</small></div><strong data-checkout-total>{{ money(checkout_totals.total_bani|default(cart.total_bani)) }}</strong></div>
-      <noscript><div class="checkout-nojs-total"><p>Totalul afișat include metoda de livrare selectată inițial. Dacă o schimbi, actualizează totalul înainte de a plasa comanda.</p><button type="submit" name="checkout_action" value="recalculate" form="checkout-form" formnovalidate>Actualizează totalul</button></div></noscript>
+      {% for method, option in payment_options.methods %}{% if option.fees|default([]) %}<div class="checkout-calculation checkout-fees" data-checkout-fees="{{ method }}"{% if method != selected_payment_method %} hidden{% endif %}>{% for fee in option.fees %}<div><span>{{ fee.name }}</span><strong>{{ money(fee.amount_bani) }}</strong></div>{% endfor %}</div>{% endif %}{% endfor %}
+      <div class="checkout-total" aria-live="polite" aria-atomic="true"><div><strong>Total de plată</strong><small>Toate costurile incluse</small></div><strong data-checkout-total>{{ money(checkout_totals.total_bani|default(cart.total_bani)) }}</strong></div>
+      <noscript><div class="checkout-nojs-total"><p>Totalul afișat include metoda de livrare selectată inițial. Dacă schimbi livrarea sau metoda de plată, actualizează totalul înainte de a plasa comanda.</p><button type="submit" name="checkout_action" value="recalculate" form="checkout-form" formnovalidate>Actualizează totalul</button></div></noscript>
       <div class="checkout-confirmation">
         <label class="checkout-consent">
           <input type="checkbox" role="switch" name="terms" value="1" form="checkout-form" required aria-labelledby="checkout-terms-title" aria-describedby="checkout-terms-help"{{ values.terms|default('') ? ' checked' : '' }}>
@@ -151,7 +154,7 @@
             <span class="checkout-consent-switch" aria-hidden="true"><span>{{ _self.icon('check') }}</span></span>
           </span>
         </label>
-        <button class="checkout-submit" form="checkout-form" type="submit"{{ shipping_methods|default([]) and payment_options.has_available ? '' : ' disabled' }}><span>Plasează comanda</span>{{ _self.icon('arrow') }}</button>
+        <button class="checkout-submit" form="checkout-form" type="submit"{{ shipping_methods|default([]) and payment_options.has_available ? '' : ' disabled' }}><span data-checkout-submit-label>{{ selected_payment_method == 'stripe' ? 'Continuă la plată' : 'Plasează comanda' }}</span>{{ _self.icon('arrow') }}</button>
         <p class="checkout-obligation">Prin plasarea comenzii îți asumi obligația de plată.</p>
         <span class="checkout-security">{{ _self.icon('lock') }} Datele tale sunt folosite pentru comandă</span>
       </div>
@@ -160,5 +163,5 @@
   </div>
   {% else %}<div class="checkout-empty">{{ _self.icon('bag') }}<h2>Un coș pregătit pentru bucurii</h2><p>Adaugă produsele preferate și revino aici pentru a finaliza comanda.</p><a class="checkout-submit" href="{{ url('magazin/') }}">Descoperă colecțiile {{ _self.icon('arrow') }}</a></div>{% endif %}
 </div>
-<script type="module" src="{{ url('assets/js/storefront/checkout-account.js') }}?v=20261103-checkout3"></script>
+<script type="module" src="{{ url('assets/js/storefront/checkout-account.js') }}?v=20261108-stripe-fees"></script>
 {% endblock %}

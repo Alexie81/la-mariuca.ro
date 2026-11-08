@@ -57,5 +57,8 @@
 
       <noscript><button class="payment-methods-submit" type="submit">Salvează setările</button></noscript>
     </form>
+    <section class="payment-fees-register" data-payment-fee-register>{% include 'admin/partials/payment-fees-list.twig' %}</section>
+    <dialog class="payment-fee-dialog" data-payment-fee-dialog aria-labelledby="payment-fee-title"><div data-payment-fee-content></div></dialog>
+    <div class="payment-fee-toast" data-payment-fee-toast role="status" hidden></div>
   </div>
 {% endblock %}
