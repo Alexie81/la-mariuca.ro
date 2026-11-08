@@ -8,6 +8,7 @@ use App\Modules\Catalog\CatalogAdminService;
 use App\Modules\Catalog\CatalogRepository;
 use App\Modules\Media\MediaService;
 use App\Modules\Orders\OrderService;
+use App\Modules\Orders\OrderCancellationService;
 use App\Modules\Reviews\ProductReviewService;
 use App\Modules\Suppliers\SupplierAdminService;
 use App\Modules\Content\ContentAdminService;
@@ -29,7 +30,7 @@ use Psr\Http\Message\ServerRequestInterface;
 
 final class AdminController
 {
-    public function __construct(private readonly PDO $pdo, private readonly AdminDashboardService $dashboardService, private readonly AdminNotificationService $notificationService, private readonly AdminPushService $push, private readonly CatalogRepository $catalog, private readonly CatalogAdminService $catalogAdmin, private readonly CustomerAdminService $customers, private readonly NewsletterAdminService $newsletter, private readonly PromotionAdminService $promotions, private readonly ShippingMethodService $shippingMethods, private readonly SupplierAdminService $suppliers, private readonly OrderService $orders, private readonly ProductReviewService $reviews, private readonly MediaService $media, private readonly ContentAdminService $contentAdmin, private readonly Auth $auth, private readonly AdminRememberMe $rememberMe, private readonly RateLimiter $limiter, private readonly View $view, private readonly Config $config)
+    public function __construct(private readonly PDO $pdo, private readonly AdminDashboardService $dashboardService, private readonly AdminNotificationService $notificationService, private readonly AdminPushService $push, private readonly CatalogRepository $catalog, private readonly CatalogAdminService $catalogAdmin, private readonly CustomerAdminService $customers, private readonly NewsletterAdminService $newsletter, private readonly PromotionAdminService $promotions, private readonly ShippingMethodService $shippingMethods, private readonly SupplierAdminService $suppliers, private readonly OrderService $orders, private readonly ProductReviewService $reviews, private readonly MediaService $media, private readonly ContentAdminService $contentAdmin, private readonly Auth $auth, private readonly AdminRememberMe $rememberMe, private readonly RateLimiter $limiter, private readonly View $view, private readonly Config $config, private readonly OrderCancellationService $cancellations)
     {
     }
 
@@ -1038,6 +1039,55 @@ final class AdminController
         return $this->orderActionForm($request, (int) $args['id'], 'email');
     }
 
+    public function orderCancellationForm(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        return $this->renderCancellationForm($request, (int) $args['id'], $args['decision'] === 'respinge' ? 'rejected' : 'accepted');
+    }
+
+    public function decideOrderCancellation(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $body = (array) ($request->getParsedBody() ?? []);
+        $decision = is_string($body['decision'] ?? null) ? $body['decision'] : '';
+        $reason = is_string($body['reason'] ?? null) ? $body['reason'] : '';
+        $orderId = (int) $args['id'];
+        try {
+            if (isset($body['reason']) && !is_string($body['reason'])) {
+                throw new \DomainException('Mesajul pentru client trebuie să fie text.');
+            }
+            $this->cancellations->decide($orderId, $decision, $reason, (int) ($this->auth->user()['id'] ?? 0));
+            $message = $decision === 'accepted' ? 'Solicitarea a fost acceptată. Comanda este anulată, iar răspunsul pentru client este pregătit pentru trimitere.'
+                : 'Solicitarea a fost respinsă. Răspunsul cu motivul a fost pregătit pentru client.';
+            Flash::set('success', $message);
+            if (str_contains(strtolower($request->getHeaderLine('Accept')), 'application/json')) {
+                return $this->orderMutationResponse($request, $orderId, $message);
+            }
+            return $this->view->redirect($this->config->path('admin/comenzi/' . $orderId . '/#cerere-anulare'));
+        } catch (\Throwable $error) {
+            $message = ($error instanceof \DomainException || $error instanceof \RuntimeException) && !$error instanceof \PDOException
+                ? $error->getMessage() : 'Răspunsul nu a putut fi salvat. Încearcă din nou; solicitarea a rămas neschimbată.';
+            if (str_contains(strtolower($request->getHeaderLine('Accept')), 'application/json')) {
+                return $this->orderMutationResponse($request, $orderId, '', $message);
+            }
+            return $this->renderCancellationForm($request, $orderId, $decision === 'rejected' ? 'rejected' : 'accepted', $reason, $message, 422);
+        }
+    }
+
+    private function renderCancellationForm(ServerRequestInterface $request, int $orderId, string $decision, string $reason = '', string $error = '', int $status = 200): ResponseInterface
+    {
+        $order = $this->orders->findForAdmin($orderId);
+        if ($order === null || !is_array($order['cancellation_request'])) {
+            $response = new \Slim\Psr7\Response(404);
+            $response->getBody()->write('Solicitarea de anulare nu a fost găsită.');
+            return $response->withHeader('Content-Type', 'text/plain; charset=utf-8')->withHeader('Cache-Control', 'no-store');
+        }
+        $data = ['order'=>$this->decorateOrderForAdmin($order), 'decision'=>$decision, 'reason'=>mb_substr($reason, 0, 1000), 'error'=>$error,
+            'admin_section'=>'orders', 'admin_context'=>'Comenzi',
+            'admin_unread_count'=>$this->notificationService->unreadCount((int) ($this->auth->user()['id'] ?? 0))];
+        $template = strtolower($request->getHeaderLine('X-Requested-With')) === 'xmlhttprequest'
+            ? 'admin/partials/order-cancellation-form.twig' : 'admin/pages/order-cancellation.twig';
+        return $this->view->render($template, $data, $status)->withHeader('Cache-Control', 'no-store');
+    }
+
     public function notifications(ServerRequestInterface $request): ResponseInterface
     {
         $user = $this->auth->user();
@@ -1290,6 +1340,8 @@ final class AdminController
             'order.cancel' => 'Comandă anulată', 'order.return_full' => 'Retur integral înregistrat',
             'order.return_partial' => 'Retur parțial înregistrat', 'order.email_queued' => 'E-mail pus în coadă',
             'order.cancellation_requested' => 'Clientul a solicitat anularea',
+            'order.cancellation_accepted' => 'Solicitarea de anulare a fost acceptată',
+            'order.cancellation_rejected' => 'Solicitarea de anulare a fost respinsă',
         ];
         foreach ($order['history'] as &$event) {
             $date = new \DateTimeImmutable((string) $event['created_at'], $utc);

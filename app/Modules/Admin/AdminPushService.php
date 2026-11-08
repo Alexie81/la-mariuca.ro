@@ -127,6 +127,17 @@ final class AdminPushService
             $order['order_number'] . ' · ' . $this->money((int) $order['total_bani']), 'admin/comenzi/' . $orderId . '/', $paid ? 'high' : 'normal');
     }
 
+    public function queueCancellationRequest(int $orderId, int $requestId): void
+    {
+        $statement = $this->pdo->prepare('SELECT order_number,first_name,last_name FROM orders WHERE id=:id');
+        $statement->execute(['id'=>$orderId]);
+        $order = $statement->fetch();
+        if (!is_array($order)) { return; }
+        $this->queue('order-cancellation:' . $requestId, 'comenzi', 'Cerere de anulare · ' . $order['order_number'],
+            trim($order['first_name'] . ' ' . $order['last_name']) . ' a solicitat anularea. Vezi motivul și răspunde solicitării.',
+            'admin/comenzi/' . $orderId . '/#cerere-anulare', 'high');
+    }
+
     public function queueReview(int $reviewId): void
     {
         $statement = $this->pdo->prepare('SELECT r.rating,p.name FROM product_reviews r JOIN products p ON p.id=r.product_id WHERE r.id=:id');

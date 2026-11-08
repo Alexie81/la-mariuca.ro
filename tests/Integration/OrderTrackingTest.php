@@ -213,7 +213,7 @@ final class OrderTrackingTest extends DatabaseTestCase
         self::assertSame(0, (int) $this->pdo->query('SELECT COUNT(*) FROM order_cancellation_requests')->fetchColumn());
     }
 
-    public function testCancellationRecordsIntentOnceWithoutChangingOrderPaymentStockOrEmail(): void
+    public function testCancellationRecordsIntentOnceWithoutChangingOrderPaymentOrStockAndQueuesReceipt(): void
     {
         $this->request('GET');
         $_SESSION['tracked_order'] = ['id'=>$this->orderId, 'expires'=>time()+1800];
@@ -242,7 +242,10 @@ final class OrderTrackingTest extends DatabaseTestCase
         self::assertSame($beforeReservations, $this->pdo->query('SELECT * FROM inventory_reservations')->fetchAll());
         self::assertSame($beforePayments, $this->pdo->query('SELECT * FROM payments')->fetchAll());
         self::assertSame($beforeCoupons, $this->pdo->query('SELECT * FROM coupon_redemptions')->fetchAll());
-        self::assertSame($beforeMail, $this->pdo->query('SELECT * FROM outbox_messages')->fetchAll());
+        $afterMail = $this->pdo->query('SELECT * FROM outbox_messages ORDER BY id')->fetchAll();
+        self::assertSame($beforeMail, array_slice($afterMail, 0, count($beforeMail)));
+        self::assertCount(count($beforeMail) + 1, $afterMail);
+        self::assertSame('order_cancellation_received', $afterMail[array_key_last($afterMail)]['message_type']);
         $html = (string) $this->request('GET')->getBody();
         self::assertStringContainsString('Cerere de anulare înregistrată', $html);
         self::assertStringContainsString('&lt;script&gt;', $html);

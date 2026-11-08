@@ -9,7 +9,7 @@ use RuntimeException;
 
 final class OrderTrackingService
 {
-    public function __construct(private readonly OrderTrackingRepository $repository, private readonly OrderService $orders, private readonly Config $config, private readonly string $root) {}
+    public function __construct(private readonly OrderTrackingRepository $repository, private readonly OrderService $orders, private readonly Config $config, private readonly string $root, private readonly ?\App\Modules\Admin\AdminPushService $push = null) {}
 
     public function lookup(string $number, string $email): ?int
     {
@@ -131,7 +131,7 @@ final class OrderTrackingService
         if (mb_strlen($reason) < 5 || mb_strlen($reason) > 1000) {
             throw new \DomainException('Scrie motivul anulării în 5–1.000 de caractere.');
         }
-        return $this->repository->transaction(function () use ($orderId, $reason): int {
+        $requestId = $this->repository->transaction(function () use ($orderId, $reason): int {
             $order = $this->repository->lockCancellationOrder($orderId);
             if ($order === null) {
                 throw new \DomainException('Comanda nu mai este disponibilă.');
@@ -144,8 +144,18 @@ final class OrderTrackingService
             if (!OrderCancellationPolicy::allows((string) $order['status'], (string) $order['created_at'])) {
                 throw new \DomainException('Cererea nu mai poate fi trimisă: au trecut 5 zile de la plasare sau comanda a depășit etapa de pregătire.');
             }
-            return $this->repository->addCancellationRequest($orderId, $reason, (string) $order['status'], gmdate('c'));
+            $now = $this->repository->now();
+            $id = $this->repository->addCancellationRequest($orderId, $reason, (string) $order['status'], $now);
+            $this->repository->queueCancellationEmail($orderId, $id, (string) $order['email'], 'order_cancellation_received', $now);
+            foreach ($this->repository->internalNotificationRecipients() as $recipient) {
+                $this->repository->queueCancellationEmail($orderId, $id, $recipient, 'internal_order_cancellation', $now);
+            }
+            $this->push?->queueCancellationRequest($orderId, $id);
+            return $id;
         });
+        // Sending is outside the transaction; an unavailable push provider cannot undo the request.
+        try { $this->push?->processPending(20); } catch (\Throwable) {}
+        return $requestId;
     }
 
     /** @return array{path:string,name:string}|null */

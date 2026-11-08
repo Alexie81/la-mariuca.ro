@@ -50,7 +50,7 @@ final class OrderService
 
         $statement = $this->pdo->prepare(
             'SELECT o.id,o.order_number,o.email,o.first_name,o.last_name,o.phone,o.total_bani,o.currency,o.status,o.payment_status,o.payment_method,o.created_at,'
-            . 'EXISTS(SELECT 1 FROM order_cancellation_requests cr WHERE cr.order_id=o.id) AS cancellation_requested '
+            . "EXISTS(SELECT 1 FROM order_cancellation_requests cr WHERE cr.order_id=o.id AND cr.status='pending') AS cancellation_requested "
             . 'FROM orders o' . $whereSql . ' ORDER BY o.created_at DESC,o.id DESC LIMIT :limit OFFSET :offset'
         );
         foreach ($parameters as $name => $value) {
@@ -84,7 +84,7 @@ final class OrderService
         $parameters = [];
         $allowedStatuses = ['new', 'confirmed', 'preparing', 'shipped', 'delivered', 'cancelled', 'returned', 'manual_review'];
         if ($status === 'cancellation_requested') {
-            $where[] = 'EXISTS(SELECT 1 FROM order_cancellation_requests cr WHERE cr.order_id=o.id)';
+            $where[] = "EXISTS(SELECT 1 FROM order_cancellation_requests cr WHERE cr.order_id=o.id AND cr.status='pending')";
         }
         if ($status !== null && in_array($status, $allowedStatuses, true)) {
             $where[] = 'o.status = :filter_status';
@@ -261,9 +261,11 @@ final class OrderService
         }
         unset($event);
         $order['available_actions'] = $this->availableActions((string) $order['status']);
-        $cancellation = $this->pdo->prepare('SELECT id,reason,order_status_at_request,created_at FROM order_cancellation_requests WHERE order_id=:id');
+        $cancellation = $this->pdo->prepare('SELECT cr.id,cr.order_id,cr.reason,cr.order_status_at_request,cr.created_at,cr.status,cr.decision_reason,cr.resolved_at,cr.resolved_by,u.first_name AS resolver_first_name,u.last_name AS resolver_last_name FROM order_cancellation_requests cr LEFT JOIN users u ON u.id=cr.resolved_by WHERE cr.order_id=:id');
         $cancellation->execute(['id'=>$orderId]);
         $order['cancellation_request'] = $cancellation->fetch() ?: null;
+        $order['can_accept_cancellation'] = is_array($order['cancellation_request']) && $order['cancellation_request']['status'] === 'pending'
+            && in_array($order['status'], ['new','confirmed','preparing','cancelled'], true);
         $order['can_return'] = in_array((string) $order['status'], ['shipped', 'delivered', 'returned'], true)
             && array_sum(array_column($order['items'], 'returnable_quantity')) > 0;
 
@@ -350,9 +352,10 @@ final class OrderService
         if (!isset($allowed[$action])) {
             throw new RuntimeException('Acțiune de comandă invalidă.');
         }
-        $this->pdo->beginTransaction();
+        $ownsTransaction = !$this->pdo->inTransaction();
+        if ($ownsTransaction) { $this->pdo->beginTransaction(); }
         try {
-            $select = $this->pdo->prepare('SELECT * FROM orders WHERE id = :id');
+            $select = $this->pdo->prepare('SELECT * FROM orders WHERE id = :id' . ($this->pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql' ? ' FOR UPDATE' : ''));
             $select->execute(['id' => $orderId]);
             $order = $select->fetch();
             if (!is_array($order) || !in_array($order['status'], $allowed[$action]['from'], true)) {
@@ -389,6 +392,9 @@ final class OrderService
                     $release->bindValue(':now', $now);
                     $release->bindValue(':variant', (int) $reservation['variant_id'], PDO::PARAM_INT);
                     $release->execute();
+                    if ($release->rowCount() !== 1) {
+                        throw new RuntimeException('Stoc inconsistent; anularea necesită verificarea rezervărilor.');
+                    }
                     $this->pdo->prepare("UPDATE inventory_reservations SET status = 'released', updated_at = :now WHERE id = :id AND status = 'active'")->execute(['now' => $now, 'id' => $reservation['id']]);
                     $this->pdo->prepare("INSERT INTO inventory_movements (variant_id, type, physical_delta, reserved_delta, reason, reference_type, reference_id, actor_user_id, created_at) VALUES (:variant, 'release', 0, :reserved, 'Anulare comandă', 'order', :order, :actor, :now)")->execute([
                         'variant' => $reservation['variant_id'], 'reserved' => -((int) $reservation['quantity']), 'order' => $orderId, 'actor' => $actorId, 'now' => $now,
@@ -421,9 +427,9 @@ final class OrderService
             if ($notifyCustomer) {
                 $this->queueStatusEmail($order, $allowed[$action]['to'], '', $now);
             }
-            $this->pdo->commit();
+            if ($ownsTransaction) { $this->pdo->commit(); }
         } catch (\Throwable $exception) {
-            if ($this->pdo->inTransaction()) {
+            if ($ownsTransaction && $this->pdo->inTransaction()) {
                 $this->pdo->rollBack();
             }
             throw $exception;

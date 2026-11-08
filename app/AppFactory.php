@@ -150,7 +150,7 @@ final class AppFactory
         $content = new ContentRepository($pdo);
         $orders = new OrderService($pdo);
         $internalOrderNotifications = new InternalOrderNotificationService($pdo);
-        $tracking = new \App\Modules\Orders\OrderTrackingController(new \App\Modules\Orders\OrderTrackingService(new \App\Modules\Orders\OrderTrackingRepository($pdo), $orders, $config, $root), $rateLimiter, $view, $config);
+        $tracking = new \App\Modules\Orders\OrderTrackingController(new \App\Modules\Orders\OrderTrackingService(new \App\Modules\Orders\OrderTrackingRepository($pdo), $orders, $config, $root, $push), $rateLimiter, $view, $config);
 
         $storefront = new StorefrontController($catalog, $catalogSearch, $categoryPaths, new ProductRecommendationService($catalog), $content, $contactWhatsApp, $newsletterSubscriptions, $reviews, $rateLimiter, $auth, $view, $config);
         $cartController = new CartController($cart, $view, $config);
@@ -161,7 +161,7 @@ final class AppFactory
         $checkoutController = new CheckoutController(new CheckoutService($pdo, $cart, $config, $romanianLocations, $push, $shippingMethods, new CategoryPaymentPolicy($pdo, $config, $paymentMethodSettings), $internalOrderNotifications), $cart, $orders, new StripeCheckoutService($pdo, $config, $paymentMethodSettings), $auth, $customerAccount, $rateLimiter, $view, $config, $shippingMethods, new OrderResultPresenter($config));
         $authController = new AuthController($pdo, $auth, new GoogleOAuthService($pdo, $config), $customerAccount, $rateLimiter, $view, $config);
         $twoFactorController = new TwoFactorController($pdo, $auth, new TotpService($config), $adminRememberMe, $rateLimiter, $view, $config);
-        $adminController = new AdminController($pdo, new AdminDashboardService($pdo), new AdminNotificationService($pdo), $push, $catalog, new CatalogAdminService($pdo, $productDescriptions), new CustomerAdminService($pdo), new NewsletterAdminService($pdo), $promotions, $shippingMethods, new SupplierAdminService($pdo), $orders, $reviews, new MediaService($pdo, $root), new ContentAdminService($pdo), $auth, $adminRememberMe, $rateLimiter, $view, $config);
+        $adminController = new AdminController($pdo, new AdminDashboardService($pdo), new AdminNotificationService($pdo), $push, $catalog, new CatalogAdminService($pdo, $productDescriptions), new CustomerAdminService($pdo), new NewsletterAdminService($pdo), $promotions, $shippingMethods, new SupplierAdminService($pdo), $orders, $reviews, new MediaService($pdo, $root), new ContentAdminService($pdo), $auth, $adminRememberMe, $rateLimiter, $view, $config, new \App\Modules\Orders\OrderCancellationService(new \App\Modules\Orders\OrderTrackingRepository($pdo), $orders));
         $adminPushController = new AdminPushController($push, $auth, $view, $config);
         $orderNotificationSettingsController = new OrderNotificationSettingsController(new OrderNotificationSettingsService($pdo), new AdminNotificationService($pdo), $auth, $view, $config);
         $paymentMethodSettingsController = new PaymentMethodSettingsController($paymentMethodSettings, new AdminNotificationService($pdo), $auth, $view, $config);
@@ -302,6 +302,8 @@ final class AppFactory
             $group->get('/comenzi/{id:[0-9]+}/status/modal/', [$adminController, 'orderStatusModal']);
             $group->get('/comenzi/{id:[0-9]+}/retur/modal/', [$adminController, 'orderReturnModal']);
             $group->get('/comenzi/{id:[0-9]+}/email/modal/', [$adminController, 'orderEmailModal']);
+            $group->get('/comenzi/{id:[0-9]+}/anulare/{decision:accepta|respinge}/', [$adminController, 'orderCancellationForm']);
+            $group->post('/comenzi/{id:[0-9]+}/anulare/decizie/', [$adminController, 'decideOrderCancellation']);
             $group->post('/comenzi/{id:[0-9]+}/actiune/', [$adminController, 'transitionOrder']);
             $group->post('/comenzi/{id:[0-9]+}/retur/', [$adminController, 'returnOrder']);
             $group->post('/comenzi/{id:[0-9]+}/email/', [$adminController, 'emailOrderStatus']);
