@@ -50,7 +50,8 @@
 
 ## Agreed next implementation order (2026-11-08)
 - When work resumes, consult the ordered TODO in `docs/PROGRESS.md` under "Ordinea următoarelor module" before starting a new module.
-- The user prioritizes purchase invoices, NIR/stock entry, outgoing invoices, stock/product ledger and exports, then returns/cancellations/fiscal rules. Card payment implementation comes last.
+- The agreed order is: purchase invoices + NIR/stock entry as one stage; outgoing invoices; stock/product ledger; exports; returns/cancellations/fiscal rules; card payments; product SEO and internal search; Google Merchant with automatic Merchant API synchronization; then the Stripe product catalog. Card payment work precedes SEO/catalog integrations, after the operational and fiscal stages.
+- The later product stage must preserve manual/automatic meta titles and descriptions, validate Product structured data, maintain the public-product sitemap, check Google Search Console eligibility, and reflect product additions/edits in internal search and external catalogs. Do not promise guaranteed Google indexing or rich-result display.
 - This is a saved roadmap, not authorization to start these modules automatically or deploy/configure live payment services. Later explicit user instructions can revise the order.
 
 ## Google OAuth deployment memory
