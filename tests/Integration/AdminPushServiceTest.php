@@ -54,4 +54,25 @@ final class AdminPushServiceTest extends DatabaseTestCase
         $service->unsubscribe($adminId, 'https://push.example.test/subscription/one');
         self::assertSame('revoked', (string) $this->pdo->query('SELECT status FROM admin_push_subscriptions')->fetchColumn());
     }
+
+    public function testQueuedNotificationsRecheckInternalAccountAccessBeforeDelivery(): void
+    {
+        $now = gmdate('c');
+        $this->pdo->prepare("INSERT INTO users (email,password_hash,first_name,last_name,role,status,email_verified_at,created_at,updated_at)
+            VALUES ('former-admin@example.test','hash','Paula','Admin','administrator','active',:now,:now,:now)")->execute(['now'=>$now]);
+        $adminId = (int) $this->pdo->lastInsertId();
+        $service = new AdminPushService($this->pdo, Config::load($this->root));
+        $service->subscribe($adminId, ['endpoint'=>'https://push.example.test/former-admin',
+            'keys'=>['p256dh'=>'public-browser-key', 'auth'=>'auth-browser-key']], 'Test browser');
+        $service->queueTest($adminId);
+        self::assertSame(1, (int) $this->pdo->query('SELECT COUNT(*) FROM admin_push_deliveries')->fetchColumn());
+        foreach ([['administrator','blocked'], ['customer','active']] as [$role, $status]) {
+            $this->pdo->prepare('UPDATE users SET role=:role,status=:status WHERE id=:id')
+                ->execute(['role'=>$role, 'status'=>$status, 'id'=>$adminId]);
+            // A stale queued message must not reach a former or disabled internal account.
+            // No sender/transport is created when all recipients are now ineligible.
+            self::assertSame(['processed'=>0, 'sent'=>0, 'failed'=>0, 'expired'=>0], $service->processPending());
+            self::assertSame(0, (int) $this->pdo->query('SELECT SUM(attempts) FROM admin_push_deliveries')->fetchColumn());
+        }
+    }
 }

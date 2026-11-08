@@ -175,7 +175,12 @@ final class AdminPushService
         $statement = $this->pdo->prepare("SELECT d.id delivery_id,d.attempts,s.id subscription_id,s.endpoint,s.p256dh,s.auth_token,s.content_encoding,
                 e.event_key,e.type,e.title,e.body,e.target_path,e.urgency
             FROM admin_push_deliveries d JOIN admin_push_subscriptions s ON s.id=d.subscription_id JOIN admin_push_events e ON e.id=d.event_id
+            JOIN users u ON u.id=s.admin_user_id LEFT JOIN admin_notification_preferences p ON p.admin_user_id=s.admin_user_id
             WHERE d.status IN ('pending','failed') AND d.available_at<=:now AND d.attempts<5 AND s.status='active'
+                AND u.status='active' AND u.role IN ('administrator','operator')
+                AND CASE e.type WHEN 'comenzi' THEN COALESCE(p.orders_enabled,1) WHEN 'plati' THEN COALESCE(p.payments_enabled,1)
+                    WHEN 'stoc' THEN COALESCE(p.stock_enabled,1) WHEN 'recenzii' THEN COALESCE(p.reviews_enabled,1)
+                    WHEN 'test' THEN 1 ELSE 0 END=1
             ORDER BY d.id LIMIT {$limit}");
         $statement->execute(['now' => $this->now()]);
         $rows = $statement->fetchAll();

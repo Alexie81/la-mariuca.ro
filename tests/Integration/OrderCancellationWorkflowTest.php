@@ -277,6 +277,9 @@ final class OrderCancellationWorkflowTest extends DatabaseTestCase
         $push->queueCancellationRequest($this->orderId, $id + 1);
         self::assertSame(2, (int) $this->pdo->query('SELECT COUNT(*) FROM admin_push_events')->fetchColumn());
         self::assertSame(2, (int) $this->pdo->query('SELECT COUNT(*) FROM admin_push_deliveries')->fetchColumn());
+        // Opting out also protects messages queued before the preference changed.
+        self::assertSame(['processed'=>0, 'sent'=>0, 'failed'=>0, 'expired'=>0], $push->processPending());
+        self::assertSame(0, (int) $this->pdo->query('SELECT SUM(attempts) FROM admin_push_deliveries')->fetchColumn());
     }
 
     /** @return array<string,mixed> */
