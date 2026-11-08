@@ -1323,6 +1323,8 @@ final class AdminController
         $order['status_label'] = $statusLabels[(string) $order['status']] ?? ucfirst((string) $order['status']);
         $order['payment_status_label'] = $paymentLabels[(string) $order['payment_status']] ?? ucfirst((string) $order['payment_status']);
         $order['customer_name'] = trim((string) $order['first_name'] . ' ' . (string) $order['last_name']);
+        $order['contact_phone_e164'] = $this->orderContactPhoneNumber((string) ($order['phone'] ?? ''));
+        $order['whatsapp_number'] = ltrim($order['contact_phone_e164'] ?? '', '+');
         $order['returnable_quantity'] = array_sum(array_column((array) ($order['items'] ?? []), 'returnable_quantity'));
         foreach ($order['available_actions'] as &$action) {
             [$action['label'], $action['description']] = $actionCopy[$action['action']] ?? [ucfirst($action['action']), 'Actualizează starea comenzii.'];
@@ -1425,6 +1427,29 @@ final class AdminController
             throw new \RuntimeException('Suma rambursată nu este validă.');
         }
         return max(0, (int) round((float) $normalized * 100));
+    }
+
+    /** Keep an explicit international prefix; infer Romania only for a complete national number. */
+    private function orderContactPhoneNumber(string $phone): ?string
+    {
+        $compact = preg_replace('/[\s().-]+/u', '', trim($phone)) ?? '';
+        if (preg_match('/^0[2-8][0-9]{8}$/', $compact) === 1) {
+            return '+40' . substr($compact, 1);
+        }
+        if (preg_match('/^40[2-8][0-9]{8}$/', $compact) === 1) {
+            return '+' . $compact;
+        }
+        if (str_starts_with($compact, '00')) {
+            $compact = '+' . substr($compact, 2);
+        }
+        if (preg_match('/^\+[1-9][0-9]{7,14}$/', $compact) !== 1) {
+            return null;
+        }
+        if (str_starts_with($compact, '+40') && preg_match('/^\+40[2-8][0-9]{8}$/', $compact) !== 1) {
+            return null;
+        }
+
+        return $compact;
     }
 
     /** @param array<string,mixed> $data */

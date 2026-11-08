@@ -91,6 +91,54 @@ final class OrderAdminWorkflowTest extends DatabaseTestCase
         self::assertStringContainsString('Trimite actualizarea', (string) $emailModal->getBody());
     }
 
+    public function testDirectContactLinksNormalizePhoneNumbersAndNeverPrefillWhatsAppMessages(): void
+    {
+        $update = $this->pdo->prepare('UPDATE orders SET phone=? WHERE id=?');
+        foreach ([
+            ['0730000344', '40730000344'],
+            [' (0730) 000-344 ', '40730000344'],
+            ["+40\u{00A0}(730) 000.344", '40730000344'],
+            ['0040 730-000-344', '40730000344'],
+            ['40730000344', '40730000344'],
+            ['021 234 5678', '40212345678'],
+            ['+44 (7700) 900-123', '447700900123'],
+            ['0033 6 12 34 56 78', '33612345678'],
+            ['+1 (202) 555-0198', '12025550198'],
+            ['7700900123', null],
+            ['07700900123', null],
+            ['0730', null],
+            ['+40730', null],
+            ['+40 (0) 730 000 344', null],
+            ['+123', null],
+            ['+1234567890123456', null],
+            ['++40 730 000 344', null],
+            ['0730000344 ext 2', null],
+            ['0730000344?text=Salut', null],
+            ['', null],
+        ] as [$phone, $expectedNumber]) {
+            $update->execute([$phone, $this->newOrderId]);
+            $page = $this->get('/admin/comenzi/' . $this->newOrderId . '/');
+            self::assertSame(200, $page->getStatusCode());
+            self::assertSame(1, preg_match('~<article[^>]*class="[^"]*order-contact--phone[^"]*"[^>]*>.*?</article>~s', (string) $page->getBody(), $matches));
+            $contact = $matches[0];
+            self::assertStringContainsString('aria-label="Copiază telefonul"', $contact);
+            if ($phone === '') {
+                self::assertStringNotContainsString('Apelează', $contact);
+            } else {
+                self::assertStringContainsString('Apelează', $contact);
+                self::assertStringContainsString('href="tel:' . htmlspecialchars(trim($phone), ENT_QUOTES) . '"', $contact);
+            }
+            if ($expectedNumber === null) {
+                self::assertStringNotContainsString('https://wa.me/', $contact, $phone);
+                continue;
+            }
+            self::assertStringContainsString('href="tel:+' . $expectedNumber . '"', $contact);
+            self::assertStringContainsString('href="https://wa.me/' . $expectedNumber . '" target="_blank" rel="noopener noreferrer"', $contact);
+            self::assertSame(1, preg_match('~href="(https://wa\.me/[^"]+)"~', $contact, $whatsapp));
+            self::assertNull(parse_url($whatsapp[1], PHP_URL_QUERY));
+        }
+    }
+
     public function testStatusWorkflowChangesStateAuditsAndQueuesCustomerEmail(): void
     {
         $modal = $this->get('/admin/comenzi/' . $this->newOrderId . '/status/modal/', ['X-Requested-With' => 'XMLHttpRequest']);
