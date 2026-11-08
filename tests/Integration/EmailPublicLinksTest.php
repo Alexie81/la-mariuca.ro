@@ -90,15 +90,15 @@ final class EmailPublicLinksTest extends DatabaseTestCase
 
         $mail = $confirmation->render($this->orderId, 'public-links@example.test');
         $this->assertPublicEmail($mail, $expectedRoot, $trackingUrl);
-        $this->assertPublicEmail($internal->render($this->orderId, 'team@example.test'), $expectedRoot, $adminUrl, false);
+        $this->assertPublicEmail($internal->render($this->orderId, 'team@example.test'), $expectedRoot, $adminUrl);
 
         $this->pdo->prepare("UPDATE orders SET payment_method='stripe',payment_status='paid',status='confirmed' WHERE id=?")->execute([$this->orderId]);
         $this->assertPublicEmail($confirmation->render($this->orderId, 'public-links@example.test'), $expectedRoot, $trackingUrl);
-        $this->assertPublicEmail($internal->render($this->orderId, 'team@example.test'), $expectedRoot, $adminUrl, false);
+        $this->assertPublicEmail($internal->render($this->orderId, 'team@example.test'), $expectedRoot, $adminUrl);
 
         $requestId = $tracking->requestCancellation($this->orderId, 'Doresc să aleg altă mărime pentru acest produs.');
         $this->assertPublicEmail($cancellation->render($this->orderId, $requestId, 'public-links@example.test', 'order_cancellation_received'), $expectedRoot, $trackingUrl);
-        $this->assertPublicEmail($cancellation->render($this->orderId, $requestId, 'team@example.test', 'internal_order_cancellation'), $expectedRoot, $adminUrl . '#cerere-anulare', false);
+        $this->assertPublicEmail($cancellation->render($this->orderId, $requestId, 'team@example.test', 'internal_order_cancellation'), $expectedRoot, $adminUrl . '#cerere-anulare');
         // Isolated presentation fixtures: both immutable decision variants use the same private CTA.
         foreach (['accepted', 'rejected'] as $decision) {
             $this->pdo->prepare('UPDATE order_cancellation_requests SET status=?,decision_reason=?,resolved_at=? WHERE id=?')
@@ -133,7 +133,7 @@ final class EmailPublicLinksTest extends DatabaseTestCase
     }
 
     /** @param array{subject:string,text:string,html:string} $mail */
-    private function assertPublicEmail(array $mail, string $root, string $cta, bool $customer = true): void
+    private function assertPublicEmail(array $mail, string $root, string $cta): void
     {
         foreach (['localhost', '127.0.0.1', 'untrusted.example.test'] as $localHost) {
             self::assertStringNotContainsString($localHost, $mail['html']);
@@ -154,19 +154,14 @@ final class EmailPublicLinksTest extends DatabaseTestCase
         }
         self::assertSame([], $unexpected, 'Every internal link and asset must use the configured deployment root.');
         $productUrl = $this->productUrl($root);
-        if ($customer) {
-            // Both thumbnail and name open the same product; email clients also have a plain-text link.
-            preg_match_all('~<a\b[^>]*href="' . preg_quote($productUrl, '~') . '"[^>]*>~', $mail['html'], $productLinks);
-            self::assertCount(2, $productLinks[0]);
-            foreach ($productLinks[0] as $anchor) {
-                self::assertStringContainsString('target="_blank"', $anchor);
-                self::assertStringContainsString('rel="noopener noreferrer"', $anchor);
-            }
-            self::assertStringContainsString('Deschide produsul: ' . $productUrl, $mail['text']);
-        } else {
-            self::assertStringNotContainsString($productUrl, $mail['html']);
-            self::assertStringNotContainsString($productUrl, $mail['text']);
+        // Both thumbnail and name open the product in customer and internal emails.
+        preg_match_all('~<a\b[^>]*href="' . preg_quote($productUrl, '~') . '"[^>]*>~', $mail['html'], $productLinks);
+        self::assertCount(2, $productLinks[0]);
+        foreach ($productLinks[0] as $anchor) {
+            self::assertStringContainsString('target="_blank"', $anchor);
+            self::assertStringContainsString('rel="noopener noreferrer"', $anchor);
         }
+        self::assertStringContainsString('Deschide produsul: ' . $productUrl, $mail['text']);
     }
 
     private function productUrl(string $root): string
@@ -199,7 +194,9 @@ final class EmailPublicLinksTest extends DatabaseTestCase
         $requestId = $tracking->requestCancellation($this->orderId, 'Doresc să aleg altă mărime pentru acest produs.');
         $emails = [
             (new OrderConfirmationEmail($tracking, $config, $twig, $images))->render($this->orderId, 'public-links@example.test'),
+            (new InternalOrderEmail($tracking, $config, $twig, $images))->render($this->orderId, 'team@example.test'),
             (new OrderCancellationEmail($tracking, $config, $twig, $images))->render($this->orderId, $requestId, 'public-links@example.test', 'order_cancellation_received'),
+            (new OrderCancellationEmail($tracking, $config, $twig, $images))->render($this->orderId, $requestId, 'team@example.test', 'internal_order_cancellation'),
         ];
         foreach ($emails as $mail) {
             self::assertStringContainsString($name, $mail['html']);

@@ -29,7 +29,7 @@ PRODUSELE DIN COMANDĂ
 SKU: {{ item.sku }}
 Cantitate: {{ item.quantity }} buc. × {{ item.unit_price }} / buc.
 Total produs: {{ item.total }}
-{% if not internal_email and item.product_url %}Deschide produsul: {{ item.product_url }}
+{% if item.product_url %}Deschide produsul: {{ item.product_url }}
 {% endif %}
 
 {% endfor %}

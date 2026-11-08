@@ -76,7 +76,7 @@
     <tr><td class="section-pad" bgcolor="#ffffff" style="padding:28px 30px;background-color:#ffffff;border:1px solid #e8ebef;border-radius:28px;">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td><h2 class="section-title" style="margin:0;font-size:24px;line-height:32px;letter-spacing:-0.4px;font-weight:600;color:#303740;">{% block products_heading %}Alegerile tale{% endblock %}</h2></td><td align="right" style="font-size:15px;line-height:25px;color:#7a8591;">{{ quantity }} {{ quantity == 1 ? 'bucată' : 'bucăți' }}</td></tr></table>
       {% for item in items %}
-      {% set product_url = internal_email|default(false) ? null : item.product_url %}
+      {% set product_url = item.product_url %}
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="#f7f8fa" style="margin-top:15px;background-color:#f7f8fa;border-radius:18px;"><tr><td class="product-pad" style="padding:16px;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="table-layout:fixed;"><tr>
           <td class="photo-cell" width="78" valign="middle" style="width:78px;">

@@ -19,6 +19,8 @@ PRODUSELE COMANDATE
 SKU: {{ item.sku }}
 Cantitate: {{ item.quantity }} buc. × {{ item.unit_price }} / buc.
 Total produs: {{ item.total }}
+{% if item.product_url %}Deschide produsul: {{ item.product_url }}
+{% endif %}
 
 {% endfor %}
 REZUMATUL COMENZII
