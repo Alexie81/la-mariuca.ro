@@ -1268,7 +1268,7 @@ Priorități cerute de utilizator pentru reluarea lucrului, actualizate cu clari
 3. [ ] **Stoc și fișa produsului.**
 4. [ ] **Exporturi pentru toate modulele de mai sus.** Se pregătesc în fiecare etapă și se verifică împreună înainte de a continua.
 5. [ ] **Retururi, anulări și regulile fiscale aferente**, după finalizarea documentelor și a evidenței stocului.
-6. [ ] **Implementarea plății cu cardul**, abia după etapele operaționale și fiscale de mai sus.
+6. [x] **Implementarea plății cu cardul — Stripe TEST**, realizată mai devreme la cererea explicită a utilizatorului. Bifare autorizată de utilizator la 2026-11-08 după încheierea verificărilor automate, a plății sandbox și a verificării vizuale. Activarea live rămâne la punctul 11.
 7. [ ] **Reverificarea dedicată a regulilor fiscale**, după implementarea plății cu cardul și înaintea etapelor SEO și cataloage.
 8. [ ] **SEO pentru produse și căutarea inteligentă din site**, după reverificarea fiscală.
 9. [ ] **Google Merchant și sincronizarea automată a produselor prin Merchant API.**
@@ -1288,7 +1288,7 @@ Criterii de verificat la etapele produselor, fără a le considera deja implemen
 
 Componentele existente de anulare/plată rămân în proiect; lista stabilește ordinea dezvoltărilor viitoare, fără a le șterge sau considera fiscal validate. La reluare, trebuie reamintită această ordine înaintea unei funcționalități noi. Plata cu cardul nu mai este ultimul punct al întregului plan: este urmată de reverificarea fiscală, SEO, Merchant și catalogul Stripe.
 
-Actualizare explicită: utilizatorul a cerut integrarea Stripe TEST și sincronizarea catalogului acum, înaintea ordinii inițiale. Bifele rămân necompletate până la confirmarea lui; publicarea și activarea live rămân ultima etapă.
+Actualizare explicită: utilizatorul a cerut integrarea Stripe TEST și sincronizarea catalogului acum, înaintea ordinii inițiale, apoi a autorizat bifarea punctului 6 după verificare. Celelalte puncte rămân nebifate până la confirmarea lui; publicarea și activarea live rămân ultima etapă.
 
 ### 2026-11-08 — Stripe Checkout TEST, catalog și costuri operaționale
 - Checkoutul găzduit de Stripe folosește brandingul contului, limba română, produsele/variantele/cantitățile comenzii și fotografii accesibile public. Emailul, numele, telefonul și adresele sunt preluate din comandă. Stripe poate solicita separat numele titularului, țara sau autentificarea băncii. Nu se salvează automat carduri, iar Stripe Tax și codurile promoționale suplimentare rămân oprite.
