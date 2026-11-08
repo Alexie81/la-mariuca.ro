@@ -55,3 +55,10 @@
 - Apply migrations `013_google_oauth_identities.sql` and `014_user_phone.sql` before testing login.
 - Verify the Google Audience/test-user configuration, finalized public legal pages, the real callback and a complete login/logout/login cycle on the live HTTPS domain.
 - Do not claim Google OAuth production-verified until the live-domain checklist has actually passed; local redirect tests are not production verification.
+
+## Email CTA and push deployment memory
+- Keep localhost URLs during local development and testing. Before production upload or domain cutover, follow the email/push checklist in `docs/DEPLOYMENT.md`.
+- Production uses `APP_ENV=production`, `APP_URL=https://la-mariuca.ro`, an empty `APP_BASE_PATH` for the domain root, and `SESSION_SECURE=true`. Never copy the local `.env` or private QA routes to the server.
+- Restart email workers after changing the public URL. Verify client tracking links, internal admin CTAs, email images, and cancellation notifications on the live domain; preserve `APP_KEY` so existing signed tracking links remain valid.
+- Register each internal device for push on the live HTTPS admin origin; localhost subscriptions do not transfer. Preserve private VAPID keys, configure the push worker, and verify notification clicks after deployment.
+- These deployment checks do not authorize deployment or real notification sends by themselves; report only checks actually performed.

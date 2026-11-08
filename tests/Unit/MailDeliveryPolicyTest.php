@@ -92,11 +92,53 @@ final class MailDeliveryPolicyTest extends TestCase
         self::assertSame('order_confirmation', $config->get('MAIL_MESSAGE_TYPES'));
     }
 
-    private function config(string $environment, string $mode, string $dsn): Config
+    #[DataProvider('invalidProductionUrls')]
+    public function testProductionCannotSendLocalOrMalformedLinks(string $url, string $base = ''): void
+    {
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Emailurile de producție necesită APP_URL cu domeniul public HTTPS');
+        MailDeliveryPolicy::resolve($this->config('production', 'smtp', 'smtps://mail.example.test:465', $url, $base));
+    }
+
+    /** @return iterable<string,array{string,string}> */
+    public static function invalidProductionUrls(): iterable
+    {
+        yield 'local default' => ['http://localhost:8080', ''];
+        yield 'https localhost' => ['https://LOCALHOST.', ''];
+        yield 'localhost subdomain' => ['https://shop.localhost', ''];
+        yield 'loopback IPv4' => ['https://127.0.0.1:8084', ''];
+        yield 'loopback IPv6' => ['https://[::1]', ''];
+        yield 'short loopback IPv4' => ['https://127.1', ''];
+        yield 'octal loopback IPv4' => ['https://0177.0.0.1', ''];
+        yield 'mapped loopback IPv6' => ['https://[::ffff:127.0.0.1]', ''];
+        yield 'mapped hex loopback IPv6' => ['https://[::ffff:7f00:1]', ''];
+        yield 'private network' => ['https://192.168.1.20', ''];
+        yield 'local hostname' => ['https://magazin.local', ''];
+        yield 'plain http' => ['http://la-mariuca.ro', ''];
+        yield 'credentials' => ['https://user:example-secret@la-mariuca.ro', ''];
+        yield 'query instead of origin' => ['https://la-mariuca.ro?preview=1', ''];
+        yield 'fragment instead of origin' => ['https://la-mariuca.ro#preview', ''];
+        yield 'path belongs in base' => ['https://la-mariuca.ro/magazin', ''];
+        yield 'bad base' => ['https://la-mariuca.ro', '/magazin?preview=1'];
+        yield 'relative parent base' => ['https://la-mariuca.ro', '/../magazin'];
+        yield 'external base' => ['https://la-mariuca.ro', '//localhost'];
+    }
+
+    public function testPublicDomainAndOptionalBaseWorkWhileLocalPreviewsRemainAvailable(): void
+    {
+        self::assertSame('smtp', MailDeliveryPolicy::resolve($this->config('production', 'auto', 'smtps://mail.example.test:465', 'https://la-mariuca.ro/', '/magazin/')));
+        self::assertSame('preview', MailDeliveryPolicy::resolve($this->config('production', 'preview', '', 'http://127.0.0.1:8084')));
+        self::assertSame('preview', MailDeliveryPolicy::resolve($this->config('testing', 'smtp', '', 'http://127.0.0.1:8084')));
+        self::assertSame('smtp', MailDeliveryPolicy::resolve($this->config('development', 'smtp', 'smtp://127.0.0.1:1025', 'http://localhost:8080')));
+    }
+
+    private function config(string $environment, string $mode, string $dsn, string $url = 'https://la-mariuca.ro', string $base = ''): Config
     {
         $_ENV['APP_ENV'] = $environment;
         $_ENV['MAIL_DELIVERY_MODE'] = $mode;
         $_ENV['MAILER_DSN'] = $dsn;
+        $_ENV['APP_URL'] = $url;
+        $_ENV['APP_BASE_PATH'] = $base;
         // This directory has no .env: the policy tests never read private application configuration.
         return Config::load(__DIR__);
     }

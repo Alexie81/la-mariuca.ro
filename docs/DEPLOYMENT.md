@@ -96,6 +96,23 @@ Web Push și expirarea rezervărilor sunt `BLOCKED_EXTERNAL_CONFIG`; comenzile t
 În dezvoltare, outbox-ul scrie preview-uri în `storage/private/mail`. În producție, setează un
 `MAILER_DSN` SMTP real și testează retry/backoff fără date reale de client.
 
+Pe server, setează explicit `APP_URL=https://la-mariuca.ro` și `APP_BASE_PATH=` (gol pentru
+instalarea la rădăcina domeniului). Toate butoanele magazinului, imaginile și linkurile din
+emailuri se construiesc din această configurație, inclusiv linkurile private de urmărire
+și CTA-urile interne către comenzi/solicitări. Nu se deduce domeniul din headerul cererii.
+În producție, procesorul SMTP refuză o adresă locală, fără HTTPS sau invalidă înainte de a
+prelua mesaje; corectarea configurației permite reluarea fără consumarea încercărilor.
+După schimbarea domeniului, repornește workerul persistent. Păstrează `APP_KEY` și datele
+comenzilor: linkurile private deja emise depind de acestea. Preview-urile locale folosesc
+intenționat localhost; nu se publică și nu se transferă fișierele QA pe hosting.
+
+Notificările push interne deschid comanda pe originea HTTPS a magazinului pe care a fost
+înregistrat dispozitivul. După mutarea pe domeniul live, autentifică fiecare dispozitiv intern
+în acel admin și activează notificările acolo; permisiunile și abonamentele browserului local
+nu se transferă automat pe domeniul public. Păstrează cheile VAPID ale magazinului privat și
+activează cronul `push:process` pentru reîncercări. Testează deschiderea unei comenzi din push
+și din email într-o sesiune admin neautentificată, cu revenire după login/TOTP.
+
 Pentru o listă explicită `MAIL_MESSAGE_TYPES`, notificările cererilor de anulare folosesc
 `order_cancellation_received` (confirmarea clientului), `internal_order_cancellation`
 (adresele interne salvate în Comenzi) și `order_cancellation_decision` (acceptare/respingere

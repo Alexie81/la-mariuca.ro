@@ -279,6 +279,32 @@ final class OutboxProcessorTest extends DatabaseTestCase
         self::assertSame('sent', $this->message($due)['status']);
     }
 
+    public function testProductionWithLocalLinksDoesNotClaimMessagesOrConnectAndRecoversAfterConfigurationIsFixed(): void
+    {
+        $_ENV['APP_ENV'] = 'production';
+        $_ENV['APP_URL'] = 'http://localhost:8080';
+        $transport = new RecordingOutboxTransport($this->pdo);
+        try {
+            $this->processor($transport)->process();
+            self::fail('Production must not send a customer to localhost.');
+        } catch (\RuntimeException $error) {
+            self::assertStringContainsString('APP_URL', $error->getMessage());
+        }
+        self::assertSame(0, $transport->attempts);
+        self::assertSame('pending', $this->message($this->originalMessageId)['status']);
+        self::assertSame(0, (int) $this->message($this->originalMessageId)['attempts']);
+
+        $_ENV['APP_URL'] = 'https://la-mariuca.ro';
+        $_ENV['APP_BASE_PATH'] = '';
+        self::assertSame(1, $this->processor($transport)->process()['sent']);
+        $message = $transport->messages[0]->getOriginalMessage();
+        self::assertInstanceOf(Email::class, $message);
+        self::assertStringContainsString('https://la-mariuca.ro/urmarire-comanda/acces/', (string) $message->getHtmlBody());
+        self::assertStringContainsString('https://la-mariuca.ro/urmarire-comanda/acces/', (string) $message->getTextBody());
+        self::assertStringNotContainsString('localhost', (string) $message->getHtmlBody());
+        self::assertStringNotContainsString('127.0.0.1', (string) $message->getHtmlBody());
+    }
+
     private function processor(RecordingOutboxTransport $transport): OutboxProcessor
     {
         return new OutboxProcessor($this->pdo, Config::load($this->root), $this->root, $transport);
