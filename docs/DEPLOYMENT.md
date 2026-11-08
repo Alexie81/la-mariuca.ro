@@ -11,7 +11,8 @@ Verificat local la 16 octombrie 2026:
 - SQLite pentru dezvoltare/teste; serverul PHP integrat pentru smoke test HTTP.
 
 Neverificat extern: PHP-ul Apache, `mod_rewrite`, `AllowOverride`, MySQL/MariaDB, structura reală
-`public_html`/`httpdocs`, permisiunile, cron, SMTP, Stripe test/live și backupul hostingului.
+`public_html`/`httpdocs`, permisiunile, cron, SMTP pe hosting, Stripe live și backupul hostingului.
+Stripe TEST a fost verificat local cu o plată sandbox și webhook semnat; aceasta nu verifică mediul de producție.
 Ținta provizorie este PHP 8.4. Confirmă versiunea și extensiile hostingului înainte de upload.
 
 ## A. Localhost Apache / XAMPP / WAMP / Laragon
@@ -126,17 +127,39 @@ Acceptarea cererii anulează comanda și eliberează rezervările; nu inițiază
 
 ## Stripe
 
-Stripe este dezactivat implicit. Pentru test:
+Stripe este dezactivat implicit în configurația distribuită. Configurația locală autorizată folosește exclusiv TEST, cu Checkout găzduit de Stripe și brandingul salvat în cont.
 
-1. setează `STRIPE_ENABLED=true`, cheia secretă test și secretul webhook test;
-2. expune endpointul HTTPS `/stripe/webhook` numai în mediul de test autorizat;
-3. configurează evenimentul `checkout.session.completed`;
-4. testează semnătura, duplicatele, suma, moneda, evenimentele tardive și reconcilierea;
-5. activează live numai după separarea completă test/live și un checkout real autorizat.
+1. Aplică migrările 043–045 (legătura sesiunii de plată, coada catalogului, costurile operaționale).
+2. Setează privat `STRIPE_ENABLED=true`, `STRIPE_MODE=test`, `STRIPE_SECRET_KEY` și `STRIPE_PUBLISHABLE_KEY` de test. Activează cardul din Metode de plată. Regulile categoriilor continuă să se aplice.
+3. Local, instalează Stripe CLI din sursa oficială în `storage/private/stripe-cli/stripe.exe`, setează `STRIPE_WEBHOOK_SECRET_FILE=storage/private/stripe-webhook-secret` și pornește `powershell -File bin/start-stripe-listener.ps1`. Scriptul acceptă doar localhost și chei test, pornește ascuns și păstrează semnătura privată. Trebuie repornit după repornirea calculatorului. Nu publica acest fișier.
+4. Pentru un mediu HTTPS autorizat, înregistrează `/stripe/webhook` și evenimentele `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.expired`, `checkout.session.async_payment_failed`, `payment_intent.canceled`. Secretul endpointului Dashboard este diferit de secretul CLI; folosește `STRIPE_WEBHOOK_SECRET` privat.
+5. Testează semnătura, duplicatele, suma, moneda, evenimentele tardive și reconcilierea. Datele cardului sunt introduse doar la Stripe. Emailul și adresele din comandă sunt trimise în Customer și shipping; Stripe poate solicita numele titularului, țara sau autentificarea băncii.
+6. `automatic_tax` și codurile promoționale suplimentare Stripe sunt dezactivate. Sumele, reducerile și costurile operaționale sunt snapshoturi calculate pe server în bani. Totalul Stripe trebuie să fie identic cu cel al comenzii. Costurile se administrează separat pe metodă, dar trebuie să reprezinte servicii reale, comunicate înainte de comandă.
+
+Catalog: `STRIPE_CATALOG_ENABLED=true`, apoi `php bin/stripe-catalog.php sync-all 200` pentru catalogul inițial. Rulează permanent `php bin/stripe-catalog.php work 20` sau prin cron `process 20`; pe Windows local există `bin/start-stripe-catalog.ps1`. Salvarea/ștergerea produselor pune modificările în coadă în tranzacție, iar workerul transmite separat, cu retry. Ștergerea arhivează produsele/prețurile Stripe pentru a păstra istoricul. Mappingurile sunt separate după cont și test/live. Checkout folosește snapshoturi ale produselor din comandă; când există cupon, produsele de marfă primesc ID-uri stabile după conținut, iar cuponul se aplică exclusiv acestora. Livrarea este trimisă la valoarea netă, cu economia descrisă; costurile operaționale nu sunt reduse prin repartizarea cuponului. Snapshoturile pot genera produse suplimentare în Stripe, fără a modifica produsele istorice.
+
+Imaginile necesită URL-uri HTTPS accesibile public de Stripe. Localhost nu este accesibil din Stripe. Numai în TEST/dezvoltare se poate configura `STRIPE_PUBLIC_MEDIA_BASE_URL` către un host autorizat care servește aceleași căi publice. Pentru imaginile existente folosim temporar fișierele deja publice din repository; o imagine nouă locală trebuie să fie disponibilă și la acea sursă pentru a apărea în Stripe. În producție această suprascriere de test se ignoră și se folosește `APP_URL` + `APP_BASE_PATH`. Nu activa un tunel sau publicarea automată pentru a ocoli această limitare.
+
+Trecerea LIVE necesită aprobare explicită, `APP_ENV=production`, `STRIPE_MODE=live`, cheile live, secretul endpointului HTTPS live și domeniul public corect. Nu copia `.env` local, baza QA ori listenerul CLI în producție. Reia sincronizarea catalogului pentru contul/modul live, configurează workerul, verifică brandingul live, emailurile și push-ul, apoi efectuează un checkout real autorizat. Credențialele de mod diferit sunt respinse. Nu considera migrarea MySQL, livrarea pe hosting ori Stripe live verificate prin testele SQLite/sandbox.
 
 Redirectul browserului nu marchează plata ca achitată. Numai webhookul semnat actualizează plata.
 Rambursările se inițiază în dashboardul Stripe în această versiune; sincronizarea completă a
 rambursărilor parțiale este încă de implementat.
+
+### Checklist obligatoriu înainte de upload / activare Stripe live
+
+- [ ] Acord explicit pentru publicare și activarea plăților live; testele sandbox nu înlocuiesc această aprobare.
+- [ ] `APP_URL=https://la-mariuca.ro`, `APP_BASE_PATH` corect, `APP_ENV=production`, `SESSION_SECURE=true`; fără fișiere QA/private în webroot.
+- [ ] Chei live și secret webhook live în configurația privată; niciun secret local/CLI copiat automat. Stripe Tax rămâne oprit, conform alegerii utilizatorului.
+- [ ] Migrări MySQL aplicate și verificate; cron/worker catalog, email și push funcționale pe hosting, apoi resincronizarea inițială a catalogului LIVE.
+- [ ] Imaginile produselor sunt accesibile anonim prin HTTPS pe domeniul public (răspuns 200, tip imagine), fără dependență de sursa temporară GitHub. Verificare la adăugare, înlocuire și eliminare de imagine, editare produs și arhivare/ștergere produs.
+- [ ] O sesiune nouă Checkout arată numele, fotografiile, SKU/variantele și cantitățile corecte, pe telefon și desktop. Sesiunile vechi păstrează snapshotul comenzii.
+- [ ] Emailul și adresele se preiau din comandă; Stripe nu cere din nou livrarea. Verificăm separat numele titularului și fluxul 3DS al băncii.
+- [ ] Subtotalul, reducerile, livrarea gratuită/redusă și fiecare cost operațional corespund comenzii; totalul este egal la ban. Cuponul nu reduce accidental costurile operaționale.
+- [ ] Regulile categoriilor și fallbackul card/ramburs global funcționează; costurile se recalculează pentru metoda efectiv aleasă.
+- [ ] Checkout real autorizat: succes, anulare, eșec, 3DS, webhook semnat, retry/duplicate și plată întârziată. Redirectul singur nu confirmă plata.
+- [ ] Clientul și destinatarii interni primesc notificările corecte o singură dată, cu CTA-uri/imagine pe domeniul public; dispozitivele push sunt înregistrate pe originea live.
+- [ ] Reverificarea fiscală și a regulilor de rambursare pentru servicii/costuri este încheiată înaintea lansării. Nu declarăm verificarea live completă până la executarea efectivă a pașilor.
 
 ## Autentificare Google în producție
 

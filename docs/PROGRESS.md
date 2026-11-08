@@ -1,6 +1,6 @@
 # Progres
 
-Actualizat: 2026-11-03
+Actualizat: 2026-11-08
 
 ### 2026-11-03 — Pagini pentru rezultatul comenzii și al plății
 - Pagina privată a comenzii are prezentări distincte pentru ramburs, plată cu cardul anulată, eșuată, în așteptare și confirmată. Stările existente de verificare, retur/rambursare și ramburs deja încasat păstrează mesaje corecte. Un parametru din URL nu poate marca plata ca reușită sau modifica o comandă; revenirea din Stripe cu anulare este doar un indiciu de afișare pentru plata încă neconfirmată.
@@ -1273,6 +1273,7 @@ Priorități cerute de utilizator pentru reluarea lucrului, actualizate cu clari
 8. [ ] **SEO pentru produse și căutarea inteligentă din site**, după reverificarea fiscală.
 9. [ ] **Google Merchant și sincronizarea automată a produselor prin Merchant API.**
 10. [ ] **Catalogul de produse din Stripe**, după Google Merchant, cu sincronizarea adăugărilor și editărilor.
+11. [ ] **Verificarea finală înainte de upload și activarea producției**, ca ultim pas: parcurgem checklisturile de deployment, folosim domeniul public pentru poze și CTA-uri, verificăm sincronizarea catalogului Stripe live la adăugare/editare/ștergere, cheile și webhookul live, datele precompletate, reducerile/costurile și egalitatea totalurilor; verificăm vizual pozele în Checkout pe telefon și desktop. Activarea live și publicarea necesită acord explicit.
 
 Mementourile zilnice sunt cerute la **10:40** și **19:30**, în fusul **Europe/Bucharest**. La fiecare memento se consultă această listă actualizată și se reamintesc numai punctele rămase nebifate, în ordinea de mai sus. Mementourile nu pornesc implementarea automat și nu bifează singure etapele.
 
@@ -1286,3 +1287,16 @@ Criterii de verificat la etapele produselor, fără a le considera deja implemen
 - Catalogul Stripe reflectă adăugările și modificările relevante ale produselor, după integrarea Merchant. Configurarea serviciilor live rămâne o etapă explicită, nu este pornită de acest memento.
 
 Componentele existente de anulare/plată rămân în proiect; lista stabilește ordinea dezvoltărilor viitoare, fără a le șterge sau considera fiscal validate. La reluare, trebuie reamintită această ordine înaintea unei funcționalități noi. Plata cu cardul nu mai este ultimul punct al întregului plan: este urmată de reverificarea fiscală, SEO, Merchant și catalogul Stripe.
+
+Actualizare explicită: utilizatorul a cerut integrarea Stripe TEST și sincronizarea catalogului acum, înaintea ordinii inițiale. Bifele rămân necompletate până la confirmarea lui; publicarea și activarea live rămân ultima etapă.
+
+### 2026-11-08 — Stripe Checkout TEST, catalog și costuri operaționale
+- Checkoutul găzduit de Stripe folosește brandingul contului, limba română, produsele/variantele/cantitățile comenzii și fotografii accesibile public. Emailul, numele, telefonul și adresele sunt preluate din comandă. Stripe poate solicita separat numele titularului, țara sau autentificarea băncii. Nu se salvează automat carduri, iar Stripe Tax și codurile promoționale suplimentare rămân oprite.
+- Totalurile sunt calculate pe server în bani și păstrate în snapshoturi. Reducerea produselor se aplică numai produselor, transportul se transmite la valoarea netă cu economia descrisă, iar costurile operaționale sunt linii distincte fără reducere accidentală. Inițierea/reîncercarea plății este idempotentă; webhookul verifică semnătura, modul, sesiunea, comanda, moneda și suma. Revenirea browserului nu confirmă plata. Evenimentele duplicate sau tardive nu dublează confirmările; plata târzie a unei comenzi anulate rămâne pentru verificare manuală.
+- În Metode de plată sunt disponibile adăugarea, editarea și ștergerea costurilor operaționale, în modale responsive cu header și acțiuni fixe. Costurile au nume și sumă fixă în Lei și sunt vizibile în checkout, Stripe, comenzile istorice și rezumatele emailurilor. Switchurile globale păstrează salvarea silențioasă; regulile categoriilor și fallbackul între metode rămân active.
+- Catalogul are coadă persistentă, retry și mapping separat pe cont și test/live. Salvarea produsului pune actualizarea în coadă; ștergerea arhivează produsul și prețurile în Stripe. Workerul rulează separat de tranzacțiile magazinului. Checkoutul poate folosi produse snapshot suplimentare pentru a păstra comenzile și delimitarea reducerilor.
+- Migrările 043–045 sunt aplicate local pe SQLite. Cardul este activat local în modul TEST, cu listener și worker catalog în fundal. Sincronizarea inițială a reușit pentru **42 de produse**, inclusiv imaginile celor **31 de produse cu galerie**. Pentru testarea locală se folosesc numai imaginile deja publice din repository; imaginile locale nou încărcate necesită o sursă publică pentru afișare în Stripe. Suprascrierea este ignorată în producție/live, unde se utilizează domeniul magazinului.
+- Verificare reală sandbox: o plată de **177,00 Lei** cu cardul de test a revenit în pagina de succes, iar webhookul a răspuns HTTP 200 și a persistat comanda confirmată/plătită. O sesiune separată cu fotografii a afișat **1.017,00 − 101,70 + 0,00 transport + 5,50 cost operațional = 920,80 Lei**, identic cu magazinul. Această a doua sesiune a rămas neplătită pentru previzualizare. Nu s-au transferat bani reali.
+- Browserul intern a verificat fotografiile și totalul Stripe pe desktop și la 390 px, plus costurile operaționale la 390/768/1280 px. Adăugarea, editarea și ștergerea unui cost au fost executate numai în baza QA izolată; baza principală nu a primit costuri demonstrative. QA a folosit email spool și push oprit, fără notificări externe.
+- Au trecut suita integrală **440 teste / 4.859 aserțiuni**, apoi **22 teste / 204 aserțiuni** pentru ultimele ajustări ale imaginilor și izolării producției. Lint PHP, PHPStan, sintaxa JS și compilarea celor **102 template-uri Twig** au trecut. Verificarea finală independentă nu a identificat blocaje de securitate. MySQL/concurența pe hosting, 3DS real, Stripe live și expedierea emailurilor/push pe domeniul public nu au fost verificate în acest pas; nu s-a făcut deploy.
+- Checklistul obligatoriu pentru producție este în `docs/DEPLOYMENT.md`, secțiunea Stripe, și este și **ultimul punct nebifat al TODO-ului** de mai sus. Nu se activează live și nu se publică automat.
