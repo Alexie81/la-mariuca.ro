@@ -100,7 +100,7 @@
           {% if order.billing_address and order.billing_address != order.shipping_address %}<article class="order-address"><span class="order-address__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Z"/><path d="M9 8h6M9 12h6"/></svg></span><div><small>Adresa de facturare</small><strong>{{ order.billing_address.address|default('Adresă necompletată') }}</strong><p>{{ order.billing_address.postal_code|default('') }} {{ order.billing_address.city|default('') }}{% if order.billing_address.county|default('') %}, {{ order.billing_address.county }}{% endif %}</p></div></article>{% endif %}
         </div></section>
 
-        <section class="order-card" aria-labelledby="order-history-title"><header class="order-card__head"><div><span class="order-kicker">Pas cu pas</span><h2 id="order-history-title">Istoricul comenzii</h2></div></header><div class="order-timeline"><article><span class="order-timeline__dot"></span><div><strong>Comandă plasată</strong><p>{{ order.display_created_at }}</p></div><em>Client</em></article>{% for event in order.history %}<article><span class="order-timeline__dot"></span><div><strong>{{ event.label }}</strong><p>{{ event.display_created_at }}{% if event.context.reason|default('') %} · {{ event.context.reason }}{% endif %}</p></div><em>{{ event.actor_first_name|default('') ? event.actor_first_name ~ ' ' ~ event.actor_last_name : 'Sistem' }}</em></article>{% endfor %}</div></section>
+        {% include 'admin/partials/order-history.twig' %}
       </div>
 
       <aside class="order-sidebar">

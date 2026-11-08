@@ -120,6 +120,47 @@ final class OrderAdminWorkflowTest extends DatabaseTestCase
         self::assertSame('cancelled', $this->pdo->query('SELECT status FROM orders WHERE id=' . $this->newOrderId)->fetchColumn());
     }
 
+    public function testHistoryExplainsActorsPaymentEventsAndLocalTimesWithoutDuplicatingPlacement(): void
+    {
+        $this->pdo->prepare("UPDATE orders SET created_at='2026-11-08T08:00:00+00:00' WHERE id=?")->execute([$this->newOrderId]);
+        $audit = $this->pdo->prepare("INSERT INTO audit_log (actor_user_id,action,entity_type,entity_id,context_json,created_at) VALUES (?,?,'order',?,?,?)");
+        foreach ([
+            [null, 'order.created', [], '2026-11-08T08:00:00+00:00'],
+            [null, 'order.confirm', ['source'=>'stripe'], '2026-11-08T08:01:00+00:00'],
+            [null, 'order.cancellation_requested', ['reason'=>'Am ales <altă mărime> & alt model.'], '2026-11-08T08:02:00+00:00'],
+            [$this->adminId, 'order.cancellation_rejected', ['reason'=>'Coletul a fost predat curierului.'], '2026-11-08T08:03:00+00:00'],
+            [null, 'stripe.session_failed', [], '2026-11-08T08:04:00+00:00'],
+        ] as [$actor, $action, $context, $date]) {
+            $audit->execute([$actor, $action, $this->newOrderId, json_encode($context, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR), $date]);
+        }
+        $page = $this->get('/admin/comenzi/' . $this->newOrderId . '/');
+        self::assertSame(200, $page->getStatusCode());
+        self::assertSame(1, preg_match('~<section[^>]*aria-labelledby="order-history-title"[^>]*>.*?</section>~s', (string) $page->getBody(), $matches));
+        $history = $matches[0];
+        self::assertSame(1, substr_count($history, 'Comandă plasată'));
+        self::assertStringContainsString('08.11.2026', $history);
+        foreach (['10:00', '10:01', '10:02', '10:03', '10:04'] as $time) {
+            self::assertStringContainsString($time, $history);
+        }
+        self::assertStringContainsString('Plată primită și comandă confirmată', $history);
+        self::assertStringContainsString('Inițierea plății cu cardul a eșuat', $history);
+        self::assertStringContainsString('Motivul clientului', $history);
+        self::assertStringContainsString('Am ales &lt;altă mărime&gt; &amp; alt model.', $history);
+        self::assertStringNotContainsString('<altă mărime>', $history);
+        $text = html_entity_decode(strip_tags($history), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $requestPosition = strpos($text, 'Clientul a solicitat anularea');
+        $decisionPosition = strpos($text, 'Solicitarea de anulare a fost respinsă');
+        $failurePosition = strpos($text, 'Inițierea plății cu cardul a eșuat');
+        self::assertIsInt($requestPosition);
+        self::assertIsInt($decisionPosition);
+        self::assertIsInt($failurePosition);
+        self::assertGreaterThan($requestPosition, $decisionPosition);
+        self::assertGreaterThan($decisionPosition, $failurePosition);
+        self::assertStringContainsString('Client', substr($text, $requestPosition, $decisionPosition - $requestPosition));
+        self::assertStringContainsString('Maria Admin', substr($text, $decisionPosition, $failurePosition - $decisionPosition));
+        self::assertStringContainsString('Sistem', substr($text, $failurePosition));
+    }
+
     public function testPartialAndFullReturnRespectQuantitiesRestoreStockAndRecordRefund(): void
     {
         $itemId = (int) $this->pdo->query('SELECT id FROM order_items WHERE order_id=' . $this->deliveredOrderId)->fetchColumn();

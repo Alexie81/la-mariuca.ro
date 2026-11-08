@@ -1334,21 +1334,63 @@ final class AdminController
             $return['display_created_at'] = $date->setTimezone($zone)->format('d.m.Y, H:i');
         }
         unset($return);
-        $historyLabels = [
-            'order.confirm' => 'Comandă confirmată', 'order.prepare' => 'Pregătire începută',
-            'order.ship' => 'Comandă expediată', 'order.deliver' => 'Comandă livrată',
-            'order.cancel' => 'Comandă anulată', 'order.return_full' => 'Retur integral înregistrat',
-            'order.return_partial' => 'Retur parțial înregistrat', 'order.email_queued' => 'E-mail pus în coadă',
-            'order.cancellation_requested' => 'Clientul a solicitat anularea',
-            'order.cancellation_accepted' => 'Solicitarea de anulare a fost acceptată',
-            'order.cancellation_rejected' => 'Solicitarea de anulare a fost respinsă',
+        $historyPresentation = [
+            'order.confirm' => ['Comandă confirmată', 'check', 'sage'],
+            'order.prepare' => ['Pregătire începută', 'package', 'amber'],
+            'order.ship' => ['Comandă expediată', 'truck', 'blue'],
+            'order.deliver' => ['Comandă livrată', 'heart', 'sage'],
+            'order.cancel' => ['Comandă anulată', 'cancel', 'rose'],
+            'order.return_full' => ['Retur integral înregistrat', 'return', 'violet'],
+            'order.return_partial' => ['Retur parțial înregistrat', 'return', 'violet'],
+            'order.email_queued' => ['E-mail pus în coadă', 'mail', 'blue'],
+            'order.cancellation_requested' => ['Clientul a solicitat anularea', 'request', 'amber'],
+            'order.cancellation_accepted' => ['Solicitarea de anulare a fost acceptată', 'check', 'sage'],
+            'order.cancellation_rejected' => ['Solicitarea de anulare a fost respinsă', 'cancel', 'rose'],
+            'order.manual_review' => ['Comandă trimisă la verificare', 'alert', 'amber'],
+            'stripe.session_failed' => ['Inițierea plății cu cardul a eșuat', 'card', 'rose'],
         ];
+        $order['history_timeline'] = [[
+            'label'=>'Comandă plasată', 'created_at'=>$createdAt->format(DATE_ATOM),
+            'display_date'=>$createdAt->setTimezone($zone)->format('d.m.Y'),
+            'display_time'=>$createdAt->setTimezone($zone)->format('H:i'),
+            'icon'=>'bag', 'tone'=>'rose', 'actor_label'=>'Client', 'actor_kind'=>'client',
+            'reason'=>'', 'reason_label'=>'Detalii', 'is_latest'=>false,
+        ]];
         foreach ($order['history'] as &$event) {
             $date = new \DateTimeImmutable((string) $event['created_at'], $utc);
             $event['display_created_at'] = $date->setTimezone($zone)->format('d.m.Y, H:i');
-            $event['label'] = $historyLabels[(string) $event['action']] ?? 'Comandă actualizată';
+            $eventAction = (string) $event['action'];
+            [$label, $icon, $tone] = $historyPresentation[$eventAction] ?? ['Comandă actualizată', 'activity', 'blue'];
+            $context = is_array($event['context'] ?? null) ? $event['context'] : [];
+            if (($context['source'] ?? '') === 'stripe') {
+                if ($eventAction === 'order.confirm') {
+                    [$label, $icon, $tone] = ['Plată primită și comandă confirmată', 'card', 'sage'];
+                } elseif ($eventAction === 'order.manual_review') {
+                    [$label, $icon, $tone] = ['Plată primită după anulare · de verificat', 'alert', 'amber'];
+                } elseif ($eventAction === 'order.cancel') {
+                    $label = 'Comandă anulată automat după plata nefinalizată';
+                }
+            }
+            $event['label'] = $label;
+            // Placement already has its own entry, including for historical imports with a creation audit.
+            if (in_array($eventAction, ['order.create', 'order.created', 'order.placed'], true)) {
+                continue;
+            }
+            $clientEvent = $eventAction === 'order.cancellation_requested';
+            $actorName = trim((string) ($event['actor_first_name'] ?? '') . ' ' . (string) ($event['actor_last_name'] ?? ''));
+            $order['history_timeline'][] = [
+                'label'=>$label, 'created_at'=>$date->format(DATE_ATOM),
+                'display_date'=>$date->setTimezone($zone)->format('d.m.Y'),
+                'display_time'=>$date->setTimezone($zone)->format('H:i'),
+                'icon'=>$icon, 'tone'=>$tone,
+                'actor_label'=>$clientEvent ? 'Client' : ($actorName !== '' ? $actorName : 'Sistem'),
+                'actor_kind'=>$clientEvent ? 'client' : ($actorName !== '' ? 'admin' : 'system'),
+                'reason'=>is_string($context['reason'] ?? null) ? $context['reason'] : '',
+                'reason_label'=>$clientEvent ? 'Motivul clientului' : 'Detalii', 'is_latest'=>false,
+            ];
         }
         unset($event);
+        $order['history_timeline'][array_key_last($order['history_timeline'])]['is_latest'] = true;
 
         return $order;
     }
