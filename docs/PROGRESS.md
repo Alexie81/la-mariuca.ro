@@ -1261,7 +1261,7 @@ atribute și filtre fără schimbarea contractelor existente.
 - Au trecut **8 teste / 366 aserțiuni**, lintul fișierelor PHP modificate, sintaxa JS și compilarea celor **99 template-uri Twig**. Verificat în browser: cotă ascunsă la pornire, afișată/editabilă la activare și ascunsă la dezactivare. Pagina completă, cu date demonstrative exclusiv QA, a fost inspectată pe 390/768/1280 px; formularul și acțiunile au fost verificate și la 320 px. Fișa, contactul, banca, ștampila și gestiunile păstrează marginile ecranului, iar headerul/footerul modalului rămân fixe. Sesiunea principală Paula rămâne deschisă pentru completarea datelor reale.
 
 ### 2026-11-08 — Ordinea următoarelor module
-Priorități cerute de utilizator pentru reluarea lucrului, actualizate cu clarificările despre NIR-uri, SEO și cataloage. Lista nu pornește implementarea automat; următoarea etapă este cea a facturilor de achiziție și recepției.
+Priorități cerute de utilizator pentru reluarea lucrului, actualizate cu clarificările despre NIR-uri, reverificarea fiscală, SEO și cataloage. Lista nu pornește implementarea automat; următoarea etapă este cea a facturilor de achiziție și recepției. Un punct se bifează numai după confirmarea explicită a utilizatorului că este gata, nu doar pentru că implementarea sau verificările au fost încheiate.
 
 1. [ ] **Facturi de achiziție + NIR-uri (note de intrare-recepție) + întregul sistem de intrare în stoc**, într-o singură etapă, asociată gestiunilor.
 2. [ ] **Facturi de ieșire.**
@@ -1269,9 +1269,12 @@ Priorități cerute de utilizator pentru reluarea lucrului, actualizate cu clari
 4. [ ] **Exporturi pentru toate modulele de mai sus.** Se pregătesc în fiecare etapă și se verifică împreună înainte de a continua.
 5. [ ] **Retururi, anulări și regulile fiscale aferente**, după finalizarea documentelor și a evidenței stocului.
 6. [ ] **Implementarea plății cu cardul**, abia după etapele operaționale și fiscale de mai sus.
-7. [ ] **SEO pentru produse și căutarea inteligentă din site**, după implementarea cardului.
-8. [ ] **Google Merchant și sincronizarea automată a produselor prin Merchant API.**
-9. [ ] **Catalogul de produse din Stripe**, după Google Merchant, cu sincronizarea adăugărilor și editărilor.
+7. [ ] **Reverificarea dedicată a regulilor fiscale**, după implementarea plății cu cardul și înaintea etapelor SEO și cataloage.
+8. [ ] **SEO pentru produse și căutarea inteligentă din site**, după reverificarea fiscală.
+9. [ ] **Google Merchant și sincronizarea automată a produselor prin Merchant API.**
+10. [ ] **Catalogul de produse din Stripe**, după Google Merchant, cu sincronizarea adăugărilor și editărilor.
+
+Mementourile zilnice sunt cerute la **10:40** și **19:30**, în fusul **Europe/Bucharest**. La fiecare memento se consultă această listă actualizată și se reamintesc numai punctele rămase nebifate, în ordinea de mai sus. Mementourile nu pornesc implementarea automat și nu bifează singure etapele.
 
 Criterii de verificat la etapele produselor, fără a le considera deja implementate sau validate:
 - Se păstrează metatitlul și metadescrierea stabilite manual ori generate automat la adăugare/editare.
@@ -1282,4 +1285,4 @@ Criterii de verificat la etapele produselor, fără a le considera deja implemen
 - Merchant API transmite automat produsele eligibile și actualizările relevante, inclusiv prețul și disponibilitatea; se verifică erorile de sincronizare și produsele retrase.
 - Catalogul Stripe reflectă adăugările și modificările relevante ale produselor, după integrarea Merchant. Configurarea serviciilor live rămâne o etapă explicită, nu este pornită de acest memento.
 
-Componentele existente de anulare/plată rămân în proiect; lista stabilește ordinea dezvoltărilor viitoare, fără a le șterge sau considera fiscal validate. La reluare, trebuie reamintită această ordine înaintea unei funcționalități noi. Plata cu cardul nu mai este ultimul punct al întregului plan: este urmată de SEO, Merchant și catalogul Stripe.
+Componentele existente de anulare/plată rămân în proiect; lista stabilește ordinea dezvoltărilor viitoare, fără a le șterge sau considera fiscal validate. La reluare, trebuie reamintită această ordine înaintea unei funcționalități noi. Plata cu cardul nu mai este ultimul punct al întregului plan: este urmată de reverificarea fiscală, SEO, Merchant și catalogul Stripe.

@@ -50,7 +50,9 @@
 
 ## Agreed next implementation order (2026-11-08)
 - When work resumes, consult the ordered TODO in `docs/PROGRESS.md` under "Ordinea următoarelor module" before starting a new module.
-- The agreed order is: purchase invoices + NIR/stock entry as one stage; outgoing invoices; stock/product ledger; exports; returns/cancellations/fiscal rules; card payments; product SEO and internal search; Google Merchant with automatic Merchant API synchronization; then the Stripe product catalog. Card payment work precedes SEO/catalog integrations, after the operational and fiscal stages.
+- The agreed order is: purchase invoices + NIR/stock entry as one stage; outgoing invoices; stock/product ledger; exports; returns/cancellations/fiscal rules; card payments; a dedicated fiscal-rules recheck after card implementation; product SEO and internal search; Google Merchant with automatic Merchant API synchronization; then the Stripe product catalog.
+- Mark a roadmap TODO complete only after the user explicitly confirms that item is done; implementation or passing checks alone do not authorize checking it off.
+- Daily reminders are requested at 10:40 and 19:30 Europe/Bucharest. Each reminder must consult the current TODO and mention only unfinished items, in the agreed order; reminders do not start implementation automatically.
 - The later product stage must preserve manual/automatic meta titles and descriptions, validate Product structured data, maintain the public-product sitemap, check Google Search Console eligibility, and reflect product additions/edits in internal search and external catalogs. Do not promise guaranteed Google indexing or rich-result display.
 - This is a saved roadmap, not authorization to start these modules automatically or deploy/configure live payment services. Later explicit user instructions can revise the order.
 
