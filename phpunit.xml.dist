@@ -25,7 +25,7 @@
     <env name="STRIPE_WEBHOOK_SECRET_FILE" value="" force="true"/>
     <env name="STRIPE_CATALOG_ENABLED" value="false" force="true"/>
     <env name="STRIPE_PUBLIC_MEDIA_BASE_URL" value="" force="true"/>
-    <env name="MAIL_DELIVERY_MODE" value="spool" force="true"/>
+    <env name="MAIL_DELIVERY_MODE" value="preview" force="true"/>
     <env name="WEB_PUSH_ENABLED" value="false" force="true"/>
   </php>
 </phpunit>

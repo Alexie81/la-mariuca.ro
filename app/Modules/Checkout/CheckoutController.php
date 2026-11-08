@@ -20,7 +20,7 @@ use Slim\Psr7\Response;
 
 final class CheckoutController
 {
-    public function __construct(private readonly CheckoutService $checkout, private readonly CartService $cart, private readonly OrderService $orders, private readonly StripeCheckoutService $stripe, private readonly Auth $auth, private readonly CustomerAccountService $accountService, private readonly RateLimiter $limiter, private readonly View $view, private readonly Config $config, private readonly ShippingMethodService $shippingMethods, private readonly OrderResultPresenter $orderResult)
+    public function __construct(private readonly CheckoutService $checkout, private readonly CartService $cart, private readonly OrderService $orders, private readonly StripeCheckoutService $stripe, private readonly Auth $auth, private readonly CustomerAccountService $accountService, private readonly RateLimiter $limiter, private readonly View $view, private readonly Config $config, private readonly ShippingMethodService $shippingMethods, private readonly OrderResultPresenter $orderResult, private readonly CheckoutAttemptService $attempts)
     {
     }
 
@@ -43,6 +43,16 @@ final class CheckoutController
         $hasOldInput = is_array($oldInput);
         $values = $hasOldInput ? $oldInput : [];
         $cart = $this->cart->summary();
+        $pendingAttempt = $this->attempts->findPendingForCart($this->cart->cartId());
+        $pendingPayment = null;
+        if ($pendingAttempt !== null) {
+            $pendingToken = $this->attempts->publicToken($pendingAttempt);
+            $pendingPayment = [
+                'result_path' => $this->config->path('comanda/' . rawurlencode($pendingToken) . '/'),
+                'resume_path' => $this->config->path('plata/' . rawurlencode($pendingToken) . '/reincearca/'),
+                'cancel_path' => $this->config->path('plata/' . rawurlencode($pendingToken) . '/anuleaza/'),
+            ];
+        }
         $paymentOptions = $this->checkout->paymentOptions($cart);
         $selectedPayment = (string) ($values['payment_method'] ?? '');
         if (!($paymentOptions['methods'][$selectedPayment]['available'] ?? false)) {
@@ -65,6 +75,7 @@ final class CheckoutController
         $selectedFees = (int) ($paymentOptions['methods'][$selectedPayment]['fee_bani'] ?? 0);
         return $this->view->render('storefront/pages/checkout.twig', [
             'cart' => $cart, 'idempotency_key' => $_SESSION['checkout_idempotency'],
+            'pending_payment_attempt' => $pendingPayment,
             'checkout_customer' => $customer,
             'checkout_values' => $values,
             'checkout_has_old_input' => $hasOldInput,
@@ -103,9 +114,16 @@ final class CheckoutController
             unset($_SESSION['checkout_idempotency'], $_SESSION['checkout_old_input']);
             if ($result['payment_method'] === 'stripe') {
                 try {
+                    if (isset($result['attempt_id'])) {
+                        return $this->view->redirect($this->stripe->createAttemptSession($result['attempt_id'], $result['token'], $result['idempotency_key']), 303);
+                    }
                     return $this->view->redirect($this->stripe->createSession($result['id'], $result['token'], $result['idempotency_key']), 303);
                 } catch (\Throwable $exception) {
-                    $this->stripe->markSessionFailure($result['id'], $exception->getMessage());
+                    if (isset($result['attempt_id'])) {
+                        $this->stripe->markAttemptSessionFailure($result['attempt_id']);
+                    } else {
+                        $this->stripe->markSessionFailure($result['id'], $exception->getMessage());
+                    }
                 }
             }
             return $this->view->redirect($this->config->path('comanda/' . $result['token'] . '/'));
@@ -181,7 +199,18 @@ final class CheckoutController
 
     public function confirmation(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
     {
-        $order = $this->orders->byPublicToken((string) $args['token']);
+        $token = (string) $args['token'];
+        $order = $this->orders->byPublicToken($token);
+        $attempt = null;
+        if ($order === null) {
+            $attempt = $this->attempts->byToken($token);
+            if ($attempt !== null) {
+                // A paid webhook may commit between the first lookup and the attempt lookup.
+                $order = $this->orders->byPublicToken($token);
+                if ($order === null) { $order = $this->attempts->snapshot($attempt); }
+                else { $attempt = null; }
+            }
+        }
         if ($order === null) {
             return $this->view->render('storefront/pages/error.twig', ['title' => 'Comanda nu a fost găsită', 'message' => 'Linkul este invalid sau a expirat.', 'meta' => ['title' => 'Comandă indisponibilă', 'noindex' => true]], 404)
                 ->withHeader('Cache-Control', 'private, no-store')->withHeader('Referrer-Policy', 'no-referrer');
@@ -190,8 +219,63 @@ final class CheckoutController
         $returnStatus = is_string($query['plata'] ?? null) ? $query['plata'] : '';
         return $this->view->render('storefront/pages/order.twig', [
             'order' => $order,
-            'order_result' => $this->orderResult->present($order, $returnStatus, (string) $args['token']),
-            'meta' => ['title' => 'Comanda ' . $order['order_number'], 'noindex' => true],
+            'is_payment_attempt' => $attempt !== null,
+            'order_result' => $this->orderResult->present($order, $returnStatus, $token, $attempt !== null),
+            'payment_attempt_actions' => $attempt !== null && $attempt['status'] !== 'completed' ? [
+                'resume_path' => $this->config->path('plata/' . rawurlencode($token) . '/reincearca/'),
+                'cancel_path' => $attempt['status'] === 'pending' ? $this->config->path('plata/' . rawurlencode($token) . '/anuleaza/') : null,
+            ] : null,
+            'meta' => ['title' => $attempt !== null ? 'Starea plății' : 'Comanda ' . $order['order_number'], 'noindex' => true],
         ])->withHeader('Cache-Control', 'private, no-store')->withHeader('Referrer-Policy', 'no-referrer');
+    }
+
+    public function resumePayment(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $token = (string) $args['token'];
+        $attempt = $this->attempts->byToken($token);
+        if ($attempt === null) { return $this->confirmation($request, $response, $args); }
+        try {
+            if ($attempt['status'] === 'pending') {
+                return $this->view->redirect($this->stripe->createAttemptSession((int) $attempt['id'], $token, (string) $attempt['idempotency_key']), 303);
+            }
+            if (in_array($attempt['status'], ['failed', 'expired'], true)) {
+                if ($this->cart->cartId() !== (int) $attempt['cart_id']) {
+                    Flash::set('error', 'Deschide plata în browserul în care ai pregătit coșul, pentru a relua aceleași produse.');
+                } else {
+                    $this->rememberAttemptInput($attempt);
+                    return $this->view->redirect($this->config->path('finalizare-comanda/'), 303);
+                }
+            }
+        } catch (\Throwable) {
+            Flash::set('error', 'Plata nu poate fi reluată momentan. Verifică starea ei sau contactează-ne.');
+        }
+        return $this->view->redirect($this->config->path('comanda/' . rawurlencode($token) . '/'), 303);
+    }
+
+    public function cancelPayment(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $token = (string) $args['token'];
+        $attempt = $this->attempts->byToken($token);
+        if ($attempt === null) { return $this->confirmation($request, $response, $args); }
+        try {
+            if ($attempt['status'] === 'completed') {
+                return $this->view->redirect($this->config->path('comanda/' . rawurlencode($token) . '/'), 303);
+            }
+            $this->stripe->cancelAttemptSession((int) $attempt['id'], $token);
+            $this->rememberAttemptInput($attempt);
+            return $this->view->redirect($this->config->path('finalizare-comanda/'), 303);
+        } catch (\Throwable) {
+            Flash::set('error', 'Verificăm starea plății înainte de a elibera coșul. Nu iniția o altă plată până la confirmare.');
+            return $this->view->redirect($this->config->path('comanda/' . rawurlencode($token) . '/?plata=verificare'), 303);
+        }
+    }
+
+    /** @param array<string,mixed> $attempt */
+    private function rememberAttemptInput(array $attempt): void
+    {
+        $snapshot = $this->attempts->snapshot($attempt);
+        $address = is_array($snapshot['shipping_address'] ?? null) ? $snapshot['shipping_address'] : [];
+        $this->rememberInput($snapshot + $address);
+        unset($_SESSION['checkout_idempotency']);
     }
 }

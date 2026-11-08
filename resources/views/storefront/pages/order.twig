@@ -2,10 +2,11 @@
 {% macro icon(name) %}
 <svg viewBox="0 0 24 24" aria-hidden="true">{% if name == 'check' %}<path d="m5 12 4 4L19 6"/>{% elseif name == 'bag' %}<path d="M5 7h14l1 14H4L5 7ZM9 8V6a3 3 0 0 1 6 0v2"/>{% elseif name == 'arrow' %}<path d="M4 12h15m-6-6 6 6-6 6"/>{% elseif name == 'pin' %}<path d="M20 10c0 6-8 11-8 11S4 16 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/>{% elseif name == 'truck' %}<path d="M3 5h11v12H3zM14 9h4l3 5v3h-7"/><circle cx="7" cy="18" r="2"/><circle cx="18" cy="18" r="2"/>{% elseif name == 'card' %}<rect x="3" y="5" width="18" height="14" rx="3"/><path d="M3 10h18M7 15h4"/>{% elseif name == 'clock' %}<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>{% elseif name == 'heart' %}<path d="M20.8 5.6a5.5 5.5 0 0 0-8.8 1 5.5 5.5 0 0 0-8.8-1C-1 10.2 6 16.6 12 21c6-4.4 13-10.8 8.8-15.4Z"/>{% elseif name == 'close' %}<path d="m7 7 10 10M7 17 17 7"/>{% elseif name == 'alert' %}<path d="M12 8v5m0 3h.01"/><circle cx="12" cy="12" r="9"/>{% elseif name == 'refresh' %}<path d="M20 7v5h-5M4 17v-5h5M6 6a8 8 0 0 1 14 6M4 12a8 8 0 0 0 14 6"/>{% elseif name == 'mail' %}<rect x="3" y="5" width="18" height="14" rx="3"/><path d="m3 7 9 6 9-6"/>{% elseif name == 'phone' %}<path d="m5 3 4 1 1 5-3 2a14 14 0 0 0 6 6l2-3 5 1 1 4c-1 5-8 2-12-2S2 4 5 3Z"/>{% elseif name == 'receipt' %}<path d="M6 3h12v19l-3-2-3 2-3-2-3 2V3ZM9 7h6M9 11h6M9 15h3"/>{% endif %}</svg>
 {% endmacro %}
-{% block head %}<link rel="stylesheet" href="{{ url('assets/css/storefront/order-result.css') }}?v=20261103-results1">{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url('assets/css/storefront/order-result.css') }}?v=20261108-attempt-actions">{% endblock %}
 {% block body_class %}order-result-body{% endblock %}
 {% block content %}
 {% set state = order_result.state %}
+{% set is_attempt = is_payment_attempt|default(false) %}
 {% set presentations = {
 cash_placed: {theme:'success', icon:'check', eyebrow:'O bucurie în pregătire', title:'Comanda ta,', accent:'primită cu drag.', description:'Îți mulțumim pentru alegerile făcute! Comanda este înregistrată, iar plata se face la primirea coletului.', note:'Plată ramburs, la livrare'},
 cash_paid: {theme:'success', icon:'check', eyebrow:'Îți mulțumim pentru încredere', title:'Comanda ta,', accent:'toate detaliile.', description:'Plata la livrare a fost înregistrată. Găsești mai jos rezumatul comenzii și datele de livrare.', note:'Plată încasată'},
@@ -19,41 +20,51 @@ order_cancelled: {theme:'neutral', icon:'close', eyebrow:'Actualizare comandă',
 order_returned: {theme:'neutral', icon:'refresh', eyebrow:'Actualizare comandă', title:'Comanda a fost', accent:'returnată.', description:'Returul acestei comenzi este înregistrat. Găsești mai jos detaliile și starea actuală a plății.', note:'Retur înregistrat'}
 } %}
 {% set presentation = presentations[state]|default(presentations.payment_review) %}
+{% if is_attempt %}
+  {% if state == 'card_pending' %}{% set presentation = presentation|merge({description:'Așteptăm confirmarea plății de la Stripe. Comanda va fi înregistrată numai după ce plata este confirmată.'}) %}
+  {% elseif state == 'card_cancelled' %}{% set presentation = presentation|merge({description:'Ai revenit înainte de finalizarea plății. Comanda nu a fost încă plasată. Poți relua plata sau poți reveni la datele de finalizare.'}) %}
+  {% elseif state == 'card_failed' %}{% set presentation = presentation|merge({description:'Plata nu a fost finalizată, iar comanda nu a fost plasată. Produsele și datele selectate sunt afișate mai jos.'}) %}{% endif %}
+{% endif %}
 {% set successful = state in ['cash_placed', 'cash_paid', 'card_paid'] %}
 {% if successful and order.status in ['shipped', 'delivered'] %}{% set presentation = presentation|merge({eyebrow:'Actualizare comandă', title:'Comanda ta,', accent:'toate detaliile.', description:'Starea actuală: ' ~ order_result.status_label ~ '. Găsești mai jos produsele alese, datele de livrare și starea plății.'}) %}{% endif %}
 {% set address = order.shipping_address|default({}) %}
 {% set standard_shipping = order.shipping_bani + order.shipping_discount_bani|default(0) %}
-<div class="order-result container order-result--{{ presentation.theme }}" data-order-result="{{ state }}" data-order-status="{{ order.status }}" data-payment-status="{{ order.payment_status }}" data-payment-record-status="{{ order.latest_payment_status|default('') }}">
-  <nav class="order-result-nav" aria-label="Navigare comandă"><a href="{{ url('magazin/') }}">{{ _self.icon('arrow') }} Înapoi la magazin</a><span>{{ _self.icon('receipt') }} Detaliile comenzii</span></nav>
+<div class="order-result container order-result--{{ presentation.theme }}" data-order-result="{{ state }}" data-payment-attempt="{{ is_attempt ? 'true' : 'false' }}" data-order-status="{{ order.status }}" data-payment-status="{{ order.payment_status }}" data-payment-record-status="{{ order.latest_payment_status|default('') }}">
+  <nav class="order-result-nav" aria-label="Navigare comandă"><a href="{{ url('magazin/') }}">{{ _self.icon('arrow') }} Înapoi la magazin</a><span>{{ _self.icon('receipt') }} {{ is_attempt ? 'Detaliile plății' : 'Detaliile comenzii' }}</span></nav>
   <header class="order-result-hero">
     <div class="order-result-intro">
       <span class="order-result-kicker"><i>{{ _self.icon(presentation.icon) }}</i>{{ presentation.eyebrow }}</span>
       <h1>{{ presentation.title }} <em>{{ presentation.accent }}</em></h1>
       <p class="order-result-description">{{ presentation.description }}</p>
       <div class="order-result-actions">
-        {% if successful %}<a class="order-result-button is-primary" href="{{ url('magazin/') }}">Continuă cumpărăturile {{ _self.icon('arrow') }}</a><a class="order-result-text-link" href="{{ url('pagina/contact/') }}">Ai nevoie de ajutor?</a>
-        {% elseif state == 'card_pending' and order_result.can_refresh %}<a class="order-result-button is-primary" href="{{ order_result.refresh_path }}">{{ _self.icon('refresh') }} Verifică starea plății</a><a class="order-result-text-link" href="{{ url('pagina/contact/') }}">Contactează-ne</a>
-        {% else %}<a class="order-result-button is-primary" href="{{ url('pagina/contact/') }}">Contactează-ne {{ _self.icon('arrow') }}</a>{% if order_result.can_refresh %}<a class="order-result-button is-secondary" href="{{ order_result.refresh_path }}">{{ _self.icon('refresh') }} Verifică starea</a>{% endif %}{% endif %}
+        {% if is_attempt and payment_attempt_actions %}
+          <form action="{{ payment_attempt_actions.resume_path }}" method="post"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><button type="submit" class="order-result-button is-primary">Reia plata {{ _self.icon('arrow') }}</button></form>
+          {% if payment_attempt_actions.cancel_path %}<form action="{{ payment_attempt_actions.cancel_path }}" method="post"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><button type="submit" class="order-result-button is-secondary">Renunță la plată</button></form>{% endif %}
+        {% elseif is_attempt %}<a class="order-result-button is-primary" href="{{ url('finalizare-comanda/') }}">Revino la finalizare {{ _self.icon('arrow') }}</a><a class="order-result-text-link" href="{{ url('pagina/contact/') }}">Ai nevoie de ajutor?</a>
+        {% elseif successful %}<a class="order-result-button is-primary" href="{{ url('magazin/') }}">Continuă cumpărăturile {{ _self.icon('arrow') }}</a><a class="order-result-text-link" href="{{ url('pagina/contact/') }}">Ai nevoie de ajutor?</a>
+        {% else %}<a class="order-result-button is-primary" href="{{ url('pagina/contact/') }}">Contactează-ne {{ _self.icon('arrow') }}</a>{% endif %}
       </div>
     </div>
     <div class="order-result-receipt">
       <div class="order-result-seal" aria-hidden="true">{{ _self.icon(presentation.icon) }}</div>
-      <span class="order-result-receipt-caption">Numărul comenzii</span><strong class="order-result-reference">{{ order.order_number }}</strong><time datetime="{{ order.created_at }}">{{ order_result.placed_at_label }}</time>
+      {% if is_attempt %}<span class="order-result-receipt-caption">Plată cu cardul</span><strong class="order-result-reference">{{ state == 'card_pending' ? 'În verificare' : 'Neconfirmată' }}</strong>{% else %}<span class="order-result-receipt-caption">Numărul comenzii</span><strong class="order-result-reference">{{ order.order_number }}</strong>{% endif %}<time datetime="{{ order.created_at }}">{{ order_result.placed_at_label }}</time>
       <div class="order-result-receipt-total"><span>{{ order_result.total_label }}</span><strong>{{ money(order.total_bani) }}</strong></div>
       <span class="order-result-status">{{ _self.icon(order.payment_method == 'cod' ? 'truck' : 'card') }}{{ presentation.note }}</span>
     </div>
   </header>
   {% if not successful %}
     <aside class="order-result-guidance" aria-label="Despre plata comenzii"><span>{{ _self.icon(state in ['card_cancelled','card_failed'] ? 'card' : 'clock') }}</span><div>
-      {% if state == 'card_cancelled' %}<strong>Comanda și plata au stări separate.</strong><p>Revenirea din pagina de plată nu anulează automat comanda. Verifică starea actuală sau contactează-ne pentru a stabili cum continuăm.</p>
+      {% if is_attempt and state == 'card_cancelled' %}<strong>Produsele tale sunt păstrate în coș.</strong><p>Reia plata dacă dorești să continui. Pentru a schimba produsele sau metoda de plată, alege „Renunță la plată”.</p>
+      {% elseif is_attempt and state == 'card_failed' %}<strong>Produsele tale sunt păstrate în coș.</strong><p>Alege „Reia plata” pentru a continua. Comanda va fi creată numai după confirmarea plății.</p>
+      {% elseif state == 'card_cancelled' %}<strong>Comanda și plata au stări separate.</strong><p>Revenirea din pagina de plată nu anulează automat comanda. Verifică starea actuală sau contactează-ne pentru a stabili cum continuăm.</p>
       {% elseif state == 'card_failed' %}<strong>Te ajutăm să găsești pasul potrivit.</strong><p>Contactează-ne și menționează numărul {{ order.order_number }} pentru a verifica împreună cum continuăm.</p>
-      {% elseif state == 'card_pending' %}<strong>Confirmarea poate dura câteva momente.</strong><p data-order-payment-watch aria-live="polite">Poți verifica din nou starea folosind butonul de mai sus. Nu este nevoie să plasezi încă o comandă.</p>
+      {% elseif state == 'card_pending' %}<strong>Confirmarea poate dura câteva momente.</strong><p data-order-payment-watch aria-live="polite">{{ is_attempt ? 'Verificăm răspunsul procesatorului. Nu iniția o a doua plată cât timp verificarea este în curs.' : 'Poți verifica din nou starea folosind butonul de mai sus. Nu este nevoie să plasezi încă o comandă.' }}</p>
       {% else %}<strong>Ai o întrebare despre această comandă?</strong><p>Menționează numărul {{ order.order_number }} când ne contactezi, ca să găsim rapid detaliile.</p>{% endif %}
     </div></aside>
   {% endif %}
   <div class="order-result-layout">
     <section class="order-result-card order-result-summary" aria-labelledby="order-summary-title">
-      <header class="order-result-card-heading"><div><span class="order-result-label">Alegerile tale</span><h2 id="order-summary-title">Rezumatul comenzii</h2></div><span class="order-result-count">{{ order_result.item_count }} {{ order_result.item_count == 1 ? 'produs' : 'produse' }}</span></header>
+      <header class="order-result-card-heading"><div><span class="order-result-label">Alegerile tale</span><h2 id="order-summary-title">{{ is_attempt ? 'Rezumatul produselor' : 'Rezumatul comenzii' }}</h2></div><span class="order-result-count">{{ order_result.item_count }} {{ order_result.item_count == 1 ? 'produs' : 'produse' }}</span></header>
       <ul class="order-result-items">{% for item in order.items %}<li class="order-result-item">
         <div class="order-result-product-image">{% if item.image_path|default('') %}<img src="{{ url(item.image_path) }}" alt="{{ item.product_name }}" width="76" height="88" loading="lazy">{% else %}{{ _self.icon('bag') }}{% endif %}</div>
         <div class="order-result-product-copy"><h3>{{ item.product_name }}</h3>{% if item.variant_summary %}<p>{{ item.variant_summary }}</p>{% endif %}<span>Cantitate: <b>{{ item.quantity }}</b></span></div><strong class="order-result-product-price">{{ money(item.line_total_bani) }}</strong>
@@ -65,7 +76,7 @@ order_returned: {theme:'neutral', icon:'refresh', eyebrow:'Actualizare comandă'
         {% if order.shipping_discount_bani|default(0) > 0 %}<div class="is-discount"><dt>Reducere livrare</dt><dd>−{{ money(order.shipping_discount_bani) }}</dd></div>{% endif %}
         {% for fee in order.payment_fees|default([]) %}<div><dt>{{ fee.name }}</dt><dd>{{ money(fee.amount_bani) }}</dd></div>{% endfor %}
         {% if order.tax_bani > 0 %}<div><dt>Taxe</dt><dd>{{ money(order.tax_bani) }}</dd></div>{% endif %}
-      </dl><div class="order-result-grand-total"><div><strong>{{ order_result.total_label }}</strong><span>{{ state == 'cash_placed' ? 'Ramburs · la primirea coletului' : (state == 'card_paid' ? 'Achitat cu cardul' : (state == 'cash_paid' ? 'Plată încasată la livrare' : 'Conform detaliilor comenzii')) }}</span></div><b>{{ money(order.total_bani) }}</b></div></div>
+      </dl><div class="order-result-grand-total"><div><strong>{{ order_result.total_label }}</strong><span>{{ is_attempt ? 'Produse, livrare și costuri incluse' : (state == 'cash_placed' ? 'Ramburs · la primirea coletului' : (state == 'card_paid' ? 'Achitat cu cardul' : (state == 'cash_paid' ? 'Plată încasată la livrare' : 'Conform detaliilor comenzii'))) }}</span></div><b>{{ money(order.total_bani) }}</b></div></div>
       {% if successful %}<div class="order-result-thank-you">{{ _self.icon('heart') }}<span>Mulțumim că ai ales La Măriuca.</span></div>{% endif %}
     </section>
     <div class="order-result-side">
@@ -76,17 +87,17 @@ order_returned: {theme:'neutral', icon:'refresh', eyebrow:'Actualizare comandă'
           <div class="order-result-detail"><span class="order-result-detail-icon">{{ _self.icon('mail') }}</span><div><h3>Date de contact</h3><p>{{ order.email }}</p><p>{{ order.phone }}</p></div></div>
           <div class="order-result-detail"><span class="order-result-detail-icon">{{ _self.icon('truck') }}</span><div><h3>Metoda de livrare</h3><p>{{ order.shipping_method_name|default('Livrare standard', true) }}</p>{% if order.awb|default('') %}<p>AWB: {{ order.awb }}</p>{% endif %}</div></div>
           <div class="order-result-detail"><span class="order-result-detail-icon">{{ _self.icon('card') }}</span><div><h3>{{ order.payment_method == 'cod' ? 'Plată la livrare' : 'Plată online cu cardul' }}</h3><p>{{ order_result.payment_label }}</p></div></div>
-          <div class="order-result-order-status"><span>Starea comenzii</span><strong>{{ order_result.status_label }}</strong></div>
+          <div class="order-result-order-status"><span>{{ is_attempt ? 'Starea plății' : 'Starea comenzii' }}</span><strong>{{ order_result.status_label }}</strong></div>
         </div>
       </section>
       <aside class="order-result-help" aria-labelledby="order-help-title">
         <div class="order-result-help-heading"><span class="order-result-help-heart" aria-hidden="true"><img src="{{ url('assets/images/icon-favorite-hearts.png') }}" width="160" height="128" alt=""></span><div><span class="order-result-label">Mereu aproape</span><h3 id="order-help-title">Te ajutăm cu drag.</h3></div></div>
-        <p>Ai o întrebare despre comanda ta? Alege cum vrei să vorbim.</p>
+        <p>{{ is_attempt ? 'Ai o întrebare despre plată? Alege cum vrei să vorbim.' : 'Ai o întrebare despre comanda ta? Alege cum vrei să vorbim.' }}</p>
         <div class="order-result-help-actions"><a class="order-result-help-message" href="{{ url('pagina/contact/') }}">{{ _self.icon('mail') }}<span>Trimite-ne un mesaj</span>{{ _self.icon('arrow') }}</a><a class="order-result-help-call" href="{{ contact_phone_url() }}" aria-label="Sună-ne la {{ contact_phone_display() }}">{{ _self.icon('phone') }}<span>{{ contact_phone_display() }}</span><span class="order-result-help-call-label">Sună-ne</span></a></div>
       </aside>
     </div>
   </div>
   {% if state in ['cash_placed', 'card_paid'] and order.status in ['new', 'confirmed', 'preparing'] %}<section class="order-result-next" aria-labelledby="order-next-title"><div class="order-result-next-intro"><span class="order-result-label">Din grijă pentru cei mici</span><h2 id="order-next-title">De aici, ne ocupăm noi.</h2><p>Fiecare comandă este pregătită cu atenție, pas cu pas.</p></div><ol><li><span>01</span><div><strong>Verificăm detaliile</strong><p>Ne asigurăm că alegerile tale sunt pregătite pentru pasul următor.</p></div></li><li><span>02</span><div><strong>Pregătim coletul</strong><p>Așezăm cu grijă produsele pentru livrarea prin metoda aleasă.</p></div></li><li><span>03</span><div><strong>{{ order.payment_method == 'cod' ? 'Plătești la primire' : 'Primești comanda' }}</strong><p>{{ order.payment_method == 'cod' ? 'Achită suma din rezumat când comanda ajunge la tine.' : 'Plata este confirmată. Mai rămâne bucuria de a deschide coletul.' }}</p></div></li></ol></section>{% endif %}
 </div>
-{% if state == 'card_pending' %}<script type="module" src="{{ url('assets/js/storefront/order-payment-status.js') }}?v=20261108-stripe"></script>{% endif %}
+{% if state == 'card_pending' %}<script type="module" src="{{ url('assets/js/storefront/order-payment-status.js') }}?v=20261108-result-watch3"></script>{% endif %}
 {% endblock %}

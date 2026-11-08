@@ -13,6 +13,31 @@ final class CartService
     {
     }
 
+    /**
+     * @template T
+     * @param callable():T $operation
+     * @return T
+     */
+    private function edit(callable $operation): mixed
+    {
+        $ownsTransaction = !$this->pdo->inTransaction();
+        if ($ownsTransaction) { $this->pdo->beginTransaction(); }
+        try {
+            $cartId = $this->cartId();
+            $lock = $this->pdo->prepare('SELECT id FROM carts WHERE id=:id' . ($this->pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql' ? ' FOR UPDATE' : ''));
+            $lock->execute(['id' => $cartId]);
+            $pending = $this->pdo->prepare("SELECT id FROM checkout_attempts WHERE active_cart_id=:id AND status='pending'");
+            $pending->execute(['id' => $cartId]);
+            if ($pending->fetchColumn() !== false) { throw new RuntimeException('Ai o plată cu cardul în curs. Reia plata sau anulează încercarea din finalizarea comenzii înainte de a modifica acest coș.'); }
+            $result = $operation();
+            if ($ownsTransaction) { $this->pdo->commit(); }
+            return $result;
+        } catch (\Throwable $error) {
+            if ($ownsTransaction && $this->pdo->inTransaction()) { $this->pdo->rollBack(); }
+            throw $error;
+        }
+    }
+
     public function token(): string
     {
         if (!isset($_SESSION['cart_token']) || !is_string($_SESSION['cart_token'])) {
@@ -30,6 +55,12 @@ final class CartService
         if ($id !== false) {
             return (int) $id;
         }
+        $oldCart = $this->pdo->prepare('SELECT id FROM carts WHERE token=:token');
+        $oldCart->execute(['token' => $token]);
+        if ($oldCart->fetchColumn() !== false) {
+            // A successful webhook converts the cart in another request, without this browser's session.
+            $_SESSION['cart_token'] = $token = bin2hex(random_bytes(32));
+        }
         $now = gmdate('c');
         $statement = $this->pdo->prepare("INSERT INTO carts (token, user_id, status, created_at, updated_at, expires_at) VALUES (:token, :user_id, 'active', :now, :now, :expires)");
         $statement->execute([
@@ -43,6 +74,12 @@ final class CartService
 
     /** @param array<string, string> $personalization */
     public function add(int $variantId, int $quantity, array $personalization = []): void
+    {
+        $this->edit(function () use ($variantId, $quantity, $personalization): void { $this->addUnlocked($variantId, $quantity, $personalization); });
+    }
+
+    /** @param array<string,string> $personalization */
+    private function addUnlocked(int $variantId, int $quantity, array $personalization): void
     {
         if ($quantity < 1 || $quantity > 20) {
             throw new RuntimeException('Cantitatea trebuie să fie între 1 și 20.');
@@ -76,6 +113,12 @@ final class CartService
     /** @param array<string, string> $personalization @return 'added'|'removed' */
     public function toggle(int $variantId, int $quantity = 1, array $personalization = []): string
     {
+        return $this->edit(fn (): string => $this->toggleUnlocked($variantId, $quantity, $personalization));
+    }
+
+    /** @param array<string,string> $personalization @return 'added'|'removed' */
+    private function toggleUnlocked(int $variantId, int $quantity, array $personalization): string
+    {
         $cartId = $this->cartId();
         $statement = $this->pdo->prepare('SELECT 1 FROM cart_items WHERE cart_id = :cart AND variant_id = :variant LIMIT 1');
         $statement->execute(['cart' => $cartId, 'variant' => $variantId]);
@@ -99,6 +142,11 @@ final class CartService
 
     public function update(int $itemId, int $quantity): void
     {
+        $this->edit(function () use ($itemId, $quantity): void { $this->updateUnlocked($itemId, $quantity); });
+    }
+
+    private function updateUnlocked(int $itemId, int $quantity): void
+    {
         $cartId = $this->cartId();
         if ($quantity <= 0) {
             $this->pdo->prepare('DELETE FROM cart_items WHERE id = :id AND cart_id = :cart')->execute(['id' => $itemId, 'cart' => $cartId]);
@@ -120,6 +168,11 @@ final class CartService
     }
 
     public function applyCoupon(string $code): void
+    {
+        $this->edit(function () use ($code): void { $this->applyCouponUnlocked($code); });
+    }
+
+    private function applyCouponUnlocked(string $code): void
     {
         $code = strtoupper(trim($code));
         $cartId = $this->cartId();

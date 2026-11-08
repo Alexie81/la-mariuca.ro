@@ -10,9 +10,12 @@ use App\Modules\Checkout\CheckoutService;
 use App\Modules\Checkout\OrderResultPresenter;
 use App\Modules\Orders\OrderService;
 use App\Modules\Payments\StripeCheckoutService;
+use App\Modules\Payments\StripeWebhookController;
 use App\Shared\Config\Config;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Psr\Http\Message\ResponseInterface;
 use Slim\Psr7\Factory\ServerRequestFactory;
+use Slim\Psr7\Factory\StreamFactory;
 use Tests\DatabaseTestCase;
 
 final class OrderResultTest extends DatabaseTestCase
@@ -98,6 +101,8 @@ final class OrderResultTest extends DatabaseTestCase
         self::assertStringContainsString('data-payment-status="pending"', $html);
         self::assertStringContainsString('order-payment-status.js', $html);
         self::assertSame($before, $this->order($result['token']));
+        // The clean URL used by manual refresh keeps the same pending watcher available.
+        self::assertStringContainsString('order-payment-status.js', (string) $this->getResult($result['token'])->getBody());
 
         $this->pdo->prepare("UPDATE orders SET status='confirmed',payment_status='paid' WHERE id=:id")
             ->execute(['id' => $result['id']]);
@@ -105,6 +110,57 @@ final class OrderResultTest extends DatabaseTestCase
         self::assertStringContainsString('data-order-result="card_paid"', $html);
         self::assertStringContainsString('data-payment-status="paid"', $html);
         self::assertStringNotContainsString('order-payment-status.js', $html);
+    }
+
+    #[DataProvider('signedPaymentResults')]
+    public function testSignedStripeResponsesRenderTheExistingResultPage(string $type, string $providerStatus, string $expected): void
+    {
+        $result = $this->placeOrder('stripe');
+        $this->pdo->prepare("UPDATE payments SET checkout_session_id='cs_result',provider_payment_id='pi_result' WHERE order_id=:id")
+            ->execute(['id' => $result['id']]);
+        self::assertSame(200, $this->sendPaymentEvent($result['id'], $type, $providerStatus));
+        $before = $this->order($result['token']);
+        foreach ([[], ['plata' => 'verificare'], ['plata' => 'paid']] as $query) {
+            $response = $this->getResult($result['token'], $query);
+            $html = (string) $response->getBody();
+            self::assertSame(200, $response->getStatusCode());
+            self::assertStringContainsString('data-order-result="' . $expected . '"', $html);
+            self::assertStringContainsString('order-result.css', $html);
+            self::assertStringContainsString('Rezumatul comenzii', $html);
+            self::assertStringContainsString($result['order_number'], $html);
+            if ($expected !== 'card_pending') { self::assertStringNotContainsString('order-payment-status.js', $html); }
+        }
+        if ($expected !== 'card_pending') {
+            // A stale Back/Cancel link cannot hide a recorded success or terminal failure.
+            self::assertStringContainsString('data-order-result="' . $expected . '"', (string) $this->getResult($result['token'], ['plata' => 'anulata'])->getBody());
+        }
+        self::assertSame($before, $this->order($result['token']));
+    }
+
+    public static function signedPaymentResults(): array
+    {
+        return [
+            'paid hosted checkout' => ['checkout.session.completed', 'paid', 'card_paid'],
+            'awaiting confirmation' => ['checkout.session.completed', 'unpaid', 'card_pending'],
+            'asynchronous confirmed payment' => ['checkout.session.async_payment_succeeded', 'paid', 'card_paid'],
+            'expired checkout' => ['checkout.session.expired', 'unpaid', 'card_failed'],
+            'terminal asynchronous failure' => ['checkout.session.async_payment_failed', 'unpaid', 'card_failed'],
+            'cancelled payment intent' => ['payment_intent.canceled', 'unpaid', 'card_failed'],
+        ];
+    }
+
+    public function testRecoverableCardDeclineDoesNotAbandonOrderAndLaterSuccessUsesSameResultPage(): void
+    {
+        $result = $this->placeOrder('stripe');
+        $this->pdo->prepare("UPDATE payments SET checkout_session_id='cs_result',provider_payment_id='pi_result' WHERE order_id=:id")
+            ->execute(['id' => $result['id']]);
+        $reservations = $this->pdo->query('SELECT * FROM inventory_reservations ORDER BY id')->fetchAll();
+        self::assertSame(200, $this->sendPaymentEvent($result['id'], 'payment_intent.payment_failed', 'unpaid'));
+        self::assertStringContainsString('data-order-result="card_pending"', (string) $this->getResult($result['token'], ['plata' => 'verificare'])->getBody());
+        self::assertSame($reservations, $this->pdo->query('SELECT * FROM inventory_reservations ORDER BY id')->fetchAll());
+        self::assertSame(200, $this->sendPaymentEvent($result['id'], 'checkout.session.completed', 'paid'));
+        self::assertStringContainsString('data-order-result="card_paid"', (string) $this->getResult($result['token'], ['plata' => 'anulata'])->getBody());
+        self::assertSame(1, (int) $this->pdo->query('SELECT COUNT(*) FROM orders')->fetchColumn());
     }
 
     public function testPaidManualReviewRefundAndCancellationAlwaysTakePrecedence(): void
@@ -197,6 +253,28 @@ final class OrderResultTest extends DatabaseTestCase
     private function presentation(array $order, string $returnStatus, string $token): array
     {
         return (new OrderResultPresenter(Config::load($this->root)))->present($order, $returnStatus, $token);
+    }
+
+    private function sendPaymentEvent(int $orderId, string $type, string $paymentStatus): int
+    {
+        $environment = $_ENV;
+        try {
+            $_ENV['STRIPE_WEBHOOK_SECRET'] = 'whsec_order_results_fixture';
+            $_ENV['STRIPE_MODE'] = 'test';
+            $intent = str_starts_with($type, 'payment_intent.');
+            $amount = (int) $this->pdo->query('SELECT total_bani FROM orders WHERE id=' . $orderId)->fetchColumn();
+            $payload = json_encode([
+                'id' => 'evt_result_' . bin2hex(random_bytes(8)), 'object' => 'event', 'created' => time(), 'type' => $type, 'livemode' => false,
+                'data' => ['object' => ['id' => $intent ? 'pi_result' : 'cs_result', 'object' => $intent ? 'payment_intent' : 'checkout.session',
+                    'payment_status' => $paymentStatus, 'amount_total' => $amount, 'currency' => 'ron', 'payment_intent' => 'pi_result',
+                    'metadata' => ['order_id' => (string) $orderId]]],
+            ], JSON_THROW_ON_ERROR);
+            $time = time();
+            $request = (new ServerRequestFactory())->createServerRequest('POST', 'http://localhost/stripe/webhook')
+                ->withHeader('Stripe-Signature', 't=' . $time . ',v1=' . hash_hmac('sha256', $time . '.' . $payload, 'whsec_order_results_fixture'))
+                ->withBody((new StreamFactory())->createStream($payload));
+            return (new StripeWebhookController($this->pdo, Config::load($this->root)))($request)->getStatusCode();
+        } finally { $_ENV = $environment; }
     }
 
     /** @param array<string,mixed> $query */

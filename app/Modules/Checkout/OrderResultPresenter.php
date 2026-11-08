@@ -17,7 +17,7 @@ final class OrderResultPresenter
     /** @param array<string,mixed> $order
      *  @return array<string,mixed>
      */
-    public function present(array $order, string $returnStatus, string $publicToken): array
+    public function present(array $order, string $returnStatus, string $publicToken, bool $isPaymentAttempt = false): array
     {
         $method = (string) $order['payment_method'];
         $payment = (string) $order['payment_status'];
@@ -26,7 +26,11 @@ final class OrderResultPresenter
             || ($payment === 'pending' && ($order['latest_payment_status'] ?? '') === 'failed');
 
         // The provider return URL is a display hint, never evidence of payment or cancellation.
-        $state = match (true) {
+        $state = $isPaymentAttempt ? match (true) {
+            $failed => 'card_failed',
+            $returnStatus === 'anulata' => 'card_cancelled',
+            default => 'card_pending',
+        } : match (true) {
             in_array($payment, ['refunded', 'partially_refunded'], true) => 'payment_refunded',
             $status === 'returned' => 'order_returned',
             $method === 'stripe' && $failed => 'card_failed',
@@ -38,7 +42,7 @@ final class OrderResultPresenter
             $method === 'stripe' && $payment === 'pending' && $returnStatus === 'anulata' => 'card_cancelled',
             default => 'card_pending',
         };
-        $statusLabel = match ($status) {
+        $statusLabel = $isPaymentAttempt ? ($failed ? 'Plată nefinalizată' : 'În așteptarea plății') : match ($status) {
             'new' => 'Comandă primită',
             'confirmed' => 'Confirmată',
             'preparing' => 'În pregătire',
@@ -58,6 +62,7 @@ final class OrderResultPresenter
             default => 'În așteptare',
         };
         $totalLabel = match (true) {
+            $isPaymentAttempt => 'Total de plată',
             $payment === 'paid' => 'Total achitat',
             $state === 'cash_placed' => 'De achitat la livrare',
             default => 'Total comandă',

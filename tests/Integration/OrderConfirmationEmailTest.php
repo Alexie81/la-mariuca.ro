@@ -13,6 +13,7 @@ use App\Modules\Orders\OrderTrackingRepository;
 use App\Modules\Orders\OrderTrackingService;
 use App\Shared\Config\Config;
 use DomainException;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\DatabaseTestCase;
 use Twig\Environment;
 use Twig\Loader\FilesystemLoader;
@@ -57,7 +58,11 @@ final class OrderConfirmationEmailTest extends DatabaseTestCase
 
     public function testCashConfirmationContainsSnapshotAmountsDeliveryPaymentAndPrivateTracking(): void
     {
+        $order = $this->pdo->query('SELECT order_number,status,payment_status FROM orders WHERE id=' . $this->orderId)->fetch();
+        self::assertSame('new', $order['status']);
+        self::assertSame('pending', $order['payment_status']);
         $mail = $this->email->render($this->orderId, 'ana.email@example.test');
+        self::assertSame('Comanda ' . $order['order_number'] . ' a fost primită cu succes', $mail['subject']);
         self::assertStringStartsWith('Comanda LM-', $mail['subject']);
         self::assertStringEndsWith('a fost primită cu succes', $mail['subject']);
         self::assertStringContainsString('/assets/images/email-status-received.png', $mail['html']);
@@ -84,6 +89,8 @@ final class OrderConfirmationEmailTest extends DatabaseTestCase
     {
         $this->pdo->exec("UPDATE orders SET payment_method='stripe',payment_status='paid',status='confirmed'");
         $mail = $this->email->render($this->orderId, 'ana.email@example.test');
+        $number = $this->pdo->query('SELECT order_number FROM orders WHERE id=' . $this->orderId)->fetchColumn();
+        self::assertSame('Comanda ' . $number . ' a fost confirmată cu succes', $mail['subject']);
         self::assertStringEndsWith('a fost confirmată cu succes', $mail['subject']);
         self::assertStringContainsString('/assets/images/email-status-confirmed.png', $mail['html']);
         foreach (['Comanda a fost confirmată cu succes.', 'Card online', 'Plătit', 'Achitat integral.'] as $text) {
@@ -93,11 +100,27 @@ final class OrderConfirmationEmailTest extends DatabaseTestCase
         self::assertStringNotContainsString('De achitat la livrare', $mail['html']);
     }
 
-    public function testUnpaidCardCannotGeneratePaidConfirmation(): void
+    #[DataProvider('blockedConfirmationStates')]
+    public function testUnpaidOrCancelledOrderCannotGenerateConfirmation(string $method, string $paymentStatus, string $status): void
     {
-        $this->pdo->exec("UPDATE orders SET payment_method='stripe',payment_status='pending'");
+        $this->pdo->prepare('UPDATE orders SET payment_method=:method,payment_status=:payment,status=:status WHERE id=:id')
+            ->execute(['method' => $method, 'payment' => $paymentStatus, 'status' => $status, 'id' => $this->orderId]);
         $this->expectException(DomainException::class);
         $this->email->render($this->orderId, 'ana.email@example.test');
+    }
+
+    public static function blockedConfirmationStates(): array
+    {
+        return [
+            'card pending' => ['stripe', 'pending', 'new'],
+            'card failed' => ['stripe', 'failed', 'new'],
+            'card refunded' => ['stripe', 'refunded', 'confirmed'],
+            'card partially refunded' => ['stripe', 'partially_refunded', 'confirmed'],
+            'paid but cancelled' => ['stripe', 'paid', 'cancelled'],
+            'paid but returned' => ['stripe', 'paid', 'returned'],
+            'cash cancelled before worker' => ['cod', 'pending', 'cancelled'],
+            'cash returned before worker' => ['cod', 'paid', 'returned'],
+        ];
     }
 
     public function testLatePaidCardInReviewDoesNotPromiseConfirmedOrder(): void

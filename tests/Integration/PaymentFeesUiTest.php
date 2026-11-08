@@ -39,7 +39,7 @@ final class PaymentFeesUiTest extends DatabaseTestCase
         $_ENV['STRIPE_ENABLED'] = 'true';
         $_ENV['STRIPE_MODE'] = 'test';
         $_ENV['STRIPE_SECRET_KEY'] = 'sk_test_ui_no_network';
-        $_ENV['MAIL_DELIVERY_MODE'] = 'spool';
+        $_ENV['MAIL_DELIVERY_MODE'] = 'preview';
         $_ENV['WEB_PUSH_ENABLED'] = 'false';
         $this->pdo->exec("INSERT INTO users (email,password_hash,first_name,last_name,role,status,created_at,updated_at) VALUES ('fees.admin@example.test','unused','Ana','Admin','administrator','active','2026-11-08T10:00:00+00:00','2026-11-08T10:00:00+00:00')");
         $this->adminId = (int) $this->pdo->lastInsertId();

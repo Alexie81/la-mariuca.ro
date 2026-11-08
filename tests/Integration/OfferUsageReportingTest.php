@@ -14,6 +14,7 @@ use PDO;
 use Slim\Psr7\Factory\ServerRequestFactory;
 use Slim\Psr7\Factory\StreamFactory;
 use Tests\DatabaseTestCase;
+use Tests\Support\LegacyStripeOrderFixture;
 
 final class OfferUsageReportingTest extends DatabaseTestCase
 {
@@ -30,7 +31,7 @@ final class OfferUsageReportingTest extends DatabaseTestCase
         $_ENV['STRIPE_SECRET_KEY'] = 'sk_test_offer_reporting';
         $_ENV['STRIPE_WEBHOOK_SECRET'] = 'whsec_offer_reporting';
         $_ENV['WEB_PUSH_ENABLED'] = 'false';
-        $_ENV['MAIL_DELIVERY_MODE'] = 'spool';
+        $_ENV['MAIL_DELIVERY_MODE'] = 'preview';
         parent::setUp();
         $this->seed();
         $this->variantId = (int) $this->pdo->query("SELECT v.id FROM product_variants v JOIN products p ON p.id=v.product_id WHERE v.status='active' AND p.status='published' ORDER BY v.price_bani DESC LIMIT 1")->fetchColumn();
@@ -63,7 +64,7 @@ final class OfferUsageReportingTest extends DatabaseTestCase
         ], $legacy->query('SELECT merchandise_discount_bani,shipping_discount_bani FROM coupon_redemptions ORDER BY id')->fetchAll(PDO::FETCH_ASSOC));
     }
 
-    public function testAutomaticOffersExcludeInvalidOrdersAndSeparatePendingCardPayments(): void
+    public function testAutomaticOffersExcludeInvalidOrdersAndSeparateLegacyPendingCardPayments(): void
     {
         $promotion = $this->promotion('order', 'fixed', 1000);
         $shipping = $this->promotion('shipping', 'free', 0);
@@ -131,7 +132,7 @@ final class OfferUsageReportingTest extends DatabaseTestCase
         $this->assertMetrics('coupon', $coupon, 1, 0, $snapshot['shipping_discount_bani']);
     }
 
-    public function testSignedCardEventsMoveCouponPendingToUsedOnceAndFailureReleasesIt(): void
+    public function testLegacySignedCardEventsMoveCouponPendingToUsedOnceAndFailureReleasesIt(): void
     {
         $coupon = $this->coupon('CARD500', 'order', 'fixed', 500);
         $id = $this->order('stripe', 'CARD500');
@@ -149,6 +150,27 @@ final class OfferUsageReportingTest extends DatabaseTestCase
         $this->assertMetrics('coupon', $coupon, 0, 0, 0);
     }
 
+    public function testPaymentAttemptsReserveCouponCapacityButAreNotCountedAsOrdersOrSavingsUntilPaid(): void
+    {
+        $coupon = $this->coupon('ATTEMPT500', 'order', 'fixed', 500);
+        $id = $this->order('stripe', 'ATTEMPT500', false);
+        self::assertSame(0, (int) $this->pdo->query('SELECT COUNT(*) FROM orders')->fetchColumn());
+        self::assertSame('reserved', $this->pdo->query('SELECT status FROM coupon_redemptions WHERE attempt_id=' . $id)->fetchColumn());
+        self::assertNull($this->pdo->query('SELECT order_id FROM coupon_redemptions WHERE attempt_id=' . $id)->fetchColumn());
+        $this->assertMetrics('coupon', $coupon, 0, 0, 0);
+        $this->webhook($id, 'checkout.session.completed', 'attempt-paid', true);
+        $this->webhook($id, 'checkout.session.completed', 'attempt-paid-repeated', true);
+        $this->assertMetrics('coupon', $coupon, 1, 0, 500);
+        self::assertSame(1, (int) $this->pdo->query('SELECT COUNT(*) FROM orders')->fetchColumn());
+        self::assertSame('confirmed', $this->pdo->query('SELECT status FROM coupon_redemptions WHERE attempt_id=' . $id)->fetchColumn());
+        $expired = $this->order('stripe', 'ATTEMPT500', false);
+        $this->assertMetrics('coupon', $coupon, 1, 0, 500);
+        $this->webhook($expired, 'checkout.session.expired', 'attempt-expired', true);
+        self::assertSame('released', $this->pdo->query('SELECT status FROM coupon_redemptions WHERE attempt_id=' . $expired)->fetchColumn());
+        self::assertSame(1, (int) $this->pdo->query('SELECT COUNT(*) FROM orders')->fetchColumn());
+        $this->assertMetrics('coupon', $coupon, 1, 0, 500);
+    }
+
     private function promotion(string $scope, string $type, int $value): int
     {
         $now = gmdate('c');
@@ -163,18 +185,21 @@ final class OfferUsageReportingTest extends DatabaseTestCase
         return (int) $this->pdo->lastInsertId();
     }
 
-    private function order(string $method = 'cod', ?string $code = null): int
+    private function order(string $method = 'cod', ?string $code = null, bool $legacy = true): int
     {
         unset($_SESSION['cart_token']);
         $cart = new CartService($this->pdo);
         $cart->add($this->variantId, 1);
         if ($code !== null) { $cart->applyCoupon($code); }
         $shipping = (int) $this->pdo->query("SELECT id FROM shipping_methods WHERE status='active' ORDER BY is_default DESC,position,id LIMIT 1")->fetchColumn();
-        $order = (new CheckoutService($this->pdo, $cart, Config::load($this->root)))->place([
+        $data = [
             'email' => 'offer-client@example.test', 'first_name' => 'Ana', 'last_name' => 'Pop', 'phone' => '0700000000',
             'address' => 'Strada Test 1', 'city' => 'București — Sector 1', 'county' => 'București', 'postal_code' => '010101',
             'shipping_method_id' => (string) $shipping, 'payment_method' => $method, 'idempotency_key' => bin2hex(random_bytes(16)), 'terms' => '1',
-        ]);
+        ];
+        $order = $method === 'stripe' && $legacy
+            ? LegacyStripeOrderFixture::place($this->pdo, $cart, Config::load($this->root), $data)
+            : (new CheckoutService($this->pdo, $cart, Config::load($this->root)))->place($data);
         return (int) $order['id'];
     }
 
@@ -191,14 +216,14 @@ final class OfferUsageReportingTest extends DatabaseTestCase
         self::assertSame([$used, $pending, $total], [$matches[0]['usage_count'], $matches[0]['pending_usage_count'], $matches[0]['total_discount_bani']]);
     }
 
-    private function webhook(int $id, string $type, string $event): void
+    private function webhook(int $id, string $type, string $event, bool $attempt = false): void
     {
-        $amount = (int) $this->pdo->query('SELECT total_bani FROM orders WHERE id=' . $id)->fetchColumn();
-        $this->pdo->prepare("UPDATE payments SET checkout_session_id=:session WHERE order_id=:id AND provider='stripe'")
+        $amount = (int) $this->pdo->query('SELECT total_bani FROM ' . ($attempt ? 'checkout_attempts' : 'orders') . ' WHERE id=' . $id)->fetchColumn();
+        $this->pdo->prepare($attempt ? 'UPDATE checkout_attempts SET checkout_session_id=:session WHERE id=:id' : "UPDATE payments SET checkout_session_id=:session WHERE order_id=:id AND provider='stripe'")
             ->execute(['session' => 'cs_reporting_' . $id, 'id' => $id]);
         $payload = json_encode(['id' => 'evt_reporting_' . $event, 'object' => 'event', 'api_version' => '2025-09-30.clover', 'created' => time(), 'type' => $type, 'livemode' => false,
             'data' => ['object' => ['id' => 'cs_reporting_' . $id, 'object' => 'checkout.session', 'payment_status' => $type === 'checkout.session.completed' ? 'paid' : 'unpaid',
-                'amount_total' => $amount, 'currency' => 'ron', 'payment_intent' => 'pi_reporting_' . $id, 'metadata' => ['order_id' => (string) $id]]]], JSON_THROW_ON_ERROR);
+                'amount_total' => $amount, 'currency' => 'ron', 'payment_intent' => 'pi_reporting_' . $id, 'metadata' => $attempt ? ['checkout_attempt_id' => (string) $id, 'checkout_attempt_key' => (string) $this->pdo->query('SELECT idempotency_key FROM checkout_attempts WHERE id=' . $id)->fetchColumn()] : ['order_id' => (string) $id]]]], JSON_THROW_ON_ERROR);
         $timestamp = time();
         $request = (new ServerRequestFactory())->createServerRequest('POST', 'http://localhost/stripe/webhook')
             ->withHeader('Stripe-Signature', 't=' . $timestamp . ',v1=' . hash_hmac('sha256', $timestamp . '.' . $payload, 'whsec_offer_reporting'))

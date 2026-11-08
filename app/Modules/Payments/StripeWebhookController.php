@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Payments;
 
 use App\Modules\Admin\AdminPushService;
+use App\Modules\Checkout\CheckoutAttemptService;
 use App\Modules\Orders\InternalOrderNotificationService;
 use App\Shared\Config\Config;
 use PDO;
@@ -60,6 +61,9 @@ final class StripeWebhookController
             if (in_array($event->type, $supportedEvents, true)) {
                 $objectData = $event->data->object->toArray();
                 $metadata = is_array($objectData['metadata'] ?? null) ? $objectData['metadata'] : [];
+                if (array_key_exists('checkout_attempt_id', $metadata)) {
+                    return $this->processAttempt((string) $event->id, (string) $event->type, $objectData, $now);
+                }
                 $rawOrderId = $metadata['order_id'] ?? '';
                 if (!is_string($rawOrderId) || !ctype_digit($rawOrderId) || (int) $rawOrderId < 1) {
                     return $this->finishEvent((string) $event->id, $now, 'Stripe order metadata missing or invalid');
@@ -231,6 +235,61 @@ final class StripeWebhookController
             }
         }
         return new Response(200);
+    }
+
+    /** The event transaction is already open. No order exists until this verifies paid. @param array<string,mixed> $object */
+    private function processAttempt(string $eventId, string $type, array $object, string $now): ResponseInterface
+    {
+        $rawId = $object['metadata']['checkout_attempt_id'] ?? '';
+        if (!is_string($rawId) || !ctype_digit($rawId) || (int) $rawId < 1) {
+            return $this->finishEvent($eventId, $now, 'Stripe checkout attempt metadata is invalid');
+        }
+        $attempts = new CheckoutAttemptService($this->pdo, $this->config, $this->push);
+        $attempt = $attempts->byId((int) $rawId);
+        if ($attempt !== null) {
+            $cartLock = $this->pdo->prepare('SELECT id FROM carts WHERE id=:id' . ($this->pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql' ? ' FOR UPDATE' : ''));
+            $cartLock->execute(['id' => $attempt['cart_id']]);
+            $attempt = $attempts->byId((int) $rawId, true);
+        }
+        if ($attempt === null || $attempt['stripe_mode'] !== $this->config->stripeMode()
+            || !hash_equals((string) $attempt['idempotency_key'], (string) ($object['metadata']['checkout_attempt_key'] ?? ''))) {
+            return $this->finishEvent($eventId, $now, 'Stripe checkout attempt is missing or has a different mode');
+        }
+        $sessionEvent = str_starts_with($type, 'checkout.session.');
+        $association = (string) ($attempt[$sessionEvent ? 'checkout_session_id' : 'provider_payment_id'] ?? '');
+        if ($sessionEvent && $association === '') {
+            // The provider can beat the API response. Roll back event registration so Stripe retries it.
+            $this->pdo->rollBack();
+            return new Response(500);
+        }
+        if ($association === '' || ($object['id'] ?? null) !== $association
+            || ($object['object'] ?? null) !== ($sessionEvent ? 'checkout.session' : 'payment_intent')) {
+            return $this->finishEvent($eventId, $now, 'Stripe checkout attempt association mismatch');
+        }
+        $amount = $object[$sessionEvent ? 'amount_total' : 'amount'] ?? null;
+        if (!is_int($amount) || $amount !== (int) $attempt['total_bani']
+            || strtoupper((string) ($object['currency'] ?? '')) !== strtoupper((string) $attempt['currency'])) {
+            return $this->finishEvent($eventId, $now, 'Stripe checkout attempt amount or currency mismatch');
+        }
+        $success = in_array($type, ['checkout.session.completed', 'checkout.session.async_payment_succeeded'], true);
+        if ($success) {
+            if (($object['payment_status'] ?? '') !== 'paid') {
+                return $this->finishEvent($eventId, $now, $type === 'checkout.session.async_payment_succeeded' ? 'Stripe success event is not paid' : null);
+            }
+            $intentId = $object['payment_intent'] ?? null;
+            if (!is_string($intentId) || !str_starts_with($intentId, 'pi_')
+                || (!empty($attempt['provider_payment_id']) && $attempt['provider_payment_id'] !== $intentId)) {
+                return $this->finishEvent($eventId, $now, 'Stripe checkout attempt PaymentIntent mismatch');
+            }
+            $attempts->complete((int) $attempt['id'], $intentId, $association);
+        } elseif (in_array($type, ['checkout.session.expired', 'checkout.session.async_payment_failed', 'payment_intent.canceled'], true)) {
+            $attempts->release((int) $attempt['id'], $type === 'checkout.session.expired' ? 'expired' : 'failed');
+        }
+        $response = $this->finishEvent($eventId, $now);
+        if ($success) {
+            try { $this->push?->processPending(20); } catch (\Throwable) { /* Payment persistence never depends on push delivery. */ }
+        }
+        return $response;
     }
 
     private function finishEvent(string $eventId, string $now, ?string $error = null): ResponseInterface

@@ -162,7 +162,7 @@ final class AppFactory
         $postalCodeController = new PostalCodeController(RomanianPostalCodes::fromProjectRoot($root));
         $customerAccount = new CustomerAccountService(new CustomerAccountRepository($pdo), $romanianLocations);
         $paymentMethodSettings = new PaymentMethodSettingsService($pdo, $config);
-        $checkoutController = new CheckoutController(new CheckoutService($pdo, $cart, $config, $romanianLocations, $push, $shippingMethods, new CategoryPaymentPolicy($pdo, $config, $paymentMethodSettings), $internalOrderNotifications), $cart, $orders, new StripeCheckoutService($pdo, $config, $paymentMethodSettings), $auth, $customerAccount, $rateLimiter, $view, $config, $shippingMethods, new OrderResultPresenter($config));
+        $checkoutController = new CheckoutController(new CheckoutService($pdo, $cart, $config, $romanianLocations, $push, $shippingMethods, new CategoryPaymentPolicy($pdo, $config, $paymentMethodSettings), $internalOrderNotifications), $cart, $orders, new StripeCheckoutService($pdo, $config, $paymentMethodSettings), $auth, $customerAccount, $rateLimiter, $view, $config, $shippingMethods, new OrderResultPresenter($config), new \App\Modules\Checkout\CheckoutAttemptService($pdo, $config, $push));
         $authController = new AuthController($pdo, $auth, new GoogleOAuthService($pdo, $config), $customerAccount, $rateLimiter, $view, $config);
         $twoFactorController = new TwoFactorController($pdo, $auth, new TotpService($config), $adminRememberMe, $rateLimiter, $view, $config);
         $adminController = new AdminController($pdo, new AdminDashboardService($pdo), new AdminNotificationService($pdo), $push, $catalog, new CatalogAdminService($pdo, $productDescriptions), new CustomerAdminService($pdo), new NewsletterAdminService($pdo), $promotions, $shippingMethods, new SupplierAdminService($pdo), $orders, $reviews, new MediaService($pdo, $root), new ContentAdminService($pdo), $auth, $adminRememberMe, $rateLimiter, $view, $config, new \App\Modules\Orders\OrderCancellationService(new \App\Modules\Orders\OrderTrackingRepository($pdo), $orders));
@@ -196,6 +196,8 @@ final class AppFactory
         $app->post('/finalizare-comanda/', [$checkoutController, 'place']);
         $app->post('/finalizare-comanda/adresa/', [$checkoutController, 'saveAddress']);
         $app->get('/comanda/{token}/', [$checkoutController, 'confirmation']);
+        $app->post('/plata/{token}/reincearca/', [$checkoutController, 'resumePayment']);
+        $app->post('/plata/{token}/anuleaza/', [$checkoutController, 'cancelPayment']);
         $app->get('/urmarire-comanda/', [$tracking, 'show']);
         $app->post('/urmarire-comanda/', [$tracking, 'lookup']);
         $app->post('/urmarire-comanda/alta/', [$tracking, 'reset']);

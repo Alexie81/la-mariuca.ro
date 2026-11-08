@@ -20,7 +20,8 @@ final class StripeCheckoutCustomer
             'address' => self::address($billing),
             'shipping' => ['name' => $name, 'phone' => mb_substr((string) ($order['phone'] ?? ''), 0, 20), 'address' => self::address($shipping)],
             'preferred_locales' => ['ro'],
-            'metadata' => ['order_id' => (string) $order['id'], 'order_number' => (string) $order['order_number']],
+            'metadata' => isset($order['checkout_attempt_id']) ? ['checkout_attempt_id' => (string) $order['checkout_attempt_id'], 'checkout_attempt_key' => (string) $order['idempotency_key']]
+                : ['order_id' => (string) $order['id'], 'order_number' => (string) $order['order_number']],
         ];
     }
 

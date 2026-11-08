@@ -1,9 +1,9 @@
-// The return query only starts a read-only watch. Payment truth always comes from the server.
+// Only a server-rendered pending payment starts this read-only watch; URL hints never prove a result.
 const result = document.querySelector('[data-order-result="card_pending"]');
-if (result && new URL(window.location.href).searchParams.get('plata') === 'verificare') {
+if (result) {
   const status = document.querySelector('[data-order-payment-watch]');
   const originalMessage = status?.textContent;
-  const signature = (element) => [element.dataset.orderStatus, element.dataset.paymentStatus, element.dataset.paymentRecordStatus].join(':');
+  const signature = (element) => [element.dataset.paymentAttempt, element.dataset.orderStatus, element.dataset.paymentStatus, element.dataset.paymentRecordStatus].join(':');
   const initialSignature = signature(result);
   const deadline = Date.now() + 60000;
   let timer;
@@ -34,13 +34,13 @@ if (result && new URL(window.location.href).searchParams.get('plata') === 'verif
         return;
       }
     } catch {
-      // Network failures leave the existing manual refresh available.
+      // Transient network failures are retried without changing the displayed payment state.
     } finally {
       clearTimeout(timeout);
       if (!stopped) timer = setTimeout(check, 3000);
     }
   };
-  if (status) status.textContent = 'Verificăm automat confirmarea plății. Pagina se actualizează când primim răspunsul. Nu este nevoie să plasezi încă o comandă.';
+  if (status) status.textContent = 'Verificăm automat confirmarea plății. Pagina se actualizează când primim răspunsul. Nu iniția o a doua plată cât timp verificarea este în curs.';
   timer = setTimeout(check, 1500);
   window.addEventListener('pagehide', stop, { once: true });
 }

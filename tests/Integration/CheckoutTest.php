@@ -15,6 +15,7 @@ use RuntimeException;
 use Slim\Psr7\Factory\ServerRequestFactory;
 use Slim\Psr7\Factory\StreamFactory;
 use Tests\DatabaseTestCase;
+use Tests\Support\LegacyStripeOrderFixture;
 
 final class CheckoutTest extends DatabaseTestCase
 {
@@ -514,7 +515,7 @@ final class CheckoutTest extends DatabaseTestCase
         self::assertSame('Curier premium', $freeOrder['shipping_method_name']);
     }
 
-    public function testStripeWebhookConfirmsAndTerminalSessionEventsReleaseCouponRedemptions(): void
+    public function testLegacyStripeWebhookConfirmsAndTerminalSessionEventsReleaseCouponRedemptions(): void
     {
         $previousStripeEnabled = $_ENV['STRIPE_ENABLED'] ?? null;
         $previousStripeKey = $_ENV['STRIPE_SECRET_KEY'] ?? null;
@@ -532,7 +533,7 @@ final class CheckoutTest extends DatabaseTestCase
             $paidCart = new CartService($this->pdo);
             $paidCart->add((int) $variant['id'], 1);
             $paidCart->applyCoupon('STRIPE35');
-            $paidOrder = (new CheckoutService($this->pdo, $paidCart, $config))->place(array_replace(
+            $paidOrder = LegacyStripeOrderFixture::place($this->pdo, $paidCart, $config, array_replace(
                 $this->checkoutData('stripe-paid-order'),
                 ['payment_method' => 'stripe'],
             ));
@@ -577,7 +578,7 @@ final class CheckoutTest extends DatabaseTestCase
             $expiredCart = new CartService($this->pdo);
             $expiredCart->add((int) $variant['id'], 1);
             $expiredCart->applyCoupon('STRIPE35');
-            $expiredOrder = (new CheckoutService($this->pdo, $expiredCart, $config))->place(array_replace(
+            $expiredOrder = LegacyStripeOrderFixture::place($this->pdo, $expiredCart, $config, array_replace(
                 $this->checkoutData('stripe-expired-order'),
                 ['payment_method' => 'stripe'],
             ));
@@ -597,7 +598,7 @@ final class CheckoutTest extends DatabaseTestCase
             $failedCart = new CartService($this->pdo);
             $failedCart->add((int) $variant['id'], 1);
             $failedCart->applyCoupon('STRIPE35');
-            $failedOrder = (new CheckoutService($this->pdo, $failedCart, $config))->place(array_replace(
+            $failedOrder = LegacyStripeOrderFixture::place($this->pdo, $failedCart, $config, array_replace(
                 $this->checkoutData('stripe-async-failed-order'),
                 ['payment_method' => 'stripe'],
             ));
@@ -609,7 +610,7 @@ final class CheckoutTest extends DatabaseTestCase
             $retryableCart = new CartService($this->pdo);
             $retryableCart->add((int) $variant['id'], 1);
             $retryableCart->applyCoupon('STRIPE35');
-            $retryableOrder = (new CheckoutService($this->pdo, $retryableCart, $config))->place(array_replace(
+            $retryableOrder = LegacyStripeOrderFixture::place($this->pdo, $retryableCart, $config, array_replace(
                 $this->checkoutData('stripe-retryable-failure-order'),
                 ['payment_method' => 'stripe'],
             ));
@@ -623,7 +624,7 @@ final class CheckoutTest extends DatabaseTestCase
             $retryCart = new CartService($this->pdo);
             $retryCart->add((int) $variant['id'], 1);
             $retryCart->applyCoupon('STRIPE35');
-            $retryOrder = (new CheckoutService($this->pdo, $retryCart, $config))->place(array_replace(
+            $retryOrder = LegacyStripeOrderFixture::place($this->pdo, $retryCart, $config, array_replace(
                 $this->checkoutData('stripe-event-transaction-retry'),
                 ['payment_method' => 'stripe'],
             ));

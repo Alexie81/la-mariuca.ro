@@ -1,0 +1,41 @@
+CREATE TABLE checkout_attempts (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    public_token_hash CHAR(64) NOT NULL UNIQUE,
+    idempotency_key CHAR(64) NOT NULL UNIQUE,
+    cart_id BIGINT UNSIGNED NOT NULL,
+    active_cart_id BIGINT UNSIGNED NULL UNIQUE,
+    user_id BIGINT UNSIGNED NULL,
+    status VARCHAR(16) NOT NULL DEFAULT 'pending',
+    currency CHAR(3) NOT NULL,
+    total_bani INT UNSIGNED NOT NULL,
+    snapshot_json JSON NOT NULL,
+    checkout_session_id VARCHAR(255) NULL UNIQUE,
+    provider_payment_id VARCHAR(255) NULL UNIQUE,
+    expires_at VARCHAR(30) NOT NULL,
+    order_id BIGINT UNSIGNED NULL UNIQUE,
+    stripe_mode VARCHAR(8) NOT NULL,
+    last_error TEXT NULL,
+    created_at VARCHAR(30) NOT NULL,
+    updated_at VARCHAR(30) NOT NULL,
+    FOREIGN KEY(cart_id) REFERENCES carts(id),
+    FOREIGN KEY(active_cart_id) REFERENCES carts(id),
+    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY(order_id) REFERENCES orders(id),
+    INDEX idx_checkout_attempts_cart(cart_id,status),
+    INDEX idx_checkout_attempts_expiry(status,expires_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE checkout_attempt_holds (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    attempt_id BIGINT UNSIGNED NOT NULL,
+    variant_id BIGINT UNSIGNED NOT NULL,
+    quantity INT UNSIGNED NOT NULL,
+    status VARCHAR(16) NOT NULL DEFAULT 'active',
+    created_at VARCHAR(30) NOT NULL,
+    updated_at VARCHAR(30) NOT NULL,
+    FOREIGN KEY(attempt_id) REFERENCES checkout_attempts(id),
+    FOREIGN KEY(variant_id) REFERENCES product_variants(id),
+    UNIQUE KEY uq_checkout_attempt_hold(attempt_id,variant_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+ALTER TABLE coupon_redemptions ADD COLUMN attempt_id BIGINT UNSIGNED NULL,
+    ADD UNIQUE KEY uq_coupon_redemption_attempt(attempt_id),
+    ADD CONSTRAINT fk_coupon_redemption_attempt FOREIGN KEY(attempt_id) REFERENCES checkout_attempts(id);

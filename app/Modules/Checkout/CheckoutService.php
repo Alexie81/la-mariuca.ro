@@ -63,7 +63,7 @@ final class CheckoutService
         ];
     }
 
-    /** @param array<string, mixed> $data @return array{order_number:string,token:string,id:int,payment_method:string,idempotency_key:string} */
+    /** @param array<string, mixed> $data @return array{order_number:string,token:string,id:int,payment_method:string,idempotency_key:string,attempt_id?:int} */
     public function place(array $data): array
     {
         $required = ['email', 'first_name', 'last_name', 'phone', 'address', 'city', 'county', 'payment_method', 'idempotency_key'];
@@ -89,6 +89,13 @@ final class CheckoutService
         $method = (string) $data['payment_method'];
         if (!in_array($method, ['cod', 'stripe'], true)) {
             throw new RuntimeException('Metodă de plată invalidă.');
+        }
+        $attempts = new CheckoutAttemptService($this->pdo, $this->config, $this->push);
+        $pending = $attempts->findPendingForCart($this->cart->cartId());
+        if ($pending !== null) {
+            if ($method !== 'stripe') { throw new RuntimeException('Există o plată cu cardul în curs. Anulează încercarea înainte de a alege ramburs.'); }
+            return ['order_number' => '', 'token' => $attempts->publicToken($pending), 'id' => (int) $pending['id'],
+                'attempt_id' => (int) $pending['id'], 'payment_method' => 'stripe', 'idempotency_key' => (string) $pending['idempotency_key']];
         }
         $cart = $this->cart->summary();
         if ($cart['items'] === []) {
@@ -117,6 +124,24 @@ final class CheckoutService
 
         $this->pdo->beginTransaction();
         try {
+            $cartLock = $this->pdo->prepare('SELECT status FROM carts WHERE id=:id' . ($this->pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql' ? ' FOR UPDATE' : ''));
+            $cartLock->execute(['id' => $this->cart->cartId()]);
+            if ($cartLock->fetchColumn() !== 'active') { throw new RuntimeException('Coșul nu mai poate fi trimis.'); }
+            $pending = $attempts->findPendingForCart($this->cart->cartId());
+            if ($pending !== null) {
+                if ($method !== 'stripe') { throw new RuntimeException('Există o plată cu cardul în curs. Anulează încercarea înainte de a alege ramburs.'); }
+                $this->pdo->commit();
+                return ['order_number' => '', 'token' => $attempts->publicToken($pending), 'id' => (int) $pending['id'],
+                    'attempt_id' => (int) $pending['id'], 'payment_method' => 'stripe', 'idempotency_key' => (string) $pending['idempotency_key']];
+            }
+            $cart = $this->cart->summary();
+            if ($cart['items'] === []) { throw new RuntimeException('Coșul este gol.'); }
+            foreach ($cart['items'] as $item) {
+                if ($item['product_status'] !== 'published' || (int) $item['quantity'] > (int) $item['available_quantity']) {
+                    throw new RuntimeException('Un produs nu mai este disponibil în cantitatea solicitată.');
+                }
+            }
+            $discount = $cart['discount_bani'];
             $paymentOptions = $this->paymentPolicy->resolve($cart['items'], true);
             if (!$paymentOptions['methods'][$method]['available']) {
                 throw new RuntimeException($paymentOptions['methods'][$method]['reason'] . ' Verifică metodele de plată disponibile mai jos.');
@@ -149,6 +174,47 @@ final class CheckoutService
             }
             if ($shippingPromotionId !== null) {
                 $this->assertPromotionActive($shippingPromotionId, true, (int) $cart['subtotal_bani']);
+            }
+            if ($method === 'stripe') {
+                $couponSnapshot = null;
+                if (is_array($couponToRedeem)) {
+                    $this->assertCouponAvailable((int) $couponToRedeem['id'], (string) $data['email'], (int) $cart['subtotal_bani'], $now);
+                    $couponSnapshot = ['id' => (int) $couponToRedeem['id'],
+                        'merchandise_discount_bani' => is_array($merchandiseBenefit) && ($merchandiseBenefit['offer_source'] ?? '') === 'coupon' ? $discount : 0,
+                        'shipping_discount_bani' => is_array($shippingOffer) && ($shippingOffer['offer_source'] ?? '') === 'coupon' ? $shippingDiscount : 0];
+                }
+                $snapshotItems = [];
+                foreach ($cart['items'] as $item) {
+                    $target = $this->accountingTargetForVariant((int) $item['variant_id']);
+                    $snapshotItems[] = ['product_id' => (int) $item['product_id'], 'variant_id' => (int) $item['variant_id'],
+                        'product_name' => $item['name'], 'variant_summary' => $item['option_summary'], 'sku' => $item['sku'],
+                        'quantity' => (int) $item['quantity'], 'unit_price_bani' => (int) $item['price_bani'],
+                        'personalization_bani' => 0, 'line_total_bani' => (int) $item['line_total_bani'], 'tax_bani' => 0,
+                        'personalization_json' => $item['personalization_json'], 'stock_unlimited' => (int) ($item['stock_unlimited'] ?? 0),
+                        'accounting_scope_type' => $target['scope_type'] ?? null, 'accounting_scope_id' => $target['scope_id'] ?? null,
+                        'accounting_sku' => $target['sku'] ?? null, 'image_path' => $item['image_path'] ?? null, 'slug' => $item['slug'] ?? ''];
+                }
+                $snapshot = ['cart_id' => $this->cart->cartId(), 'user_id' => $userId,
+                    'email' => mb_strtolower(trim((string) $data['email'])), 'first_name' => trim((string) $data['first_name']),
+                    'last_name' => trim((string) $data['last_name']), 'phone' => trim((string) $data['phone']),
+                    'customer_type' => ($data['customer_type'] ?? 'person') === 'company' ? 'company' : 'person', 'company_json' => '{}',
+                    'shipping_address_json' => json_encode($address, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
+                    'billing_address_json' => json_encode($address, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
+                    'subtotal_bani' => (int) $cart['subtotal_bani'], 'discount_bani' => $discount,
+                    'customer_discount_id' => $customerDiscountId, 'customer_shipping_discount_id' => $customerShippingDiscountId,
+                    'promotion_id' => $promotionId, 'shipping_promotion_id' => $shippingPromotionId,
+                    'shipping_bani' => $shipping, 'shipping_discount_bani' => $shippingDiscount, 'tax_bani' => $tax,
+                    'total_bani' => $total, 'currency' => 'RON', 'payment_method' => 'stripe', 'shipping_method' => $shippingMethod['code'],
+                    'shipping_method_id' => $shippingMethod['id'], 'shipping_method_name' => $shippingMethod['name'],
+                    'internal_notes' => '', 'terms_accepted_at' => $now, 'marketing_consent' => isset($data['marketing']) ? 1 : 0,
+                    'shipping_estimate_json' => json_encode(\App\Modules\Shipping\StoredDeliveryEstimate::snapshot($shippingMethod), JSON_THROW_ON_ERROR),
+                    'payment_fee_bani' => $paymentFees['total_bani'], 'payment_fees_json' => json_encode($paymentFees['items'], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
+                    'items' => $snapshotItems];
+                $attemptId = $attempts->create($snapshot, $token, $idempotencyKey, $couponSnapshot);
+                $token = $attempts->publicToken(['idempotency_key' => $idempotencyKey]);
+                $this->pdo->commit();
+                return ['order_number' => '', 'token' => $token, 'id' => $attemptId, 'attempt_id' => $attemptId,
+                    'payment_method' => 'stripe', 'idempotency_key' => $idempotencyKey];
             }
             $insert = $this->pdo->prepare("INSERT INTO orders
                 (order_number, public_token_hash, idempotency_key, cart_id, user_id, email, first_name, last_name, phone, customer_type, company_json, shipping_address_json, billing_address_json, subtotal_bani, discount_bani, customer_discount_id, customer_shipping_discount_id, promotion_id, shipping_promotion_id, shipping_bani, shipping_discount_bani, tax_bani, total_bani, currency, status, payment_status, payment_method, shipping_method, shipping_method_id, shipping_method_name, internal_notes, terms_accepted_at, marketing_consent, created_at, updated_at)
@@ -235,7 +301,7 @@ final class CheckoutService
                 if (!$stockUnlimited) {
                     $this->pdo->prepare("INSERT INTO inventory_reservations (order_id, variant_id, quantity, status, expires_at, created_at, updated_at) VALUES (:order_id, :variant, :quantity, 'active', :expires, :now, :now)")->execute([
                         'order_id' => $orderId, 'variant' => $item['variant_id'], 'quantity' => $item['quantity'],
-                        'expires' => $method === 'stripe' ? gmdate('c', time() + 3600) : null, 'now' => $now,
+                        'expires' => null, 'now' => $now,
                     ]);
                     $this->pdo->prepare("INSERT INTO inventory_movements (variant_id, type, physical_delta, reserved_delta, reason, reference_type, reference_id, created_at) VALUES (:variant, 'reserve', 0, :quantity, 'Rezervare la plasarea comenzii', 'order', :order_id, :now)")->execute([
                         'variant' => $item['variant_id'], 'quantity' => $item['quantity'], 'order_id' => $orderId, 'now' => $now,
@@ -246,12 +312,10 @@ final class CheckoutService
                 'order_id' => $orderId, 'provider' => $method, 'amount' => $total, 'now' => $now,
             ]);
             // Card confirmation is queued only by the verified, successful payment webhook.
-            if ($method === 'cod') {
-                $this->pdo->prepare("INSERT INTO outbox_messages (message_type, recipient, payload_json, status, attempts, available_at, created_at) VALUES ('order_confirmation', :recipient, :payload, 'pending', 0, :now, :now)")->execute([
-                    'recipient' => mb_strtolower(trim((string) $data['email'])), 'payload' => json_encode(['order_id' => $orderId], JSON_THROW_ON_ERROR), 'now' => $now,
-                ]);
-                $this->internalNotifications->queue($orderId);
-            }
+            $this->pdo->prepare("INSERT INTO outbox_messages (message_type, recipient, payload_json, status, attempts, available_at, created_at) VALUES ('order_confirmation', :recipient, :payload, 'pending', 0, :now, :now)")->execute([
+                'recipient' => mb_strtolower(trim((string) $data['email'])), 'payload' => json_encode(['order_id' => $orderId], JSON_THROW_ON_ERROR), 'now' => $now,
+            ]);
+            $this->internalNotifications->queue($orderId);
             $this->pdo->prepare("UPDATE carts SET status = 'converted', updated_at = :now WHERE id = :id AND status = 'active'")->execute(['now' => $now, 'id' => $this->cart->cartId()]);
             $this->push?->queueOrder($orderId);
             $this->push?->queueLowStockForOrder($orderId);
@@ -285,6 +349,24 @@ final class CheckoutService
         if (!is_array($discount) || (($discount['scope'] === 'shipping') !== $shipping)) {
             throw new RuntimeException('Reducerea personalizată nu mai este disponibilă. Reîncarcă pagina și încearcă din nou.');
         }
+    }
+
+    private function assertCouponAvailable(int $couponId, string $email, int $subtotal, string $now): void
+    {
+        $query = $this->pdo->prepare('SELECT * FROM coupons WHERE id=:id' . ($this->pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql' ? ' FOR UPDATE' : ''));
+        $query->execute(['id' => $couponId]);
+        $coupon = $query->fetch();
+        if (!is_array($coupon) || $coupon['status'] !== 'active' || $coupon['deleted_at'] !== null
+            || ($coupon['starts_at'] !== null && (string) $coupon['starts_at'] > $now)
+            || ($coupon['ends_at'] !== null && (string) $coupon['ends_at'] <= $now) || (int) $coupon['minimum_bani'] > $subtotal) {
+            throw new RuntimeException('Cuponul nu mai este disponibil.');
+        }
+        $usage = $this->pdo->prepare("SELECT COUNT(*) FROM coupon_redemptions WHERE coupon_id=:id AND status IN ('reserved','confirmed')");
+        $usage->execute(['id' => $couponId]);
+        if ($coupon['usage_limit'] !== null && (int) $usage->fetchColumn() >= (int) $coupon['usage_limit']) { throw new RuntimeException('Limita cuponului a fost atinsă între timp.'); }
+        $usage = $this->pdo->prepare("SELECT COUNT(*) FROM coupon_redemptions WHERE coupon_id=:id AND email=:email AND status IN ('reserved','confirmed')");
+        $usage->execute(['id' => $couponId, 'email' => mb_strtolower(trim($email))]);
+        if ($coupon['per_customer_limit'] !== null && (int) $usage->fetchColumn() >= (int) $coupon['per_customer_limit']) { throw new RuntimeException('Cuponul a fost deja folosit de acest client de numărul maxim de ori.'); }
     }
 
     private function assertPromotionActive(int $promotionId, bool $shipping, int $subtotalBani): void

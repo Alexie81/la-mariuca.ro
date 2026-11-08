@@ -12,6 +12,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use Slim\Psr7\Factory\ServerRequestFactory;
 use Slim\Psr7\Factory\StreamFactory;
 use Tests\DatabaseTestCase;
+use Tests\Support\LegacyStripeOrderFixture;
 
 final class StripeWebhookSecurityTest extends DatabaseTestCase
 {
@@ -33,7 +34,7 @@ final class StripeWebhookSecurityTest extends DatabaseTestCase
         $shipping = (int) $this->pdo->query("SELECT id FROM shipping_methods WHERE status='active' AND deleted_at IS NULL ORDER BY is_default DESC,position,id LIMIT 1")->fetchColumn();
         $cart = new CartService($this->pdo);
         $cart->add($variant, 1);
-        $order = (new CheckoutService($this->pdo, $cart, Config::load($this->root)))->place([
+        $order = LegacyStripeOrderFixture::place($this->pdo, $cart, Config::load($this->root), [
             'email' => 'stripe.security@example.test', 'first_name' => 'Test', 'last_name' => 'Stripe', 'phone' => '0700000000',
             'address' => 'Strada Test 1', 'city' => 'București — Sector 1', 'county' => 'București', 'postal_code' => '',
             'shipping_method_id' => $shipping, 'payment_method' => 'stripe', 'idempotency_key' => bin2hex(random_bytes(20)), 'terms' => '1',

@@ -6,6 +6,7 @@ namespace Tests\Integration;
 
 use App\Modules\Cart\CartService;
 use App\Modules\Checkout\CheckoutService;
+use App\Modules\Checkout\CheckoutAttemptService;
 use App\Modules\Payments\StripeCheckoutPayload;
 use App\Modules\Payments\StripeCheckoutService;
 use App\Shared\Config\Config;
@@ -29,7 +30,7 @@ final class StripeHostedCheckoutTest extends DatabaseTestCase
         $_ENV['STRIPE_SECRET_KEY'] = 'sk_test_hosted_checkout';
         $_ENV['STRIPE_WEBHOOK_SECRET'] = 'whsec_hosted_checkout';
         $_ENV['WEB_PUSH_ENABLED'] = 'false';
-        $_ENV['MAIL_DELIVERY_MODE'] = 'spool';
+        $_ENV['MAIL_DELIVERY_MODE'] = 'preview';
     }
 
     protected function tearDown(): void
@@ -118,12 +119,12 @@ final class StripeHostedCheckoutTest extends DatabaseTestCase
     public function testSessionCreationPersistsAssociationAndRetryReusesSessionWithoutEmailsOrPaymentConfirmation(): void
     {
         $order = $this->place();
-        $stored = $this->pdo->query('SELECT * FROM orders WHERE id=' . $order['id'])->fetch(PDO::FETCH_ASSOC);
+        $stored = $this->attemptSnapshot($order['id']);
         $client = $this->createMock(StripeClientInterface::class);
         $session = Session::constructFrom([
             'id' => 'cs_test_hosted', 'url' => 'https://checkout.stripe.com/c/pay/cs_test_hosted',
             'status' => 'open', 'payment_status' => 'unpaid', 'livemode' => false,
-            'amount_total' => (int) $stored['total_bani'], 'currency' => 'ron', 'metadata' => ['order_id' => (string) $order['id']], 'payment_intent' => null,
+            'amount_total' => (int) $stored['total_bani'], 'currency' => 'ron', 'metadata' => ['checkout_attempt_id' => (string) $order['id'], 'checkout_attempt_key' => $order['idempotency_key']], 'payment_intent' => null,
         ]);
         $requests = [];
         $client->expects(self::exactly(3))->method('request')->willReturnCallback(function ($method, $path, $params, $options) use (&$requests, $session, $stored) {
@@ -139,7 +140,7 @@ final class StripeHostedCheckoutTest extends DatabaseTestCase
             if ($method === 'post') {
                 self::assertSame('/v1/checkout/sessions', $path);
                 self::assertSame((int) $stored['total_bani'], $this->total($params));
-                self::assertStringStartsWith('checkout-', $options['idempotency_key']);
+                self::assertStringStartsWith('attempt-checkout-', $options['idempotency_key']);
                 self::assertNotSame('Comanda ' . $stored['order_number'], $params['line_items'][0]['price_data']['product_data']['name']);
                 self::assertSame('cus_test_prefilled', $params['customer']);
                 self::assertArrayNotHasKey('customer_email', $params);
@@ -148,30 +149,33 @@ final class StripeHostedCheckoutTest extends DatabaseTestCase
             return $session;
         });
         $service = new StripeCheckoutService($this->pdo, Config::load($this->root), null, $client);
-        self::assertSame($session->url, $service->createSession($order['id'], $order['token'], $order['idempotency_key']));
-        self::assertSame('cs_test_hosted', $this->pdo->query('SELECT checkout_session_id FROM payments')->fetchColumn());
-        self::assertSame($session->url, $service->createSession($order['id'], $order['token'], $order['idempotency_key']));
+        self::assertSame($session->url, $service->createAttemptSession($order['id'], $order['token'], $order['idempotency_key']));
+        self::assertSame('cs_test_hosted', $this->pdo->query('SELECT checkout_session_id FROM checkout_attempts')->fetchColumn());
+        self::assertSame($session->url, $service->createAttemptSession($order['id'], $order['token'], $order['idempotency_key']));
         self::assertSame([['post', '/v1/customers'], ['post', '/v1/checkout/sessions'], ['get', '/v1/checkout/sessions/cs_test_hosted']], $requests);
-        self::assertSame('pending', $this->pdo->query('SELECT payment_status FROM orders')->fetchColumn());
+        self::assertSame('pending', $this->pdo->query('SELECT status FROM checkout_attempts')->fetchColumn());
+        self::assertSame(0, (int) $this->pdo->query('SELECT COUNT(*) FROM orders')->fetchColumn());
+        self::assertSame(0, (int) $this->pdo->query('SELECT COUNT(*) FROM payments')->fetchColumn());
         self::assertSame(0, (int) $this->pdo->query('SELECT COUNT(*) FROM outbox_messages')->fetchColumn());
     }
 
-    public function testCancelledOrderCannotStartACharge(): void
+    public function testExpiredAttemptCannotStartACharge(): void
     {
         $order = $this->place();
-        $this->pdo->exec("UPDATE orders SET status='cancelled'");
+        $this->pdo->exec("UPDATE checkout_attempts SET status='expired'");
         $client = $this->createMock(StripeClientInterface::class);
         $client->expects(self::never())->method('request');
         $this->expectException(RuntimeException::class);
-        (new StripeCheckoutService($this->pdo, Config::load($this->root), null, $client))->createSession($order['id'], $order['token'], $order['idempotency_key']);
+        (new StripeCheckoutService($this->pdo, Config::load($this->root), null, $client))->createAttemptSession($order['id'], $order['token'], $order['idempotency_key']);
     }
 
     public function testOrderSpecificCouponOnlyReducesMerchandiseWhileShippingIsAlreadyNet(): void
     {
-        $order = $this->place();
-        $this->pdo->exec("UPDATE orders SET discount_bani=101,shipping_discount_bani=shipping_bani,total_bani=total_bani-shipping_bani-101,shipping_bani=0");
-        $this->pdo->exec('UPDATE payments SET amount_bani=(SELECT total_bani FROM orders WHERE orders.id=payments.order_id)');
-        $stored = $this->pdo->query('SELECT * FROM orders WHERE id=' . $order['id'])->fetch(PDO::FETCH_ASSOC);
+        $now = gmdate('c');
+        $this->pdo->prepare("INSERT INTO coupons (code,name,type,scope,value_type,value,minimum_bani,status,created_at) VALUES ('HOSTED101','Hosted','fixed','order','fixed',101,0,'active',?)")->execute([$now]);
+        $this->pdo->prepare("INSERT INTO promotions (name,scope,value_type,value,status,created_at,updated_at) VALUES ('Free shipping','shipping','free',0,'active',?,?)")->execute([$now, $now]);
+        $order = $this->place('HOSTED101');
+        $stored = $this->attemptSnapshot($order['id']);
         $client = $this->createMock(StripeClientInterface::class);
         $coupon = $this->builder()->coupon($stored);
         $client->expects(self::exactly(4))->method('request')->willReturnCallback(function ($method, $path, $params, $options) use ($coupon, $stored) {
@@ -190,7 +194,7 @@ final class StripeHostedCheckoutTest extends DatabaseTestCase
                 self::assertSame('once', $params['duration']);
                 self::assertCount(1, $params['applies_to']['products']);
                 self::assertStringStartsWith('lm_checkout_', $params['applies_to']['products'][0]);
-                self::assertStringStartsWith('checkout-discount-', $options['idempotency_key']);
+                self::assertStringStartsWith('attempt-discount-', $options['idempotency_key']);
                 return \Stripe\Coupon::constructFrom($params);
             }
             self::assertSame('/v1/checkout/sessions', $path);
@@ -198,10 +202,119 @@ final class StripeHostedCheckoutTest extends DatabaseTestCase
             self::assertSame((int) $stored['total_bani'], $this->total($params) - $coupon['amount_off']);
             return Session::constructFrom(['id' => 'cs_test_discount', 'url' => 'https://checkout.stripe.com/c/pay/cs_test_discount',
                 'status' => 'open', 'payment_status' => 'unpaid', 'livemode' => false, 'amount_total' => (int) $stored['total_bani'],
-                'currency' => 'ron', 'metadata' => ['order_id' => (string) $stored['id']], 'payment_intent' => null]);
+                'currency' => 'ron', 'metadata' => ['checkout_attempt_id' => (string) $stored['id'], 'checkout_attempt_key' => $stored['idempotency_key']], 'payment_intent' => null]);
         });
-        (new StripeCheckoutService($this->pdo, Config::load($this->root), null, $client))->createSession($order['id'], $order['token'], $order['idempotency_key']);
-        self::assertSame('cs_test_discount', $this->pdo->query('SELECT checkout_session_id FROM payments')->fetchColumn());
+        (new StripeCheckoutService($this->pdo, Config::load($this->root), null, $client))->createAttemptSession($order['id'], $order['token'], $order['idempotency_key']);
+        self::assertSame('cs_test_discount', $this->pdo->query('SELECT checkout_session_id FROM checkout_attempts')->fetchColumn());
+    }
+
+    public function testCancellationReleasesHoldsOnlyAfterStripeConfirmsSessionExpired(): void
+    {
+        $attempt = $this->place();
+        $stored = $this->attemptSnapshot($attempt['id']);
+        $this->pdo->exec("UPDATE checkout_attempts SET checkout_session_id='cs_test_cancel'");
+        $client = $this->createMock(StripeClientInterface::class);
+        $requests = [];
+        $client->expects(self::exactly(2))->method('request')->willReturnCallback(function ($method, $path) use ($attempt, $stored, &$requests) {
+            self::assertFalse($this->pdo->inTransaction(), 'Never hold inventory locks across a provider call.');
+            $requests[] = [$method, $path];
+            self::assertSame('active', $this->pdo->query('SELECT status FROM checkout_attempt_holds')->fetchColumn());
+            return $this->providerSession($attempt, $stored, 'cs_test_cancel', $method === 'get' ? 'open' : 'expired');
+        });
+        (new StripeCheckoutService($this->pdo, Config::load($this->root), null, $client))->cancelAttemptSession($attempt['id'], $attempt['token']);
+        self::assertSame([['get', '/v1/checkout/sessions/cs_test_cancel'], ['post', '/v1/checkout/sessions/cs_test_cancel/expire']], $requests);
+        self::assertSame('expired', $this->pdo->query('SELECT status FROM checkout_attempts')->fetchColumn());
+        self::assertSame('released', $this->pdo->query('SELECT status FROM checkout_attempt_holds')->fetchColumn());
+        self::assertSame(0, (int) $this->pdo->query('SELECT SUM(reserved_quantity) FROM inventory')->fetchColumn());
+        self::assertSame(0, (int) $this->pdo->query('SELECT COUNT(*) FROM orders')->fetchColumn());
+        self::assertSame(0, (int) $this->pdo->query('SELECT COUNT(*) FROM outbox_messages')->fetchColumn());
+    }
+
+    public function testCancellationRacingACompletedPaymentDoesNotReleaseStockOrInventAnOrder(): void
+    {
+        $attempt = $this->place();
+        $stored = $this->attemptSnapshot($attempt['id']);
+        $this->pdo->exec("UPDATE checkout_attempts SET checkout_session_id='cs_test_already_paid'");
+        $client = $this->createMock(StripeClientInterface::class);
+        $client->expects(self::once())->method('request')->willReturn($this->providerSession($attempt, $stored, 'cs_test_already_paid', 'complete', 'paid'));
+        try {
+            (new StripeCheckoutService($this->pdo, Config::load($this->root), null, $client))->cancelAttemptSession($attempt['id'], $attempt['token']);
+            self::fail('A completed payment must wait for its verified paid webhook.');
+        } catch (RuntimeException $error) {
+            self::assertStringContainsString('confirmarea', $error->getMessage());
+        }
+        self::assertSame('pending', $this->pdo->query('SELECT status FROM checkout_attempts')->fetchColumn());
+        self::assertSame('active', $this->pdo->query('SELECT status FROM checkout_attempt_holds')->fetchColumn());
+        self::assertSame(2, (int) $this->pdo->query('SELECT SUM(reserved_quantity) FROM inventory')->fetchColumn());
+        self::assertSame(0, (int) $this->pdo->query('SELECT COUNT(*) FROM orders')->fetchColumn());
+        self::assertSame(0, (int) $this->pdo->query('SELECT COUNT(*) FROM outbox_messages')->fetchColumn());
+    }
+
+    public function testCancellationNetworkFailureKeepsThePayableAttemptAndItsStockHold(): void
+    {
+        $attempt = $this->place();
+        $this->pdo->exec("UPDATE checkout_attempts SET checkout_session_id='cs_test_timeout'");
+        $client = $this->createMock(StripeClientInterface::class);
+        $client->expects(self::once())->method('request')->willThrowException(new RuntimeException('Simulated connection failure'));
+        try {
+            (new StripeCheckoutService($this->pdo, Config::load($this->root), null, $client))->cancelAttemptSession($attempt['id'], $attempt['token']);
+            self::fail('Unconfirmed remote cancellation must fail safely.');
+        } catch (RuntimeException) {
+            self::assertSame('pending', $this->pdo->query('SELECT status FROM checkout_attempts')->fetchColumn());
+        }
+        self::assertSame('active', $this->pdo->query('SELECT status FROM checkout_attempt_holds')->fetchColumn());
+        self::assertSame(2, (int) $this->pdo->query('SELECT SUM(reserved_quantity) FROM inventory')->fetchColumn());
+        self::assertSame(0, (int) $this->pdo->query('SELECT COUNT(*) FROM orders')->fetchColumn());
+        self::assertSame(0, (int) $this->pdo->query('SELECT COUNT(*) FROM outbox_messages')->fetchColumn());
+    }
+
+    public function testAmbiguousSessionCreationCanRetryWithTheSameIdempotencyKeyAndNoOrder(): void
+    {
+        $attempt = $this->place();
+        $stored = $this->attemptSnapshot($attempt['id']);
+        $client = $this->createMock(StripeClientInterface::class);
+        $keys = [];
+        $sessionCalls = 0;
+        $client->expects(self::exactly(4))->method('request')->willReturnCallback(function ($method, $path, $params, $options) use ($attempt, $stored, &$keys, &$sessionCalls) {
+            self::assertFalse($this->pdo->inTransaction());
+            $keys[$path][] = $options['idempotency_key'];
+            if ($path === '/v1/customers') { return \Stripe\Customer::constructFrom(['id' => 'cus_retry']); }
+            self::assertSame('/v1/checkout/sessions', $path);
+            if (++$sessionCalls === 1) { throw new RuntimeException('Simulated response timeout after Stripe accepted the request'); }
+            return $this->providerSession($attempt, $stored, 'cs_test_recovered');
+        });
+        $service = new StripeCheckoutService($this->pdo, Config::load($this->root), null, $client);
+        try {
+            $service->createAttemptSession($attempt['id'], $attempt['token'], $attempt['idempotency_key']);
+            self::fail('Expected simulated timeout.');
+        } catch (RuntimeException) { $service->markAttemptSessionFailure($attempt['id']); }
+        self::assertSame('pending', $this->pdo->query('SELECT status FROM checkout_attempts')->fetchColumn());
+        self::assertSame('active', $this->pdo->query('SELECT status FROM checkout_attempt_holds')->fetchColumn());
+        self::assertSame(0, (int) $this->pdo->query('SELECT COUNT(*) FROM orders')->fetchColumn());
+        self::assertSame('https://checkout.stripe.com/c/pay/cs_test_recovered', $service->createAttemptSession($attempt['id'], $attempt['token'], $attempt['idempotency_key']));
+        foreach ($keys as $path => $values) { self::assertCount(1, array_unique($values), $path); }
+        self::assertSame('cs_test_recovered', $this->pdo->query('SELECT checkout_session_id FROM checkout_attempts')->fetchColumn());
+        self::assertSame(1, (int) $this->pdo->query('SELECT COUNT(*) FROM checkout_attempts')->fetchColumn());
+        self::assertSame(0, (int) $this->pdo->query('SELECT COUNT(*) FROM orders')->fetchColumn());
+        self::assertSame(0, (int) $this->pdo->query('SELECT COUNT(*) FROM outbox_messages')->fetchColumn());
+    }
+
+    private function providerSession(array $attempt, array $stored, string $id, string $status = 'open', string $paymentStatus = 'unpaid'): Session
+    {
+        return Session::constructFrom([
+            'id' => $id, 'url' => 'https://checkout.stripe.com/c/pay/' . $id, 'status' => $status,
+            'payment_status' => $paymentStatus, 'livemode' => false, 'amount_total' => (int) $stored['total_bani'], 'currency' => 'ron',
+            'metadata' => ['checkout_attempt_id' => (string) $attempt['id'], 'checkout_attempt_key' => $attempt['idempotency_key']],
+            'payment_intent' => $paymentStatus === 'paid' ? 'pi_provider_test' : null,
+        ]);
+    }
+
+    private function attemptSnapshot(int $id): array
+    {
+        $attempts = new CheckoutAttemptService($this->pdo, Config::load($this->root));
+        $attempt = $attempts->byId($id);
+        self::assertIsArray($attempt);
+        return $attempts->snapshot($attempt);
     }
 
     private function builder(): StripeCheckoutPayload { return new StripeCheckoutPayload(Config::load($this->root)); }
@@ -223,11 +336,12 @@ final class StripeHostedCheckoutTest extends DatabaseTestCase
         return array_sum(array_map(static fn (array $line): int => $line['quantity'] * $line['price_data']['unit_amount'], $payload['line_items']));
     }
 
-    private function place(): array
+    private function place(?string $coupon = null): array
     {
         $variant = (int) $this->pdo->query("SELECT v.id FROM product_variants v JOIN products p ON p.id=v.product_id JOIN inventory i ON i.variant_id=v.id WHERE p.status='published' AND v.status='active' AND i.physical_quantity-i.reserved_quantity>4 ORDER BY v.id LIMIT 1")->fetchColumn();
         $cart = new CartService($this->pdo);
         $cart->add($variant, 2);
+        if ($coupon !== null) { $cart->applyCoupon($coupon); }
         return (new CheckoutService($this->pdo, $cart, Config::load($this->root)))->place([
             'idempotency_key' => bin2hex(random_bytes(32)), 'email' => 'hosted@example.test', 'first_name' => 'Ana', 'last_name' => 'Test',
             'phone' => '0712345678', 'address' => 'Strada Test nr. 1', 'city' => 'Cluj-Napoca', 'county' => 'Cluj', 'postal_code' => '', 'terms' => '1', 'payment_method' => 'stripe',

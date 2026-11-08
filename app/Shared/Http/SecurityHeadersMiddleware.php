@@ -25,7 +25,8 @@ final class SecurityHeadersMiddleware implements MiddlewareInterface
             ->withHeader('X-Frame-Options', 'DENY')
             ->withHeader('Referrer-Policy', $referrerPolicy)
             ->withHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
-            ->withHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; font-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'self'");
+            // Browsers apply form-action to the hosted payment redirect after our local POST too.
+            ->withHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; font-src 'self'; form-action 'self' https://checkout.stripe.com https://checkout.stripe.dev; frame-ancestors 'none'; base-uri 'self'");
 
         if (!$this->config->bool('APP_INDEXING')) {
             $response = $response->withHeader('X-Robots-Tag', 'noindex, nofollow');

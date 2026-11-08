@@ -40,7 +40,7 @@ final class PaymentMethodSettingsTest extends DatabaseTestCase
         $_ENV['STRIPE_SECRET_KEY'] = 'sk_test_private_payment_settings';
         $_ENV['STRIPE_WEBHOOK_SECRET'] = 'whsec_payment_settings';
         $_ENV['WEB_PUSH_ENABLED'] = 'false';
-        $_ENV['MAIL_DELIVERY_MODE'] = 'spool';
+        $_ENV['MAIL_DELIVERY_MODE'] = 'preview';
         $this->pdo->exec("INSERT INTO users (email,password_hash,first_name,last_name,role,status,created_at,updated_at) VALUES ('payment.admin@example.test','unused','Ana','Admin','administrator','active','2026-11-08T10:00:00+00:00','2026-11-08T10:00:00+00:00')");
         $this->adminId = (int) $this->pdo->lastInsertId();
         (new Csrf())->token();
@@ -161,14 +161,15 @@ final class PaymentMethodSettingsTest extends DatabaseTestCase
         (new StripeCheckoutService($this->pdo, Config::load($this->root)))->createSession(123, 'not-used', 'not-used');
     }
 
-    public function testAdminCanEnableConfiguredCardAndPlaceOrderDespiteEnvironmentDefaultOff(): void
+    public function testAdminCanEnableConfiguredCardAndStartAttemptDespiteEnvironmentDefaultOff(): void
     {
         $_ENV['STRIPE_ENABLED'] = 'false';
         $this->settings()->save(false, true, $this->adminId);
         $cart = $this->cart();
         $order = (new CheckoutService($this->pdo, $cart, Config::load($this->root)))->place($this->checkoutData('stripe'));
         self::assertSame('stripe', $order['payment_method']);
-        self::assertSame('pending', $this->pdo->query('SELECT payment_status FROM orders')->fetchColumn());
+        self::assertSame('pending', $this->pdo->query('SELECT status FROM checkout_attempts')->fetchColumn());
+        self::assertSame(0, (int) $this->pdo->query('SELECT COUNT(*) FROM orders')->fetchColumn());
         self::assertSame(0, (int) $this->pdo->query('SELECT COUNT(*) FROM outbox_messages')->fetchColumn());
     }
 
@@ -178,14 +179,14 @@ final class PaymentMethodSettingsTest extends DatabaseTestCase
         $order = (new CheckoutService($this->pdo, $cart, Config::load($this->root)))->place($this->checkoutData('stripe'));
         $this->settings()->save(true, false, $this->adminId);
         $_ENV['STRIPE_ENABLED'] = 'false';
-        $amount = (int) $this->pdo->query('SELECT total_bani FROM orders WHERE id=' . (int) $order['id'])->fetchColumn();
-        $this->pdo->prepare("UPDATE payments SET checkout_session_id='cs_payment_after_switch_off' WHERE order_id=:id")
+        $amount = (int) $this->pdo->query('SELECT total_bani FROM checkout_attempts WHERE id=' . (int) $order['id'])->fetchColumn();
+        $this->pdo->prepare("UPDATE checkout_attempts SET checkout_session_id='cs_payment_after_switch_off' WHERE id=:id")
             ->execute(['id' => $order['id']]);
         $payload = json_encode([
             'id' => 'evt_payment_after_switch_off', 'object' => 'event', 'api_version' => '2025-09-30.clover', 'created' => time(),
             'type' => 'checkout.session.completed', 'livemode' => false,
             'data' => ['object' => ['id' => 'cs_payment_after_switch_off', 'object' => 'checkout.session', 'payment_status' => 'paid',
-                'amount_total' => $amount, 'currency' => 'ron', 'payment_intent' => 'pi_payment_after_switch_off', 'metadata' => ['order_id' => (string) $order['id']]]],
+                'amount_total' => $amount, 'currency' => 'ron', 'payment_intent' => 'pi_payment_after_switch_off', 'metadata' => ['checkout_attempt_id' => (string) $order['id'], 'checkout_attempt_key' => $order['idempotency_key']]]],
         ], JSON_THROW_ON_ERROR);
         $timestamp = time();
         $request = (new ServerRequestFactory())->createServerRequest('POST', 'http://localhost/stripe/webhook')
@@ -193,7 +194,8 @@ final class PaymentMethodSettingsTest extends DatabaseTestCase
             ->withBody((new StreamFactory())->createStream($payload));
         $handler = new StripeWebhookController($this->pdo, Config::load($this->root));
         self::assertSame(400, $handler($request->withHeader('Stripe-Signature', 'invalid'))->getStatusCode());
-        self::assertSame('pending', $this->pdo->query('SELECT payment_status FROM orders')->fetchColumn());
+        self::assertSame('pending', $this->pdo->query('SELECT status FROM checkout_attempts')->fetchColumn());
+        self::assertSame(0, (int) $this->pdo->query('SELECT COUNT(*) FROM orders')->fetchColumn());
         self::assertSame(200, $handler($request)->getStatusCode());
         self::assertSame('paid', $this->pdo->query('SELECT payment_status FROM orders')->fetchColumn());
         self::assertSame('confirmed', $this->pdo->query('SELECT status FROM orders')->fetchColumn());

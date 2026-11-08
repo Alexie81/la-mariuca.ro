@@ -7,6 +7,7 @@ namespace Tests\Integration;
 use App\AppFactory;
 use App\Modules\Cart\CartService;
 use App\Modules\Checkout\CheckoutService;
+use App\Modules\Checkout\CheckoutAttemptService;
 use App\Modules\Payments\PaymentMethodSettingsService;
 use App\Shared\Config\Config;
 use App\Shared\Security\Csrf;
@@ -27,7 +28,7 @@ final class CheckoutCategoryPaymentTest extends DatabaseTestCase
     {
         $overrides = [
             'STRIPE_ENABLED' => 'true', 'STRIPE_SECRET_KEY' => 'sk_test_category_checkout',
-            'COD_ENABLED' => 'true', 'MAIL_DELIVERY_MODE' => 'spool',
+            'COD_ENABLED' => 'true', 'MAIL_DELIVERY_MODE' => 'preview',
             'MAILER_DSN' => 'null://null', 'WEB_PUSH_ENABLED' => 'false',
         ];
         foreach ($overrides as $key => $value) {
@@ -107,10 +108,16 @@ final class CheckoutCategoryPaymentTest extends DatabaseTestCase
         $service = new CheckoutService($this->pdo, new CartService($this->pdo), Config::load($this->root));
         $result = $service->place($this->checkoutData('stripe'));
         self::assertSame('stripe', $result['payment_method']);
-        $order = $this->pdo->query('SELECT payment_method,payment_status FROM orders WHERE id=' . (int) $result['id'])->fetch();
-        self::assertSame('stripe', $order['payment_method']);
-        self::assertSame('pending', $order['payment_status']);
-        self::assertSame(2, (int) $this->pdo->query('SELECT COUNT(*) FROM order_items')->fetchColumn());
+        $attempts = new CheckoutAttemptService($this->pdo, Config::load($this->root));
+        $attempt = $attempts->byId($result['attempt_id']);
+        self::assertIsArray($attempt);
+        $snapshot = $attempts->snapshot($attempt);
+        self::assertSame('stripe', $snapshot['payment_method']);
+        self::assertSame('pending', $snapshot['payment_status']);
+        self::assertCount(2, $snapshot['items']);
+        self::assertSame(0, (int) $this->pdo->query('SELECT COUNT(*) FROM orders')->fetchColumn());
+        self::assertSame(0, (int) $this->pdo->query('SELECT COUNT(*) FROM order_items')->fetchColumn());
+        self::assertSame(2, (int) $this->pdo->query('SELECT COUNT(*) FROM checkout_attempt_holds')->fetchColumn());
         self::assertSame(0, (int) $this->pdo->query('SELECT COUNT(*) FROM outbox_messages')->fetchColumn());
     }
 
@@ -233,9 +240,10 @@ final class CheckoutCategoryPaymentTest extends DatabaseTestCase
         $service = new CheckoutService($this->pdo, new CartService($this->pdo), Config::load($this->root));
         $result = $service->place($this->checkoutData('stripe'));
         self::assertSame('stripe', $result['payment_method']);
-        self::assertSame('stripe', $this->pdo->query('SELECT payment_method FROM orders')->fetchColumn());
-        self::assertSame('pending', $this->pdo->query('SELECT payment_status FROM orders')->fetchColumn());
-        self::assertSame(1, (int) $this->pdo->query('SELECT COUNT(*) FROM inventory_reservations')->fetchColumn());
+        self::assertSame('pending', $this->pdo->query('SELECT status FROM checkout_attempts')->fetchColumn());
+        self::assertSame(0, (int) $this->pdo->query('SELECT COUNT(*) FROM orders')->fetchColumn());
+        self::assertSame(0, (int) $this->pdo->query('SELECT COUNT(*) FROM inventory_reservations')->fetchColumn());
+        self::assertSame(1, (int) $this->pdo->query('SELECT COUNT(*) FROM checkout_attempt_holds')->fetchColumn());
         self::assertSame(0, (int) $this->pdo->query('SELECT COUNT(*) FROM outbox_messages')->fetchColumn());
     }
 

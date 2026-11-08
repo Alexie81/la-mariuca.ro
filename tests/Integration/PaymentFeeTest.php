@@ -6,6 +6,7 @@ namespace Tests\Integration;
 
 use App\Modules\Cart\CartService;
 use App\Modules\Checkout\CheckoutService;
+use App\Modules\Checkout\CheckoutAttemptService;
 use App\Modules\Payments\PaymentFeeService;
 use App\Modules\Payments\StripeCheckoutPayload;
 use App\Shared\Config\Config;
@@ -29,7 +30,7 @@ final class PaymentFeeTest extends DatabaseTestCase
         $_ENV['STRIPE_SECRET_KEY'] = 'sk_test_fee_checkout';
         $_ENV['STRIPE_WEBHOOK_SECRET'] = 'whsec_fee_checkout';
         $_ENV['WEB_PUSH_ENABLED'] = 'false';
-        $_ENV['MAIL_DELIVERY_MODE'] = 'spool';
+        $_ENV['MAIL_DELIVERY_MODE'] = 'preview';
         $this->pdo->exec("INSERT INTO users (email,password_hash,first_name,last_name,role,status,created_at,updated_at) VALUES ('fee-admin@example.test','unused','Ana','Admin','administrator','active','2026-11-08T10:00:00+00:00','2026-11-08T10:00:00+00:00')");
         $this->adminId = (int) $this->pdo->lastInsertId();
     }
@@ -108,9 +109,15 @@ final class PaymentFeeTest extends DatabaseTestCase
         $service = new PaymentFeeService($this->pdo);
         $service->save(['payment_method' => 'stripe', 'name' => 'Ambalare premium', 'price' => '10,50'], $this->adminId);
         $result = $this->place('stripe');
-        $this->pdo->exec('UPDATE orders SET discount_bani=101,total_bani=total_bani-101 WHERE id=' . $result['id']);
-        $order = $this->pdo->query('SELECT * FROM orders WHERE id=' . $result['id'])->fetch(PDO::FETCH_ASSOC);
-        $items = $this->pdo->query('SELECT * FROM order_items WHERE order_id=' . $result['id'])->fetchAll(PDO::FETCH_ASSOC);
+        self::assertSame(0, (int) $this->pdo->query('SELECT COUNT(*) FROM orders')->fetchColumn());
+        $attempts = new CheckoutAttemptService($this->pdo, Config::load($this->root));
+        $attempt = $attempts->byId($result['id']);
+        self::assertIsArray($attempt);
+        $order = $attempts->snapshot($attempt);
+        $order['checkout_attempt_id'] = $result['id'];
+        $order['discount_bani'] = 101;
+        $order['total_bani'] -= 101;
+        $items = $order['items'];
         $builder = new StripeCheckoutPayload(Config::load($this->root));
         $payload = $builder->build($order, $items, $result['token']);
         $last = $payload['line_items'][array_key_last($payload['line_items'])];

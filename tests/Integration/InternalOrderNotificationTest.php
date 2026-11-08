@@ -7,6 +7,7 @@ namespace Tests\Integration;
 use App\Modules\Admin\AdminPushService;
 use App\Modules\Cart\CartService;
 use App\Modules\Checkout\CheckoutService;
+use App\Modules\Checkout\CheckoutAttemptService;
 use App\Modules\Orders\InternalOrderNotificationService;
 use App\Modules\Orders\OrderNotificationSettingsService;
 use App\Modules\Payments\StripeWebhookController;
@@ -34,6 +35,7 @@ final class InternalOrderNotificationTest extends DatabaseTestCase
         $this->seed();
         $_ENV['COD_ENABLED'] = 'true';
         $_ENV['STRIPE_ENABLED'] = 'true';
+        $_ENV['STRIPE_MODE'] = 'test';
         $_ENV['STRIPE_SECRET_KEY'] = 'sk_test_internal_notifications';
         $_ENV['STRIPE_WEBHOOK_SECRET'] = 'whsec_internal_notifications';
         // No device is registered: events are checked locally, without network calls.
@@ -167,7 +169,9 @@ final class InternalOrderNotificationTest extends DatabaseTestCase
     public function testCardRequiresVerifiedPaidEventAndDoesNotDuplicateAcrossEvents(): void
     {
         $this->settings->save(['first@example.test', 'second@example.test'], $this->adminId);
-        $orderId = $this->place('stripe');
+        $orderId = $this->place('stripe'); // An attempt ID until the verified paid event.
+        self::assertSame(0, (int) $this->pdo->query('SELECT COUNT(*) FROM orders')->fetchColumn());
+        self::assertSame(0, (int) $this->pdo->query('SELECT COUNT(*) FROM admin_push_events')->fetchColumn());
         self::assertSame(0, $this->countInternal());
         self::assertSame(0, (int) $this->pdo->query('SELECT COUNT(*) FROM outbox_messages')->fetchColumn());
         (new InternalOrderNotificationService($this->pdo))->queue($orderId);
@@ -182,6 +186,9 @@ final class InternalOrderNotificationTest extends DatabaseTestCase
         self::assertSame(200, $this->webhook($orderId, 'evt_distinct_paid', 'paid'));
         self::assertSame(2, $this->countInternal());
         self::assertSame(1, (int) $this->pdo->query("SELECT COUNT(*) FROM outbox_messages WHERE message_type='order_confirmation'")->fetchColumn());
+        $orderId = (int) $this->pdo->query('SELECT order_id FROM checkout_attempts WHERE id=' . $orderId)->fetchColumn();
+        self::assertSame(1, (int) $this->pdo->query('SELECT COUNT(*) FROM orders')->fetchColumn());
+        self::assertSame(1, (int) $this->pdo->query("SELECT COUNT(*) FROM admin_push_events WHERE event_key='order:" . $orderId . "'")->fetchColumn());
         self::assertSame(1, (int) $this->pdo->query("SELECT COUNT(*) FROM admin_push_events WHERE event_key='payment:" . $orderId . ":paid'")->fetchColumn());
         self::assertSame('confirmed', $this->pdo->query('SELECT status FROM orders WHERE id=' . $orderId)->fetchColumn());
     }
@@ -190,8 +197,13 @@ final class InternalOrderNotificationTest extends DatabaseTestCase
     {
         $this->settings->save(['team@example.test'], $this->adminId);
         $orderId = $this->place('stripe');
-        $this->pdo->exec("UPDATE orders SET status='cancelled',payment_status='failed' WHERE id=" . $orderId);
+        $this->pdo->beginTransaction();
+        (new CheckoutAttemptService($this->pdo, Config::load($this->root)))->release($orderId, 'expired');
+        $this->pdo->commit();
+        $this->pdo->exec('UPDATE inventory SET physical_quantity=0,reserved_quantity=0');
+        self::assertSame(0, (int) $this->pdo->query('SELECT COUNT(*) FROM orders')->fetchColumn());
         self::assertSame(200, $this->webhook($orderId, 'evt_late_paid', 'paid'));
+        $orderId = (int) $this->pdo->query('SELECT order_id FROM checkout_attempts WHERE id=' . $orderId)->fetchColumn();
         self::assertSame('manual_review', $this->pdo->query('SELECT status FROM orders WHERE id=' . $orderId)->fetchColumn());
         self::assertSame(1, $this->countInternal());
     }
@@ -218,14 +230,14 @@ final class InternalOrderNotificationTest extends DatabaseTestCase
 
     private function webhook(int $orderId, string $eventId, string $paymentStatus, int $amountDelta = 0, bool $validSignature = true): int
     {
-        $amount = (int) $this->pdo->query('SELECT total_bani FROM orders WHERE id=' . $orderId)->fetchColumn();
-        $this->pdo->prepare("UPDATE payments SET checkout_session_id=:session WHERE order_id=:id AND provider='stripe'")
+        $amount = (int) $this->pdo->query('SELECT total_bani FROM checkout_attempts WHERE id=' . $orderId)->fetchColumn();
+        $this->pdo->prepare("UPDATE checkout_attempts SET checkout_session_id=:session WHERE id=:id")
             ->execute(['session' => 'cs_order_' . $orderId, 'id' => $orderId]);
         $payload = json_encode([
             'id' => $eventId, 'object' => 'event', 'api_version' => '2025-09-30.clover', 'created' => time(),
             'type' => 'checkout.session.completed', 'livemode' => false,
             'data' => ['object' => ['id' => 'cs_order_' . $orderId, 'object' => 'checkout.session', 'payment_status' => $paymentStatus,
-                'amount_total' => $amount + $amountDelta, 'currency' => 'ron', 'payment_intent' => 'pi_order_' . $orderId, 'metadata' => ['order_id' => (string) $orderId]]],
+                'amount_total' => $amount + $amountDelta, 'currency' => 'ron', 'payment_intent' => 'pi_order_' . $orderId, 'metadata' => ['checkout_attempt_id' => (string) $orderId, 'checkout_attempt_key' => (string) $this->pdo->query('SELECT idempotency_key FROM checkout_attempts WHERE id=' . $orderId)->fetchColumn()]]],
         ], JSON_THROW_ON_ERROR);
         $timestamp = time();
         $signature = hash_hmac('sha256', $timestamp . '.' . $payload, $validSignature ? 'whsec_internal_notifications' : 'wrong');

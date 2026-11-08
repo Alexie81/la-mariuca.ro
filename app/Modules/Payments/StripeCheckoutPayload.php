@@ -79,19 +79,22 @@ final class StripeCheckoutPayload
         if (count($lineItems) > 100) {
             throw new RuntimeException('Comanda conține prea multe poziții pentru o singură plată cu cardul.');
         }
-        $metadata = ['order_id' => (string) $order['id'], 'order_number' => (string) $order['order_number']];
-        $expires = strtotime((string) $order['created_at']) + 3600;
+        $isAttempt = isset($order['checkout_attempt_id']);
+        $reference = $isAttempt ? 'PL-' . (string) $order['checkout_attempt_id'] : (string) $order['order_number'];
+        $metadata = $isAttempt ? ['checkout_attempt_id' => (string) $order['checkout_attempt_id'], 'checkout_attempt_key' => (string) $order['idempotency_key']]
+            : ['order_id' => (string) $order['id'], 'order_number' => (string) $order['order_number']];
+        $expires = isset($order['expires_at']) ? strtotime((string) $order['expires_at']) : strtotime((string) $order['created_at']) + 3600;
         if ($expires < time() + 1800) {
             throw new RuntimeException('Fereastra de inițiere a plății a expirat. Verifică disponibilitatea produselor într-o comandă nouă.');
         }
         $payload = [
             'mode' => 'payment', 'ui_mode' => 'hosted', 'locale' => 'ro', 'payment_method_types' => ['card'],
             'automatic_tax' => ['enabled' => false],
-            'client_reference_id' => (string) $order['order_number'], 'customer_email' => (string) $order['email'],
+            'client_reference_id' => $reference, 'customer_email' => (string) $order['email'],
             'success_url' => $this->config->rootUrl() . '/comanda/' . rawurlencode($publicToken) . '/?plata=verificare',
             'cancel_url' => $this->config->rootUrl() . '/comanda/' . rawurlencode($publicToken) . '/?plata=anulata',
             'expires_at' => $expires, 'line_items' => $lineItems, 'metadata' => $metadata,
-            'payment_intent_data' => ['metadata' => $metadata, 'description' => 'Comanda ' . (string) $order['order_number'] . ' · La Măriuca Boutique'],
+            'payment_intent_data' => ['metadata' => $metadata, 'description' => ($isAttempt ? 'Plată ' : 'Comanda ') . $reference . ' · La Măriuca Boutique'],
             'custom_text' => ['submit' => ['message' => 'După plată revii în magazin. Îți trimitem confirmarea comenzii pe email.']],
         ];
         $coupon = $this->coupon($order);
@@ -112,7 +115,8 @@ final class StripeCheckoutPayload
             'id' => 'lm_order_' . substr(hash('sha256', (string) $order['idempotency_key']), 0, 32),
             'amount_off' => $discount, 'currency' => strtolower((string) $order['currency']), 'duration' => 'once',
             'name' => 'Reducere produse',
-            'metadata' => ['order_id' => (string) $order['id'], 'order_number' => (string) $order['order_number']],
+            'metadata' => isset($order['checkout_attempt_id']) ? ['checkout_attempt_id' => (string) $order['checkout_attempt_id']]
+                : ['order_id' => (string) $order['id'], 'order_number' => (string) $order['order_number']],
         ];
         if ($eligibleProducts !== []) { $coupon['applies_to'] = ['products' => array_values(array_unique($eligibleProducts))]; }
         return $coupon;
