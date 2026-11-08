@@ -90,15 +90,15 @@ final class EmailPublicLinksTest extends DatabaseTestCase
 
         $mail = $confirmation->render($this->orderId, 'public-links@example.test');
         $this->assertPublicEmail($mail, $expectedRoot, $trackingUrl);
-        $this->assertPublicEmail($internal->render($this->orderId, 'team@example.test'), $expectedRoot, $adminUrl);
+        $this->assertPublicEmail($internal->render($this->orderId, 'team@example.test'), $expectedRoot, $adminUrl, false);
 
         $this->pdo->prepare("UPDATE orders SET payment_method='stripe',payment_status='paid',status='confirmed' WHERE id=?")->execute([$this->orderId]);
         $this->assertPublicEmail($confirmation->render($this->orderId, 'public-links@example.test'), $expectedRoot, $trackingUrl);
-        $this->assertPublicEmail($internal->render($this->orderId, 'team@example.test'), $expectedRoot, $adminUrl);
+        $this->assertPublicEmail($internal->render($this->orderId, 'team@example.test'), $expectedRoot, $adminUrl, false);
 
         $requestId = $tracking->requestCancellation($this->orderId, 'Doresc să aleg altă mărime pentru acest produs.');
         $this->assertPublicEmail($cancellation->render($this->orderId, $requestId, 'public-links@example.test', 'order_cancellation_received'), $expectedRoot, $trackingUrl);
-        $this->assertPublicEmail($cancellation->render($this->orderId, $requestId, 'team@example.test', 'internal_order_cancellation'), $expectedRoot, $adminUrl . '#cerere-anulare');
+        $this->assertPublicEmail($cancellation->render($this->orderId, $requestId, 'team@example.test', 'internal_order_cancellation'), $expectedRoot, $adminUrl . '#cerere-anulare', false);
         // Isolated presentation fixtures: both immutable decision variants use the same private CTA.
         foreach (['accepted', 'rejected'] as $decision) {
             $this->pdo->prepare('UPDATE order_cancellation_requests SET status=?,decision_reason=?,resolved_at=? WHERE id=?')
@@ -119,6 +119,11 @@ final class EmailPublicLinksTest extends DatabaseTestCase
         self::assertStringContainsString($this->orderNumber, (string) $page->getBody());
         self::assertStringContainsString('Răspunsul magazinului pentru solicitarea primită.', (string) $page->getBody());
 
+        // The product destination is public and opens the actual product, without the private order token.
+        $product = $this->get($this->productUrl($expectedRoot));
+        self::assertSame(200, $product->getStatusCode());
+        self::assertStringContainsString((string) $this->pdo->query('SELECT product_name FROM order_items WHERE order_id=' . $this->orderId)->fetchColumn(), (string) $product->getBody());
+
         // The internal destination stays protected and preserves the public deployment path.
         $_SESSION = [];
         $admin = $this->get($adminUrl);
@@ -128,7 +133,7 @@ final class EmailPublicLinksTest extends DatabaseTestCase
     }
 
     /** @param array{subject:string,text:string,html:string} $mail */
-    private function assertPublicEmail(array $mail, string $root, string $cta): void
+    private function assertPublicEmail(array $mail, string $root, string $cta, bool $customer = true): void
     {
         foreach (['localhost', '127.0.0.1', 'untrusted.example.test'] as $localHost) {
             self::assertStringNotContainsString($localHost, $mail['html']);
@@ -148,6 +153,60 @@ final class EmailPublicLinksTest extends DatabaseTestCase
             }
         }
         self::assertSame([], $unexpected, 'Every internal link and asset must use the configured deployment root.');
+        $productUrl = $this->productUrl($root);
+        if ($customer) {
+            // Both thumbnail and name open the same product; email clients also have a plain-text link.
+            preg_match_all('~<a\b[^>]*href="' . preg_quote($productUrl, '~') . '"[^>]*>~', $mail['html'], $productLinks);
+            self::assertCount(2, $productLinks[0]);
+            foreach ($productLinks[0] as $anchor) {
+                self::assertStringContainsString('target="_blank"', $anchor);
+                self::assertStringContainsString('rel="noopener noreferrer"', $anchor);
+            }
+            self::assertStringContainsString('Deschide produsul: ' . $productUrl, $mail['text']);
+        } else {
+            self::assertStringNotContainsString($productUrl, $mail['html']);
+            self::assertStringNotContainsString($productUrl, $mail['text']);
+        }
+    }
+
+    private function productUrl(string $root): string
+    {
+        $slug = (string) $this->pdo->query('SELECT p.slug FROM products p JOIN order_items i ON i.product_id=p.id WHERE i.order_id=' . $this->orderId)->fetchColumn();
+        return $root . '/produs/' . rawurlencode($slug) . '/';
+    }
+
+    /** @return iterable<string,array{string}> */
+    public static function unavailableProducts(): iterable
+    {
+        yield 'removed product' => ['missing'];
+        yield 'unpublished product' => ['draft'];
+        yield 'archived product' => ['archived'];
+    }
+
+    #[DataProvider('unavailableProducts')]
+    public function testUnavailableProductKeepsOrderSnapshotWithoutDeadLinks(string $availability): void
+    {
+        if ($availability === 'missing') {
+            $this->pdo->prepare('UPDATE order_items SET product_id=NULL,variant_id=NULL WHERE order_id=?')->execute([$this->orderId]);
+        } else {
+            $this->pdo->prepare('UPDATE products SET status=? WHERE id=(SELECT product_id FROM order_items WHERE order_id=?)')->execute([$availability, $this->orderId]);
+        }
+        $name = (string) $this->pdo->query('SELECT product_name FROM order_items WHERE order_id=' . $this->orderId)->fetchColumn();
+        $config = Config::load($this->root);
+        $tracking = new OrderTrackingService(new OrderTrackingRepository($this->pdo), new OrderService($this->pdo), $config, $this->root);
+        $twig = new Environment(new FilesystemLoader($this->root . '/resources/views'), ['autoescape'=>'html', 'strict_variables'=>true]);
+        $images = new OrderEmailImages($config, $this->root);
+        $requestId = $tracking->requestCancellation($this->orderId, 'Doresc să aleg altă mărime pentru acest produs.');
+        $emails = [
+            (new OrderConfirmationEmail($tracking, $config, $twig, $images))->render($this->orderId, 'public-links@example.test'),
+            (new OrderCancellationEmail($tracking, $config, $twig, $images))->render($this->orderId, $requestId, 'public-links@example.test', 'order_cancellation_received'),
+        ];
+        foreach ($emails as $mail) {
+            self::assertStringContainsString($name, $mail['html']);
+            self::assertStringContainsString($name, $mail['text']);
+            self::assertDoesNotMatchRegularExpression('~href="[^"]*/produs/~', $mail['html']);
+            self::assertStringNotContainsString('Deschide produsul:', $mail['text']);
+        }
     }
 
     private function get(string $url): ResponseInterface

@@ -33,6 +33,7 @@ final class OrderEmailViewData
                 'quantity' => (int) $item['quantity'], 'unit_price' => Money::format((int) $item['unit_price_bani']),
                 'total' => Money::format((int) $item['line_total_bani']),
                 'image' => $this->images->productUrl($item['image_path'] ?? null),
+                'product_url' => $item['product_url'] ?? null,
             ];
         }
         $shippingDiscount = (int) ($order['shipping_discount_bani'] ?? 0);

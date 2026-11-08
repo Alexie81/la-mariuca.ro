@@ -81,6 +81,42 @@ final class OrderTrackingTest extends DatabaseTestCase
         self::assertSame(1, (int) $this->pdo->query('SELECT COUNT(*) FROM orders')->fetchColumn());
     }
 
+    public function testProductLinksUseTheCurrentCatalogSlugAndKeepPurchasedDetails(): void
+    {
+        $before = $this->tracking->details($this->orderId)['items'][0];
+        $this->pdo->prepare("UPDATE products SET name='Denumire actualizată',slug='produs-redenumit-pentru-test' WHERE id=?")->execute([$before['product_id']]);
+        $item = $this->tracking->details($this->orderId)['items'][0];
+        self::assertSame('http://localhost/produs/produs-redenumit-pentru-test/', $item['product_url']);
+        self::assertSame($before['product_name'], $item['product_name']);
+        self::assertSame($before['line_total_bani'], $item['line_total_bani']);
+        $_SESSION['tracked_order'] = ['id'=>$this->orderId, 'expires'=>time()+1800];
+        $html = (string) $this->request('GET')->getBody();
+        self::assertStringContainsString('href="' . $item['product_url'] . '" target="_blank" rel="noopener noreferrer"', $html);
+        self::assertStringContainsString('Deschide produsul', $html);
+        $product = $this->request('GET', '/produs/produs-redenumit-pentru-test/');
+        self::assertSame(200, $product->getStatusCode());
+        self::assertStringContainsString('Denumire actualizată', (string) $product->getBody());
+    }
+
+    public function testUnavailableProductsKeepOrderDetailsWithoutBrokenLinks(): void
+    {
+        $before = $this->tracking->details($this->orderId)['items'][0];
+        $_SESSION['tracked_order'] = ['id'=>$this->orderId, 'expires'=>time()+1800];
+        foreach (['draft', 'archived'] as $status) {
+            $this->pdo->prepare('UPDATE products SET status=? WHERE id=?')->execute([$status, $before['product_id']]);
+            self::assertNull($this->tracking->details($this->orderId)['items'][0]['product_url']);
+            $html = (string) $this->request('GET')->getBody();
+            self::assertStringNotContainsString('class="tracking-product__link"', $html);
+            self::assertStringContainsString($before['sku'], $html);
+        }
+        $this->pdo->prepare('UPDATE order_items SET product_id=NULL WHERE order_id=?')->execute([$this->orderId]);
+        $item = $this->tracking->details($this->orderId)['items'][0];
+        self::assertNull($item['product_url']);
+        self::assertSame($before['product_name'], $item['product_name']);
+        self::assertSame($before['line_total_bani'], $item['line_total_bani']);
+        self::assertStringNotContainsString('class="tracking-product__link"', (string) $this->request('GET')->getBody());
+    }
+
     public function testSignedEmailLinkAuthorizesOnlyItsOrderAndCanBeRevoked(): void
     {
         $url = $this->tracking->emailUrl($this->orderId, 'tracking@example.test');

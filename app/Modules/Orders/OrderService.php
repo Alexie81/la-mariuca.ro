@@ -298,7 +298,7 @@ final class OrderService
     /** @param array<string,mixed> $order @return array<string,mixed> */
     private function hydratePublicOrder(array $order): array
     {
-        $items = $this->pdo->prepare('SELECT item.*,
+        $items = $this->pdo->prepare('SELECT item.*,product.slug AS product_slug,
                 COALESCE(variant_media.public_path,
                     (SELECT product_media.public_path FROM product_images pi
                      JOIN media product_media ON product_media.id=pi.media_id
@@ -311,6 +311,7 @@ final class OrderService
                      ORDER BY CASE WHEN image_category.parent_id IS NULL THEN 0 ELSE 1 END,image_category.position,image_category.id LIMIT 1)
                 ) AS image_path
             FROM order_items item
+            LEFT JOIN products product ON product.id=item.product_id AND product.status=\'published\'
             LEFT JOIN product_variants variant ON variant.id=item.variant_id
             LEFT JOIN media variant_media ON variant_media.id=variant.image_media_id
             WHERE item.order_id=:id ORDER BY item.id');

@@ -76,13 +76,14 @@
     <tr><td class="section-pad" bgcolor="#ffffff" style="padding:28px 30px;background-color:#ffffff;border:1px solid #e8ebef;border-radius:28px;">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td><h2 class="section-title" style="margin:0;font-size:24px;line-height:32px;letter-spacing:-0.4px;font-weight:600;color:#303740;">{% block products_heading %}Alegerile tale{% endblock %}</h2></td><td align="right" style="font-size:15px;line-height:25px;color:#7a8591;">{{ quantity }} {{ quantity == 1 ? 'bucată' : 'bucăți' }}</td></tr></table>
       {% for item in items %}
+      {% set product_url = internal_email|default(false) ? null : item.product_url %}
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="#f7f8fa" style="margin-top:15px;background-color:#f7f8fa;border-radius:18px;"><tr><td class="product-pad" style="padding:16px;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="table-layout:fixed;"><tr>
           <td class="photo-cell" width="78" valign="middle" style="width:78px;">
-            {% if item.image %}<img class="product-photo" src="{{ item.image }}" width="78" height="94" alt="{{ item.name }}" style="display:block;width:78px;height:94px;border-radius:12px;color:#73808c;font-size:14px;line-height:22px;background-color:#f1ece6;">{% else %}<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td height="94" align="center" bgcolor="#f0ece8" style="height:94px;background-color:#f0ece8;border-radius:12px;color:#887264;font-size:14px;line-height:22px;">La Măriuca</td></tr></table>{% endif %}
+            {% if item.image %}{% if product_url %}<a href="{{ product_url }}" target="_blank" rel="noopener noreferrer" aria-label="Deschide produsul {{ item.name }}" style="display:block;text-decoration:none;border:0;">{% endif %}<img class="product-photo" src="{{ item.image }}" width="78" height="94" alt="{{ item.name }}" style="display:block;width:78px;height:94px;border:0;border-radius:12px;color:#73808c;font-size:14px;line-height:22px;background-color:#f1ece6;">{% if product_url %}</a>{% endif %}{% else %}<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td height="94" align="center" bgcolor="#f0ece8" style="height:94px;background-color:#f0ece8;border-radius:12px;color:#887264;font-size:14px;line-height:22px;">La Măriuca</td></tr></table>{% endif %}
           </td>
           <td class="product-copy" valign="middle" style="padding:0 0 0 18px;word-wrap:break-word;overflow-wrap:anywhere;">
-            <p class="product-name" style="margin:0 0 5px;color:#37414d;font-size:18px;line-height:26px;font-weight:bold;">{{ item.name }}</p>
+            <p class="product-name" style="margin:0 0 5px;color:#37414d;font-size:18px;line-height:26px;font-weight:bold;">{% if product_url %}<a href="{{ product_url }}" target="_blank" rel="noopener noreferrer" style="color:#37414d;text-decoration:none;">{{ item.name }}</a>{% else %}{{ item.name }}{% endif %}</p>
             {% if item.variant %}<p class="product-meta" style="margin:0 0 3px;color:#73808c;font-size:15px;line-height:23px;">{{ item.variant }}</p>{% endif %}
             <p class="product-meta" style="margin:6px 0 0;color:#83909b;font-size:14px;line-height:22px;">SKU: {{ item.sku }}</p>
           </td>

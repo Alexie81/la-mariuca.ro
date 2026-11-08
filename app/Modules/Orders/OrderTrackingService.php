@@ -57,6 +57,12 @@ final class OrderTrackingService
         }
         // Keep internal notes, payment provider identifiers and tokens out of the view model.
         $order = array_intersect_key($order, array_flip(['id','order_number','first_name','last_name','email','phone','status','payment_status','payment_method','created_at','updated_at','shipped_at','cancelled_at','shipping_method_name','shipping_estimate','shipping_address','subtotal_bani','discount_bani','shipping_bani','shipping_discount_bani','tax_bani','total_bani','items']));
+        foreach ($order['items'] as &$item) {
+            // Resolve the current published product by ID; keep the purchased name and prices unchanged.
+            $slug = trim((string) ($item['product_slug'] ?? ''));
+            $item['product_url'] = $slug === '' ? null : $this->config->rootUrl() . '/produs/' . rawurlencode($slug) . '/';
+        }
+        unset($item);
         $stages = [
             'new' => ['Comandă primită', 'Alegerile tale au ajuns la noi.', 'bag'],
             'confirmed' => ['Confirmată', 'Am verificat detaliile comenzii.', 'check'],
