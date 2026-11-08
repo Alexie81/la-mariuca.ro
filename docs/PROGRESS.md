@@ -1259,3 +1259,16 @@ atribute și filtre fără schimbarea contractelor existente.
 ### 2026-11-08 — Cotă TVA afișată numai pentru plătitoare
 - Câmpul și explicația cotei apar numai când switch-ul „Plătitoare de TVA” este activ; fișa firmei ascunde și ea cota pentru neplătitoare. La dezactivare, formularul îmbunătățit dezactivează inputul, iar serverul păstrează cota salvată și ignoră valori ascunse, inclusiv invalide. Afișarea condițională funcționează prin CSS și fără JavaScript; validarea procentului rămâne pe server.
 - Au trecut **8 teste / 366 aserțiuni**, lintul fișierelor PHP modificate, sintaxa JS și compilarea celor **99 template-uri Twig**. Verificat în browser: cotă ascunsă la pornire, afișată/editabilă la activare și ascunsă la dezactivare. Pagina completă, cu date demonstrative exclusiv QA, a fost inspectată pe 390/768/1280 px; formularul și acțiunile au fost verificate și la 320 px. Fișa, contactul, banca, ștampila și gestiunile păstrează marginile ecranului, iar headerul/footerul modalului rămân fixe. Sesiunea principală Paula rămâne deschisă pentru completarea datelor reale.
+
+### 2026-11-08 — Ordinea următoarelor module
+Priorități cerute de utilizator pentru reluarea lucrului. Lista nu pornește implementarea automat; următoarea etapă este cea a facturilor de achiziție.
+
+1. [ ] **Facturi de achiziție.**
+2. [ ] **NIR-uri și întregul sistem de intrare în stoc**, asociat gestiunilor.
+3. [ ] **Facturi de ieșire.**
+4. [ ] **Stoc și fișa produsului.**
+5. [ ] **Exporturi pentru toate modulele de mai sus.** Se pregătesc în fiecare etapă și se verifică împreună înainte de a continua.
+6. [ ] **Retururi, anulări și regulile fiscale aferente**, după finalizarea documentelor și a evidenței stocului.
+7. [ ] **Implementarea plății cu cardul**, abia după toate etapele anterioare.
+
+Componentele existente de anulare/plată rămân în proiect; lista stabilește ordinea dezvoltărilor viitoare, fără a le șterge sau considera fiscal validate. La reluare, trebuie reamintită această ordine înaintea unei funcționalități noi.

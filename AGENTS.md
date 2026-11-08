@@ -48,6 +48,11 @@
 - Update `docs/PROGRESS.md` with real checks and remaining external blockers.
 - Never claim Apache, MySQL concurrency, Stripe, SMTP or hosting verified unless actually run.
 
+## Agreed next implementation order (2026-11-08)
+- When work resumes, consult the ordered TODO in `docs/PROGRESS.md` under "Ordinea următoarelor module" before starting a new module.
+- The user prioritizes purchase invoices, NIR/stock entry, outgoing invoices, stock/product ledger and exports, then returns/cancellations/fiscal rules. Card payment implementation comes last.
+- This is a saved roadmap, not authorization to start these modules automatically or deploy/configure live payment services. Later explicit user instructions can revise the order.
+
 ## Google OAuth deployment memory
 - Before any production upload or domain cutover, read and execute `docs/GOOGLE_OAUTH_CHECKLIST.md`.
 - Never commit, print, log or place the Google client JSON, client secret or production `.env` under `public/`; the standard private location is `storage/private/google-oauth-client.json`.
