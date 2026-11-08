@@ -51,8 +51,6 @@ final class OrderConfirmationEmail
             'logo_url' => $this->config->rootUrl() . '/assets/images/logo-la-mariuca-transparent.png',
             'status_icon' => $this->config->rootUrl() . '/assets/images/email-status-' . ($review ? 'review' : ($card ? 'confirmed' : 'received')) . '.png',
             'status_color' => $review ? '#94662e' : '#207552',
-            'delivery_icon' => $this->config->rootUrl() . '/assets/images/email-order-truck.png',
-            'payment_icon' => $this->config->rootUrl() . '/assets/images/email-order-' . ($card ? 'card' : 'cash') . '.png',
             'contact_url' => $this->config->rootUrl() . '/pagina/contact/',
             'delivery_url' => $this->config->rootUrl() . '/pagina/livrare-si-retur/',
             'terms_url' => $this->config->rootUrl() . '/pagina/termeni-si-conditii/',

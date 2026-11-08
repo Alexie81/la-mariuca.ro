@@ -60,6 +60,9 @@ final class OrderEmailViewData
             'items' => $items, 'quantity' => $order['quantity'], 'totals' => $totals,
             'total' => Money::format((int) $order['total_bani']), 'savings' => $saving > 0 ? Money::format($saving) : null,
             'savings_icon' => $this->config->rootUrl() . '/assets/images/email-savings-confetti.gif',
+            'summary_icon' => $this->config->rootUrl() . '/assets/images/email-order-receipt-v2.png',
+            'delivery_icon' => $this->config->rootUrl() . '/assets/images/email-order-truck-v2.png',
+            'payment_icon' => $this->config->rootUrl() . '/assets/images/email-order-' . ($card ? 'card' : 'cash') . '-v2.png',
         ];
     }
 }

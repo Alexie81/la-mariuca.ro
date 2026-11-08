@@ -53,8 +53,6 @@ final class InternalOrderEmail
             'logo_url' => $this->config->rootUrl() . '/assets/images/logo-la-mariuca-transparent.png',
             'status_icon' => $this->config->rootUrl() . '/assets/images/email-status-' . ($review ? 'review' : 'received') . '.png',
             'status_color' => $review ? '#94662e' : '#207552',
-            'delivery_icon' => $this->config->rootUrl() . '/assets/images/email-order-truck.png',
-            'payment_icon' => $this->config->rootUrl() . '/assets/images/email-order-' . ($card ? 'card' : 'cash') . '.png',
             'heart_icon_url' => $this->config->rootUrl() . '/assets/images/icon-favorite-hearts.png',
             'year' => date('Y'),
         ] + $shared;

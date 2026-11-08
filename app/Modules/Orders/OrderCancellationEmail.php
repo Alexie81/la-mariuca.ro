@@ -88,8 +88,6 @@ final class OrderCancellationEmail
             'cta_label' => $internal ? 'Vezi solicitarea de anulare' : 'Vezi comanda și solicitarea',
             'tracking_url' => $trackingUrl,
             'shop_url' => $rootUrl . '/', 'logo_url' => $rootUrl . '/assets/images/logo-la-mariuca-transparent.png',
-            'delivery_icon' => $rootUrl . '/assets/images/email-order-truck.png',
-            'payment_icon' => $rootUrl . '/assets/images/email-order-' . ($order['payment_method'] === 'stripe' ? 'card' : 'cash') . '.png',
             'contact_url' => $rootUrl . '/pagina/contact/', 'delivery_url' => $rootUrl . '/pagina/livrare-si-retur/',
             'terms_url' => $rootUrl . '/pagina/termeni-si-conditii/', 'privacy_url' => $rootUrl . '/pagina/confidentialitate/',
             'anpc_logo_url' => $rootUrl . '/assets/images/anpc-sal.png', 'cab_logo_url' => $rootUrl . '/assets/images/cab-it-mark.png',
