@@ -43,7 +43,7 @@ final class CompanyAdminTest extends DatabaseTestCase
         parent::tearDown();
     }
 
-    public function testCompaniesKeepCommercialDataAndExactlyOneDefaultAcrossCreateEditAndDelete(): void
+    public function testSingleCompanyKeepsCommercialDataAcrossCreateEditAndDelete(): void
     {
         $company = [
             'legal_name'=>'Atelier Copilărie SRL', 'trade_name'=>'Atelier Copilărie',
@@ -63,60 +63,81 @@ final class CompanyAdminTest extends DatabaseTestCase
         self::assertSame('RO49AAAA1B31007593840000', $row['iban']);
         self::assertSame(125050, (int) $row['share_capital_bani']);
 
-        $secondId = $this->createCompany(['legal_name'=>'Al doilea atelier SRL']);
-        self::assertSame(0, (int) $this->company($secondId)['is_default']);
-        $update = $this->post(self::BASE . $secondId . '/editare/', ['legal_name'=>'Atelier implicit SRL', 'is_default'=>'1', 'share_capital'=>'0,01']);
+        $update = $this->post(self::BASE . $firstId . '/editare/', array_replace($company, ['legal_name'=>'Atelier actualizat SRL', 'is_default'=>'0', 'share_capital'=>'0,01']));
         self::assertSame(200, $update->getStatusCode());
-        self::assertSame($secondId, $this->defaultCompanyId());
-        self::assertSame(1, (int) $this->company($secondId)['share_capital_bani']);
+        self::assertSame($firstId, $this->defaultCompanyId());
+        self::assertSame('Atelier actualizat SRL', $this->company($firstId)['legal_name']);
+        self::assertSame(1, (int) $this->company($firstId)['share_capital_bani']);
+        self::assertSame(1, (int) $this->pdo->query('SELECT COUNT(*) FROM companies')->fetchColumn());
         self::assertSame(1, (int) $this->pdo->query('SELECT COUNT(*) FROM companies WHERE is_default=1')->fetchColumn());
 
-        $warehouseId = $this->createWarehouse($secondId, 'Depozitul firmei');
-        $confirm = $this->request('GET', self::BASE . $secondId . '/sterge/');
-        self::assertSame(200, $confirm->getStatusCode());
-        self::assertNotEmpty($this->company($secondId), 'A confirmation GET must never delete data.');
-        self::assertSame(200, $this->post(self::BASE . $secondId . '/sterge/')->getStatusCode());
-        self::assertSame(0, (int) $this->pdo->query('SELECT COUNT(*) FROM companies WHERE id=' . $secondId)->fetchColumn());
-        self::assertSame(0, (int) $this->pdo->query('SELECT COUNT(*) FROM company_warehouses WHERE id=' . $warehouseId)->fetchColumn());
-        self::assertSame($firstId, $this->defaultCompanyId());
-
+        $warehouseId = $this->createWarehouse($firstId, 'Depozitul firmei');
+        $confirm = $this->request('GET', self::BASE . $firstId . '/sterge/');
+        self::assertSame(303, $confirm->getStatusCode());
+        self::assertSame(self::BASE . $firstId . '/editare/', $confirm->getHeaderLine('Location'));
+        self::assertNotEmpty($this->company($firstId), 'A legacy deletion GET must never delete data.');
         self::assertSame(200, $this->post(self::BASE . $firstId . '/sterge/')->getStatusCode());
+        self::assertSame(0, (int) $this->pdo->query('SELECT COUNT(*) FROM company_warehouses WHERE id=' . $warehouseId)->fetchColumn());
         self::assertSame(0, (int) $this->pdo->query('SELECT COUNT(*) FROM companies')->fetchColumn());
         $replacementId = $this->createCompany(['legal_name'=>'O firmă nouă SRL']);
         self::assertSame($replacementId, $this->defaultCompanyId());
     }
 
+    public function testStaleCreationFormCannotCreateOrOverwriteTheExistingCompany(): void
+    {
+        $staleForm = $this->request('GET', self::BASE . 'nou/modal/');
+        self::assertSame(200, $staleForm->getStatusCode());
+        self::assertStringContainsString('action="' . self::BASE . 'nou/"', (string) $staleForm->getBody());
+        $staleToken = $_SESSION['_csrf'];
+
+        $companyId = $this->createCompany(['legal_name'=>'Firma unică SRL', 'email'=>'unica@example.test', 'share_capital'=>'75,25']);
+        $original = $this->company($companyId);
+        $staleSave = $this->request('POST', self::BASE . 'nou/', ['_csrf'=>$staleToken, 'legal_name'=>'A doua firmă SRL', 'is_default'=>'1'], ['Accept'=>'application/json']);
+        $this->assertFieldError($staleSave, '_form');
+        self::assertSame(1, (int) $this->pdo->query('SELECT COUNT(*) FROM companies')->fetchColumn());
+        self::assertSame($original, $this->company($companyId));
+        self::assertSame($companyId, $this->defaultCompanyId());
+
+        foreach ([self::BASE . 'nou/', self::BASE . 'nou/modal/'] as $path) {
+            $form = $this->request('GET', $path);
+            self::assertSame(200, $form->getStatusCode());
+            self::assertStringContainsString('action="' . self::BASE . $companyId . '/editare/"', (string) $form->getBody());
+            self::assertStringContainsString('Firma unică SRL', (string) $form->getBody());
+        }
+    }
+
     public function testWarehouseDefaultsAndNamesAreScopedToTheOwningCompany(): void
     {
         $firstCompany = $this->createCompany(['legal_name'=>'Firma unu SRL']);
-        $secondCompany = $this->createCompany(['legal_name'=>'Firma doi SRL']);
         $firstWarehouse = $this->createWarehouse($firstCompany, 'Depozit central');
+        self::assertSame($firstWarehouse, $this->defaultWarehouseId($firstCompany));
         $secondWarehouse = $this->createWarehouse($firstCompany, 'Magazin', true);
-        $otherWarehouse = $this->createWarehouse($secondCompany, 'Depozit central');
         self::assertSame($secondWarehouse, $this->defaultWarehouseId($firstCompany));
-        self::assertSame($otherWarehouse, $this->defaultWarehouseId($secondCompany));
 
         $duplicate = $this->post($this->warehouseBase($firstCompany) . 'nou/', ['name'=>'depozit central']);
         $this->assertFieldError($duplicate, 'name');
-        $crossCompanyPath = $this->warehouseBase($secondCompany) . $firstWarehouse;
+        $crossCompanyPath = $this->warehouseBase($firstCompany + 1000) . $firstWarehouse;
         self::assertSame(404, $this->request('GET', $crossCompanyPath . '/editare/modal/')->getStatusCode());
         self::assertSame(404, $this->post($crossCompanyPath . '/editare/', ['name'=>'Modificat din altă firmă', 'is_default'=>'1'])->getStatusCode());
         self::assertSame(404, $this->post($crossCompanyPath . '/sterge/')->getStatusCode());
         self::assertSame('Depozit central', $this->pdo->query('SELECT name FROM company_warehouses WHERE id=' . $firstWarehouse)->fetchColumn());
-        self::assertSame($otherWarehouse, $this->defaultWarehouseId($secondCompany));
+        self::assertSame($secondWarehouse, $this->defaultWarehouseId($firstCompany));
 
         self::assertSame(200, $this->post($this->warehouseBase($firstCompany) . $firstWarehouse . '/editare/', ['name'=>'Atelier principal', 'is_default'=>'1'])->getStatusCode());
         self::assertSame($firstWarehouse, $this->defaultWarehouseId($firstCompany));
         self::assertSame(200, $this->post($this->warehouseBase($firstCompany) . $firstWarehouse . '/sterge/')->getStatusCode());
         self::assertSame($secondWarehouse, $this->defaultWarehouseId($firstCompany));
-        self::assertSame($otherWarehouse, $this->defaultWarehouseId($secondCompany));
         self::assertSame(1, (int) $this->pdo->query('SELECT COUNT(*) FROM company_warehouses WHERE company_id=' . $firstCompany . ' AND is_default=1')->fetchColumn());
+        self::assertSame(200, $this->post($this->warehouseBase($firstCompany) . $secondWarehouse . '/sterge/')->getStatusCode());
+        self::assertSame(0, (int) $this->pdo->query('SELECT COUNT(*) FROM company_warehouses')->fetchColumn());
+        $replacement = $this->createWarehouse($firstCompany, 'Depozit nou');
+        self::assertSame($replacement, $this->defaultWarehouseId($firstCompany));
     }
 
     public function testInvalidCompanyFieldsDoNotChangeStoredDataOrDefaults(): void
     {
         $companyId = $this->createCompany(['legal_name'=>'Firma păstrată SRL', 'email'=>'valid@example.test', 'share_capital'=>'25,75']);
-        $otherId = $this->createCompany(['legal_name'=>'Cealaltă firmă SRL']);
+        $original = $this->company($companyId);
         foreach ([
             ['legal_name', '   '], ['legal_name', str_repeat('a', 251)],
             ['email', 'adresa-gresita'], ['website', 'javascript:alert(1)'],
@@ -124,15 +145,47 @@ final class CompanyAdminTest extends DatabaseTestCase
             ['share_capital', '-1'], ['share_capital', '12,345'],
             ['share_capital', '1e3'], ['share_capital', '1000000000000'],
         ] as [$field, $value]) {
-            $response = $this->post(self::BASE . $otherId . '/editare/', ['legal_name'=>'Titlu nesalvat', 'is_default'=>'1', $field=>$value]);
+            $response = $this->post(self::BASE . $companyId . '/editare/', ['legal_name'=>'Titlu nesalvat', 'is_default'=>'1', $field=>$value]);
             $this->assertFieldError($response, $field);
             self::assertSame($companyId, $this->defaultCompanyId());
-            self::assertSame('Cealaltă firmă SRL', $this->company($otherId)['legal_name']);
-            self::assertSame(2575, (int) $this->company($companyId)['share_capital_bani']);
+            self::assertSame($original, $this->company($companyId));
         }
         $missingName = $this->post($this->warehouseBase($companyId) . 'nou/', ['name'=>'   ']);
         $this->assertFieldError($missingName, 'name');
         self::assertSame(0, (int) $this->pdo->query('SELECT COUNT(*) FROM company_warehouses')->fetchColumn());
+    }
+
+    public function testVatSettingsKeepTheirRateWhenToggledAndRejectInvalidPrecision(): void
+    {
+        $companyId = $this->createCompany(['legal_name'=>'Firma cu setări TVA SRL']);
+        $company = $this->company($companyId);
+        self::assertSame(0, (int) $company['is_vat_payer']);
+        self::assertSame(2100, (int) $company['vat_rate_basis_points']);
+
+        $editPath = self::BASE . $companyId . '/editare/';
+        $base = ['legal_name'=>'Firma cu setări TVA SRL'];
+        self::assertSame(200, $this->post($editPath, $base + ['is_vat_payer'=>'1'])->getStatusCode());
+        self::assertSame(1, (int) $this->company($companyId)['is_vat_payer']);
+        self::assertSame(2100, (int) $this->company($companyId)['vat_rate_basis_points']);
+
+        self::assertSame(200, $this->post($editPath, $base + ['is_vat_payer'=>'0', 'vat_rate'=>'19.5'])->getStatusCode());
+        self::assertSame(0, (int) $this->company($companyId)['is_vat_payer']);
+        self::assertSame(1950, (int) $this->company($companyId)['vat_rate_basis_points']);
+        self::assertSame(200, $this->post($editPath, $base + ['is_vat_payer'=>'1'])->getStatusCode());
+        self::assertSame(1, (int) $this->company($companyId)['is_vat_payer']);
+        self::assertSame(1950, (int) $this->company($companyId)['vat_rate_basis_points']);
+
+        foreach (['0'=>0, '9,50'=>950, '100'=>10000] as $rate => $expected) {
+            self::assertSame(200, $this->post($editPath, $base + ['is_vat_payer'=>'1', 'vat_rate'=>(string) $rate])->getStatusCode());
+            self::assertSame($expected, (int) $this->company($companyId)['vat_rate_basis_points']);
+        }
+
+        $original = $this->company($companyId);
+        foreach (['-1', '101', '19,555', '1e1'] as $rate) {
+            $invalid = $this->post($editPath, ['legal_name'=>'Titlu nesalvat', 'is_vat_payer'=>'0', 'vat_rate'=>$rate]);
+            $this->assertFieldError($invalid, 'vat_rate');
+            self::assertSame($original, $this->company($companyId));
+        }
     }
 
     public function testHtmlValidationRetainsEscapedValuesAndModalFormsWorkWithoutMutation(): void
@@ -147,9 +200,12 @@ final class CompanyAdminTest extends DatabaseTestCase
 
         $companyId = $this->createCompany(['legal_name'=>'Firma modalelor SRL']);
         $warehouseId = $this->createWarehouse($companyId, 'Atelier');
+        $legacyDelete = $this->request('GET', self::BASE . $companyId . '/sterge/modal/');
+        self::assertSame(303, $legacyDelete->getStatusCode());
+        self::assertSame(self::BASE . $companyId . '/editare/modal/', $legacyDelete->getHeaderLine('Location'));
         foreach ([
             self::BASE . $companyId . '/editare/', self::BASE . $companyId . '/editare/modal/',
-            self::BASE . $companyId . '/sterge/modal/', $this->warehouseBase($companyId) . 'nou/modal/',
+            $this->warehouseBase($companyId) . 'nou/modal/',
             $this->warehouseBase($companyId) . $warehouseId . '/editare/modal/',
             $this->warehouseBase($companyId) . $warehouseId . '/sterge/modal/',
         ] as $path) {
