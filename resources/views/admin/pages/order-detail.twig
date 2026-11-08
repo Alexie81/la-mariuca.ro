@@ -24,31 +24,7 @@
       </ol>
     {% endif %}
 
-    {% if order.cancellation_request %}
-      {% set cancellation = order.cancellation_request %}
-      {% set cancellation_state = cancellation.status|default('pending') %}
-      <section class="order-cancellation-request is-{{ cancellation_state }}" id="cerere-anulare" aria-labelledby="order-cancellation-title">
-        <header>
-          <span class="order-cancellation-request__icon" aria-hidden="true"><svg viewBox="0 0 24 24">{% if cancellation_state == 'accepted' %}<path d="m5 12 4 4L19 6"/>{% elseif cancellation_state == 'rejected' %}<path d="m7 7 10 10M17 7 7 17"/>{% else %}<path d="M9 7 4 12l5 5M5 12h9a5 5 0 0 1 5 5"/>{% endif %}</svg></span>
-          <div class="order-cancellation-request__heading"><span class="order-kicker">Solicitare de la client</span><h2 id="order-cancellation-title">{{ cancellation_state == 'accepted' ? 'Anulare acceptată' : (cancellation_state == 'rejected' ? 'Solicitare respinsă' : 'Clientul a cerut anularea') }}</h2><p>{{ cancellation_state == 'pending' ? 'Clientul dorește anularea acestei comenzi.' : 'Decizia este înregistrată. Clientul va primi răspunsul și prin email.' }}</p></div>
-          <span class="order-cancellation-request__state"><i aria-hidden="true"></i>{{ cancellation_state == 'accepted' ? 'Acceptată' : (cancellation_state == 'rejected' ? 'Respinsă' : 'Așteaptă răspuns') }}</span>
-        </header>
-        <div class="order-cancellation-request__details">
-          <div class="order-cancellation-request__reason"><span>Mesajul clientului</span><blockquote>{{ cancellation.reason }}</blockquote><time datetime="{{ cancellation.created_at }}">Solicitată la {{ cancellation.created_at|date('d.m.Y, H:i', 'Europe/Bucharest') }}</time></div>
-          {% if cancellation_state != 'pending' %}
-            <div class="order-cancellation-request__decision"><span>Răspunsul magazinului</span><p>{{ cancellation.decision_reason|default('') ?: (cancellation_state == 'accepted' ? 'Solicitarea de anulare a fost acceptată.' : 'Solicitarea de anulare a fost respinsă.') }}</p>{% if cancellation.resolved_at %}<time datetime="{{ cancellation.resolved_at }}">{{ cancellation.resolved_at|date('d.m.Y, H:i', 'Europe/Bucharest') }}</time>{% endif %}</div>
-          {% else %}
-            <div class="order-cancellation-request__review"><span>Răspunde solicitării</span><p>Verifică motivul, apoi alege răspunsul. Clientul primește automat un email cu decizia ta.</p>
-              <div class="order-cancellation-request__actions">
-                <a class="order-cancellation-button is-secondary" href="{{ url('admin/comenzi/' ~ order.id ~ '/anulare/respinge/') }}" data-order-modal-open data-modal-url="{{ url('admin/comenzi/' ~ order.id ~ '/anulare/respinge/') }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"/></svg><span>Respinge</span></a>
-                {% if order.can_accept_cancellation|default(order.status in ['new', 'confirmed', 'preparing', 'cancelled']) %}<a class="order-cancellation-button is-primary" href="{{ url('admin/comenzi/' ~ order.id ~ '/anulare/accepta/') }}" data-order-modal-open data-modal-url="{{ url('admin/comenzi/' ~ order.id ~ '/anulare/accepta/') }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg><span>Acceptă anularea</span></a>{% else %}<span class="order-cancellation-request__unavailable">Comanda a depășit etapa în care poate fi anulată.</span>{% endif %}
-              </div>
-            </div>
-          {% endif %}
-        </div>
-        {% if order.payment_method == 'stripe' and order.payment_status in ['paid','partially_refunded'] %}<p class="order-cancellation-request__payment"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M3 10h18M7 15h4"/></svg>Plata cu cardul se gestionează separat. Acceptarea anulării nu rambursează automat banii.</p>{% endif %}
-      </section>
-    {% endif %}
+    {% include 'admin/partials/order-cancellation-request.twig' %}
     <section class="order-facts" aria-label="Rezumat rapid">
       <article><span class="order-facts__icon order-facts__icon--rose"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 7h12l1 13H5L6 7Z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg></span><div><small>Produse</small><strong>{{ unit_count }} <em>{{ unit_count == 1 ? 'bucată' : 'bucăți' }}</em></strong><span>{{ order.items|length }} {{ order.items|length == 1 ? 'model comandat' : 'modele comandate' }}</span></div></article>
       <article><span class="order-facts__icon order-facts__icon--gold"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16v12H4zM7 4h10v3M8 12h8"/></svg></span><div><small>Valoare totală</small><strong>{{ money(order.total_bani) }}</strong><span>{{ order.payment_method == 'stripe' ? 'Card online' : 'Ramburs la curier' }}</span></div></article>

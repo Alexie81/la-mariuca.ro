@@ -1,0 +1,50 @@
+{% if order.cancellation_request %}
+  {% set cancellation = order.cancellation_request %}
+  {% set cancellation_state = cancellation.status|default('pending') %}
+  <section class="order-cancellation-notice is-{{ cancellation_state }}" id="cerere-anulare" aria-labelledby="order-cancellation-title">
+    <header class="order-cancellation-notice__header">
+      <span class="order-cancellation-notice__icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24">{% if cancellation_state == 'accepted' %}<path d="m5 12 4 4L19 6"/>{% elseif cancellation_state == 'rejected' %}<path d="m7 7 10 10M17 7 7 17"/>{% else %}<path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9ZM10 21h4M12 7v4"/><path d="M12 13h.01"/>{% endif %}</svg>
+      </span>
+      <div class="order-cancellation-notice__heading">
+        <span class="order-cancellation-notice__eyebrow">{{ cancellation_state == 'pending' ? 'Necesită atenția ta' : 'Solicitare soluționată' }}</span>
+        <h2 id="order-cancellation-title">{{ cancellation_state == 'accepted' ? 'Anulare acceptată' : (cancellation_state == 'rejected' ? 'Solicitare respinsă' : 'Clientul a cerut anularea') }}</h2>
+        <p>{{ cancellation_state == 'pending' ? 'Clientul dorește anularea acestei comenzi.' : 'Decizia este înregistrată. Clientul va primi răspunsul și prin email.' }}</p>
+      </div>
+      <span class="order-cancellation-notice__status"><i aria-hidden="true"></i>{{ cancellation_state == 'accepted' ? 'Acceptată' : (cancellation_state == 'rejected' ? 'Respinsă' : 'Așteaptă răspuns') }}</span>
+    </header>
+
+    <div class="order-cancellation-notice__body">
+      <div class="order-cancellation-notice__message">
+        <div class="order-cancellation-notice__label"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11.5a7.5 7.5 0 0 1-7.5 7.5H5l-3 3V11.5A7.5 7.5 0 0 1 9.5 4h3a7.5 7.5 0 0 1 7.5 7.5ZM7 10h8M7 14h5"/></svg><span>Motivul clientului</span></div>
+        <blockquote>{{ cancellation.reason }}</blockquote>
+        <time datetime="{{ cancellation.created_at }}"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/></svg><span>Solicitată la {{ cancellation.created_at|date('d.m.Y, H:i', 'Europe/Bucharest') }}</span></time>
+      </div>
+
+      {% if cancellation_state != 'pending' %}
+        <div class="order-cancellation-notice__response">
+          <span class="order-cancellation-notice__label">Răspunsul magazinului</span>
+          <p>{{ cancellation.decision_reason|default('') ?: (cancellation_state == 'accepted' ? 'Solicitarea de anulare a fost acceptată.' : 'Solicitarea de anulare a fost respinsă.') }}</p>
+          {% if cancellation.resolved_at %}<time datetime="{{ cancellation.resolved_at }}">{{ cancellation.resolved_at|date('d.m.Y, H:i', 'Europe/Bucharest') }}</time>{% endif %}
+        </div>
+      {% else %}
+        <div class="order-cancellation-notice__response">
+          <span class="order-cancellation-notice__label">Răspunde solicitării</span>
+          <p>Verifică motivul, apoi alege răspunsul. Clientul primește automat un email cu decizia ta.</p>
+          <div class="order-cancellation-notice__actions">
+            {% if order.can_accept_cancellation|default(order.status in ['new', 'confirmed', 'preparing', 'cancelled']) %}
+              <a class="order-cancellation-notice__button is-accept" href="{{ url('admin/comenzi/' ~ order.id ~ '/anulare/accepta/') }}" data-order-modal-open data-modal-url="{{ url('admin/comenzi/' ~ order.id ~ '/anulare/accepta/') }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg><span>Acceptă anularea</span></a>
+            {% else %}
+              <span class="order-cancellation-notice__unavailable">Comanda a depășit etapa în care poate fi anulată.</span>
+            {% endif %}
+            <a class="order-cancellation-notice__button is-reject" href="{{ url('admin/comenzi/' ~ order.id ~ '/anulare/respinge/') }}" data-order-modal-open data-modal-url="{{ url('admin/comenzi/' ~ order.id ~ '/anulare/respinge/') }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"/></svg><span>Respinge</span></a>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+
+    {% if order.payment_method == 'stripe' and order.payment_status in ['paid','partially_refunded'] %}
+      <p class="order-cancellation-notice__payment"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M3 10h18M7 15h4"/></svg><span>Plata cu cardul se gestionează separat. Acceptarea anulării nu rambursează automat banii.</span></p>
+    {% endif %}
+  </section>
+{% endif %}
