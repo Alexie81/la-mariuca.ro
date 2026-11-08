@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Catalog;
 
+use App\Modules\Payments\StripeCatalogQueue;
 use App\Shared\Security\ProductDescriptionSanitizer;
 use App\Shared\Support\Money;
 use App\Shared\Support\Slugger;
@@ -13,10 +14,12 @@ use RuntimeException;
 final class CatalogAdminService
 {
     private ProductDescriptionSanitizer $descriptionSanitizer;
+    private readonly StripeCatalogQueue $stripeCatalog;
 
-    public function __construct(private readonly PDO $pdo, ?ProductDescriptionSanitizer $descriptionSanitizer = null)
+    public function __construct(private readonly PDO $pdo, ?ProductDescriptionSanitizer $descriptionSanitizer = null, ?StripeCatalogQueue $stripeCatalog = null)
     {
         $this->descriptionSanitizer = $descriptionSanitizer ?? new ProductDescriptionSanitizer();
+        $this->stripeCatalog = $stripeCatalog ?? new StripeCatalogQueue($pdo);
     }
 
     /** @param array<string,mixed> $data */
@@ -174,6 +177,7 @@ final class CatalogAdminService
             }
             $this->syncProductVariants($id, $variants, $now);
             $this->syncProductImages($id, $galleryMediaIds);
+            $this->stripeCatalog->enqueue($id);
             $this->pdo->commit();
             return $id;
         } catch (\Throwable $exception) {
@@ -524,6 +528,7 @@ final class CatalogAdminService
                 ->execute(['now' => $now, 'product_id' => $id]);
             $this->pdo->prepare("UPDATE products SET status='archived',featured=0,indexable=0,published_at=NULL,updated_at=:now WHERE id=:id")
                 ->execute(['now' => $now, 'id' => $id]);
+            $this->stripeCatalog->enqueue($id);
             $this->pdo->commit();
         } catch (\Throwable $exception) {
             if ($this->pdo->inTransaction()) {

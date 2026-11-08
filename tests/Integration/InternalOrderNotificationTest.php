@@ -219,11 +219,13 @@ final class InternalOrderNotificationTest extends DatabaseTestCase
     private function webhook(int $orderId, string $eventId, string $paymentStatus, int $amountDelta = 0, bool $validSignature = true): int
     {
         $amount = (int) $this->pdo->query('SELECT total_bani FROM orders WHERE id=' . $orderId)->fetchColumn();
+        $this->pdo->prepare("UPDATE payments SET checkout_session_id=:session WHERE order_id=:id AND provider='stripe'")
+            ->execute(['session' => 'cs_order_' . $orderId, 'id' => $orderId]);
         $payload = json_encode([
             'id' => $eventId, 'object' => 'event', 'api_version' => '2025-09-30.clover', 'created' => time(),
             'type' => 'checkout.session.completed', 'livemode' => false,
-            'data' => ['object' => ['id' => 'cs_' . $eventId, 'object' => 'checkout.session', 'payment_status' => $paymentStatus,
-                'amount_total' => $amount + $amountDelta, 'currency' => 'ron', 'payment_intent' => 'pi_' . $eventId, 'metadata' => ['order_id' => (string) $orderId]]],
+            'data' => ['object' => ['id' => 'cs_order_' . $orderId, 'object' => 'checkout.session', 'payment_status' => $paymentStatus,
+                'amount_total' => $amount + $amountDelta, 'currency' => 'ron', 'payment_intent' => 'pi_order_' . $orderId, 'metadata' => ['order_id' => (string) $orderId]]],
         ], JSON_THROW_ON_ERROR);
         $timestamp = time();
         $signature = hash_hmac('sha256', $timestamp . '.' . $payload, $validSignature ? 'whsec_internal_notifications' : 'wrong');

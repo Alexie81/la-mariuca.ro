@@ -179,6 +179,8 @@ final class PaymentMethodSettingsTest extends DatabaseTestCase
         $this->settings()->save(true, false, $this->adminId);
         $_ENV['STRIPE_ENABLED'] = 'false';
         $amount = (int) $this->pdo->query('SELECT total_bani FROM orders WHERE id=' . (int) $order['id'])->fetchColumn();
+        $this->pdo->prepare("UPDATE payments SET checkout_session_id='cs_payment_after_switch_off' WHERE order_id=:id")
+            ->execute(['id' => $order['id']]);
         $payload = json_encode([
             'id' => 'evt_payment_after_switch_off', 'object' => 'event', 'api_version' => '2025-09-30.clover', 'created' => time(),
             'type' => 'checkout.session.completed', 'livemode' => false,

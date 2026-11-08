@@ -7,6 +7,7 @@ namespace App\Modules\Checkout;
 use App\Modules\Admin\AdminPushService;
 use App\Modules\Cart\CartService;
 use App\Modules\Payments\CategoryPaymentPolicy;
+use App\Modules\Payments\PaymentFeeService;
 use App\Modules\Orders\InternalOrderNotificationService;
 use App\Modules\Shipping\ShippingMethodService;
 use App\Shared\Config\Config;
@@ -20,6 +21,7 @@ final class CheckoutService
     private readonly ShippingMethodService $shippingMethods;
     private readonly CategoryPaymentPolicy $paymentPolicy;
     private readonly InternalOrderNotificationService $internalNotifications;
+    private readonly PaymentFeeService $paymentFees;
 
     public function __construct(private readonly PDO $pdo, private readonly CartService $cart, private readonly Config $config, ?RomanianLocations $locations = null, private readonly ?AdminPushService $push = null, ?ShippingMethodService $shippingMethods = null, ?CategoryPaymentPolicy $paymentPolicy = null, ?InternalOrderNotificationService $internalNotifications = null)
     {
@@ -27,12 +29,19 @@ final class CheckoutService
         $this->shippingMethods = $shippingMethods ?? new ShippingMethodService($pdo);
         $this->paymentPolicy = $paymentPolicy ?? new CategoryPaymentPolicy($pdo, $config);
         $this->internalNotifications = $internalNotifications ?? new InternalOrderNotificationService($pdo);
+        $this->paymentFees = new PaymentFeeService($pdo);
     }
 
     /** @param array<string,mixed> $cart @return array<string,mixed> */
     public function paymentOptions(array $cart): array
     {
-        return $this->paymentPolicy->resolve($cart['items']);
+        $options = $this->paymentPolicy->resolve($cart['items']);
+        foreach (['cod', 'stripe'] as $method) {
+            $fees = $this->paymentFees->quote($method);
+            $options['methods'][$method]['fees'] = $fees['items'];
+            $options['methods'][$method]['fee_bani'] = $fees['total_bani'];
+        }
+        return $options;
     }
 
     /**
@@ -116,8 +125,9 @@ final class CheckoutService
             $shippingQuote = $this->quoteShipping($cart, $shippingMethod);
             $shippingDiscount = $shippingQuote['shipping_discount_bani'];
             $shipping = $shippingQuote['shipping_bani'];
+            $paymentFees = $this->paymentFees->quote($method, true);
             $tax = 0;
-            $total = $shippingQuote['total_bani'] + $tax;
+            $total = $shippingQuote['total_bani'] + $tax + $paymentFees['total_bani'];
             $userId = isset($_SESSION['user_id']) ? (int) $_SESSION['user_id'] : null;
             $merchandiseBenefit = is_array($cart['merchandise_discount'] ?? null) ? $cart['merchandise_discount'] : null;
             $shippingOffer = $shippingQuote['shipping_offer'];
@@ -157,6 +167,9 @@ final class CheckoutService
                 'terms_at' => $now, 'marketing' => isset($data['marketing']) ? 1 : 0, 'created_at' => $now, 'updated_at' => $now,
             ]);
             $orderId = (int) $this->pdo->lastInsertId();
+            $this->pdo->prepare('UPDATE orders SET payment_fee_bani=:amount,payment_fees_json=:fees WHERE id=:id')->execute([
+                'amount' => $paymentFees['total_bani'], 'fees' => json_encode($paymentFees['items'], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR), 'id' => $orderId,
+            ]);
             $orderNumber = 'LM-' . gmdate('Y') . '-' . str_pad((string) $orderId, 6, '0', STR_PAD_LEFT);
             $this->pdo->prepare('UPDATE orders SET order_number = :number WHERE id = :id')->execute(['number' => $orderNumber, 'id' => $orderId]);
             $this->pdo->prepare('UPDATE orders SET shipping_estimate_json=:estimate WHERE id=:id')->execute([

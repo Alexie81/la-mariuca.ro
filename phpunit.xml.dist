@@ -17,5 +17,15 @@
     <env name="APP_KEY" value="test-key-only-not-for-production" force="true"/>
     <env name="DB_DRIVER" value="sqlite" force="true"/>
     <env name="DB_DATABASE" value=":memory:" force="true"/>
+    <env name="STRIPE_ENABLED" value="false" force="true"/>
+    <env name="STRIPE_MODE" value="test" force="true"/>
+    <env name="STRIPE_SECRET_KEY" value="" force="true"/>
+    <env name="STRIPE_PUBLISHABLE_KEY" value="" force="true"/>
+    <env name="STRIPE_WEBHOOK_SECRET" value="" force="true"/>
+    <env name="STRIPE_WEBHOOK_SECRET_FILE" value="" force="true"/>
+    <env name="STRIPE_CATALOG_ENABLED" value="false" force="true"/>
+    <env name="STRIPE_PUBLIC_MEDIA_BASE_URL" value="" force="true"/>
+    <env name="MAIL_DELIVERY_MODE" value="spool" force="true"/>
+    <env name="WEB_PUSH_ENABLED" value="false" force="true"/>
   </php>
 </phpunit>

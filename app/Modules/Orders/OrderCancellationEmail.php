@@ -58,14 +58,7 @@ final class OrderCancellationEmail
                 : ($rejected ? 'Am analizat solicitarea. Mai jos găsești motivul deciziei noastre. Dacă ai nevoie de ajutor, ne poți scrie direct.'
                     : 'Cererea ta a fost înregistrată. Îți comunicăm rezultatul verificării într-un email separat. Acest mesaj confirmă primirea cererii, nu aprobarea anulării.'));
         $shared = (new OrderEmailViewData($this->config, $this->images))->forOrder($order);
-        // Unlike new-order confirmations, cancellation emails may concern unpaid or refunded cards.
-        $paymentState = match ((string) $order['payment_status']) {
-            'paid' => 'Plătit', 'refunded' => 'Rambursat', 'partially_refunded' => 'Rambursat parțial', 'failed' => 'Plată eșuată',
-            default => $order['payment_method'] === 'stripe' ? 'Plată în așteptare'
-                : ($order['status'] === 'cancelled' ? 'Fără plată la livrare' : 'De achitat la livrare'),
-        };
-        $shared['payment_state'] = $paymentState;
-        $shared['paid'] = $order['payment_status'] === 'paid';
+        $paymentState = $shared['payment_state'];
         // This is an order snapshot, not a renewed promise to deliver a cancelled order.
         $shared['delivery_estimate'] = null;
         $rootUrl = $this->config->rootUrl();

@@ -25,7 +25,14 @@ final class OrderEmailViewData
     {
         $card = $order['payment_method'] === 'stripe';
         $paymentMethod = $card ? 'Card online' : 'Ramburs';
-        $paymentState = $card || $order['payment_status'] === 'paid' ? 'Plătit' : 'De achitat la livrare';
+        $paymentState = match ((string) $order['payment_status']) {
+            'paid' => 'Plătit',
+            'refunded' => 'Rambursat',
+            'partially_refunded' => 'Rambursat parțial',
+            'failed' => 'Plată eșuată',
+            default => $card ? 'Plată în așteptare'
+                : (($order['status'] ?? '') === 'cancelled' ? 'Fără plată la livrare' : 'De achitat la livrare'),
+        };
         $items = [];
         foreach ($order['items'] as $item) {
             $items[] = [
@@ -46,6 +53,9 @@ final class OrderEmailViewData
         if ($shippingDiscount > 0) {
             $totals[] = ['label' => 'Reducere livrare', 'value' => '−' . Money::format($shippingDiscount), 'saving' => true];
         }
+        foreach ($order['payment_fees'] ?? \App\Modules\Payments\PaymentFeeService::snapshot($order) as $fee) {
+            $totals[] = ['label' => $fee['name'], 'value' => Money::format($fee['amount_bani']), 'saving' => false];
+        }
         if ((int) $order['tax_bani'] > 0) {
             $totals[] = ['label' => 'Taxe', 'value' => Money::format((int) $order['tax_bani']), 'saving' => false];
         }
@@ -57,7 +67,7 @@ final class OrderEmailViewData
             'address' => $order['shipping_address'], 'phone' => $order['phone'], 'email' => $order['email'],
             'shipping_method' => $order['shipping_method_name'] ?: 'Livrare standard',
             'delivery_estimate' => $this->deliveryEstimates->forOrder($order),
-            'payment_method' => $paymentMethod, 'payment_state' => $paymentState, 'paid' => $paymentState === 'Plătit',
+            'payment_method' => $paymentMethod, 'payment_state' => $paymentState, 'paid' => $order['payment_status'] === 'paid',
             'items' => $items, 'quantity' => $order['quantity'], 'totals' => $totals,
             'total' => Money::format((int) $order['total_bani']), 'savings' => $saving > 0 ? Money::format($saving) : null,
             'savings_icon' => $this->config->rootUrl() . '/assets/images/email-savings-confetti.gif',

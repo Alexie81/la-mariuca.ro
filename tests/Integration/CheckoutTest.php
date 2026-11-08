@@ -558,7 +558,7 @@ final class CheckoutTest extends DatabaseTestCase
             self::assertNotFalse($statusEntry, 'Confirmarea automată trebuie să înregistreze data intrării în status.');
             $payment = $this->pdo->query('SELECT status,provider_payment_id FROM payments WHERE order_id=' . (int) $paidOrder['id'])->fetch();
             self::assertSame('paid', $payment['status']);
-            self::assertSame('pi_evt_checkout_async_succeeded', $payment['provider_payment_id']);
+            self::assertSame('pi_order_' . (int) $paidOrder['id'], $payment['provider_payment_id']);
             self::assertSame('processed', $this->pdo->query("SELECT status FROM payment_events WHERE provider_event_id='evt_checkout_completed_unpaid'")->fetchColumn());
             self::assertSame('processed', $this->pdo->query("SELECT status FROM payment_events WHERE provider_event_id='evt_checkout_async_succeeded'")->fetchColumn());
 
@@ -709,18 +709,20 @@ final class CheckoutTest extends DatabaseTestCase
         if (!is_array($order)) {
             self::fail('Comanda Stripe pentru webhook nu există.');
         }
+        $this->pdo->prepare("UPDATE payments SET checkout_session_id=:session WHERE order_id=:id AND provider='stripe'")
+            ->execute(['session' => 'cs_order_' . $orderId, 'id' => $orderId]);
         $payload = json_encode([
             'id' => $eventId,
             'object' => 'event',
             'api_version' => '2025-09-30.clover',
             'created' => time(),
             'data' => ['object' => [
-                'id' => 'cs_' . $eventId,
+                'id' => 'cs_order_' . $orderId,
                 'object' => 'checkout.session',
                 'amount_total' => (int) $order['total_bani'],
                 'currency' => strtolower((string) $order['currency']),
                 'payment_status' => $paymentStatus ?? (in_array($eventType, ['checkout.session.completed', 'checkout.session.async_payment_succeeded'], true) ? 'paid' : 'unpaid'),
-                'payment_intent' => 'pi_' . $eventId,
+                'payment_intent' => 'pi_order_' . $orderId,
                 'metadata' => ['order_id' => (string) $orderId],
             ]],
             'livemode' => false,

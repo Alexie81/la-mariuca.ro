@@ -194,7 +194,9 @@ final class OfferUsageReportingTest extends DatabaseTestCase
     private function webhook(int $id, string $type, string $event): void
     {
         $amount = (int) $this->pdo->query('SELECT total_bani FROM orders WHERE id=' . $id)->fetchColumn();
-        $payload = json_encode(['id' => 'evt_reporting_' . $event, 'object' => 'event', 'api_version' => '2025-09-30.clover', 'created' => time(), 'type' => $type,
+        $this->pdo->prepare("UPDATE payments SET checkout_session_id=:session WHERE order_id=:id AND provider='stripe'")
+            ->execute(['session' => 'cs_reporting_' . $id, 'id' => $id]);
+        $payload = json_encode(['id' => 'evt_reporting_' . $event, 'object' => 'event', 'api_version' => '2025-09-30.clover', 'created' => time(), 'type' => $type, 'livemode' => false,
             'data' => ['object' => ['id' => 'cs_reporting_' . $id, 'object' => 'checkout.session', 'payment_status' => $type === 'checkout.session.completed' ? 'paid' : 'unpaid',
                 'amount_total' => $amount, 'currency' => 'ron', 'payment_intent' => 'pi_reporting_' . $id, 'metadata' => ['order_id' => (string) $id]]]], JSON_THROW_ON_ERROR);
         $timestamp = time();

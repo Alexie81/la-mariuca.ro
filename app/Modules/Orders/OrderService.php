@@ -230,6 +230,7 @@ final class OrderService
         $payments = $this->pdo->prepare('SELECT provider,provider_payment_id,amount_bani,refunded_bani,currency,status,created_at,updated_at FROM payments WHERE order_id = :id ORDER BY id DESC');
         $payments->execute(['id' => $orderId]);
         $order['payments'] = $payments->fetchAll();
+        $order['payment_fees'] = \App\Modules\Payments\PaymentFeeService::snapshot($order);
         $order['shipping_address'] = $this->decodeJson((string) $order['shipping_address_json']);
         $order['billing_address'] = $this->decodeJson((string) $order['billing_address_json']);
         $order['company'] = $this->decodeJson((string) $order['company_json']);
@@ -298,6 +299,7 @@ final class OrderService
     /** @param array<string,mixed> $order @return array<string,mixed> */
     private function hydratePublicOrder(array $order): array
     {
+        $order['payment_fees'] = \App\Modules\Payments\PaymentFeeService::snapshot($order);
         $items = $this->pdo->prepare('SELECT item.*,product.slug AS product_slug,
                 COALESCE(variant_media.public_path,
                     (SELECT product_media.public_path FROM product_images pi

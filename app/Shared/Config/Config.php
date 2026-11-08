@@ -36,6 +36,10 @@ final class Config
             'TAX_RATE_BASIS_POINTS' => '0',
             'PRICES_INCLUDE_TAX' => 'true',
             'STRIPE_ENABLED' => 'false',
+            'STRIPE_MODE' => 'test',
+            'STRIPE_CATALOG_ENABLED' => 'false',
+            'STRIPE_PUBLIC_MEDIA_BASE_URL' => '',
+            'STRIPE_WEBHOOK_SECRET_FILE' => '',
             'COD_ENABLED' => 'true',
             'WHATSAPP_NUMBER' => '40763715974',
             'WHATSAPP_MESSAGE' => 'Bună! Aș dori mai multe informații despre produsele La Măriuca Boutique.',
@@ -56,7 +60,7 @@ final class Config
             $values[$key] = is_string($value) && $value !== '' ? $value : $default;
         }
 
-        foreach (['APP_KEY', 'TRUSTED_HOSTS', 'TRUSTED_PROXIES', 'DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER', 'DB_PASSWORD', 'MAILER_DSN', 'MAIL_FROM_ADDRESS', 'MAIL_FROM_NAME', 'STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET', 'STRIPE_CURRENCY', 'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'WEB_PUSH_VAPID_PUBLIC_KEY', 'WEB_PUSH_VAPID_PRIVATE_KEY'] as $key) {
+        foreach (['APP_KEY', 'TRUSTED_HOSTS', 'TRUSTED_PROXIES', 'DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER', 'DB_PASSWORD', 'MAILER_DSN', 'MAIL_FROM_ADDRESS', 'MAIL_FROM_NAME', 'STRIPE_SECRET_KEY', 'STRIPE_PUBLISHABLE_KEY', 'STRIPE_WEBHOOK_SECRET', 'STRIPE_CURRENCY', 'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'WEB_PUSH_VAPID_PUBLIC_KEY', 'WEB_PUSH_VAPID_PRIVATE_KEY'] as $key) {
             $value = $_ENV[$key] ?? $_SERVER[$key] ?? getenv($key);
             if (is_string($value)) {
                 $values[$key] = $value;
@@ -100,7 +104,30 @@ final class Config
             }
         }
 
+        $stripeSecretFile = trim($values['STRIPE_WEBHOOK_SECRET_FILE']);
+        if (($values['STRIPE_WEBHOOK_SECRET'] ?? '') === '' && $stripeSecretFile !== '') {
+            $path = realpath($root . '/' . ltrim($stripeSecretFile, '/\\'));
+            $privatePath = realpath($root . '/storage/private');
+            if ($path !== false && $privatePath !== false && str_starts_with($path, $privatePath . DIRECTORY_SEPARATOR) && is_file($path)) {
+                $secret = trim((string) file_get_contents($path));
+                if (str_starts_with($secret, 'whsec_')) { $values['STRIPE_WEBHOOK_SECRET'] = $secret; }
+            }
+        }
+
         return new self($values);
+    }
+
+    public function stripeMode(): string
+    {
+        return $this->get('STRIPE_MODE', 'test');
+    }
+
+    public function stripeConfigured(): bool
+    {
+        $mode = $this->stripeMode();
+        if (!in_array($mode, ['test', 'live'], true) || ($mode === 'live' && $this->get('APP_ENV') !== 'production')) { return false; }
+        $key = $this->get('STRIPE_SECRET_KEY');
+        return str_starts_with($key, 'sk_' . $mode . '_') || str_starts_with($key, 'rk_' . $mode . '_');
     }
 
     public function get(string $key, string $default = ''): string

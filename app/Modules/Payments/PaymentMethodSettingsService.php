@@ -25,7 +25,7 @@ final class PaymentMethodSettingsService
         return [
             'cod_enabled' => $saved['cod_enabled'] === null ? $this->config->bool('COD_ENABLED', true) : (int) $saved['cod_enabled'] === 1,
             'stripe_enabled' => $saved['stripe_enabled'] === null ? $this->config->bool('STRIPE_ENABLED') : (int) $saved['stripe_enabled'] === 1,
-            'stripe_configured' => trim($this->config->get('STRIPE_SECRET_KEY')) !== '',
+            'stripe_configured' => $this->config->stripeConfigured(),
             'updated_at' => $saved['updated_at'] === null ? null : (string) $saved['updated_at'],
         ];
     }
