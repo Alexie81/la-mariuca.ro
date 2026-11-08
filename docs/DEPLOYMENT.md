@@ -129,7 +129,7 @@ Acceptarea cererii anulează comanda și eliberează rezervările; nu inițiază
 
 Stripe este dezactivat implicit în configurația distribuită. Configurația locală autorizată folosește exclusiv TEST, cu Checkout găzduit de Stripe și brandingul salvat în cont.
 
-1. Aplică migrările 043–045 (legătura sesiunii de plată, coada catalogului, costurile operaționale).
+1. Aplică migrările 043–046 (legătura sesiunii de plată, coada catalogului, costurile operaționale și încercările de plată separate de comenzi).
 2. Setează privat `STRIPE_ENABLED=true`, `STRIPE_MODE=test`, `STRIPE_SECRET_KEY` și `STRIPE_PUBLISHABLE_KEY` de test. Activează cardul din Metode de plată. Regulile categoriilor continuă să se aplice.
 3. Local, instalează Stripe CLI din sursa oficială în `storage/private/stripe-cli/stripe.exe`, setează `STRIPE_WEBHOOK_SECRET_FILE=storage/private/stripe-webhook-secret` și pornește `powershell -File bin/start-stripe-listener.ps1`. Scriptul acceptă doar localhost și chei test, pornește ascuns și păstrează semnătura privată. Trebuie repornit după repornirea calculatorului. Nu publica acest fișier.
 4. Pentru un mediu HTTPS autorizat, înregistrează `/stripe/webhook` și evenimentele `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.expired`, `checkout.session.async_payment_failed`, `payment_intent.canceled`. Secretul endpointului Dashboard este diferit de secretul CLI; folosește `STRIPE_WEBHOOK_SECRET` privat.
@@ -143,6 +143,12 @@ Imaginile necesită URL-uri HTTPS accesibile public de Stripe. Localhost nu este
 Trecerea LIVE necesită aprobare explicită, `APP_ENV=production`, `STRIPE_MODE=live`, cheile live, secretul endpointului HTTPS live și domeniul public corect. Nu copia `.env` local, baza QA ori listenerul CLI în producție. Reia sincronizarea catalogului pentru contul/modul live, configurează workerul, verifică brandingul live, emailurile și push-ul, apoi efectuează un checkout real autorizat. Credențialele de mod diferit sunt respinse. Nu considera migrarea MySQL, livrarea pe hosting ori Stripe live verificate prin testele SQLite/sandbox.
 
 Redirectul browserului nu marchează plata ca achitată. Numai webhookul semnat actualizează plata.
+Pentru checkouturile noi, înainte de plată există numai o încercare privată în `checkout_attempts`, cu snapshot și rezervări; nu există încă o comandă în `orders`. Rambursul creează o comandă `new/pending` la plasare. Webhookul Stripe valid creează o singură comandă `confirmed/paid` și pune notificările în coadă. O plată tardivă cu probleme de stoc sau un al doilea debit real pentru același coș intră plătită în `manual_review` pentru reconciliere, fără pierderea tranzacției.
+
+Refuzul recuperabil rămâne în pagina Stripe pentru reîncercare. Revenirea prin `cancel_url` este doar citire; nu eliberează rezervări cât timp sesiunea poate fi plătită. „Reia plata” refolosește sesiunea deschisă. „Renunță la plată” confirmă întâi expirarea la Stripe, apoi eliberează rezervările și revine la checkout cu produsele și datele completate. La expirare/eșec nu se creează comenzi sau emailuri de confirmare; coșul rămâne activ. CSP permite redirecționarea formularelor doar către originile Checkout Stripe exacte, fără wildcard.
+
+Configurează un cron cu lock, la fiecare 5 minute: `php /cale/bin/reconcile-stripe-attempts.php 20`. Acesta recuperează rezervările abandonate după expirare plus 5 minute, numai după verificarea procesatorului. La timeout fără ID de sesiune, caută sesiunea folosind metadata și amprenta configurației private; o schimbare de cheie, o scanare incompletă sau o eroare API nu eliberează stocul. Urmărește rezultatele `manual_review`, `failed` și `waiting_webhook`: ultima stare necesită recuperarea/livrarea webhookului semnat, nu confirmarea prin URL. Nu folosi `reservations:expire` pentru a forța eliberarea încercărilor Stripe. Cronul este pregătit, dar trebuie configurat și verificat pe hosting.
+
 Rambursările se inițiază în dashboardul Stripe în această versiune; sincronizarea completă a
 rambursărilor parțiale este încă de implementat.
 
@@ -158,6 +164,7 @@ rambursărilor parțiale este încă de implementat.
 - [ ] Subtotalul, reducerile, livrarea gratuită/redusă și fiecare cost operațional corespund comenzii; totalul este egal la ban. Cuponul nu reduce accidental costurile operaționale.
 - [ ] Regulile categoriilor și fallbackul card/ramburs global funcționează; costurile se recalculează pentru metoda efectiv aleasă.
 - [ ] Checkout real autorizat: succes, anulare, eșec, 3DS, webhook semnat, retry/duplicate și plată întârziată. Redirectul singur nu confirmă plata.
+- [ ] Încercările anulate/refuzate nu creează comenzi; coșul și datele rămân disponibile. Verifică „Reia plata”, cronul de reconciliere și notificarea unică după confirmare, inclusiv cu webhook întârziat.
 - [ ] Clientul și destinatarii interni primesc notificările corecte o singură dată, cu CTA-uri/imagine pe domeniul public; dispozitivele push sunt înregistrate pe originea live.
 - [ ] Reverificarea fiscală și a regulilor de rambursare pentru servicii/costuri este încheiată înaintea lansării. Nu declarăm verificarea live completă până la executarea efectivă a pașilor.
 
