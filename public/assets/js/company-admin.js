@@ -65,10 +65,23 @@
   function initializeForm() {
     const form = content.querySelector('[data-company-form]');
     if (!form) return;
+    syncVat(form);
     originalStamp = form.querySelector('[data-company-stamp-preview]')?.getAttribute('src') || '';
     const target = form.querySelector('[aria-invalid="true"]') || form.querySelector('input:not([type="hidden"]):not([type="file"]), textarea, select');
     // Keep the top of a long form visible; focusing a field must not jump past the heading.
     (target || form.querySelector('[data-company-modal-close]'))?.focus({preventScroll:true});
+  }
+
+  function syncVat(form) {
+    const payer = form.querySelector('[name="is_vat_payer"]');
+    const rate = form.querySelector('[name="vat_rate"]');
+    if (!payer || !rate) return;
+    rate.disabled = !payer.checked;
+    if (!payer.checked) {
+      rate.removeAttribute('aria-invalid');
+      const error = form.querySelector('[data-field-error="vat_rate"]');
+      if (error) { error.hidden = true; error.textContent = ''; }
+    }
   }
 
   async function openModal(trigger) {
@@ -230,6 +243,7 @@
   dialog.addEventListener('change', (event) => {
     const form = event.target.closest('[data-company-form]');
     if (!form) return;
+    if (event.target.name === 'is_vat_payer') syncVat(form);
     if (event.target.matches('[data-company-stamp-input]')) stampPreview(form);
     if (event.target.matches('[data-company-stamp-remove]')) {
       if (event.target.checked) { const input = form.querySelector('[data-company-stamp-input]'); if (input) input.value = ''; }

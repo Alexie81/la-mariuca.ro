@@ -168,7 +168,10 @@ final class CompanyAdminTest extends DatabaseTestCase
         self::assertSame(1, (int) $this->company($companyId)['is_vat_payer']);
         self::assertSame(2100, (int) $this->company($companyId)['vat_rate_basis_points']);
 
-        self::assertSame(200, $this->post($editPath, $base + ['is_vat_payer'=>'0', 'vat_rate'=>'19.5'])->getStatusCode());
+        self::assertSame(200, $this->post($editPath, $base + ['is_vat_payer'=>'1', 'vat_rate'=>'19.5'])->getStatusCode());
+        self::assertSame(1, (int) $this->company($companyId)['is_vat_payer']);
+        self::assertSame(1950, (int) $this->company($companyId)['vat_rate_basis_points']);
+        self::assertSame(200, $this->post($editPath, $base + ['is_vat_payer'=>'0'])->getStatusCode());
         self::assertSame(0, (int) $this->company($companyId)['is_vat_payer']);
         self::assertSame(1950, (int) $this->company($companyId)['vat_rate_basis_points']);
         self::assertSame(200, $this->post($editPath, $base + ['is_vat_payer'=>'1'])->getStatusCode());
@@ -182,9 +185,15 @@ final class CompanyAdminTest extends DatabaseTestCase
 
         $original = $this->company($companyId);
         foreach (['-1', '101', '19,555', '1e1'] as $rate) {
-            $invalid = $this->post($editPath, ['legal_name'=>'Titlu nesalvat', 'is_vat_payer'=>'0', 'vat_rate'=>$rate]);
+            $invalid = $this->post($editPath, ['legal_name'=>'Titlu nesalvat', 'is_vat_payer'=>'1', 'vat_rate'=>$rate]);
             $this->assertFieldError($invalid, 'vat_rate');
             self::assertSame($original, $this->company($companyId));
+        }
+
+        foreach (['19.5', '-1', '101', '19,555', '1e1', '', ['invalid']] as $hiddenRate) {
+            self::assertSame(200, $this->post($editPath, $base + ['is_vat_payer'=>'0', 'vat_rate'=>$hiddenRate])->getStatusCode());
+            self::assertSame(0, (int) $this->company($companyId)['is_vat_payer']);
+            self::assertSame(10000, (int) $this->company($companyId)['vat_rate_basis_points']);
         }
     }
 

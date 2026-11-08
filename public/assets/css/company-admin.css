@@ -279,4 +279,6 @@ html.has-company-dialog{overflow:hidden}
 .company-vat-settings>div,.company-vat-settings>.company-field{min-width:0}
 .company-vat-settings .company-switchbox{margin:0;min-height:86px}
 .company-vat-settings__help{grid-column:1/-1;margin:0;color:#89786e;font-size:12.5px;line-height:1.6}
+.company-vat-settings:not(:has([name="is_vat_payer"]:checked)){grid-template-columns:minmax(0,1fr)}
+.company-vat-settings:not(:has([name="is_vat_payer"]:checked))>.company-field,.company-vat-settings:not(:has([name="is_vat_payer"]:checked))>.company-vat-settings__help{display:none}
 @media(max-width:600px){.company-vat-settings{grid-template-columns:1fr;gap:15px;margin-top:19px;padding-top:19px}.company-vat-settings .company-switchbox{min-height:0}.company-vat-settings>.company-field{max-width:100%}.company-vat-settings__help{font-size:12px}.company-vat-settings .company-field__suffix input{padding-right:54px}}

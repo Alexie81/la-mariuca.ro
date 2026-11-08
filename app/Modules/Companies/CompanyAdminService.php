@@ -96,7 +96,7 @@ final class CompanyAdminService
         }
         $values['is_vat_payer'] = (int) $this->checked($data['is_vat_payer'] ?? false);
         $values['vat_rate_basis_points'] = (int) ($existing['vat_rate_basis_points'] ?? 2100);
-        if (array_key_exists('vat_rate', $data)) {
+        if ($values['is_vat_payer'] === 1 && array_key_exists('vat_rate', $data)) {
             $rawRate = $data['vat_rate'];
             $rate = is_scalar($rawRate) ? trim((string) $rawRate) : '';
             if (preg_match('/^([0-9]{1,3})(?:[.,]([0-9]{1,2}))?$/D', $rate, $parts) !== 1) {
