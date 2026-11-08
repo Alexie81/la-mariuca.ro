@@ -3,14 +3,25 @@
 .tracking-cancellation__link:hover{color:#8e3f59;text-decoration-color:currentColor}
 .tracking-cancellation [hidden]{display:none}
 .tracking-cancellation__link svg{width:15px;height:15px}
-.tracking-cancellation__received{padding:16px 18px;background:#fffaf6;border:1px solid #eadcce;border-radius:17px}
-.tracking-cancellation__received>strong{display:flex;gap:8px;align-items:center;color:#795d48;font-size:14px;font-weight:500}
-.tracking-cancellation__received>strong svg{width:18px;height:18px}
-.tracking-cancellation__received p{margin:8px 0;color:#806c6a;font-size:13px}
-.tracking-cancellation__received time{font-size:12px}
-.tracking-cancellation__received details{margin-top:10px}
-.tracking-cancellation__received summary{cursor:pointer;text-underline-offset:3px}
-.tracking-cancellation__received blockquote{margin:10px 0 0;padding:10px 13px;border-left:2px solid #ddc6b1;white-space:pre-wrap;overflow-wrap:anywhere;color:#655052}
+.tracking-cancellation__received{--cancellation-accent:#947044;--cancellation-soft:#f8eddd;--cancellation-line:#eadcce;padding:20px 22px;background:#fffdf9;border:1px solid var(--cancellation-line);border-radius:19px;box-shadow:0 6px 18px #6a4c3704}
+.tracking-cancellation__received.is-accepted{--cancellation-accent:#39765e;--cancellation-soft:#eaf4ed;--cancellation-line:#d7e5db;background:#fcfefc}
+.tracking-cancellation__received.is-rejected{--cancellation-accent:#9f6470;--cancellation-soft:#faeef0;--cancellation-line:#eddae0;background:#fffdfd}
+.tracking-cancellation__heading{display:flex;align-items:center;gap:12px}
+.tracking-cancellation__status-icon{display:grid;place-items:center;flex:none;width:40px;height:40px;border:1px solid var(--cancellation-line);border-radius:13px;background:var(--cancellation-soft);color:var(--cancellation-accent)}
+.tracking-cancellation__status-icon svg{width:20px;height:20px}
+.tracking-cancellation__heading>div{min-width:0;display:grid;gap:4px}
+.tracking-cancellation__heading>div>span{color:var(--cancellation-accent);font-size:12px;font-weight:500}
+.tracking-cancellation__heading strong{color:#604d49;font-size:16px;line-height:1.4;font-weight:550}
+.tracking-cancellation__received p{margin:13px 0;color:#806c6a;font-size:14px;line-height:1.7}
+.tracking-cancellation__dates{display:flex;flex-wrap:wrap;gap:5px 18px;margin-top:14px;padding-top:12px;border-top:1px solid var(--cancellation-line)}
+.tracking-cancellation__received time{font-size:12px;color:#8c7875}
+.tracking-cancellation__received details{margin-top:12px}
+.tracking-cancellation__received summary{display:list-item;min-height:30px;cursor:pointer;text-underline-offset:4px;text-decoration:underline;text-decoration-color:#ddc5c7;font-size:13px;color:#84656a}
+.tracking-cancellation__received blockquote{margin:10px 0 0;padding:10px 13px;border-left:2px solid var(--cancellation-line);white-space:pre-wrap;overflow-wrap:anywhere;color:#655052;font-size:14px;line-height:1.65}
+.tracking-cancellation__response{padding:14px 16px;border:1px solid var(--cancellation-line);border-radius:13px;background:#fff}
+.tracking-cancellation__response>span{color:var(--cancellation-accent);font-size:12px;font-weight:550}
+.tracking-cancellation__response blockquote{padding:0;border:0;margin-top:5px}
+.tracking-cancellation__received .tracking-cancellation__payment-note{color:#8d765e;font-size:13px}
 .tracking-cancel-dialog{width:min(560px,calc(100% - 32px));max-width:none;max-height:calc(100dvh - 40px);padding:0;border:1px solid #fff;border-radius:26px;color:var(--tr-ink);background:#fffaf7;box-shadow:0 28px 90px #583d4633;overflow:hidden}
 .tracking-cancel-dialog::backdrop{background:#4d354534;backdrop-filter:blur(7px)}
 .tracking-cancel-dialog[open]{animation:tracking-cancel-in .28s cubic-bezier(.2,.8,.2,1)}
@@ -50,6 +61,10 @@
 @keyframes tracking-cancel-in{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:none}}
 @media(max-width:560px){
   .tracking-cancellation{scroll-margin-top:175px}
+  .tracking-cancellation__received{padding:17px;border-radius:16px}
+  .tracking-cancellation__heading{gap:10px}
+  .tracking-cancellation__heading strong{font-size:15px}
+  .tracking-cancellation__response{padding:12px 14px}
   .tracking-cancel-dialog{width:calc(100% - 20px);max-height:calc(100dvh - 24px);border-radius:22px}
   .tracking-cancel-form{max-height:calc(100dvh - 26px)}
   .tracking-cancel-head{padding:22px 55px 20px 18px;gap:12px}

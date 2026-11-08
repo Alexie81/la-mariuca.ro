@@ -486,17 +486,110 @@ html:has(.order-dialog[open],.order-lightbox[open]) {overflow:hidden}
   .order-dialog__loading>span {animation:none}
   .order-lightbox::backdrop,.order-lightbox.is-closing::backdrop {animation:none}
 }
-/* Customer cancellation requests remain separate from order/payment actions. */
+/* Cancellation review: the request, decision and payment stay clearly identifiable. */
 .order-cancellation-badge{display:table!important;margin-top:7px;padding:5px 8px;border:1px solid #e6c39c;border-radius:7px;background:#fff4e4;color:#91612f!important;font-size:11px!important;line-height:1.5;text-decoration:none}
-.order-cancellation-request{margin:22px 0;padding:23px 25px;border:1px solid #e9cfb3;border-radius:23px;background:linear-gradient(120deg,#fffaf2,#fffdfb);scroll-margin-top:110px}
-.order-cancellation-request header{display:flex;align-items:center;gap:14px}
-.order-cancellation-request__icon{display:grid;place-items:center;flex:none;width:46px;height:46px;border:1px solid #ead2b5;border-radius:15px;background:#f9ecda;color:#996c36}
-.order-cancellation-request svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
-.order-cancellation-request h2{margin:5px 0 7px;font:450 26px/1.2 var(--admin-serif);color:#684c3b}
-.order-cancellation-request time{font-size:12px;color:#907462}
-.order-cancellation-request__state{margin-left:auto;padding:6px 11px;border-radius:20px;background:#f3e6d3;color:#8b612f;font-size:12px;white-space:nowrap}
-.order-cancellation-request__reason{margin-top:19px;padding:15px 17px;border:1px solid #eddfcf;border-radius:14px;background:#fffdf9}
-.order-cancellation-request__reason>span{font-size:12px;color:#987a60}
-.order-cancellation-request blockquote{margin:7px 0 0;white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px;line-height:1.7;color:#634e41}
-.order-cancellation-request>p{font-size:12px;line-height:1.7;color:#8b7361;margin:12px 0 0}
-@media(max-width:600px){.order-cancellation-request{padding:18px}.order-cancellation-request header{flex-wrap:wrap;gap:10px}.order-cancellation-request__icon{width:38px;height:38px}.order-cancellation-request h2{font-size:23px}.order-cancellation-request__state{margin-left:0}.order-cancellation-request__reason{padding:12px}}
+.order-cancellation-request{--request-accent:#98692e;--request-soft:#fcf3e4;--request-line:#ead9c0;min-width:0;padding:24px;border:1px solid var(--request-line);border-radius:24px;background:radial-gradient(ellipse at top right,#faefd94d,transparent 65%),#fffdfb;box-shadow:0 8px 25px #77533106;scroll-margin-top:110px}
+.order-cancellation-request.is-accepted{--request-accent:#317b63;--request-soft:#edf7f0;--request-line:#d2e5d8;background:#fcfefc}
+.order-cancellation-request.is-rejected{--request-accent:#a85764;--request-soft:#fff0f1;--request-line:#eed7dc;background:#fffdfd}
+.order-cancellation-request>header{display:flex;align-items:center;gap:15px}
+.order-cancellation-request__icon{display:grid;place-items:center;flex:none;width:50px;height:50px;border:1px solid var(--request-line);border-radius:17px;background:var(--request-soft);color:var(--request-accent)}
+.order-cancellation-request__icon svg{width:24px;height:24px}
+.order-cancellation-request__heading{flex:1;min-width:0}
+.order-cancellation-request .order-kicker{font-size:11px;letter-spacing:.1em;color:var(--request-accent)}
+.order-cancellation-request h2{margin:4px 0;font:500 27px/1.15 var(--admin-serif);letter-spacing:-.02em;color:var(--order-ink)}
+.order-cancellation-request__heading p{margin:0;color:#846e63;font-size:14px;line-height:1.5}
+.order-cancellation-request__state{display:inline-flex;align-items:center;gap:7px;flex:none;padding:8px 12px;border:1px solid var(--request-line);border-radius:30px;background:var(--request-soft);color:var(--request-accent);font-size:12px;font-weight:600;white-space:nowrap}
+.order-cancellation-request__state i{width:6px;height:6px;border-radius:50%;background:currentColor;box-shadow:0 0 0 4px color-mix(in srgb,currentColor 10%,transparent)}
+.order-cancellation-request__details{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px;margin-top:22px}
+.order-cancellation-request__reason{min-width:0;padding:17px 19px;border:1px solid #eadfd2;border-radius:16px;background:#faf6f0}
+.order-cancellation-request__reason>span,.order-cancellation-request__review>span,.order-cancellation-request__decision>span{font-size:12px;font-weight:650;color:#876f5c}
+.order-cancellation-request blockquote{margin:8px 0 11px;white-space:pre-wrap;overflow-wrap:anywhere;font-size:15px;line-height:1.65;color:var(--order-ink)}
+.order-cancellation-request time{display:block;font-size:12px;color:#8c796e;line-height:1.5}
+.order-cancellation-request__review,.order-cancellation-request__decision{align-self:center;min-width:0;padding:2px 0}
+.order-cancellation-request__review>p,.order-cancellation-request__decision>p{margin:8px 0 14px;color:#7d6a61;font-size:14px;line-height:1.65;overflow-wrap:anywhere;white-space:pre-wrap}
+.order-cancellation-request__actions{display:flex;align-items:center;flex-wrap:wrap;gap:10px}
+.order-cancellation-button{display:inline-flex;flex-direction:row;align-items:center;justify-content:center;gap:8px;min-height:46px;padding:11px 16px;border:1px solid #e8d6cf;border-radius:12px;font:600 14px/1.4 var(--admin-sans);text-decoration:none;white-space:nowrap;transition:background .2s,transform .2s,box-shadow .2s}
+.order-cancellation-button svg{width:18px;height:18px}
+.order-cancellation-button.is-secondary{background:#fff;color:#8c5f61}
+.order-cancellation-button.is-secondary:hover{background:#fff2f1;border-color:#d8afa9}
+.order-cancellation-button.is-primary{background:var(--order-sage);border-color:var(--order-sage);color:#fff;box-shadow:0 5px 13px #317e671a}
+.order-cancellation-button.is-primary:hover{background:#276a56;box-shadow:0 7px 17px #317e6724;transform:translateY(-1px)}
+.order-cancellation-request__unavailable{font-size:13px;color:#977563;line-height:1.5}
+.order-cancellation-request__payment{display:flex;align-items:flex-start;gap:9px;padding-top:16px;margin:18px 0 0;border-top:1px solid var(--request-line);font-size:13px;line-height:1.6;color:#8b7361}
+.order-cancellation-request__payment svg{width:18px;height:18px;margin-top:2px}
+.order-dialog.is-cancellation{width:min(690px,calc(100vw - 48px));height:min(750px,calc(100dvh - 48px))}
+.order-cancellation-modal-head{background:radial-gradient(ellipse at top right,#e2f1e8,transparent 65%),#fffdfb}
+.order-cancellation-modal-head .order-modal-head__icon{background:#eff8f2;border-color:#d4e8da;color:var(--order-sage)}
+.order-cancellation-modal-head.is-rejection{background:radial-gradient(ellipse at top right,#f7e4e6,transparent 65%),#fffdfb}
+.order-cancellation-modal-head.is-rejection .order-modal-head__icon{background:#fff2f2;border-color:#efd4d5;color:#b95765}
+.order-cancellation-modal-head .order-kicker{color:#768373}
+.order-cancellation-modal-head.is-rejection .order-kicker{color:#b56b77}
+.order-cancellation-modal-head p{font-size:14px}
+.order-cancellation-form .order-modal-body{gap:22px;padding:24px;background:#fffdfb}
+.order-cancellation-context{flex:none;padding:18px 20px;border:1px solid #e9e1da;border-radius:18px;background:#faf7f3}
+.order-cancellation-context__top{display:flex;gap:11px;align-items:center}
+.order-cancellation-context__avatar{display:grid;place-items:center;flex:none;width:40px;height:40px;border-radius:13px;background:#f2e8e0;color:#9b7665}
+.order-cancellation-context__avatar svg{width:20px;height:20px}
+.order-cancellation-context__top>div{flex:1;min-width:0;display:grid;gap:3px}
+.order-cancellation-context__top strong{font-size:15px;font-weight:650;overflow-wrap:anywhere}
+.order-cancellation-context__top>div>span{font-size:13px;color:#8c766a;line-height:1.5}
+.order-cancellation-context__status{padding:5px 9px;border:1px solid #e5d8cd;border-radius:20px;background:#fffdfb;color:#927662;font-size:12px;white-space:nowrap}
+.order-cancellation-context blockquote{margin:16px 0 10px;padding:0 0 0 13px;border-left:2px solid #ddcbb6;color:#665248;white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px;line-height:1.65}
+.order-cancellation-context time{color:#917d71;font-size:12px;line-height:1.5}
+.order-cancellation-response{flex:none}
+.order-cancellation-response label{display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:15px;font-weight:650}
+.order-cancellation-response label small{font-size:12px;font-weight:500;color:#a66b74}
+.order-cancellation-response>p{margin:7px 0 12px;font-size:14px;line-height:1.65;color:#877269}
+.order-cancellation-form textarea{display:block;width:100%;min-height:112px;max-height:240px;resize:vertical;padding:13px 15px;border:1px solid #e0d0c7;border-radius:14px;background:#fff;color:var(--order-ink);font:400 15px/1.6 var(--admin-sans);box-sizing:border-box;transition:border-color .2s,box-shadow .2s}
+.order-cancellation-form textarea:focus{border-color:#cd8f99;box-shadow:0 0 0 3px #f3dbe070;outline:none}
+.order-cancellation-form textarea::placeholder{color:#a38c80}
+.order-cancellation-response__count{display:flex;justify-content:space-between;gap:10px;margin-top:8px;font-size:12px;line-height:1.5;color:#948074}
+.order-cancellation-response__count>span:last-child{flex:none;font-variant-numeric:tabular-nums}
+.order-cancellation-outcome{display:flex;align-items:flex-start;gap:12px;flex:none;padding:15px 17px;border:1px solid #dbeae0;border-radius:15px;background:#f4faf6;color:#37745d}
+.order-cancellation-outcome.is-rejection{color:#a2626c;border-color:#eedddf;background:#fff6f6}
+.order-cancellation-outcome>span{display:grid;place-items:center;flex:none;width:32px;height:32px;border-radius:10px;background:#fff}
+.order-cancellation-outcome svg{width:18px;height:18px}
+.order-cancellation-outcome strong{font-size:14px;font-weight:600;line-height:1.5}
+.order-cancellation-outcome p{margin:5px 0 0;font-size:14px;line-height:1.6;color:#738378}
+.order-cancellation-outcome.is-rejection p{color:#91757b}
+.order-cancellation-refund-note{display:flex;align-items:flex-start;gap:10px;margin:0;padding:0 3px;flex:none;color:#937148;font-size:13px;line-height:1.65}
+.order-cancellation-refund-note strong{font-weight:650}
+.order-cancellation-refund-note svg{width:18px;height:18px;margin-top:2px}
+.order-cancellation-modal-footer{justify-content:space-between}
+.order-cancellation-modal-footer .order-modal-cancel,.order-cancellation-modal-footer .order-modal-submit{font-size:14px;min-height:48px}
+.order-cancellation-modal-footer .order-modal-submit:not(.is-destructive){background:var(--order-sage);border-color:var(--order-sage);box-shadow:0 5px 14px #317e6722}
+.order-cancellation-modal-footer .order-modal-submit:not(.is-destructive):hover{background:#276a56}
+@media(max-width:760px){
+  .order-cancellation-request{padding:20px}
+  .order-cancellation-request__details{grid-template-columns:1fr;gap:17px;margin-top:18px}
+  .order-cancellation-request__review,.order-cancellation-request__decision{padding:0 2px}
+  .order-cancellation-request>header{flex-wrap:wrap;gap:12px}
+  .order-cancellation-request__state{margin-left:62px}
+  .order-cancellation-request h2{font-size:25px}
+  .order-cancellation-request__actions .order-cancellation-button{flex:1}
+}
+@media(max-width:600px){
+  .order-dialog.is-cancellation{width:calc(100vw - 20px);height:calc(100dvh - 20px)}
+  .order-cancellation-request{padding:17px;border-radius:20px}
+  .order-cancellation-request__icon{width:42px;height:42px;border-radius:14px}
+  .order-cancellation-request__state{margin-left:54px;font-size:12px;padding:6px 10px}
+  .order-cancellation-request h2{font-size:23px}
+  .order-cancellation-request__heading p{font-size:13px}
+  .order-cancellation-request__reason{padding:14px}
+  .order-cancellation-button{padding:11px 12px;font-size:13px;gap:7px}
+  .order-cancellation-modal-head h2{font-size:26px}
+  .order-cancellation-modal-head p{font-size:13px}
+  .order-cancellation-form .order-modal-body{gap:19px;padding:18px}
+  .order-cancellation-context{padding:15px;border-radius:15px}
+  .order-cancellation-context__top{flex-wrap:wrap}
+  .order-cancellation-context__status{margin-left:51px}
+  .order-cancellation-context__top strong{font-size:14px}
+  .order-cancellation-context blockquote{margin-top:13px}
+  .order-cancellation-form textarea{font-size:16px}
+  .order-cancellation-response label{font-size:14px}
+  .order-cancellation-response__count>span:first-child{max-width:62%}
+  .order-cancellation-modal-footer{flex-wrap:nowrap;padding:14px}
+  .order-cancellation-modal-footer .order-modal-cancel,.order-cancellation-modal-footer .order-modal-submit{font-size:13px;padding:11px 13px}
+}
+@media(max-width:360px){.order-cancellation-request__actions{gap:8px}.order-cancellation-button{font-size:12px;padding:11px 10px}.order-cancellation-modal-footer .order-modal-cancel,.order-cancellation-modal-footer .order-modal-submit{padding:10px;font-size:12px}.order-cancellation-form .order-modal-body{padding:15px}}
+@media(prefers-reduced-motion:reduce){.order-cancellation-button,.order-cancellation-form textarea{transition:none}}

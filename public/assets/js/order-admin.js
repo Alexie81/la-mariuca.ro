@@ -141,7 +141,7 @@
     dialog.classList.remove('is-visible');
     window.setTimeout(() => {
       if (dialog.open) dialog.close();
-      dialog.classList.remove('is-compact', 'is-email');
+      dialog.classList.remove('is-compact', 'is-email', 'is-cancellation');
       if (dialogContent) dialogContent.innerHTML = loadingMarkup;
       modalTrigger?.focus({ preventScroll: true });
       modalTrigger = null;
@@ -149,6 +149,13 @@
   };
 
   const initializeModal = (root) => {
+    const cancellationReason = root.querySelector('[data-cancellation-reason]');
+    const updateCancellationCount = () => {
+      const count = root.querySelector('[data-cancellation-count]');
+      if (count && cancellationReason) count.textContent = `${[...cancellationReason.value].length} / 1.000`;
+    };
+    cancellationReason?.addEventListener('input', updateCancellationCount);
+    updateCancellationCount();
     const statusRadios = root.querySelectorAll('[data-order-action-radio]');
     const syncStatusAction = () => {
       const selected = root.querySelector('[data-order-action-radio]:checked');
@@ -206,6 +213,7 @@
       dialogContent.innerHTML = await response.text();
       dialog.classList.toggle('is-compact', !dialogContent.querySelector('[data-order-return-form]'));
       dialog.classList.toggle('is-email', Boolean(dialogContent.querySelector('form[action*="/email/"]')));
+      dialog.classList.toggle('is-cancellation', Boolean(dialogContent.querySelector('[data-order-cancellation-form]')));
       initializeModal(dialogContent);
       requestAnimationFrame(() => dialogContent.querySelector('input:not([type="hidden"]),select,textarea,button')?.focus({ preventScroll: true }));
     } catch (error) {

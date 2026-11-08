@@ -1,0 +1,30 @@
+{% set cancellation = order.cancellation_request %}
+{% set rejection = decision == 'rejected' %}
+{% set pending = cancellation and cancellation.status|default('pending') == 'pending' %}
+{% set action_available = pending and (rejection or order.can_accept_cancellation|default(order.status in ['new', 'confirmed', 'preparing', 'cancelled'])) %}
+<header class="order-modal-head order-cancellation-modal-head{{ rejection ? ' is-rejection' : '' }}">
+  <span class="order-modal-head__icon"><svg viewBox="0 0 24 24" aria-hidden="true">{% if rejection %}<path d="m7 7 10 10M17 7 7 17"/>{% else %}<path d="m5 12 4 4L19 6"/>{% endif %}</svg></span>
+  <div><span class="order-kicker">Răspuns pentru client</span><h2 id="order-dialog-title">{{ rejection ? 'Respinge solicitarea' : 'Acceptă anularea' }}</h2><p>{{ order.order_number ?: '#' ~ order.id }}</p></div>
+</header>
+<form class="order-modal-form order-cancellation-form" action="{{ url('admin/comenzi/' ~ order.id ~ '/anulare/decizie/') }}" method="post" data-order-async-form data-order-cancellation-form>
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  <input type="hidden" name="decision" value="{{ decision }}">
+  <div class="order-modal-body">
+    <section class="order-cancellation-context" aria-label="Solicitarea clientului">
+      <div class="order-cancellation-context__top"><span class="order-cancellation-context__avatar" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span><div><strong>{{ order.customer_name }}</strong><span>{{ order.items|length }} {{ order.items|length == 1 ? 'produs' : 'produse' }} · {{ money(order.total_bani) }}</span></div><span class="order-cancellation-context__status">{{ order.status_label }}</span></div>
+      {% if cancellation %}<blockquote>{{ cancellation.reason }}</blockquote><time datetime="{{ cancellation.created_at }}">Solicitare trimisă la {{ cancellation.created_at|date('d.m.Y, H:i', 'Europe/Bucharest') }}</time>{% endif %}
+    </section>
+    {% if action_available %}
+      <section class="order-cancellation-response">
+        <label for="cancellation-decision-reason"><span>{{ rejection ? 'De ce nu poate fi anulată?' : 'Un mesaj pentru client' }}</span><small>{{ rejection ? 'Obligatoriu' : 'Opțional' }}</small></label>
+        <p id="cancellation-decision-hint">{{ rejection ? 'Explică pe scurt motivul. Acest răspuns va apărea în emailul clientului și în urmărirea comenzii.' : 'Poți adăuga o explicație personală. Mesajul va fi inclus în emailul de acceptare.' }}</p>
+        <textarea id="cancellation-decision-reason" name="reason" rows="4" maxlength="1000"{% if rejection %} minlength="5" required{% endif %} aria-describedby="cancellation-decision-hint cancellation-decision-count" placeholder="{{ rejection ? 'De exemplu: coletul a fost deja predat curierului și nu mai poate fi oprit.' : 'De exemplu: am anulat comanda conform solicitării tale.' }}" data-cancellation-reason>{{ reason|default('') }}</textarea>
+        <div class="order-cancellation-response__count" id="cancellation-decision-count"><span>{{ rejection ? 'Minimum 5 caractere' : 'Un răspuns clar, în câteva cuvinte' }}</span><span data-cancellation-count>{{ reason|default('')|length }} / 1.000</span></div>
+      </section>
+      <div class="order-cancellation-outcome{{ rejection ? ' is-rejection' : '' }}"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v12H4zM4 8l8 6 8-6"/></svg></span><div><strong>{{ rejection ? 'Clientul primește motivul respingerii' : 'Clientul primește confirmarea anulării' }}</strong><p>{{ rejection ? 'Comanda rămâne în starea actuală. Răspunsul se salvează în istoricul solicitării.' : 'Comanda va fi anulată, iar rezervările de stoc vor fi eliberate.' }}</p></div></div>
+      {% if not rejection and order.payment_method == 'stripe' and order.payment_status in ['paid','partially_refunded'] %}<p class="order-cancellation-refund-note"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7h.01"/></svg><span><strong>Comanda este plătită cu cardul.</strong> Anularea nu inițiază automat rambursarea. Plata și documentele fiscale se gestionează separat.</span></p>{% endif %}
+    {% else %}<div class="order-cancellation-outcome"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg></span><div><strong>{{ pending ? 'Comanda nu mai poate fi anulată' : 'Solicitarea are deja un răspuns' }}</strong><p>{{ pending ? 'Comanda a depășit etapa de pregătire. Revino la solicitare pentru a-i trimite clientului motivul respingerii.' : 'Revino la comandă pentru a vedea decizia înregistrată. Nu se va trimite încă un email.' }}</p></div></div>{% endif %}
+    <p class="order-modal-feedback" role="alert" data-order-form-feedback{% if not error|default('') %} hidden{% endif %}>{{ error|default('') }}</p>
+  </div>
+  <footer class="order-modal-footer order-cancellation-modal-footer"><a class="order-modal-cancel" href="{{ url('admin/comenzi/' ~ order.id ~ '/#cerere-anulare') }}" data-order-dialog-close>{{ action_available ? 'Renunță' : 'Înapoi la comandă' }}</a>{% if action_available %}<button type="submit" class="order-modal-submit{{ rejection ? ' is-destructive' : '' }}"><span>{{ rejection ? 'Respinge și notifică' : 'Acceptă și notifică' }}</span><svg viewBox="0 0 24 24" aria-hidden="true">{% if rejection %}<path d="m7 7 10 10M17 7 7 17"/>{% else %}<path d="m5 12 4 4L19 6"/>{% endif %}</svg></button>{% endif %}</footer>
+</form>
