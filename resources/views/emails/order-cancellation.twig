@@ -1,0 +1,45 @@
+{% extends 'emails/order-confirmation.twig' %}
+
+{% block brand_note %}{% if internal_email %}Notificare internă<br><span style="color:#465463;">Solicitare de anulare</span>{% else %}Cu grijă pentru<br><span style="color:#465463;">fiecare mică bucurie.</span>{% endif %}{% endblock %}
+
+{% block introduction %}
+  {% if internal_email %}
+    <h1 class="greeting" style="margin:24px 0 14px;color:#2d333d;font-size:36px;line-height:45px;letter-spacing:-0.8px;font-weight:600;">O solicitare care are nevoie de răspuns.</h1>
+  {% else %}
+    <h1 class="greeting" style="margin:24px 0 10px;color:#2d333d;font-size:40px;line-height:48px;letter-spacing:-1px;font-weight:600;">Bună{% if first_name %}, {{ first_name }}{% endif %}!</h1>
+  {% endif %}
+  <h2 class="intro-title" style="margin:0 0 14px;color:#414b59;font-size:25px;line-height:34px;font-weight:normal;">{{ message }}</h2>
+  <p style="margin:0;color:#697583;font-size:17px;line-height:28px;">{{ introduction }}</p>
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="{{ accepted ? '#edf6f0' : (rejected ? '#fcf1f4' : '#faf5ed') }}" style="margin-top:23px;background-color:{{ accepted ? '#edf6f0' : (rejected ? '#fcf1f4' : '#faf5ed') }};border:1px solid {{ accepted ? '#dbe9df' : (rejected ? '#efdde4' : '#eee2cf') }};border-radius:20px;table-layout:fixed;"><tr><td style="padding:20px 22px;">
+    <p style="margin:0 0 6px;color:{{ status_color }};font-size:13px;line-height:21px;letter-spacing:1px;font-weight:bold;">{{ decision_email ? 'RĂSPUNSUL NOSTRU' : 'MOTIVUL SOLICITĂRII' }}</p>
+    {% if decision_email %}
+      <p style="margin:0;color:#45515e;font-size:17px;line-height:27px;white-space:pre-wrap;overflow-wrap:anywhere;word-wrap:break-word;">{% if decision_reason %}{{ decision_reason }}{% elseif accepted %}Am acceptat solicitarea și am anulat comanda.{% endif %}</p>
+      <p style="margin:11px 0 0;color:#7b8790;font-size:13px;line-height:22px;">Decizie înregistrată la {{ decision_date }}</p>
+    {% else %}
+      <p style="margin:0;color:#605546;font-size:17px;line-height:27px;white-space:pre-wrap;overflow-wrap:anywhere;word-wrap:break-word;">{{ request_reason }}</p>
+      <p style="margin:11px 0 0;color:#8b8174;font-size:13px;line-height:22px;">Solicitare trimisă la {{ request_date }}</p>
+    {% endif %}
+  </td></tr></table>
+  {% if decision_email %}
+    <p style="margin:18px 0 5px;color:#86909b;font-size:13px;line-height:22px;font-weight:bold;">SOLICITAREA TA · {{ request_date }}</p>
+    <p style="margin:0;color:#6e7986;font-size:15px;line-height:25px;white-space:pre-wrap;overflow-wrap:anywhere;word-wrap:break-word;">{{ request_reason }}</p>
+  {% endif %}
+  {% if refund_note %}<p style="margin:18px 0 0;padding:15px 18px;border:1px solid #e0e6ee;border-radius:16px;background-color:#f5f7fa;color:#637487;font-size:15px;line-height:25px;">Pentru plata înregistrată, rambursarea se gestionează separat. Acest mesaj confirmă anularea comenzii, nu restituirea banilor.</p>{% endif %}
+
+  <table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:25px;max-width:100%;"><tr><td>
+    <!--[if mso]><v:roundrect href="{{ cta_url }}" style="height:56px;v-text-anchor:middle;width:270px;" arcsize="50%" stroke="f" fillcolor="#b44968"><w:anchorlock xmlns:w="urn:schemas-microsoft-com:office:word"/><center style="color:#ffffff;font-family:Arial,sans-serif;font-size:16px;font-weight:bold;">{{ cta_label }}</center></v:roundrect><![endif]-->
+    <!--[if !mso]><!--><a href="{{ cta_url }}" style="display:inline-block;padding:16px 18px;background-color:#b44968;border:1px solid #b44968;border-radius:28px;color:#ffffff;font-size:16px;font-weight:bold;line-height:23px;text-align:center;text-decoration:none;">{{ cta_label }}</a><!--<![endif]-->
+  </td></tr></table>
+  <p style="margin:12px 0 0;color:#7c8792;font-size:14px;line-height:22px;">{% if internal_email %}Acces securizat, doar pentru administratorii magazinului.{% else %}Acces direct la detalii, fără autentificare.{% endif %}</p>
+{% endblock %}
+
+{% block products_heading %}Produsele din comandă{% endblock %}
+{% block summary_payment_status %}<table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:12px;"><tr><td style="padding:6px 11px;border-radius:18px;background-color:#f3f5f8;color:#687483;font-size:14px;line-height:22px;">{{ summary_payment_note }}</td></tr></table>{% endblock %}
+{% block savings_notice %}{% endblock %}
+{% block delivery_and_payment %}
+  {% include 'emails/partials/order-payment.twig' %}
+  <tr><td height="16" style="height:16px;font-size:0;line-height:16px;">&nbsp;</td></tr>
+  {% include 'emails/partials/order-delivery.twig' %}
+{% endblock %}
+{% block customer_footer %}{% if not internal_email %}{{ parent() }}{% endif %}{% endblock %}

@@ -96,6 +96,17 @@ Web Push și expirarea rezervărilor sunt `BLOCKED_EXTERNAL_CONFIG`; comenzile t
 În dezvoltare, outbox-ul scrie preview-uri în `storage/private/mail`. În producție, setează un
 `MAILER_DSN` SMTP real și testează retry/backoff fără date reale de client.
 
+Pentru o listă explicită `MAIL_MESSAGE_TYPES`, notificările cererilor de anulare folosesc
+`order_cancellation_received` (confirmarea clientului), `internal_order_cancellation`
+(adresele interne salvate în Comenzi) și `order_cancellation_decision` (acceptare/respingere
+către client). Păstrează și tipurile deja activate pentru comenzile noi. Modificarea listei
+necesită repornirea procesorului persistent; nu reseta pragul `MAIL_SEND_AFTER_ID`.
+Migrarea 040 trebuie aplicată înainte de utilizarea noului flux. Nu se retrimit automat
+cererile istorice și o listă internă goală nu blochează confirmarea clientului.
+
+Acceptarea cererii anulează comanda și eliberează rezervările; nu inițiază o rambursare Stripe
+și nu emite documente fiscale. Plata rămâne în starea reală existentă până la un flux separat.
+
 ## Stripe
 
 Stripe este dezactivat implicit. Pentru test:
