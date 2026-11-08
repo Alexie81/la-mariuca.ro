@@ -47,9 +47,7 @@ final class CompanyAdminService
     /** @param array<string,mixed> $data */
     public function saveCompany(array $data, ?int $id = null, ?UploadedFileInterface $stamp = null): int
     {
-        if ($id !== null) {
-            $this->company($id);
-        }
+        $existing = $id === null ? null : $this->company($id);
         $errors = [];
         $values = [];
         foreach (self::FIELDS as $field => $length) {
@@ -96,6 +94,22 @@ final class CompanyAdminService
                 $values['share_capital_bani'] = ((int) $parts[1] * 100) + (int) str_pad($parts[2] ?? '', 2, '0');
             }
         }
+        $values['is_vat_payer'] = (int) $this->checked($data['is_vat_payer'] ?? false);
+        $values['vat_rate_basis_points'] = (int) ($existing['vat_rate_basis_points'] ?? 2100);
+        if (array_key_exists('vat_rate', $data)) {
+            $rawRate = $data['vat_rate'];
+            $rate = is_scalar($rawRate) ? trim((string) $rawRate) : '';
+            if (preg_match('/^([0-9]{1,3})(?:[.,]([0-9]{1,2}))?$/D', $rate, $parts) !== 1) {
+                $errors['vat_rate'] = 'Introdu o cotă TVA între 0 și 100%, cu maximum două zecimale.';
+            } else {
+                $basisPoints = ((int) $parts[1] * 100) + (int) str_pad($parts[2] ?? '', 2, '0');
+                if ($basisPoints > 10000) {
+                    $errors['vat_rate'] = 'Cota TVA trebuie să fie între 0 și 100%.';
+                } else {
+                    $values['vat_rate_basis_points'] = $basisPoints;
+                }
+            }
+        }
         if ($errors !== []) {
             throw new CompanyValidationException($errors);
         }
@@ -106,7 +120,7 @@ final class CompanyAdminService
             $replaceStamp = true;
         }
         try {
-            $saved = $this->repository->saveCompany($values, $id, $this->checked($data['is_default'] ?? false), $replaceStamp, $newStamp);
+            $saved = $this->repository->saveCompany($values, $id, $replaceStamp, $newStamp);
         } catch (\Throwable $exception) {
             $this->stamps->remove($newStamp);
             throw $exception;

@@ -8,7 +8,7 @@ use PDO;
 
 final class CompanyRepository
 {
-    private const COMPANY_FIELDS = ['legal_name','trade_name','tax_id','trade_register','registered_address','city','county','postal_code','country','email','phone','website','physical_address','service_area','bank_name','iban','share_capital_bani'];
+    private const COMPANY_FIELDS = ['legal_name','trade_name','tax_id','trade_register','registered_address','city','county','postal_code','country','email','phone','website','physical_address','service_area','bank_name','iban','share_capital_bani','is_vat_payer','vat_rate_basis_points'];
 
     public function __construct(private readonly PDO $pdo)
     {
@@ -50,23 +50,24 @@ final class CompanyRepository
      * @param array<string,string|int|null> $data
      * @return array{id:int,previous_stamp:?string}
      */
-    public function saveCompany(array $data, ?int $id, bool $makeDefault, bool $changeStamp, ?string $stamp): array
+    public function saveCompany(array $data, ?int $id, bool $changeStamp, ?string $stamp): array
     {
-        return $this->write(function () use ($data, $id, $makeDefault, $changeStamp, $stamp): array {
+        return $this->write(function () use ($data, $id, $changeStamp, $stamp): array {
             $existing = $id === null ? null : $this->company($id);
             if ($id !== null && $existing === null) {
                 throw new CompanyNotFoundException('Firma nu mai există.');
             }
             $first = (int) $this->pdo->query('SELECT COUNT(*) FROM companies')->fetchColumn() === 0;
-            $isDefault = $first || $makeDefault || (bool) ($existing['is_default'] ?? false);
-            if ($isDefault) {
-                $this->pdo->exec('UPDATE companies SET is_default=0 WHERE is_default=1');
+            if ($id === null && !$first) {
+                throw new CompanyValidationException(['_form'=>'Datele firmei sunt deja completate. Editează firma existentă.']);
             }
+            // The store has one company profile; legacy IDs remain editable without creating another profile.
+            $this->pdo->exec('UPDATE companies SET is_default=0 WHERE is_default=1');
             $parameters = [];
             foreach (self::COMPANY_FIELDS as $field) {
                 $parameters[$field] = $data[$field];
             }
-            $parameters['is_default'] = (int) $isDefault;
+            $parameters['is_default'] = 1;
             $parameters['updated_at'] = $this->now();
             $parameters['stamp_path'] = $changeStamp ? $stamp : ($existing['stamp_path'] ?? null);
             if ($id === null) {

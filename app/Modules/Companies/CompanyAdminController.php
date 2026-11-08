@@ -26,22 +26,8 @@ final class CompanyAdminController
 
     public function index(ServerRequestInterface $request): ResponseInterface
     {
-        $companies = array_map($this->presentCompany(...), $this->companies->companies());
-        $requested = $request->getQueryParams()['firma'] ?? '';
-        $selectedId = is_scalar($requested) ? (int) $requested : 0;
+        $companies = array_map($this->presentCompany(...), array_slice($this->companies->companies(), 0, 1));
         $selected = $companies[0] ?? null;
-        if ($selectedId > 0) {
-            $selected = null;
-            foreach ($companies as $company) {
-                if ((int) $company['id'] === $selectedId) {
-                    $selected = $company;
-                    break;
-                }
-            }
-            if ($selected === null) {
-                return $this->notFound('Firma nu mai există.');
-            }
-        }
         $warehouseCount = array_sum(array_map(static fn(array $company): int => (int) $company['warehouse_count'], $companies));
         return $this->view->render('admin/pages/companies.twig', $this->context() + [
             'companies'=>$companies,
@@ -61,7 +47,13 @@ final class CompanyAdminController
     /** @param array<string,string> $args */
     public function companyDeleteForm(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
     {
-        return $this->form($request, 'delete_company', (int) $args['id']);
+        try {
+            $company = $this->companies->company((int) $args['id']);
+            $path = 'admin/detaliile-firmei/' . $company['id'] . '/editare/' . (str_ends_with($request->getUri()->getPath(), '/modal/') ? 'modal/' : '');
+            return $this->view->redirect($this->config->path($path))->withHeader('Cache-Control', 'no-store');
+        } catch (CompanyNotFoundException $exception) {
+            return $this->notFound($exception->getMessage());
+        }
     }
 
     /** @param array<string,string> $args */
@@ -182,17 +174,22 @@ final class CompanyAdminController
     private function form(ServerRequestInterface $request, string $kind, ?int $companyId, ?int $warehouseId = null, ?array $submitted = null, array $errors = [], int $status = 200): ResponseInterface
     {
         try {
+            $existingCompanies = $this->companies->companies();
+            if ($kind === 'company' && $companyId === null && isset($existingCompanies[0])) {
+                $companyId = (int) $existingCompanies[0]['id'];
+            }
             $company = $companyId === null ? null : $this->presentCompany($this->companies->company($companyId));
             $warehouse = $warehouseId === null ? null : $this->companies->warehouse($companyId ?? 0, $warehouseId);
             $isWarehouse = in_array($kind, ['warehouse','delete_warehouse'], true);
-            $firstCompany = count($this->companies->companies()) === 0;
+            $firstCompany = count($existingCompanies) === 0;
             $firstWarehouse = (int) ($company['warehouse_count'] ?? 0) === 0;
-            $values = $isWarehouse ? ($warehouse ?? ['name'=>'','is_default'=>$firstWarehouse]) : ($company ?? ['country'=>'România','is_default'=>$firstCompany]);
+            $values = $isWarehouse ? ($warehouse ?? ['name'=>'','is_default'=>$firstWarehouse]) : ($company ?? ['country'=>'România','is_default'=>$firstCompany,'is_vat_payer'=>false,'vat_rate'=>'21,00']);
             if ($submitted !== null) {
                 foreach ($submitted as $key => $value) {
                     $values[$key] = is_scalar($value) || $value === null ? $value : '';
                 }
                 $values['is_default'] = $submitted['is_default'] ?? false;
+                $values['is_vat_payer'] = $submitted['is_vat_payer'] ?? false;
                 $values['remove_stamp'] = $submitted['remove_stamp'] ?? false;
             }
             $base = 'admin/detaliile-firmei/';
@@ -205,7 +202,7 @@ final class CompanyAdminController
                 'delete_company'=>'Ștergi această firmă?',
                 'delete_warehouse'=>'Ștergi această gestiune?',
                 'warehouse'=>$warehouseId === null ? 'Adaugă o gestiune' : 'Editează gestiunea',
-                default=>$companyId === null ? 'Adaugă o firmă' : 'Editează datele firmei',
+                default=>$companyId === null ? 'Completează datele firmei' : 'Editează datele firmei',
             };
             $modal = str_ends_with($request->getUri()->getPath(), '/modal/');
             return $this->view->render($modal ? 'admin/partials/company-form-content.twig' : 'admin/pages/company-form.twig', $this->context() + [
@@ -227,6 +224,8 @@ final class CompanyAdminController
     {
         $company['stamp_url'] = !empty($company['stamp_path']) ? $this->config->path('admin/detaliile-firmei/' . $company['id'] . '/stampila/?v=' . rawurlencode((string) $company['stamp_path'])) : null;
         $company['share_capital'] = $company['share_capital_bani'] === null ? '' : number_format((int) $company['share_capital_bani'] / 100, 2, ',', '');
+        $rate = (int) ($company['vat_rate_basis_points'] ?? 2100);
+        $company['vat_rate'] = intdiv($rate, 100) . ',' . str_pad((string) ($rate % 100), 2, '0', STR_PAD_LEFT);
         return $company;
     }
 
