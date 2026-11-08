@@ -581,8 +581,9 @@ html:has(.order-dialog[open],.order-lightbox[open]) {overflow:hidden}
   .order-cancellation-modal-head p{font-size:13px}
   .order-cancellation-form .order-modal-body{gap:19px;padding:18px}
   .order-cancellation-context{padding:15px;border-radius:15px}
-  .order-cancellation-context__top{flex-wrap:wrap}
-  .order-cancellation-context__status{margin-left:51px}
+  .order-cancellation-context__top{display:grid;grid-template-columns:40px minmax(0,1fr);gap:8px 11px}
+  .order-cancellation-context__avatar{grid-row:1/3}
+  .order-cancellation-context__status{grid-column:2;justify-self:start;margin-left:0}
   .order-cancellation-context__top strong{font-size:14px}
   .order-cancellation-context blockquote{margin-top:13px}
   .order-cancellation-form textarea{font-size:16px}
