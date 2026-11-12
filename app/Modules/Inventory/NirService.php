@@ -699,6 +699,16 @@ final class NirService
     private function decorate(array $row,bool $details): array
     {
         foreach(['supplier','company','warehouse','location'] as $key) { $row[$key]=json_decode((string)$row[$key.'_snapshot'],true) ?: []; }
+        if (!empty($row['original_id'])) {
+            // Use the linked receipt's saved invoice header, never the current supplier data.
+            $original = $this->repository->one('nir_documents', ['id'=>$row['original_id']]);
+            if ($original !== null) {
+                $row['original_number'] = $original['number'] ?: $original['temp_number'];
+                foreach (['invoice_series','invoice_number','invoice_date'] as $key) {
+                    $row['original_'.$key] = $original[$key];
+                }
+            }
+        }
         $reversals=$this->repository->all('nir_documents',['original_id'=>$row['id'],'status'=>'confirmed']); $row['reversal_status']=$reversals===[]?'none':'partial';
         $lines=$this->repository->all('nir_lines',['nir_id'=>$row['id']],'position');
         $allReversed=$lines!==[];

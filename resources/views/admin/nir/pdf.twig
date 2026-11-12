@@ -4,94 +4,72 @@
 <meta charset="UTF-8">
 <title>{{ number }} · {{ nir.company.trade_name|default('La Măriuca Boutique', true) }}</title>
 <style>
-@page { margin: 7mm 7mm 12mm; }
-body { margin:0; font-family:"DejaVu Sans",sans-serif; color:#46393e; font-size:9px; line-height:1.35; }
-table { width:100%; border-collapse:collapse; table-layout:fixed; }
-td { vertical-align:top; }
-.brand { margin-bottom:6px; }
-.brand td { vertical-align:middle; }
-.brand-logo { width:24%; }
-.logo { max-width:148px; max-height:42px; }
-.brand-title { width:47%; padding-left:14px; border-left:1px solid #ecdfdf; }
-.eyebrow { color:#a26473; font-size:8px; letter-spacing:1.15px; text-transform:uppercase; }
-h1 { margin:2px 0 0; font-size:20px; line-height:1.1; font-weight:normal; color:#543641; letter-spacing:-.4px; }
-.subtitle { margin-top:3px; color:#8a747d; font-size:9px; }
-.brand-status { width:29%; text-align:right; }
-.status { display:inline-block; padding:5px 11px; border:1px solid #d3e7de; border-radius:14px; background:#eff8f3; color:#36745d; font-size:9px; font-weight:bold; }
-.status-draft { border-color:#eadcbe; background:#fcf7eb; color:#8b6a2d; }
-.status-reversed { border-color:#edced4; background:#fcf1f3; color:#a74f64; }
-.status-detail { margin-top:6px; color:#8d7c82; font-size:8px; }
-.document-band { border-top:2px solid #a96577; border-bottom:1px solid #e8d8dc; background:#faf3f4; margin-bottom:6px; }
-.document-band td { padding:5px 12px; vertical-align:middle; }
-.document-band .reference { width:43%; }
-.document-number { font-size:15px; color:#663d4c; letter-spacing:.3px; line-height:1.2; }
-.document-kind { margin-top:2px; color:#927580; font-size:8px; }
-.document-band .date { width:28.5%; border-left:1px solid #eadde0; }
-.label { color:#917d85; font-size:7.5px; letter-spacing:.65px; text-transform:uppercase; }
-.date-value { margin-top:3px; color:#58424c; font-size:10px; }
-.info { margin-bottom:6px; }
-.info > tbody > tr > td { width:50%; padding-right:9px; }
-.info > tbody > tr > td.last { padding-right:0; }
-.info-card { border:1px solid #e7dddd; border-radius:8px; padding:6px 10px; background:#ffffff; }
-.info-heading { margin-bottom:3px; padding-bottom:3px; border-bottom:1px solid #f0e6e7; }
-.section-number { display:inline-block; color:#b88f9b; font-size:8px; margin-right:5px; }
-.info-title { font-size:8px; letter-spacing:.85px; text-transform:uppercase; color:#8c5b6b; }
-.entity-name { color:#4d3640; font-size:9.5px; font-weight:bold; line-height:1.35; margin-bottom:3px; }
-.info-card p { margin:1px 0; line-height:1.35; word-wrap:break-word; }
-.info-card .secondary { color:#88757c; font-size:8px; }
-.info-card .divider { border-top:1px solid #f0e7e8; padding-top:4px; margin-top:4px; }
-.info-card strong { color:#5c434e; }
-.section-heading { margin:0 0 4px; }
-.section-heading td { vertical-align:bottom; padding:0 0 3px; }
-.section-heading .section-title { font-size:12px; color:#62414f; }
-.section-heading .section-count { text-align:right; font-size:8px; color:#96828a; }
+@page { margin:7mm 7mm 12mm; }
+body { margin:0; color:#493b42; font-family:"DejaVu Sans",sans-serif; font-size:9px; line-height:1.35; }
+table { width:100%; table-layout:fixed; border-collapse:collapse; }
+td { vertical-align:middle; }
+.brand { margin-bottom:8px; }
+.brand > tbody > tr > td { height:72px; padding:0; }
+.brand-company { width:38%; }
+.brand-heading { width:42%; text-align:center; }
+.brand-code { width:20%; padding-left:15px !important; }
+.identity td { padding:0; }
+.identity-logo { width:110px; padding-right:11px !important; }
+.logo { max-width:100px; max-height:65px; }
+.trade-name { color:#805264; font-size:17px; line-height:1.15; font-weight:bold; margin-bottom:7px; }
+.legal-name { font-size:9.5px; font-weight:bold; margin-bottom:7px; }
+.company-reference { color:#796771; font-size:8px; line-height:1.45; }
+h1 { color:#684552; font-size:19px; font-weight:bold; line-height:1.3; margin:0; }
+.nir-caption { color:#b17888; font-size:17px; font-weight:bold; margin-top:3px; }
+.form-code { padding:13px 8px; border-radius:10px; background:#faf3f5; text-align:center; color:#80606d; }
+.form-code .code-icon { height:22px; width:22px; vertical-align:middle; margin-right:5px; }
+.form-code strong { display:block; font-size:11px; color:#684552; margin-top:6px; }
+.form-state { font-size:7px; color:#a47a87; margin-top:4px; }
+.document-band { border:1px solid #dfccd3; border-radius:8px; margin-bottom:6px; }
+.document-band td { padding:8px 14px; height:32px; }
+.document-band .number { width:24%; background:#805264; color:white; border-right:1px solid #a77e8e; border-radius:7px 0 0 7px; }
+.document-band .date { width:24%; background:#805264; color:white; border-radius:0 28px 28px 0; }
+.document-band .space { width:52%; padding:0; }
+.band-icon { height:23px; width:23px; float:left; margin:3px 11px 0 0; }
+.band-label { font-size:8px; color:#f4e4eb; margin-bottom:4px; }
+.band-value { font-size:14px; font-weight:bold; line-height:1.15; }
+.metadata { margin-bottom:6px; }
+.metadata > tbody > tr > td { width:50%; vertical-align:top; }
+.metadata .left { padding:0 4px 0 0; }
+.metadata .right { padding:0 0 0 4px; }
+.metadata-card { border:1px solid #dfccd3; border-radius:7px; padding:6px 10px; }
+.metadata-card td { padding:4px 0; vertical-align:middle; word-wrap:break-word; }
+.meta-label { width:43%; font-weight:bold; color:#684b57; padding-right:7px !important; }
+.meta-value { width:57%; color:#51454a; }
+.meta-icon { width:13px; height:13px; margin-right:6px; vertical-align:middle; }
 .lines { font-size:8.3px; }
 .lines thead { display:table-header-group; }
-.lines th { background:#805264; color:#fff; font-size:7.5px; line-height:1.3; text-align:left; padding:4px 5px; font-weight:normal; border-bottom:2px solid #e4cbd3; vertical-align:middle; }
-.lines th.right { text-align:right; }
-.lines td { padding:5px; border-bottom:1px solid #eadee1; vertical-align:middle; word-wrap:break-word; }
-.lines tr { page-break-inside:avoid; }
-.lines tr:nth-child(even) td { background:#fcf8f9; }
-.lines .row-number { color:#ad919c; font-size:8px; }
-.product { max-width:36px; max-height:36px; }
-.placeholder { width:34px; height:25px; padding-top:7px; background:#f6f0ee; color:#b6a29d; border:1px solid #eee2dd; border-radius:6px; text-align:center; font-size:7px; }
-.name { color:#49343e; font-weight:bold; font-size:8.7px; line-height:1.4; }
-.muted { color:#96838c; font-size:7.3px; margin-top:3px; line-height:1.4; }
-.sku { font-size:7.8px; color:#6e5561; }
-.right { text-align:right; }
-.money { color:#4f3643; font-size:8.5px; }
-.line-total { font-weight:bold; }
-.good { color:#46806b; } .minus { color:#b14f68; } .plus { color:#ad792e; }
-.totals { margin-top:6px; page-break-inside:avoid; }
-.totals td { padding:5px 12px; border:1px solid #e8dcdf; background:#fff; width:28%; }
-.total-label { color:#927987; font-size:8px; }
-.total-value { margin-top:2px; color:#674553; font-size:14px; font-weight:normal; }
-.currency { font-size:9px; color:#a07f8d; }
-.totals td.grand-total { width:44%; border-color:#e3c9d2; background:#f8ebf0; text-align:right; }
-.grand-total .total-label { color:#9c6177; text-transform:uppercase; letter-spacing:1px; }
-.grand-total .total-value { color:#783e56; font-size:17px; line-height:1.2; }
-.grand-total .currency { color:#9c6177; font-size:11px; }
-.notes { margin-top:6px; padding:4px 10px; border:1px solid #e8dfe1; border-left:3px solid #c797a6; border-radius:6px; background:#fdfafb; page-break-inside:avoid; }
-.notes p { margin:3px 0 0; line-height:1.4; word-wrap:break-word; }
-.notes .note-title { color:#89596c; font-size:8px; letter-spacing:.8px; text-transform:uppercase; }
-.notes .note-hint { color:#9a858e; font-size:7.7px; }
-.line-note { border-bottom:1px solid #ece1e5; padding:8px 0; page-break-inside:avoid; }
-.line-note strong { color:#835a6b; font-size:8px; }
-.line-note p { margin:4px 0 0; line-height:1.55; word-wrap:break-word; }
-.signatures { margin-top:6px; page-break-inside:avoid; }
-.signatures td { width:33.33%; padding:0 15px 0 0; }
-.signatures td.last { padding-right:0; }
-.signature-box { border:1px solid #e9dfe2; border-radius:7px; padding:4px 10px; }
-.signature-title { font-size:8.5px; color:#694b59; }
-.signature-space { height:18px; }
-.signature-line { border-top:1px dotted #cdb7c0; padding-top:3px; color:#99818d; font-size:8px; }
-.stamp { max-height:18px; max-width:85px; }
-.company-footer { margin-top:6px; padding:4px 10px; background:#faf7f8; border-top:1px solid #eadde2; color:#8b7581; font-size:7.8px; page-break-inside:avoid; word-wrap:break-word; }
-.company-footer strong { color:#6f5261; font-weight:normal; }
-.company-footer .bank-line { margin-top:3px; }
-.footnote { position:fixed; bottom:-12px; left:0; right:0; margin-top:0; padding-top:4px; border-top:1px solid #ebe2e5; color:#a18e98; font-size:7.3px; }
-.footnote td { padding:0; vertical-align:top; }
-.footnote .right { width:24%; }
+.lines th { color:#fff; background:#805264; border:1px solid #b99ba7; font-size:7.8px; text-align:center; line-height:1.4; padding:7px 3px; font-weight:bold; vertical-align:middle; }
+.lines td { border:1px solid #dfd3d8; padding:7px 4px; vertical-align:middle; word-wrap:break-word; }
+.lines tbody tr { page-break-inside:avoid; }
+.lines .index { color:#a86478; font-size:10px; font-weight:bold; text-align:center; }
+.lines .sku { font-size:8px; }
+.lines .image-cell { text-align:center; }
+.product { max-width:44px; max-height:44px; }
+.image-placeholder { color:#b8a8af; font-size:7px; }
+.lines .product-name { line-height:1.55; }
+.line-note-hint { color:#9b818d; font-size:7px; margin-top:3px; }
+.center { text-align:center; }
+.amount { text-align:right; }
+.good { color:#43866b; font-weight:bold; }
+.minus { color:#b34e68; font-weight:bold; }
+.plus { color:#ac7e3f; font-weight:bold; }
+.totals-row td { background:#f7f0f3; padding:8px 4px; font-size:10px; font-weight:bold; color:#684552; }
+.totals-row .total-label { text-align:right; }
+.totals-row .grand-total { background:#b27286; color:#fff; font-size:10.5px; }
+.protected { color:#aa939d; font-weight:normal; }
+.notes { margin-top:6px; padding:7px 11px; border:1px solid #e3c8ad; border-radius:8px; background:#fffbf5; min-height:38px; }
+.notes-heading { font-size:9px; font-weight:bold; color:#73515e; margin-bottom:5px; }
+.notes-heading .meta-icon { width:16px; height:16px; }
+.notes p { margin:3px 0 0; line-height:1.5; word-wrap:break-word; }
+.line-observation { margin:4px 0 0; font-size:8px; line-height:1.5; }
+.stamp-area { margin-top:6px; padding:7px 18px; border:1px solid #dfccd3; border-radius:7px; height:69px; text-align:right; page-break-inside:avoid; }
+.stamp { max-height:67px; max-width:110px; }
 </style>
 </head>
 <body>
@@ -100,70 +78,68 @@ h1 { margin:2px 0 0; font-size:20px; line-height:1.1; font-weight:normal; color:
     {%- if '.' in text -%}{%- set text = text|trim('0', 'right')|trim('.', 'right') -%}{%- endif -%}
     {{- (text == '-0' ? '0' : text)|replace({'.': ','}) -}}
 {%- endmacro %}
+{% macro icon(name, class, color = '#805264') %}
+    {% set paths = {
+        document: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 15l3 3 5-6"/>',
+        calendar: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18M8 15h1M15 15h1M8 18h1M15 18h1"/>',
+        person: '<circle cx="12" cy="7" r="4"/><path d="M4 21v-3a8 8 0 0 1 16 0v3"/>',
+        identity: '<rect x="2" y="4" width="20" height="16" rx="2"/><circle cx="8" cy="10" r="2"/><path d="M5 16a3 3 0 0 1 6 0M14 9h5M14 13h5M14 17h3"/>',
+        warehouse: '<path d="M3 21V8l9-6 9 6v13zM7 21V11h10v10M7 15h10M7 18h10"/>',
+        pin: '<path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0z"/><circle cx="12" cy="10" r="3"/>',
+        invoice: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M8 12h8M8 16h8"/>',
+        case: '<rect x="3" y="7" width="18" height="14" rx="2"/><path d="M8 7V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v3M3 12c5 4 13 4 18 0"/>',
+        info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7h.01"/>',
+        clipboard: '<rect x="5" y="4" width="14" height="18" rx="2"/><rect x="9" y="2" width="6" height="4" rx="1"/><path d="M9 11h6M9 15h6M9 19h3"/>'
+    } %}
+    <img class="{{ class }}" alt="" src="data:image/svg+xml,{{ ('<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="' ~ color ~ '" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">' ~ paths[name] ~ '</svg>')|url_encode }}">
+{% endmacro %}
 {% set company = nir.company|default({}) %}
 {% set supplier = nir.supplier|default({}) %}
 {% set preview = nir.preview|default(false) %}
-<table class="footnote"><tr><td>{% if preview %}Previzualizare de design · Fără efecte în stoc sau contabilitate.{% else %}Generat la {{ generated_at }} · Datele provin din instantaneul păstrat la recepție.{% endif %}</td><td class="right">Versiunea {{ nir.row_version|default(1) }} · {{ number }}</td></tr></table>
-<table class="brand"><tr>
-    <td class="brand-logo">{% if logo %}<img class="logo" src="{{ logo }}" alt="La Măriuca Boutique">{% else %}<div class="entity-name">{{ company.trade_name|default(company.legal_name|default('La Măriuca Boutique'), true) }}</div>{% endif %}</td>
-    <td class="brand-title"><div class="eyebrow">Stoc și achiziții</div><h1>Notă de recepție</h1><div class="subtitle">și constatare de diferențe</div></td>
-    <td class="brand-status"><span class="status {{ preview or nir.status == 'draft' ? 'status-draft' : (nir.status == 'reversed' ? 'status-reversed' : '') }}">{{ preview ? 'Previzualizare' : status_label }}</span><div class="status-detail">{% if preview %}Exemplu de prezentare · Fără efecte contabile{% else %}Formular 14-3-1A{% if nir.status == 'draft' %}<br>Document de lucru · Fără intrare în stoc{% elseif nir.status == 'reversed' %}<br>Recepție stornată · Istoric păstrat{% endif %}{% endif %}</div></td>
-</tr></table>
-<table class="document-band"><tr>
-    <td class="reference"><div class="document-number">{{ number }}</div><div class="document-kind">{{ type_label }}</div>{% if nir.original_id|default(null) %}<div class="document-kind">NIR original: {{ nir.original_number|default('#' ~ nir.original_id, true) }}</div>{% endif %}</td>
-    <td class="date"><div class="label">Data documentului</div><div class="date-value">{{ nir_date }}</div></td>
-    <td class="date"><div class="label">Recepție fizică</div><div class="date-value">{{ received_date }}</div></td>
-</tr></table>
-<table class="info"><tbody><tr>
-    <td><div class="info-card">
-        <div class="info-heading"><span class="section-number">01</span><span class="info-title">Firma emitentă</span></div>
-        <div class="entity-name">{{ company.legal_name|default('Firma emitentă', true) }}</div>
-        {% if company.trade_name|default('') and company.trade_name != company.legal_name|default('') %}<p class="secondary">{{ company.trade_name }}</p>{% endif %}
-        <p>CUI <strong>{{ company.tax_id|default('—', true) }}</strong>{% if company.trade_register|default('') %} · {{ company.trade_register }}{% endif %}</p>
-        {% if company.registered_address|default('') %}<p>{{ company.registered_address }}</p>{% endif %}
-        {% if company.city|default('') or company.county|default('') or company.postal_code|default('') or company.country|default('') %}<p class="secondary">{{ company.city|default('') }}{% if company.county|default('') %}{% if company.city|default('') %}, {% endif %}{{ company.county }}{% endif %}{% if company.postal_code|default('') %} · {{ company.postal_code }}{% endif %}{% if company.country|default('') %} · {{ company.country }}{% endif %}</p>{% endif %}
-        {% if company.email|default('') or company.phone|default('') %}<div class="divider secondary">{% if company.email|default('') %}{{ company.email }}{% endif %}{% if company.phone|default('') %}{% if company.email|default('') %} · {% endif %}{{ company.phone }}{% endif %}</div>{% endif %}
-    </div></td>
-    <td class="last"><div class="info-card">
-        <div class="info-heading"><span class="section-number">02</span><span class="info-title">Furnizor / partener</span></div>
-        <div class="entity-name">{{ supplier.company_name|default(supplier.alias|default('—', true), true) }}</div>
-        <p>CUI <strong>{{ supplier.tax_id|default('—', true) }}</strong>{% if supplier.trade_register|default('') %} · {{ supplier.trade_register }}{% endif %}</p>
-        {% if supplier.address|default('') %}<p>{{ supplier.address }}</p>{% endif %}
-        {% if supplier.city|default('') or supplier.county|default('') or supplier.country|default('') %}<p class="secondary">{{ supplier.city|default('') }}{% if supplier.county|default('') %}{% if supplier.city|default('') %}, {% endif %}{{ supplier.county }}{% endif %}{% if supplier.country|default('') %} · {{ supplier.country }}{% endif %}</p>{% endif %}
-        {% if supplier.email|default('') or supplier.phone|default('') %}<p class="secondary">{{ supplier.email|default('') }}{% if supplier.phone|default('') %}{% if supplier.email|default('') %} · {% endif %}{{ supplier.phone }}{% endif %}</p>{% endif %}
-        <div class="divider"><span class="secondary">{{ nir.type == 'opening_balance' ? 'Referință document' : 'Factură furnizor' }}</span><p><strong>{{ nir.invoice_series|default('') }} {{ nir.invoice_number|default('—', true) }}</strong> · {{ nir.invoice_date|default('—', true) }}</p></div>
-    </div></td>
+{% set currency = nir.currency|default('RON', true) %}
+{% set money_label = currency == 'RON' ? 'lei' : currency %}
+{% set vat_rates = [] %}
+{% for line in lines %}{% set rate = line.vat_percent|default('0') + 0 %}{% if rate not in vat_rates %}{% set vat_rates = vat_rates|merge([rate]) %}{% endif %}{% endfor %}
+<table class="brand"><tbody><tr>
+    <td class="brand-company"><table class="identity"><tr>
+        {% if logo %}<td class="identity-logo"><img class="logo" src="{{ logo }}" alt="La Măriuca Boutique"></td>{% endif %}
+        <td><div class="trade-name">{{ company.trade_name|default('La Măriuca Boutique', true) }}</div><div class="legal-name">{{ company.legal_name|default('', true) }}</div><div class="company-reference">CUI {{ company.tax_id|default('—', true) }}{% if company.trade_register|default('') %}<br>Reg. Com. {{ company.trade_register }}{% endif %}</div></td>
+    </tr></table></td>
+    <td class="brand-heading"><h1>NOTĂ DE RECEPȚIE ȘI<br>CONSTATARE DE DIFERENȚE</h1><div class="nir-caption">(NIR)</div></td>
+    <td class="brand-code"><div class="form-code">{{ _self.icon('document', 'code-icon', '#b17888') }} Cod formular:<strong>NIR</strong>{% if preview or nir.status|default('draft') != 'confirmed' %}<div class="form-state">{{ preview ? 'PREVIZUALIZARE' : status_label }}{% if preview or nir.status|default('draft') == 'draft' %}<br>Fără intrare în stoc{% endif %}</div>{% endif %}</div></td>
 </tr></tbody></table>
-<table class="section-heading"><tr><td class="section-title">Bunurile recepționate</td><td class="section-count">{{ lines|length }} {{ lines|length == 1 ? 'poziție în document' : 'poziții în document' }} · {{ nir.currency|default('RON') }}</td></tr></table>
-<table class="lines"><thead><tr>
-    <th style="width:{{ view_costs ? 3 : 4 }}%">Nr.</th><th style="width:{{ view_costs ? 9 : 15 }}%">Cod / SKU</th><th style="width:{{ view_costs ? 6 : 7 }}%">Imagine</th><th style="width:{{ view_costs ? 20 : 37 }}%">Denumirea bunurilor</th><th style="width:{{ view_costs ? 4 : 6 }}%">UM</th><th class="right" style="width:{{ view_costs ? 7 : 11 }}%">Cantitate<br>facturată</th><th class="right" style="width:{{ view_costs ? 7 : 11 }}%">Cantitate<br>primită</th><th class="right" style="width:{{ view_costs ? 6 : 9 }}%">Diferență</th>
-    {% if view_costs %}<th class="right" style="width:9%">Preț unitar<br>fără TVA</th><th class="right" style="width:8%">Valoare<br>netă</th><th class="right" style="width:4%">TVA<br>%</th><th class="right" style="width:8%">Valoare<br>TVA</th><th class="right" style="width:9%">Total</th>{% endif %}
-</tr></thead><tbody>
-{% for line in lines %}<tr>
-    <td class="row-number">{{ loop.index }}</td>
-    <td><div class="sku">{{ line.sku|default(line.supplier_code|default('—', true), true) }}</div>{% if line.supplier_code|default('') and line.supplier_code != line.sku|default('') %}<div class="muted">Furn.: {{ line.supplier_code }}</div>{% endif %}</td>
-    <td>{% if line.image_data %}<img class="product" src="{{ line.image_data }}" alt="Produs">{% else %}<div class="placeholder">Fără<br>imagine</div>{% endif %}</td>
-    <td><div class="name">{{ line.supplier_name }}</div>{% if line.product_name|default('') and line.product_name != line.supplier_name %}<div class="muted">{{ line.product_name }}</div>{% endif %}<div class="muted">Acceptat: {{ _self.decimal(line.accepted_quantity|default('0')) }} {{ line.purchase_unit|default('buc') }}{% if line.difference_label|default('') %} · {{ line.difference_label }}{% endif %}</div>{% if line.tracked is defined and not line.tracked %}<div class="muted">Poziție fără intrare în stoc</div>{% endif %}{% if line.difference_notes|default('') %}<div class="muted">{% if line.difference_notes|length <= 180 %}{{ line.difference_notes }}{% else %}Vezi constatarea detaliată pentru poziția {{ loop.index }}.{% endif %}</div>{% endif %}</td>
-    <td>{{ line.purchase_unit|default('buc') }}</td><td class="right">{{ _self.decimal(line.invoice_quantity|default('0')) }}</td><td class="right">{{ _self.decimal(line.received_quantity|default('0')) }}</td><td class="right {{ line.difference < 0 ? 'minus' : (line.difference > 0 ? 'plus' : 'good') }}">{{ line.difference > 0 ? '+' : '' }}{{ _self.decimal(line.difference) }}</td>
-    {% if view_costs %}<td class="right money">{{ _self.decimal(line.unit_price|default(0)) }}</td><td class="right money">{{ (line.net_bani|default(0) / 100)|number_format(2, ',', '.') }}</td><td class="right">{{ _self.decimal(line.vat_percent|default('0')) }}</td><td class="right money">{{ (line.tax_bani|default(0) / 100)|number_format(2, ',', '.') }}</td><td class="right money line-total">{{ (line.total_bani|default(0) / 100)|number_format(2, ',', '.') }}</td>{% endif %}
-</tr>{% else %}<tr><td colspan="{{ view_costs ? 13 : 8 }}">Nicio poziție completată.</td></tr>{% endfor %}
-</tbody></table>
-{% if view_costs %}<table class="totals"><tr>
-    <td><div class="total-label">Subtotal fără TVA</div><div class="total-value">{{ (nir.net_bani|default(0) / 100)|number_format(2, ',', '.') }} <span class="currency">{{ nir.currency }}</span></div></td>
-    <td><div class="total-label">Total TVA</div><div class="total-value">{{ (nir.tax_bani|default(0) / 100)|number_format(2, ',', '.') }} <span class="currency">{{ nir.currency }}</span></div></td>
-    <td class="grand-total"><div class="total-label">Total document</div><div class="total-value">{{ (nir.total_bani|default(0) / 100)|number_format(2, ',', '.') }} <span class="currency">{{ nir.currency }}</span></div></td>
-</tr></table>{% endif %}
-<div class="notes"><div class="note-title">Constatări la recepție</div><p>{{ nir.notes|default('') ?: 'Nu au fost adăugate observații generale.' }}</p>{% if nir.reason|default('') %}<p><strong>Motiv:</strong> {{ nir.reason }}</p>{% endif %}<p class="note-hint">Cantitățile acceptate justifică intrarea în gestiune. Diferențele și pozițiile excluse contabil rămân consemnate în document.</p></div>
-{% for line in lines %}{% if line.difference_notes|default('')|length > 180 %}<div class="line-note"><strong>CONSTATARE DETALIATĂ · POZIȚIA {{ loop.index }} · {{ line.sku|default(line.supplier_code|default(''), true) }}</strong><p>{{ line.difference_notes }}</p></div>{% endif %}{% endfor %}
-<table class="signatures"><tr>
-    <td><div class="signature-box"><div class="signature-title">Recepționat de</div><div class="signature-space"></div><div class="signature-line">{{ nir.received_by_name|default(nir.created_by_name|default(nir.created_by|default('Nume și semnătură'), true), true) }}</div></div></td>
-    <td><div class="signature-box"><div class="signature-title">Verificat / gestionar</div><div class="signature-space"></div><div class="signature-line">Nume și semnătură</div></div></td>
-    <td class="last"><div class="signature-box"><div class="signature-title">Confirmat de</div><div class="signature-space">{% if stamp %}<img class="stamp" src="{{ stamp }}" alt="Ștampila firmei">{% endif %}</div><div class="signature-line">{{ nir.confirmed_by_name|default(nir.confirmed_by|default('Nume și semnătură'), true) }}</div></div></td>
+<table class="document-band"><tr>
+    <td class="number">{{ _self.icon('document', 'band-icon', '#f2d8c5') }}<div class="band-label">Nr. NIR</div><div class="band-value">{{ number }}</div></td>
+    <td class="date">{{ _self.icon('calendar', 'band-icon', '#f2d8c5') }}<div class="band-label">din data de</div><div class="band-value">{{ nir_date|split(' ')|first|trim(',') }}</div></td>
+    <td class="space"></td>
 </tr></table>
-{% if company.bank_name|default('') or company.iban|default('') or company.share_capital_bani|default(null) is not null or company.website|default('') %}<div class="company-footer">
-    <strong>{{ company.legal_name|default(company.trade_name|default('Firma emitentă'), true) }}</strong>{% if company.website|default('') %} · {{ company.website }}{% endif %}{% if company.share_capital_bani|default(null) is not null %} · Capital social {{ (company.share_capital_bani / 100)|number_format(2, ',', '.') }} RON{% endif %}
-    {% if company.bank_name|default('') %} · Banca <strong>{{ company.bank_name }}</strong>{% endif %}{% if company.iban|default('') %} · IBAN <strong>{{ company.iban }}</strong>{% endif %}
-</div>{% endif %}
-
+<table class="metadata"><tbody><tr>
+    <td class="left"><div class="metadata-card"><table><tr><td class="meta-label">{{ _self.icon('person', 'meta-icon') }}Furnizor:</td><td class="meta-value">{{ supplier.company_name|default(supplier.alias|default('', true), true) }}</td></tr>
+        <tr><td class="meta-label">{{ _self.icon('identity', 'meta-icon') }}CUI furnizor:</td><td class="meta-value">{{ supplier.tax_id|default('') }}</td></tr>
+        <tr><td class="meta-label">{{ _self.icon('warehouse', 'meta-icon') }}Gestiune:</td><td class="meta-value">{{ nir.warehouse.name|default('') }}</td></tr>
+        <tr><td class="meta-label">{{ _self.icon('pin', 'meta-icon') }}Loc recepție:</td><td class="meta-value">{{ nir.location.name|default('') }}</td></tr></table></div></td>
+    <td class="right"><div class="metadata-card"><table><tr><td class="meta-label">{{ _self.icon('invoice', 'meta-icon') }}Factura furnizor nr. / data:</td><td class="meta-value">{{ nir.invoice_series|default('') }} {{ nir.invoice_number|default('') }}{% if nir.invoice_date|default('') %} / {{ nir.invoice_date|date('d.m.Y') }}{% endif %}</td></tr>
+        <tr><td class="meta-label">{{ _self.icon('invoice', 'meta-icon') }}Factura inițială stornată nr. / data:</td><td class="meta-value">{{ nir.original_invoice_series|default('') }} {{ nir.original_invoice_number|default('') }}{% if nir.original_invoice_date|default('') %} / {{ nir.original_invoice_date|date('d.m.Y') }}{% endif %}</td></tr>
+        <tr><td class="meta-label">{{ _self.icon('case', 'meta-icon') }}Tip operațiune:</td><td class="meta-value">{{ type_label }}</td></tr>
+        <tr><td class="meta-label">{{ _self.icon('info', 'meta-icon') }}Motiv storno / retur / diferență:</td><td class="meta-value">{{ nir.reason|default('') }}</td></tr></table></div></td>
+</tr></tbody></table>
+<table class="lines"><thead><tr>
+    <th>Nr.<br>crt.</th><th>Cod / SKU</th><th>Imagine</th><th>Denumirea<br>bunurilor<br>recepționate</th><th>U.M.</th><th>Cantitate<br>document</th><th>Cantitate<br>recepționată</th><th>Diferență<br>cantitativă</th><th>Preț unitar<br>fără TVA</th><th>Valoare<br>fără TVA</th><th>TVA<br>%</th><th>Valoare<br>TVA</th><th>Valoare<br>totală</th>
+</tr></thead><tbody>
+{% for line in lines %}{% set unit_price = line.price_mode|default('unit') == 'unit' ? line.unit_price|default(0) : (line.accepted_quantity|default(0) != 0 ? (line.net_bani|default(0) / 100 / line.accepted_quantity)|round(6) : 0) %}<tr>
+    <td class="index">{{ loop.index }}</td>
+    <td class="sku">{{ line.sku|default(line.supplier_code|default('', true), true) }}</td>
+    <td class="image-cell">{% if line.image_data %}<img class="product" src="{{ line.image_data }}" alt="Produs">{% else %}<span class="image-placeholder">—</span>{% endif %}</td>
+    <td class="product-name">{{ line.supplier_name }}{% if line.tracked is defined and not line.tracked %}<div class="line-note-hint">Fără intrare în stoc</div>{% endif %}{% if line.difference_notes|default('') or line.accepted_quantity|default(line.received_quantity) != line.received_quantity %}<div class="line-note-hint">Vezi constatări.</div>{% endif %}</td>
+    <td class="center">{{ line.purchase_unit|default('buc') }}</td><td class="amount">{{ _self.decimal(line.invoice_quantity|default('0')) }}</td><td class="amount">{{ _self.decimal(line.received_quantity|default('0')) }}</td><td class="amount {{ line.difference < 0 ? 'minus' : (line.difference > 0 ? 'plus' : 'good') }}">{{ line.difference > 0 ? '+' : '' }}{{ _self.decimal(line.difference) }}</td>
+    {% if view_costs %}<td class="amount">{{ unit_price|round(2) == unit_price ? unit_price|number_format(2, ',', '.') : _self.decimal(unit_price) }} {{ money_label }}</td><td class="amount">{{ (line.net_bani|default(0) / 100)|number_format(2, ',', '.') }} {{ money_label }}</td><td class="amount">{{ _self.decimal(line.vat_percent|default('0')) }}%</td><td class="amount">{{ (line.tax_bani|default(0) / 100)|number_format(2, ',', '.') }} {{ money_label }}</td><td class="amount">{{ (line.total_bani|default(0) / 100)|number_format(2, ',', '.') }} {{ money_label }}</td>{% else %}<td class="center protected">—</td><td class="center protected">—</td><td class="center protected">—</td><td class="center protected">—</td><td class="center protected">—</td>{% endif %}
+</tr>{% else %}<tr><td colspan="13">Nicio poziție completată.</td></tr>{% endfor %}
+<tr class="totals-row"><td colspan="9" class="total-label">TOTAL</td>{% if view_costs %}<td class="amount">{{ (nir.net_bani|default(0) / 100)|number_format(2, ',', '.') }} {{ money_label }}</td><td class="center">{% if vat_rates|length == 1 %}{{ _self.decimal(vat_rates|first) }}%{% elseif vat_rates|length > 1 %}Mixt{% endif %}</td><td class="amount">{{ (nir.tax_bani|default(0) / 100)|number_format(2, ',', '.') }} {{ money_label }}</td><td class="amount grand-total">{{ (nir.total_bani|default(0) / 100)|number_format(2, ',', '.') }} {{ money_label }}</td>{% else %}<td colspan="4" class="center protected">Valorile financiare sunt protejate</td>{% endif %}</tr>
+</tbody></table>
+<div class="notes"><div class="notes-heading">{{ _self.icon('clipboard', 'meta-icon') }}Constatări privind recepția / diferențe calitative sau cantitative:</div>
+    {% if nir.notes|default('') %}<p>{{ nir.notes }}</p>{% endif %}
+    {% for line in lines %}{% if line.difference_notes|default('') or line.difference_label|default('') or line.accepted_quantity|default(line.received_quantity) != line.received_quantity %}<div class="line-observation"><strong>Poziția {{ loop.index }}{% if line.sku|default('') %} · {{ line.sku }}{% endif %}:</strong>{% if line.accepted_quantity|default(line.received_quantity) != line.received_quantity %} acceptat {{ _self.decimal(line.accepted_quantity) }} {{ line.purchase_unit|default('buc') }}.{% endif %}{% if line.difference_label|default('') %} {{ line.difference_label }}.{% endif %}{% if line.difference_notes|default('') %} {{ line.difference_notes }}{% endif %}</div>{% endif %}{% endfor %}
+</div>
+<div class="stamp-area">{% if stamp %}<img class="stamp" src="{{ stamp }}" alt="Ștampila firmei">{% endif %}</div>
 </body>
 </html>
