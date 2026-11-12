@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+<meta charset="UTF-8">
+<title>{{ number }} · La Măriuca</title>
+<style>
+@page { margin: 5mm 5mm 11mm; }
+body { margin:0; font-family:"DejaVu Sans",sans-serif; color:#49363c; font-size:8px; }
+table { width:100%; border-collapse:collapse; table-layout:fixed; }
+.brand td { vertical-align:middle; padding:7px 10px; }
+.brand .company { width:29%; font-size:8px; color:#786a6d; }
+.logo { max-width:140px; max-height:48px; }
+.brand .title { width:50%; text-align:center; }
+h1 { font-size:14px; line-height:1.35; margin:0 0 5px; letter-spacing:.3px; color:#533c43; }
+.small { font-size:7px; color:#8f7c80; }
+.eyebrow { color:#ad6275; font-size:7px; letter-spacing:1px; text-transform:uppercase; }
+.status { font-size:9px; font-weight:bold; text-align:right; color:#287963; }
+.band { margin-top:8px; background:#80505c; color:white; }
+.band td { padding:10px 12px; }
+.number { font-size:13px; font-weight:bold; }
+.right { text-align:right; }
+.info { margin:9px 0 11px; }
+.info td { width:50%; padding:9px 12px; vertical-align:top; background:#fbf6f4; border:1px solid #eadbd8; }
+.info p { margin:3px 0; line-height:1.45; }
+.info strong { color:#51373f; }
+.lines { font-size:7px; }
+.lines thead { display:table-header-group; }
+.lines th { background:#f1e4e4; color:#694851; font-size:6.5px; text-align:left; padding:8px 4px; font-weight:bold; border-bottom:1px solid #d9bdc4; }
+.lines td { padding:6px 4px; border-bottom:1px solid #eee4e2; vertical-align:middle; word-wrap:break-word; }
+.lines tr { page-break-inside:avoid; }
+.lines tr:nth-child(even) td { background:#fdf9f8; }
+.product { width:36px; height:40px; object-fit:contain; }
+.placeholder { width:35px; height:34px; padding-top:8px; background:#f5eee8; text-align:center; color:#b49c8f; border-radius:5px; font-size:6px; }
+.name { font-weight:bold; font-size:7.5px; }
+.muted { color:#907b80; font-size:6.5px; margin-top:3px; }
+.good { color:#23765e; } .minus { color:#bf4b61; } .plus { color:#b2762e; }
+.totals { margin-top:12px; page-break-inside:avoid; }
+.totals td { padding:8px 12px; background:#fbf4f3; border-bottom:1px solid #eadbd8; }
+.totals .total { background:#80505c; color:white; font-size:12px; font-weight:bold; }
+.notes { margin-top:12px; padding:10px 12px; border:1px solid #eadbd8; background:#fffdfa; page-break-inside:avoid; }
+.notes p { margin:4px 0; line-height:1.5; }
+.signatures { margin-top:15px; page-break-inside:avoid; }
+.signatures td { padding:7px 12px; vertical-align:top; width:33%; }
+.signature-line { border-top:1px dotted #cdb8bd; margin-top:26px; padding-top:4px; color:#8a737a; }
+.stamp { max-height:50px; max-width:100px; }
+.footnote { margin-top:14px; padding-top:7px; border-top:1px solid #e6d5d9; font-size:6.5px; color:#958389; }
+</style>
+</head>
+<body>
+<table class="brand"><tr>
+<td class="company">{% if logo %}<img class="logo" src="{{ logo }}" alt="La Măriuca Boutique"><br>{% endif %}<strong>{{ nir.company.legal_name|default('La Măriuca Boutique') }}</strong><br>CUI {{ nir.company.tax_id|default('—') }} · {{ nir.company.trade_register|default('') }}<br>{{ nir.company.registered_address|default('') }} {{ nir.company.city|default('') }}</td>
+<td class="title"><div class="eyebrow">Stoc și achiziții · Document de recepție</div><h1>NOTĂ DE RECEPȚIE ȘI<br>CONSTATARE DE DIFERENȚE</h1><div>{{ type_label }}</div></td>
+<td class="status">{{ status_label }}<br><span class="small">Formular 14-3-1A</span>{% if nir.status != 'confirmed' %}<br><span class="small">Document de lucru<br>Nu produce intrare în stoc</span>{% endif %}</td>
+</tr></table>
+<table class="band"><tr><td class="number">{{ number }}</td><td class="right">Data documentului: {{ nir_date }}<br>Recepție fizică: {{ received_date }}</td></tr></table>
+<table class="info"><tr><td><div class="eyebrow">Furnizor / partener</div><p><strong>{{ nir.supplier.company_name|default(nir.supplier.alias|default('—')) }}</strong></p><p>CUI: {{ nir.supplier.tax_id|default('—') }} · {{ nir.supplier.email|default('') }}</p><p>{{ nir.supplier.address|default('') }}</p><p>Factură: <strong>{{ nir.invoice_series|default('') }} {{ nir.invoice_number|default('—') }}</strong> · {{ nir.invoice_date|default('—') }}</p></td><td><div class="eyebrow">Destinația recepției</div><p><strong>{{ nir.warehouse.name|default('—') }}</strong> · {{ nir.location.name|default('—') }}</p><p>{{ nir.location.address|default('') }}</p><p>Monedă: {{ nir.currency|default('RON') }} · Curs: {{ nir.exchange_rate|default('1') }} · Data cursului: {{ nir.exchange_rate_date|default('—') }}</p>{% if nir.original_id|default(null) %}<p>NIR original: {{ nir.original_number|default('#' ~ nir.original_id) }}</p>{% endif %}</td></tr></table>
+<table class="lines"><thead><tr>
+<th style="width:3%">Nr.</th><th style="width:9%">Cod / SKU</th><th style="width:6%">Imagine</th><th style="width:{{ view_costs ? 18 : 34 }}%">Denumirea bunurilor</th><th style="width:4%">UM</th><th style="width:7%">Cantitate facturată</th><th style="width:7%">Cantitate primită</th><th style="width:7%">Diferență</th>
+{% if view_costs %}<th style="width:8%">Preț unitar fără TVA</th><th style="width:8%">Valoare netă</th><th style="width:5%">TVA %</th><th style="width:8%">Valoare TVA</th><th style="width:10%">Total</th>{% endif %}
+</tr></thead><tbody>
+{% for line in lines %}<tr>
+<td>{{ loop.index }}</td><td>{{ line.sku|default(line.supplier_code|default('—')) }}{% if line.supplier_code|default('') and line.supplier_code != line.sku|default('') %}<div class="muted">Furnizor: {{ line.supplier_code }}</div>{% endif %}</td>
+<td>{% if line.image_data %}<img class="product" src="{{ line.image_data }}" alt="Produs">{% else %}<div class="placeholder">Fără<br>imagine</div>{% endif %}</td>
+<td><div class="name">{{ line.supplier_name }}</div>{% if line.product_name|default('') %}<div class="muted">{{ line.product_name }}</div>{% endif %}<div class="muted">Acceptat: {{ line.accepted_quantity|default('0') }} {{ line.purchase_unit|default('buc') }}{% if line.difference_label|default('') %} · {{ line.difference_label }}{% endif %}</div>{% if line.difference_notes|default('') %}<div class="muted">{{ line.difference_notes }}</div>{% endif %}</td>
+<td>{{ line.purchase_unit|default('buc') }}</td><td class="right">{{ line.invoice_quantity|default('0') }}</td><td class="right">{{ line.received_quantity|default('0') }}</td><td class="right {{ line.difference < 0 ? 'minus' : (line.difference > 0 ? 'plus' : 'good') }}">{{ line.difference > 0 ? '+' : '' }}{{ line.difference }}</td>
+{% if view_costs %}<td class="right">{{ line.unit_price|default(0)|number_format(6, ',', '.') }}</td><td class="right">{{ (line.net_bani|default(0) / 100)|number_format(2, ',', '.') }}</td><td class="right">{{ line.vat_percent|default('0') }}</td><td class="right">{{ (line.tax_bani|default(0) / 100)|number_format(2, ',', '.') }}</td><td class="right"><strong>{{ (line.total_bani|default(0) / 100)|number_format(2, ',', '.') }}</strong></td>{% endif %}
+</tr>{% else %}<tr><td colspan="{{ view_costs ? 13 : 8 }}">Nicio poziție completată.</td></tr>{% endfor %}
+</tbody></table>
+{% if view_costs %}<table class="totals"><tr><td>Subtotal fără TVA</td><td class="right">{{ (nir.net_bani|default(0) / 100)|number_format(2, ',', '.') }} {{ nir.currency }}</td><td>Total TVA</td><td class="right">{{ (nir.tax_bani|default(0) / 100)|number_format(2, ',', '.') }} {{ nir.currency }}</td><td class="total">TOTAL</td><td class="right total">{{ (nir.total_bani|default(0) / 100)|number_format(2, ',', '.') }} {{ nir.currency }}</td></tr></table>{% endif %}
+<div class="notes"><div class="eyebrow">Constatări la recepție</div><p>{{ nir.notes|default('') ?: 'Nu au fost adăugate observații generale.' }}</p>{% if nir.reason|default('') %}<p><strong>Motiv:</strong> {{ nir.reason }}</p>{% endif %}<p class="small">Cantitățile acceptate justifică intrarea în gestiune. Diferențele și pozițiile excluse contabil rămân consemnate în document.</p></div>
+<table class="signatures"><tr><td><strong>Recepționat de</strong><div class="signature-line">{{ nir.created_by_name|default(nir.created_by|default('')) }}</div></td><td><strong>Verificat / gestionar</strong><div class="signature-line">Nume și semnătură</div></td><td><strong>Confirmat de</strong>{% if stamp %}<br><img class="stamp" src="{{ stamp }}" alt="Ștampila firmei">{% else %}<div class="signature-line">{{ nir.confirmed_by_name|default(nir.confirmed_by|default('')) }}</div>{% endif %}</td></tr></table>
+<div class="footnote">Generat de La Măriuca Boutique la {{ generated_at }} · Versiunea documentului {{ nir.row_version|default(1) }} · Datele provin din instantaneul păstrat la recepție.</div>
+</body></html>

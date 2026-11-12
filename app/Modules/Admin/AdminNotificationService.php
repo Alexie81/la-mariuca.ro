@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Modules\Admin;
 
+use App\Modules\Inventory\NirRepository;
+use App\Modules\Inventory\NirService;
 use PDO;
 
 final class AdminNotificationService
@@ -23,7 +25,7 @@ final class AdminNotificationService
     public function feed(int $adminUserId, int $page = 1, int $perPage = 15, string $type = 'toate', bool $unreadOnly = false): array
     {
         $preferences = $this->preferences($adminUserId);
-        $events = $this->events($preferences);
+        $events = $this->events($preferences,$adminUserId);
         $read = $this->readMap($adminUserId);
         $dismissed = $this->dismissedMap($adminUserId);
         $events = array_values(array_filter(
@@ -79,7 +81,7 @@ final class AdminNotificationService
         if ($notificationKey === '' || mb_strlen($notificationKey) > 190) {
             return;
         }
-        $validKeys = array_column($this->events($this->preferences($adminUserId)), 'key');
+        $validKeys = array_column($this->events($this->preferences($adminUserId),$adminUserId), 'key');
         if (!in_array($notificationKey, $validKeys, true)) {
             return;
         }
@@ -107,7 +109,7 @@ final class AdminNotificationService
         $this->pdo->beginTransaction();
         try {
             $statement = $this->pdo->prepare('INSERT INTO admin_notification_reads (admin_user_id,notification_key,read_at) VALUES (:user,:notification,:read_at)');
-            foreach ($this->events($preferences) as $event) {
+            foreach ($this->events($preferences,$adminUserId) as $event) {
                 $key = (string) $event['key'];
                 if (isset($read[$key]) || isset($dismissed[$key])) {
                     continue;
@@ -133,12 +135,14 @@ final class AdminNotificationService
             return false;
         }
 
-        $validKeys = array_column($this->events($this->preferences($adminUserId)), 'key');
+        $validKeys = array_column($this->events($this->preferences($adminUserId),$adminUserId), 'key');
         if (!in_array($notificationKey, $validKeys, true)) {
             return false;
         }
 
-        return $this->storeDismissal($adminUserId, $notificationKey);
+        $dismissed=$this->storeDismissal($adminUserId, $notificationKey);
+        if($dismissed) { $this->dismissReturnReceipt($adminUserId,$notificationKey); }
+        return $dismissed;
     }
 
     public function dismissAll(int $adminUserId, string $type = 'toate'): int
@@ -146,7 +150,7 @@ final class AdminNotificationService
         $type = in_array($type, ['toate', 'comenzi', 'plati', 'stoc', 'recenzii'], true) ? $type : 'toate';
         $dismissed = $this->dismissedMap($adminUserId);
         $keys = [];
-        foreach ($this->events($this->preferences($adminUserId)) as $event) {
+        foreach ($this->events($this->preferences($adminUserId),$adminUserId) as $event) {
             $key = (string) $event['key'];
             if (($type === 'toate' || (string) $event['type'] === $type) && !isset($dismissed[$key])) {
                 $keys[] = $key;
@@ -178,6 +182,7 @@ final class AdminNotificationService
             throw $exception;
         }
 
+        foreach($keys as $key) { $this->dismissReturnReceipt($adminUserId,$key); }
         return count($keys);
     }
 
@@ -225,7 +230,7 @@ final class AdminNotificationService
     }
 
     /** @param array<string,bool> $preferences @return list<array<string,mixed>> */
-    private function events(array $preferences): array
+    private function events(array $preferences,int $adminUserId): array
     {
         $events = [];
         if ($preferences['comenzi'] || $preferences['plati']) {
@@ -282,6 +287,20 @@ final class AdminNotificationService
         }
 
         if ($preferences['stoc']) {
+            $today=(new \DateTimeImmutable('now',new \DateTimeZone('Europe/Bucharest')))->format('Y-m-d');
+            $repository=new NirRepository($this->pdo);
+            $actor=$repository->one('users',['id'=>$adminUserId]);
+            if($actor!==null && in_array($actor['role'],['administrator','manager'],true)) {
+                foreach($repository->pendingReturnNotifications($adminUserId,$today) as $return) {
+                    $events[]=[
+                        'key'=>'nir-return:'.$return['return_id'].':'.$today,'type'=>'stoc','tone'=>'attention','priority'=>3,
+                        'title'=>'Retur fără NIR · '.($return['order_number'] ?: '#'.$return['order_id']),
+                        'detail'=>'Verifică factura de retur și recepția fizică. Stocul contabil revine numai prin NIR.',
+                        'meta'=>'Recepție de verificat','occurred_at'=>(string)$return['created_at'],
+                        'target_path'=>'admin/nir-uri/retururi/'.$return['return_id'].'/receptie/',
+                    ];
+                }
+            }
             $rows = $this->pdo->query(
                 "SELECT v.id AS variant_id,v.product_id,v.sku,v.option_summary,p.name AS product_name,"
                 . '(i.physical_quantity-i.reserved_quantity) AS available_quantity,i.updated_at '
@@ -390,6 +409,13 @@ final class AdminNotificationService
             'refunded' => 'Plată rambursată',
             default => 'Plată actualizată',
         };
+    }
+
+    private function dismissReturnReceipt(int $adminUserId,string $key): void
+    {
+        if(preg_match('/^nir-return:(\d+):\d{4}-\d{2}-\d{2}$/D',$key,$match)!==1) { return; }
+        $actor=(new NirRepository($this->pdo))->one('users',['id'=>$adminUserId]);
+        if($actor!==null) { (new NirService($this->pdo))->dismissReturnReminder((int)$match[1],$actor); }
     }
 
     private function now(): string

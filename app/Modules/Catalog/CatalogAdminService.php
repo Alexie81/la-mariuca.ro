@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Catalog;
 
 use App\Modules\Payments\StripeCatalogQueue;
+use App\Modules\Inventory\AccountingStockReadModel;
 use App\Shared\Security\ProductDescriptionSanitizer;
 use App\Shared\Support\Money;
 use App\Shared\Support\Slugger;
@@ -667,8 +668,17 @@ final class CatalogAdminService
         $statement->bindValue(':offset', $offset, PDO::PARAM_INT);
         $statement->execute();
 
+        $items = $statement->fetchAll();
+        $accountingQuantities = (new AccountingStockReadModel($this->pdo))->quantities(array_map(static fn(array $item): int => (int)$item['id'], $items));
+        foreach ($items as &$item) {
+            if (array_key_exists((int)$item['id'], $accountingQuantities)) {
+                $item['physical_quantity'] = $accountingQuantities[(int)$item['id']];
+            }
+        }
+        unset($item);
+
         return [
-            'items' => $statement->fetchAll(),
+            'items' => $items,
             'page' => $page,
             'per_page' => $perPage,
             'total' => $total,

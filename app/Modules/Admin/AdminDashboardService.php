@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Admin;
 
+use App\Modules\Inventory\AccountingStockReadModel;
 use DateTimeImmutable;
 use DateTimeZone;
 use PDO;
@@ -40,12 +41,7 @@ final class AdminDashboardService
         $customerStatement = $this->pdo->prepare("SELECT COUNT(*) FROM users WHERE role='customer' AND created_at>=:start AND created_at<=:end");
         $customerStatement->execute(['start' => $period['start_utc'], 'end' => $period['end_utc']]);
 
-        $negativeAccountingStock = (int) $this->pdo->query(
-            'SELECT COUNT(*) FROM ('
-            . 'SELECT balance.product_id FROM accounting_stock_balances balance '
-            . 'GROUP BY balance.product_id HAVING SUM(balance.quantity) < 0'
-            . ') negative_products'
-        )->fetchColumn();
+        $negativeAccountingStock = (new AccountingStockReadModel($this->pdo))->negativeProductsCount();
 
         $recentOrders = $this->recentOrders();
 
