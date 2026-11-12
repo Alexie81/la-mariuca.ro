@@ -320,7 +320,8 @@ final class AppFactory
             $group->post('/furnizori/{id:[0-9]+}/sterge/', [$adminController, 'deleteSupplier']);
             $group->get('/detaliile-firmei/', [$companyAdminController, 'index']);
             $group->get('/nir-uri/', [$nirController, 'index']);
-            $group->get('/nir-uri/fifo/', [$nirController, 'fifo']);
+            $group->get('/nir-uri/stoc/', [$nirController, 'fifo']);
+            $group->get('/nir-uri/fifo/', [$nirController, 'legacyFifo']);
             $group->get('/nir-uri/sold-initial/', [$nirController, 'actionForm']);
             $group->get('/nir-uri/sold-initial/modal/', [$nirController, 'actionForm']);
             $group->post('/nir-uri/sold-initial/', [$nirController, 'opening']);

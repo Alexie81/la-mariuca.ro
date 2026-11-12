@@ -90,13 +90,18 @@ final class NirAdminController
     public function save(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
     {
         $input = (array) $request->getParsedBody();
-        foreach ($input['lines'] ?? [] as $index=>$line) {
-            if (!empty($line['variant_id_fallback'])) { $input['lines'][$index]['variant_id']=(int) $line['variant_id_fallback']; $input['lines'][$index]['product_id']=0; }
-        }
         $id = isset($args['id']) ? (int) $args['id'] : null;
         $stored = [];
         try {
             $this->requirePermission('edit');
+            if (!is_array($input['lines'] ?? [])) { throw new NirValidationException(['lines'=>'Lista produselor nu este validă. Reîncarcă formularul și încearcă din nou.']); }
+            foreach ($input['lines'] ?? [] as $index=>$line) {
+                if (!is_array($line)) { throw new NirValidationException(['lines'=>'Una dintre pozițiile recepției nu este validă.']); }
+                foreach ($line as $value) {
+                    if (!is_scalar($value) && $value !== null) { throw new NirValidationException(['lines'=>'Verifică valorile pozițiilor din recepție.']); }
+                }
+                if (!empty($line['variant_id_fallback'])) { $input['lines'][$index]['variant_id']=(int) $line['variant_id_fallback']; $input['lines'][$index]['product_id']=0; }
+            }
             if (($input['intent'] ?? '') === 'add_line') {
                 $input['lines'] = array_values((array) ($input['lines'] ?? []));
                 $input['lines'][] = $this->blankLine();
@@ -153,12 +158,12 @@ final class NirAdminController
                 default=>throw new \InvalidArgumentException('Acțiune necunoscută.'),
             };
             $this->removeUnusedUploads($stored,$doc);
-            return $this->success($request, match ($kind) { 'confirm'=>'Recepția a fost confirmată. Stocul contabil și loturile FIFO sunt actualizate.', 'reverse'=>'Stornarea a fost înregistrată.', default=>'Documentele au fost adăugate.' }, $this->url($doc['id'].'/'), $doc);
+            return $this->success($request, match ($kind) { 'confirm'=>'Recepția a fost confirmată. Stocul contabil și loturile sunt actualizate.', 'reverse'=>'Stornarea a fost înregistrată.', default=>'Documentele au fost adăugate.' }, $this->url($doc['id'].'/'), $doc);
         } catch (\Throwable $e) {
             foreach ($stored as $file) { $this->storage->remove((string) $file['stored_name']); }
             if (!$this->jsonWanted($request) && $e instanceof NirValidationException) {
                 return $this->render('admin/pages/nir-action.twig', [
-                    'action_kind'=>$this->action($request),'document'=>$this->nirs->document($id,$this->actor()),
+                    'action_kind'=>$this->action($request),'document'=>$this->presentDocument($this->nirs->document($id,$this->actor())),
                     'values'=>$input,'errors'=>$e->errors,'warnings'=>$e->warnings,'form_action'=>$request->getUri()->getPath(),
                     'idempotency_key'=>$input['idempotency_key'] ?? '', 'back_url'=>$this->url($id.'/'),
                 ], 422);
@@ -246,14 +251,31 @@ final class NirAdminController
         finally { if ($stored !== null) { $this->storage->remove((string) $stored['stored_name']); } }
     }
 
+    public function legacyFifo(ServerRequestInterface $request,ResponseInterface $response): ResponseInterface
+    {
+        $query=$request->getUri()->getQuery();
+        return $response->withStatus(301)->withHeader('Location',$this->url('stoc/').($query!==''?'?'.$query:''));
+    }
+
     public function fifo(ServerRequestInterface $request): ResponseInterface
     {
         try {
             $data=$this->nirs->fifo($request->getQueryParams(),$this->actor());
             $defaults=$this->nirs->defaults($this->actor());
             $warehouses=array_column($defaults['warehouses'] ?? [],'name','id');
+            $products=$this->nirs->selectProducts($this->actor());
+            $productNames=array_column($products,'product_name','product_id');
+            $supplierRows=array_column($defaults['suppliers'] ?? [],null,'id');
             foreach ($data['reconciliation'] ?? [] as $index=>$row) {
-                $data['reconciliation'][$index]+= ['stock_quantity'=>NirDecimal::quantity((int) $row['balance_units']),'fifo_quantity'=>NirDecimal::quantity((int) $row['fifo_units']),'difference'=>NirDecimal::quantity((int) $row['difference_units']),'warehouse_name'=>$warehouses[$row['warehouse_id']] ?? 'Gestiune'];
+                $data['reconciliation'][$index]+= ['product_name'=>$productNames[$row['product_id']] ?? 'Produs indisponibil','stock_quantity'=>NirDecimal::quantity((int) $row['balance_units']),'fifo_quantity'=>NirDecimal::quantity((int) $row['fifo_units']),'difference'=>NirDecimal::quantity((int) $row['difference_units']),'warehouse_name'=>$warehouses[$row['warehouse_id']] ?? 'Gestiune'];
+            }
+            foreach ($data['references'] ?? [] as $index=>$reference) {
+                $supplierId=(int)$reference['supplier_id'];
+                // Retained references also need readable names for inactive suppliers.
+                $supplierRows[$supplierId] ??= $this->suppliers->find($supplierId) ?? [];
+                $supplier=$supplierRows[$supplierId];
+                $data['references'][$index]['supplier_alias']=trim((string)($supplier['alias'] ?? '')) ?: (trim((string)($supplier['company_name'] ?? '')) ?: 'Furnizor indisponibil');
+                $data['references'][$index]['product_name']=$productNames[$reference['product_id']] ?? 'Produs indisponibil';
             }
             foreach ($data['layers'] ?? [] as $index=>$layer) {
                 $data['layers'][$index]['display_received_at']=$this->date((string) $layer['received_at']);
@@ -264,7 +286,7 @@ final class NirAdminController
             foreach ($data['pending'] ?? [] as $index=>$pending) { $data['pending'][$index]['display_created_at']=$this->date((string) $pending['created_at']); }
             return $this->render('admin/pages/nir-fifo.twig',array_replace($defaults,$data,[
                 'fifo'=>$data,'filters'=>$request->getQueryParams(),'pending_returns'=>$this->nirs->pendingReturnReceipts($this->actor()),
-                'products'=>$this->nirs->selectProducts($this->actor()),
+                'products'=>$products,
             ]));
         } catch (\Throwable $e) { return $this->failure($request,$e); }
     }
@@ -281,7 +303,7 @@ final class NirAdminController
                 return $this->render('admin/pages/nir-action.twig',array_replace($this->nirs->defaults($this->actor()),[
                     'action_kind'=>'opening','values'=>$input,'errors'=>$e->errors,'warnings'=>$e->warnings,
                     'products'=>$this->nirs->selectProducts($this->actor()),'form_action'=>$request->getUri()->getPath(),
-                    'idempotency_key'=>$input['idempotency_key'] ?? '', 'back_url'=>$this->url('fifo/'),
+                    'idempotency_key'=>$input['idempotency_key'] ?? '', 'back_url'=>$this->url('stoc/'),
                 ]),422);
             }
             return $this->failure($request,$e);
@@ -300,7 +322,7 @@ final class NirAdminController
             return $this->render($this->modal($request)?'admin/partials/nir-action-content.twig':'admin/pages/nir-action.twig',array_replace($this->nirs->defaults($this->actor()),[
                 'action_kind'=>'customer_return','return'=>$selected,'return_document'=>$selected,'errors'=>[],'values'=>[],
                 'form_title'=>'Recepționează returul',
-                'form_action'=>$this->url('retururi/'.$args['id'].'/receptie/'),'back_url'=>$this->url('fifo/'),
+                'form_action'=>$this->url('retururi/'.$args['id'].'/receptie/'),'back_url'=>$this->url('stoc/'),
                 'idempotency_key'=>bin2hex(random_bytes(24)),'is_modal'=>$this->modal($request),
             ]));
         } catch (\Throwable $e) { return $this->failure($request,$e); }
@@ -327,7 +349,7 @@ final class NirAdminController
                 return $this->render('admin/pages/nir-action.twig',array_replace($this->nirs->defaults($this->actor()),[
                     'action_kind'=>'customer_return','return_document'=>$selected,'form_title'=>'Recepționează returul',
                     'values'=>$input,'errors'=>$e->errors,'warnings'=>$e->warnings,'form_action'=>$request->getUri()->getPath(),
-                    'idempotency_key'=>$input['idempotency_key'] ?? '', 'back_url'=>$this->url('fifo/'),
+                    'idempotency_key'=>$input['idempotency_key'] ?? '', 'back_url'=>$this->url('stoc/'),
                 ]),422);
             }
             return $this->failure($request,$e);
@@ -339,7 +361,7 @@ final class NirAdminController
     {
         try {
             $this->nirs->dismissReturnReminder((int) $args['id'],$this->actor());
-            return $this->success($request,'Reamintirea a fost ascunsă pentru astăzi.',$this->url('fifo/'));
+            return $this->success($request,'Reamintirea a fost ascunsă pentru astăzi.',$this->url('stoc/'));
         } catch (\Throwable $e) { return $this->failure($request,$e); }
     }
 
@@ -348,7 +370,7 @@ final class NirAdminController
     {
         try {
             $this->nirs->reassignReference((int) $args['id'],(array) $request->getParsedBody(),$this->actor());
-            return $this->success($request,'Referința furnizorului a fost actualizată.',$this->url('fifo/'));
+            return $this->success($request,'Referința furnizorului a fost actualizată.',$this->url('stoc/'));
         } catch (\Throwable $e) { return $this->failure($request,$e); }
     }
 
@@ -455,6 +477,14 @@ final class NirAdminController
         $correction = str_contains($request->getUri()->getPath(),'/corectie/');
         if ($doc !== null && ($doc['status'] ?? '') === 'confirmed' && !$correction) { return $this->view->redirect($this->url($id.'/')); }
         $values = $submitted ?? $doc ?? $defaults['values'] ?? [];
+        // A malformed request must not make the validation page fail while rendering rows.
+        if ($submitted !== null && isset($values['lines'])) {
+            $values['lines']=is_array($values['lines']) ? array_values(array_filter($values['lines'],'is_array')) : [];
+            foreach ($values['lines'] as &$line) {
+                foreach ($line as $field=>$value) { if (!is_scalar($value) && $value !== null) { unset($line[$field]); } }
+            }
+            unset($line);
+        }
         if ($submitted===null && $doc!==null) {
             foreach (['nir_at','received_at'] as $field) { $values[$field]=$this->date((string) ($doc[$field] ?? ''),'Y-m-d\TH:i'); }
         }
@@ -488,7 +518,15 @@ final class NirAdminController
             $factor=\Brick\Math\BigDecimal::of((string) ($line['conversion_factor'] ?? '1'));
             $document['lines'][$i]['available_quantity']=(string) ($factor->isPositive()?$available->dividedBy($factor,4,\Brick\Math\RoundingMode::Down):$available);
         }
-        $labels=['draft_created'=>'Recepție salvată în lucru','draft_updated'=>'Document actualizat','confirmed'=>'Recepție confirmată','corrected'=>'Corecție aplicată','reversed'=>'Retur către furnizor','attachments_added'=>'Documente adăugate','attachment_removed'=>'Document eliminat','opening_balance'=>'Sold inițial înregistrat','customer_return'=>'Retur client recepționat','reference_reassigned'=>'Referință furnizor reasociată'];
+        $labels=[
+            'draft_created'=>'Recepție salvată în lucru','draft_updated'=>'Document actualizat','draft_deleted'=>'Document în lucru șters',
+            'confirmed'=>'Recepție confirmată','reconfirmed'=>'Recepție reconfirmată după corecție','corrected'=>'Corecție aplicată',
+            'supplier_return'=>'Retur către furnizor înregistrat','reversed'=>'Retur către furnizor înregistrat',
+            'attachment_added'=>'Document justificativ adăugat','attachments_added'=>'Documente justificative adăugate',
+            'attachment_deleted'=>'Document justificativ eliminat','attachment_removed'=>'Document justificativ eliminat',
+            'opening_balance'=>'Sold inițial înregistrat','customer_return_received'=>'Retur client recepționat','customer_return'=>'Retur client recepționat',
+            'reference_saved'=>'Referință furnizor salvată','reference_reassigned'=>'Referință furnizor reasociată','location_created'=>'Locație de recepție adăugată',
+        ];
         foreach ($document['audit'] ?? [] as $i=>$event) {
             $document['audit'][$i]['label']=$labels[$event['action']] ?? 'Actualizare document';
             $document['audit'][$i]['display_created_at']=$this->date((string) ($event['created_at'] ?? ''));
@@ -524,14 +562,18 @@ final class NirAdminController
     {
         $files = $request->getUploadedFiles()['attachments'] ?? $request->getUploadedFiles()['documents'] ?? [];
         if ($files instanceof UploadedFileInterface) { $files = [$files]; }
-        if (!is_array($files) || count($files)>30) { throw new \InvalidArgumentException('Încarcă maximum 30 de documente odată.'); }
+        if (!is_array($files) || count($files)>30) { throw new NirValidationException(['attachments'=>'Încarcă maximum 30 de documente odată.']); }
         $stored=[];
         try {
             foreach ($files as $file) {
                 if ($file instanceof UploadedFileInterface && $file->getError()!==UPLOAD_ERR_NO_FILE) { $stored[]=$this->storage->store($file); }
             }
             return $stored;
-        } catch (\Throwable $e) { foreach ($stored as $file) { $this->storage->remove((string) $file['stored_name']); } throw $e; }
+        } catch (\Throwable $e) {
+            foreach ($stored as $file) { $this->storage->remove((string) $file['stored_name']); }
+            if ($e instanceof \InvalidArgumentException) { throw new NirValidationException(['attachments'=>$e->getMessage()]); }
+            throw $e;
+        }
     }
 
     private function action(ServerRequestInterface $request): string
@@ -553,6 +595,7 @@ final class NirAdminController
     {
         return $this->view->render($template,array_replace([
             'admin_section'=>'nir','admin_context'=>'NIR-uri', 'permissions'=>$this->nirs->permissions($this->actor()),
+            'today'=>(new \DateTimeImmutable('now',new \DateTimeZone('Europe/Bucharest')))->format('Y-m-d'),
             'admin_unread_count'=>$this->notifications->unreadCount((int) $this->actor()['id']),
         ],$data),$status)->withHeader('Cache-Control','no-store');
     }

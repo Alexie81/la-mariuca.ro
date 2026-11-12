@@ -13,6 +13,9 @@
   let searchTimer;
   let modalAbort;
   let toastTimer;
+  const selectedFiles = new WeakMap();
+  const matchRequests = new WeakMap();
+  const rateRequests = new WeakMap();
   const icon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 7 9-5 9 5v10l-9 5-9-5V7Zm0 0 9 5 9-5M12 12v10"/></svg>';
 
   function message(form, text, errors = {}) {
@@ -20,6 +23,7 @@
     if (!box) return;
     box.replaceChildren();
     const p = document.createElement('p'); p.textContent = text; box.append(p); box.hidden = false;
+    const displayed = new Set([String(text)]);
     $$('[aria-invalid="true"]', form).forEach(field => field.removeAttribute('aria-invalid'));
     $$('[data-field-error]', form).forEach(field => { field.textContent = ''; field.hidden = true; });
     Object.entries(errors).forEach(([key, value]) => {
@@ -28,7 +32,7 @@
       if (field) { field.setAttribute('aria-invalid','true'); const details = field.closest('details'); if (details) details.open = true; }
       const error = $$('[data-field-error]', form).find(element => element.dataset.fieldError === name);
       if (error) { error.textContent = String(value); error.hidden = false; }
-      else { const line = document.createElement('p'); line.textContent = String(value); box.append(line); }
+      else if(!displayed.has(String(value))) { const line = document.createElement('p'); line.textContent = String(value); box.append(line); displayed.add(String(value)); }
     });
     box.scrollIntoView({behavior:'smooth',block:'start'}); box.focus({preventScroll:true});
   }
@@ -38,7 +42,7 @@
     if (!type.includes('application/json')) throw new Error(response.status === 401 || response.status === 403 ? 'Sesiunea a expirat sau nu ai acces. Reîncarcă pagina și autentifică-te.' : 'Serverul nu a putut procesa cererea. Încearcă din nou.');
     const data = await response.json();
     if (!response.ok || data.success === false) {
-      const error = new Error(response.status === 409 ? 'Documentul a fost modificat între timp pe alt dispozitiv. Reîncarcă recepția pentru a vedea versiunea nouă; modificările tale nu au fost suprascrise.' : (data.message || 'Verifică datele și încearcă din nou.'));
+      const error = new Error(data.message || 'Verifică datele și încearcă din nou.');
       error.data = data; throw error;
     }
     return data;
@@ -86,7 +90,7 @@
 
   async function submitForm(form, submitter) {
     if(form.getAttribute('aria-busy') === 'true') return;
-    if(!form.reportValidity()) return;
+    if(!submitter?.formNoValidate && !form.reportValidity()) return;
     const data = new FormData(form);
     if(submitter?.name) data.set(submitter.name,submitter.value);
     const buttons = $$('button[type="submit"]',form);
@@ -94,8 +98,8 @@
     try {
       const response = await fetch(form.action, {method:'POST',body:data,headers:{'Accept':'application/json','X-Requested-With':'XMLHttpRequest'}});
       const result = await json(response);
-      if(result.redirect) { sessionStorage.setItem('nir-feedback',result.message || 'Recepția a fost salvată.'); location.assign(result.redirect); }
-      else { closeModal(); toast(result.message || 'Modificările au fost salvate.'); }
+      if(result.redirect) { try { sessionStorage.setItem('nir-feedback',result.message || 'Recepția a fost salvată.'); } catch { /* Redirect still works when storage is unavailable. */ } location.assign(result.redirect); }
+      else { form.removeAttribute('aria-busy'); closeModal(); toast(result.message || 'Modificările au fost salvate.'); }
     } catch(error) {
       const warnings = error.data?.warnings || [];
       if(warnings.length) {
@@ -107,39 +111,40 @@
         if(!acknowledgement) { acknowledgement=document.createElement('label'); acknowledgement.className='nir-acknowledge'; acknowledgement.dataset.nirAcknowledge=''; acknowledgement.innerHTML='<input type="checkbox" name="accept_warnings" value="1" required><span>Am verificat avertismentele și doresc să continui.</span>'; box.after(acknowledgement); }
         acknowledgement.hidden=false; $('input',acknowledgement).required=true; $('input',acknowledgement).checked=false;
         box.scrollIntoView({behavior:'smooth',block:'center'});
-      } else message(form,error.message,error.data?.errors || {});
+      }
+      if(!warnings.length || Object.keys(error.data?.errors || {}).length) message(form,error.message,error.data?.errors || {});
     } finally { form.removeAttribute('aria-busy'); buttons.forEach(button => { button.disabled=false; }); }
   }
 
   function lineValue(line,key) { return $('[name$="['+key+']"]',line)?.value || ''; }
   function setLineValue(line,key,value) { if(key==='tracked'){const checkbox=$('[data-line-tracked]',line);if(checkbox)checkbox.checked=Boolean(value)&&value!=='0';return;} const field=$('[name$="['+key+']"]',line); if(field) field.value=value ?? ''; }
   function linePreview(line) {
-    const form=line.closest('form'); const mode=lineValue(line,'price_mode') || 'unit';
-    const quantity=number(lineValue(line,'accepted_quantity')); const rate=number(form.elements.exchange_rate?.value) || 1;
-    const vat=number(lineValue(line,'vat_percent')); const discount=number(lineValue(line,'discount_percent'));
-    let net=quantity*number(lineValue(line,'unit_price'))*(1-discount/100), tax=0, total=0;
-    if(mode==='line_net'||mode==='exact_vat') net=number(lineValue(line,'net_override'));
-    if(mode==='gross') { total=number(lineValue(line,'gross_override')); net=total/(1+vat/100); tax=total-net; }
-    else { tax=mode==='exact_vat' ? number(lineValue(line,'tax_override')) : net*vat/100; total=net+tax; }
+    const form=line.closest('form'),mode=lineValue(line,'price_mode') || 'unit';
     const code=form.elements.currency?.value.toUpperCase() || 'RON';
-    $$('[data-price-field]',line).forEach(element => { element.hidden=!element.dataset.priceField.split(' ').includes(mode); });
-    const stock=$('[data-line-stock]',line); if(stock) stock.textContent=decimal(quantity*(number(lineValue(line,'conversion_factor')) || 1))+' '+(lineValue(line,'stock_unit') || 'buc');
-    const sum=$('[data-line-total]',line); if(sum) sum.textContent=currency(total,code);
-    const stockQuantity=quantity*(number(lineValue(line,'conversion_factor')) || 1);
-    const cost=$('[data-line-cost]',line);if(cost){const includeVat=$('input[type="checkbox"][name="vat_in_cost"]',form)?.checked;const inventory=(includeVat?total:net)*rate+number(lineValue(line,'extra_cost_ron'));cost.textContent=(stockQuantity>0?inventory/stockQuantity:0).toLocaleString('ro-RO',{minimumFractionDigits:2,maximumFractionDigits:6})+' RON';}
-    line.dataset.previewNet=String(Math.round(net*100)/100); line.dataset.previewTax=String(Math.round(tax*100)/100); line.dataset.previewTotal=String(Math.round(total*100)/100);
-    const details=$('.nir-line-details',line);
-    if(number(lineValue(line,'invoice_quantity'))!==number(lineValue(line,'received_quantity')) || number(lineValue(line,'received_quantity'))!==quantity) { if(details) details.open=true; }
+    $$('[data-price-field]',line).forEach(element=>{element.hidden=!element.dataset.priceField.split(' ').includes(mode);});
     const tracked=$('[data-line-tracked]',line);
-    const match=$('[data-product-match]',line); if(match) match.style.opacity=tracked && !tracked.checked ? '.6' : '1';
-    return {net,tax,total,rate};
+    const match=$('[data-product-match]',line);if(match)match.style.opacity=tracked&&!tracked.checked?'.6':'1';
+    const details=$('.nir-line-details',line);
+    if(number(lineValue(line,'invoice_quantity'))!==number(lineValue(line,'received_quantity')) || number(lineValue(line,'received_quantity'))!==number(lineValue(line,'accepted_quantity'))) {if(details)details.open=true;}
+    try {
+      const fields={};['accepted_quantity','conversion_factor','unit_price','discount_percent','vat_percent','extra_cost_ron','net_override','tax_override','gross_override'].forEach(key=>{fields[key]=lineValue(line,key)||'0';});
+      fields.price_mode=mode;fields.tracked=tracked?.checked ?? true;
+      const amounts=NirAmounts.line(fields,form.elements.exchange_rate?.value || '1',$('input[type="checkbox"][name="vat_in_cost"]',form)?.checked);
+      const stock=$('[data-line-stock]',line);if(stock)stock.textContent=decimal(amounts.stock_quantity)+' '+(lineValue(line,'stock_unit')||'buc');
+      const sum=$('[data-line-total]',line);if(sum)sum.textContent=currency(Number(amounts.total_bani)/100,code);
+      const cost=$('[data-line-cost]',line);if(cost)cost.textContent=Number(amounts.unit_cost_ron).toLocaleString('ro-RO',{minimumFractionDigits:2,maximumFractionDigits:6})+' RON';
+      return amounts;
+    } catch {
+      ['[data-line-stock]','[data-line-total]','[data-line-cost]'].forEach(selector=>{const node=$(selector,line);if(node)node.textContent='Verifică valorile';});
+      return null;
+    }
   }
 
   function preview(form) {
-    let net=0,tax=0,total=0;
-    $$('[data-nir-line]',form).forEach(line => { linePreview(line); net+=number(line.dataset.previewNet); tax+=number(line.dataset.previewTax); total+=number(line.dataset.previewTotal); });
+    let net=0n,tax=0n,total=0n,valid=true;
+    $$('[data-nir-line]',form).forEach(line=>{const amounts=linePreview(line);if(!amounts){valid=false;return;}net+=BigInt(amounts.net_bani);tax+=BigInt(amounts.tax_bani);total+=BigInt(amounts.total_bani);});
     const code=form.elements.currency?.value.toUpperCase() || 'RON';
-    [['net',net],['tax',tax],['total',total]].forEach(([key,value])=>{const node=$('[data-summary-'+key+']',form);if(node)node.textContent=currency(value,code);});
+    [['net',net],['tax',tax],['total',total]].forEach(([key,value])=>{const node=$('[data-summary-'+key+']',form);if(node)node.textContent=valid?currency(Number(value)/100,code):'Verifică valorile';});
   }
 
   function renumber(form) {
@@ -149,7 +154,7 @@
     preview(form);
   }
 
-  function addLine(form, values={}) {
+  function addLine(form, values={}, batch=false) {
     const lines=$$('[data-nir-line]',form);
     if(lines.length>=1000){message(form,'Un document poate conține maximum 1.000 de poziții.');return null;}
     const template=$('[data-nir-line-template]',form);
@@ -157,7 +162,7 @@
     const fragment=template.content.cloneNode(true); const line=$('[data-nir-line]',fragment);
     Object.entries(values).forEach(([key,value])=>setLineValue(line,key,value));
     const name=$('[data-line-title]',line);if(name)name.textContent=values.supplier_name || 'Produs nou';
-    $('[data-nir-lines]',form).append(fragment);renumber(form);return line;
+    $('[data-nir-lines]',form).append(fragment);if(!batch)renumber(form);return line;
   }
 
   function currencyChanged(form) {
@@ -191,9 +196,9 @@
 
   function acceptFiles(form, files) {
     const input=$('[data-nir-files]',form);if(!input)return;
-    const transfer=new DataTransfer();Array.from(input.files).forEach(file=>transfer.items.add(file));
-    for(const file of files){if(file.size>15*1024*1024){message(form,'Fișierul „'+file.name+'” depășește limita de 15 MB.');continue;}if(!/\.(pdf|jpe?g|png|webp|xlsx|xml)$/i.test(file.name)){message(form,'Format neacceptat: '+file.name);continue;}if(!Array.from(transfer.files).some(existing=>existing.name===file.name&&existing.size===file.size))transfer.items.add(file);}
-    input.files=transfer.files;fileList(form);
+    const transfer=new DataTransfer();(selectedFiles.get(input) || []).forEach(file=>transfer.items.add(file));
+    for(const file of files){if(file.size>15*1024*1024){message(form,'Fișierul „'+file.name+'” depășește limita de 15 MB.');continue;}if(!/\.(pdf|jpe?g|png|webp|xlsx|xml)$/i.test(file.name)){message(form,'Format neacceptat: '+file.name);continue;}if(Array.from(transfer.files).some(existing=>existing.name===file.name&&existing.size===file.size&&existing.lastModified===file.lastModified))continue;if(transfer.files.length>=30){message(form,'Poți încărca cel mult 30 de fișiere odată.');break;}transfer.items.add(file);}
+    input.files=transfer.files;selectedFiles.set(input,Array.from(input.files));fileList(form);
   }
 
   async function loadProducts(form,query='') {
@@ -225,11 +230,11 @@
     $('[data-nir-product-picker] span',line).textContent='Schimbă';
   }
 
-  function applyReference(line,reference) {
+  function applyReference(line,reference,batch=false) {
     if(!reference)return;
     ['purchase_unit','stock_unit','conversion_factor'].forEach(key=>{const field=$('[name$="['+key+']"]',line);if(field&&!field.dataset.manuallyChanged&&reference[key])field.value=reference[key];});
     const history=$('[data-price-history]',line);if(history&&reference.last_price){history.textContent='Ultimul preț la acest furnizor: '+decimal(reference.last_price)+' '+(reference.last_currency || 'RON');history.hidden=false;}
-    preview(line.closest('form'));
+    if(!batch)preview(line.closest('form'));
   }
 
   async function matchLine(line) {
@@ -237,8 +242,10 @@
     const name=lineValue(line,'supplier_name');if(!name && !lineValue(line,'supplier_code') && !lineValue(line,'supplier_ean'))return;
     const data=new FormData();data.set('_csrf',form.elements._csrf.value);data.set('supplier_id',form.elements.supplier_id.value);
     ['supplier_name','supplier_code','supplier_ean'].forEach(key=>data.set('line['+key+']',lineValue(line,key)));
-    try{const result=await json(await fetch(form.dataset.matchUrl,{method:'POST',body:data,headers:{Accept:'application/json','X-Requested-With':'XMLHttpRequest'}}));
-      if(lineValue(line,'variant_id') || !line.isConnected)return;
+    const signature=()=>[form.elements.supplier_id.value,...['supplier_name','supplier_code','supplier_ean'].map(key=>lineValue(line,key))].join('\u0000');
+    const original=signature();matchRequests.get(line)?.abort();const request=new AbortController();matchRequests.set(line,request);
+    try{const result=await json(await fetch(form.dataset.matchUrl,{method:'POST',body:data,signal:request.signal,headers:{Accept:'application/json','X-Requested-With':'XMLHttpRequest'}}));
+      if(lineValue(line,'variant_id') || !line.isConnected || signature()!==original || matchRequests.get(line)!==request)return;
       if(result.matched && !result.ambiguous){
         if(result.product)applyProduct(line,result.product);
         else{setLineValue(line,'product_id',result.product_id);setLineValue(line,'variant_id',result.variant_id);$('[data-product-label]',line).textContent='Asociere exactă găsită';$('[data-product-meta]',line).textContent='Referință verificată pentru acest furnizor';$('[data-nir-product-picker] span',line).textContent='Verifică produsul';}
@@ -250,34 +257,58 @@
   async function createInline(button,kind) {
     const form=button.closest('form'),details=button.closest('details'),error=$('[data-'+kind+'-error]',details);
     const data=new FormData();data.set('_csrf',form.elements._csrf.value);
-    if(kind==='location')data.set('warehouse_id',form.elements.warehouse_id.value);
+    const warehouse=form.elements.warehouse_id?.value;
+    if(kind==='location')data.set('warehouse_id',warehouse);
     $$('[name^="new_'+kind+'["]',details).forEach(field=>{data.set(field.name.replace('new_'+kind+'[','').replace(/\]$/,''),field.value);});
     button.disabled=true;if(error)error.textContent='';
-    try{const result=await json(await fetch(form.dataset[kind+'Url'],{method:'POST',body:data,headers:{Accept:'application/json','X-Requested-With':'XMLHttpRequest'}}));const item=result[kind] || result.item || result;const select=form.elements[kind+'_id'];const option=document.createElement('option');option.value=item.id || result.id;option.textContent=item.alias || item.name || data.get(kind==='supplier'?'alias':'name');if(kind==='location')option.dataset.warehouse=form.elements.warehouse_id.value;select.append(option);select.value=option.value;details.open=false;$$('input:not([type=hidden]),textarea',details).forEach(input=>input.value='');}
+    try{const result=await json(await fetch(form.dataset[kind+'Url'],{method:'POST',body:data,headers:{Accept:'application/json','X-Requested-With':'XMLHttpRequest'}}));const item=result[kind] || result.item || result;const select=form.elements[kind+'_id'];const option=document.createElement('option');option.value=item.id || result.id;option.textContent=item.alias || item.name || data.get(kind==='supplier'?'alias':'name');if(kind==='location')option.dataset.warehouse=String(item.warehouse_id || warehouse);select.append(option);if(kind!=='location'||form.elements.warehouse_id.value===warehouse)select.value=option.value;if(kind==='location')locationsChanged(form);details.open=false;$$('input:not([type=hidden]),textarea',details).forEach(input=>input.value='');}
     catch(e){if(error)error.textContent=e.message;else message(form,e.message,e.data?.errors || {});}
     finally{button.disabled=false;}
   }
 
   async function importLines(input) {
     const file=input.files[0];if(!file)return;const form=input.closest('form'),status=$('[data-import-status]',form);
+    if(form.getAttribute('aria-busy')==='true')return;
+    const body=$('.nir-form__body',form),buttons=$$('button[type="submit"]',form),disabled=buttons.map(button=>button.disabled);
+    form.setAttribute('aria-busy','true');if(body)body.inert=true;buttons.forEach(button=>button.disabled=true);
     status.hidden=false;status.textContent='Citim documentul. Verificăm denumirile și valorile…';input.disabled=true;
     try{
       if(file.size>15*1024*1024)throw new Error('Fișierul depășește limita de 15 MB.');
+      const attachments=selectedFiles.get($('[data-nir-files]',form)) || [];
+      if(attachments.length>=30&&!attachments.some(existing=>existing.name===file.name&&existing.size===file.size&&existing.lastModified===file.lastModified))throw new Error('Elimină un atașament înainte de import: documentul sursă trebuie păstrat, iar limita este de 30 de fișiere.');
       const data=new FormData();data.set('_csrf',form.elements._csrf.value);data.set('file',file);data.set('supplier_id',form.elements.supplier_id.value);
       const result=await json(await fetch(form.dataset.importUrl,{method:'POST',body:data,headers:{Accept:'application/json','X-Requested-With':'XMLHttpRequest'}}));
       const imported=result.data || result.import || result;const lines=imported.lines || [];
       if(!lines.length)throw new Error('Nu au fost găsite poziții importabile în acest fișier.');
-      const current=$$('[data-nir-line]',form);if(current.length===1&&!lineValue(current[0],'supplier_name')&&!lineValue(current[0],'variant_id'))current[0].remove();
-      lines.forEach(values=>{const line=addLine(form,values);if(line&&values.match?.matched&&!values.match.ambiguous){if(values.match.product)applyProduct(line,values.match.product);else{setLineValue(line,'product_id',values.match.product_id);setLineValue(line,'variant_id',values.match.variant_id);$('[data-product-label]',line).textContent='Asociere exactă găsită';$('[data-product-meta]',line).textContent='Verifică produsul înainte de confirmare.';}if(values.purchase_unit&&values.purchase_unit!=='buc')$('[name$="[purchase_unit]"]',line).dataset.manuallyChanged='import';applyReference(line,values.match.reference);}});
+      const current=$$('[data-nir-line]',form),empty=current.length===1&&!lineValue(current[0],'supplier_name')&&!lineValue(current[0],'variant_id');
+      if((empty?0:current.length)+lines.length>1000)throw new Error('Importul ar depăși 1.000 de poziții. Nicio poziție nu a fost adăugată.');
+      if(empty)current[0].remove();
+      lines.forEach(values=>{const line=addLine(form,values,true);if(line&&values.match?.matched&&!values.match.ambiguous){if(values.match.product)applyProduct(line,values.match.product);else{setLineValue(line,'product_id',values.match.product_id);setLineValue(line,'variant_id',values.match.variant_id);$('[data-product-label]',line).textContent='Asociere exactă găsită';$('[data-product-meta]',line).textContent='Verifică produsul înainte de confirmare.';}if(values.purchase_unit&&values.purchase_unit!=='buc')$('[name$="[purchase_unit]"]',line).dataset.manuallyChanged='import';applyReference(line,values.match.reference,true);}});
       const header=imported.header || imported;
       ['invoice_series','invoice_number','invoice_date','currency','supplier_id'].forEach(key=>{if(header[key]&&form.elements[key])form.elements[key].value=header[key];});
       if(header.invoice_date)invoiceDateChanged(form);
-      acceptFiles(form,[file]);currencyChanged(form);
+      acceptFiles(form,[file]);renumber(form);currencyChanged(form);
       status.replaceChildren();const summary=document.createElement('p');summary.textContent=lines.length+' poziții importate. Verifică asocierile, cantitățile și valorile înainte de confirmare.';status.append(summary);
       const warnings=imported.warnings || result.warnings || [];status.classList.toggle('has-warnings',warnings.length>0);
       if(warnings.length){const title=document.createElement('strong');title.textContent='Verificări necesare pentru această factură';status.append(title);const list=document.createElement('ul');warnings.forEach(warning=>{const li=document.createElement('li');li.textContent=typeof warning==='string'?warning:(warning.message || String(warning));list.append(li);});status.append(list);status.scrollIntoView({behavior:'smooth',block:'center'});}
       else $('[data-nir-lines]',form).scrollIntoView({behavior:'smooth',block:'start'});
-    }catch(e){status.textContent=e.message;}finally{input.disabled=false;input.value='';}
+    }catch(e){status.textContent=e.message;}finally{input.disabled=false;input.value='';form.removeAttribute('aria-busy');if(body)body.inert=false;buttons.forEach((button,index)=>button.disabled=disabled[index]);}
+  }
+
+  async function fetchRate(button) {
+    const form=button.closest('form'),status=$('[data-rate-message]',form);
+    const signature=()=>[form.elements.currency.value,form.elements.exchange_rate_date.value,form.elements.exchange_rate.value].join('|');
+    const original=signature(),request=new AbortController();rateRequests.get(form)?.abort();rateRequests.set(form,request);
+    button.disabled=true;status.textContent='Căutăm ultimul curs publicat…';
+    const url=new URL(form.dataset.rateUrl,location.origin);url.searchParams.set('date',form.elements.exchange_rate_date.value);url.searchParams.set('currency',form.elements.currency.value);
+    try {
+      const result=await json(await fetch(url,{headers:{Accept:'application/json'},signal:request.signal}));
+      if(!form.isConnected || rateRequests.get(form)!==request)return;
+      if(signature()!==original){status.textContent='Datele au fost schimbate. Solicită din nou cursul pentru valorile actuale.';return;}
+      if(result.rate){form.elements.exchange_rate.value=result.rate;form.elements.exchange_rate_date.value=result.date;}
+      status.textContent=result.message || 'Cursul a fost actualizat.';preview(form);
+    } catch(error) {if(error.name!=='AbortError')status.textContent=error.message+' Poți introduce manual cursul verificat.';}
+    finally {if(rateRequests.get(form)===request)button.disabled=false;}
   }
 
   function initialize(root) {
@@ -295,8 +326,8 @@
     const newLocation=event.target.closest('[data-nir-add-location]');if(newLocation){event.preventDefault();createInline(newLocation,'location');return;}
     const picker=event.target.closest('[data-nir-product-picker]');if(picker){const form=picker.closest('form');pickerLine=picker.closest('[data-nir-line]');const panel=$('[data-nir-product-panel]',form);panel.hidden=false;const search=$('[data-product-search]',form);search.value=lineValue(pickerLine,'supplier_name');search.focus();loadProducts(form,search.value);return;}
     const pickerClose=event.target.closest('[data-product-close]');if(pickerClose){const form=pickerClose.closest('form');$('[data-nir-product-panel]',form).hidden=true;$('[data-nir-product-picker]',pickerLine || form)?.focus();pickerLine=null;pickerAbort?.abort();return;}
-    const removeFile=event.target.closest('[data-remove-file]');if(removeFile){const form=removeFile.closest('form'),input=$('[data-nir-files]',form),transfer=new DataTransfer();Array.from(input.files).filter((_,index)=>index!==Number(removeFile.dataset.removeFile)).forEach(file=>transfer.items.add(file));input.files=transfer.files;fileList(form);return;}
-    const rateButton=event.target.closest('[data-nir-fetch-rate]');if(rateButton){const form=rateButton.closest('form'),status=$('[data-rate-message]',form);rateButton.disabled=true;status.textContent='Căutăm ultimul curs publicat…';const url=new URL(form.dataset.rateUrl,location.origin);url.searchParams.set('date',form.elements.exchange_rate_date.value);url.searchParams.set('currency',form.elements.currency.value);fetch(url,{headers:{Accept:'application/json'}}).then(json).then(result=>{if(result.rate){form.elements.exchange_rate.value=result.rate;form.elements.exchange_rate_date.value=result.date;}status.textContent=result.message || 'Cursul a fost actualizat.';preview(form);}).catch(error=>{status.textContent=error.message+' Poți introduce manual cursul verificat.';}).finally(()=>{rateButton.disabled=false;});}
+    const removeFile=event.target.closest('[data-remove-file]');if(removeFile){const form=removeFile.closest('form'),input=$('[data-nir-files]',form),transfer=new DataTransfer();Array.from(input.files).filter((_,index)=>index!==Number(removeFile.dataset.removeFile)).forEach(file=>transfer.items.add(file));input.files=transfer.files;selectedFiles.set(input,Array.from(input.files));fileList(form);return;}
+    const rateButton=event.target.closest('[data-nir-fetch-rate]');if(rateButton)fetchRate(rateButton);
   });
   document.addEventListener('input',event=>{
     const search=event.target.closest('[data-product-search]');if(search){clearTimeout(searchTimer);searchTimer=setTimeout(()=>loadProducts(search.closest('form'),search.value),260);return;}
@@ -313,7 +344,7 @@
     if(event.target.matches('[data-nir-warehouse]'))locationsChanged(form);
     if(event.target.name==='invoice_date')invoiceDateChanged(form);
     if(['nir_at','received_at','exchange_rate_date'].includes(event.target.name))event.target.dataset.manuallyChanged='1';
-    if(event.target.matches('[data-nir-files]')){const files=Array.from(event.target.files);event.target.value='';acceptFiles(form,files);}
+    if(event.target.matches('[data-nir-files]')){acceptFiles(form,Array.from(event.target.files));}
     if(event.target.matches('[data-nir-camera]')){acceptFiles(form,Array.from(event.target.files));event.target.value='';}
     if(event.target.matches('[data-nir-import]'))importLines(event.target);
     if(event.target.matches('[data-export-period]'))exportDates(form);

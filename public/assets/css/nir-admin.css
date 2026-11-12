@@ -25,3 +25,6 @@ html.has-nir-dialog{overflow:hidden}.nir-dialog{border:0;padding:0;margin:auto;w
 @media(max-width:520px){.nir-line-total>span{flex-basis:calc(50% - 10px)}.nir-line-total>span:last-child{flex-basis:100%;border-top:1px solid #e8d8c9;padding-top:10px;margin-top:3px;flex-direction:row;align-items:center;justify-content:space-between}.nir-vat-cost{padding:13px}.nir-vat-cost p{margin-left:0}}
 @media(prefers-reduced-motion:reduce){.nir-admin *,.nir-dialog *{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
 .nir-admin .nir-detail-identity h1,.nir-admin .nir-detail-identity p{overflow-wrap:anywhere}.nir-admin .nir-attachment-name{display:grid;gap:4px;min-width:0;flex:1}.nir-admin .nir-attachment-name strong{overflow-wrap:anywhere}.nir-admin .nir-attachment-name small{font-size:12px;color:var(--nir-muted)}
+.nir-admin [hidden], .nir-form [hidden] { display: none !important; }
+.nir-dialog, .nir-form { overflow: clip; }
+.nir-form .nir-file-list [data-remove-file] { display:inline-flex;align-items:center;justify-content:center;flex:none;width:30px;min-width:30px;height:30px;min-height:30px;padding:0;margin:0;border:1px solid #eac7ca;border-radius:9px;background:#fff8f6;color:#a1485b;box-shadow:none;font-size:18px;line-height:1; }
