@@ -282,3 +282,17 @@ html.has-company-dialog{overflow:hidden}
 .company-vat-settings:not(:has([name="is_vat_payer"]:checked)){grid-template-columns:minmax(0,1fr)}
 .company-vat-settings:not(:has([name="is_vat_payer"]:checked))>.company-field,.company-vat-settings:not(:has([name="is_vat_payer"]:checked))>.company-vat-settings__help{display:none}
 @media(max-width:600px){.company-vat-settings{grid-template-columns:1fr;gap:15px;margin-top:19px;padding-top:19px}.company-vat-settings .company-switchbox{min-height:0}.company-vat-settings>.company-field{max-width:100%}.company-vat-settings__help{font-size:12px}.company-vat-settings .company-field__suffix input{padding-right:54px}}
+/* Receipt locations share the company card language, with compact mobile actions. */
+.company-locations{margin-top:24px;scroll-margin-top:100px}
+.company-location-list{padding:0 22px 22px;display:grid;gap:12px}
+.company-location-card{display:flex;align-items:center;gap:16px;padding:18px;border:1px solid #eadbd5;border-radius:18px;background:#fff;min-width:0;transition:box-shadow .2s,border-color .2s}
+.company-location-card:hover{border-color:#d6b5a9;box-shadow:0 6px 22px #67433709}
+.company-location-card.is-default{background:linear-gradient(110deg,#f3f9f6,#fff 65%);border-color:#d5e7df}
+.company-location-card__icon{display:grid;place-items:center;width:48px;height:48px;border-radius:15px;background:#fbefe8;color:#b67a55;flex:none}
+.company-location-card.is-default .company-location-card__icon{background:#e6f2ec;color:#347563}
+.company-location-card__identity{flex:1;min-width:0}
+.company-admin .company-location-card h3{font:600 16px/1.45 var(--font-body,sans-serif);margin:0 0 4px;overflow-wrap:anywhere}
+.company-location-card p{display:flex;align-items:center;gap:7px;font-size:13px;margin:0;color:#826e64;overflow-wrap:anywhere}
+.company-location-card p svg{width:15px;height:15px;flex:none}
+.company-location-help{font-size:13px;line-height:1.65;color:#826e64;margin:14px 0 0}
+@media(max-width:640px){.company-location-list{padding:0 14px 14px}.company-location-card{display:grid;grid-template-columns:40px minmax(0,1fr);gap:12px;padding:16px}.company-location-card__icon{width:40px;height:40px;border-radius:12px}.company-location-card>.company-badge,.company-location-card>.company-warehouse-secondary{grid-column:2;justify-self:start}.company-location-card>.company-row-actions{grid-column:1/-1;justify-content:stretch;border-top:1px solid #eee4de;padding-top:12px}.company-location-card .company-row-actions>a{flex:1;display:inline-flex!important;align-items:center;justify-content:center;gap:8px;min-height:42px;width:auto}.company-location-card .company-row-actions span{display:inline!important}.company-locations .company-section-heading{flex-wrap:wrap}.company-locations .company-section-heading>.company-button{width:100%;justify-content:center}}

@@ -13,6 +13,8 @@
   let searchTimer;
   let modalAbort;
   let toastTimer;
+  let locationOwner = null;
+  let locationOpener = null;
   const selectedFiles = new WeakMap();
   const matchRequests = new WeakMap();
   const rateRequests = new WeakMap();
@@ -185,7 +187,7 @@
     Array.from(select.options).forEach(option=>{ if(option.value){ const mismatch=option.dataset.warehouse && option.dataset.warehouse!==warehouse;option.hidden=Boolean(mismatch);option.disabled=Boolean(mismatch); }});
     if(select.selectedOptions[0]?.disabled)select.value='';
     const available=Array.from(select.options).filter(option=>option.value&&!option.disabled);
-    if(!select.value&&available.length===1)select.value=available[0].value;
+    if(!select.value){const preferred=available.find(option=>option.dataset.default==='1') || (available.length===1?available[0]:null);if(preferred)select.value=preferred.value;}
   }
 
   function fileList(form) {
@@ -266,6 +268,50 @@
     finally{button.disabled=false;}
   }
 
+  function openLocation(trigger) {
+    const owner = trigger.closest('[data-nir-form]');
+    const warehouse = owner?.elements.warehouse_id;
+    const dialog = $('[data-receipt-location-dialog]');
+    if (!owner || !dialog || !warehouse?.value) {
+      warehouse?.focus(); warehouse?.reportValidity(); return;
+    }
+    locationOwner = owner; locationOpener = trigger;
+    const form = $('[data-receipt-location-form]', dialog);
+    form.reset(); $('[data-nir-errors]', form).hidden = true;
+    form.elements.is_default.checked = !Array.from(owner.elements.location_id.options).some(option => option.value && option.dataset.warehouse === warehouse.value && !option.disabled);
+    $('[data-location-warehouse-label]', dialog).textContent = warehouse.selectedOptions[0].textContent;
+    dialog.showModal(); document.documentElement.classList.add('has-nir-dialog'); form.elements.name.focus({preventScroll:true});
+  }
+
+  function closeLocation(dialog) {
+    if ($('[data-receipt-location-form][aria-busy="true"]', dialog)) return;
+    dialog.close(); if (!$('[data-nir-dialog]')?.open) document.documentElement.classList.remove('has-nir-dialog'); locationOpener?.focus({preventScroll:true}); locationOwner = null;
+  }
+
+  async function saveLocation(form) {
+    if (form.getAttribute('aria-busy') === 'true' || !form.reportValidity() || !locationOwner) return;
+    const owner = locationOwner, warehouse = owner.elements.warehouse_id.value;
+    const dialog = form.closest('dialog'), buttons = $$('button', form);
+    const data = new FormData(form); data.set('_csrf', owner.elements._csrf.value); data.set('warehouse_id', warehouse);
+    form.setAttribute('aria-busy','true'); buttons.forEach(button => button.disabled = true);
+    try {
+      const result = await json(await fetch(owner.dataset.locationUrl, {method:'POST',body:data,headers:{Accept:'application/json','X-Requested-With':'XMLHttpRequest'}}));
+      if (owner.isConnected) {
+        const select = owner.elements.location_id, previous = select.value;
+        select.replaceChildren(new Option('Alege locația', ''));
+        result.locations.forEach(item => {
+          const option = new Option(item.name + (Number(item.is_default) ? ' · implicită' : ''), String(item.id));
+          option.dataset.warehouse = String(item.warehouse_id); option.dataset.default = String(item.is_default); select.append(option);
+        });
+        select.value = owner.elements.warehouse_id.value === warehouse ? String(result.location.id) : previous;
+        locationsChanged(owner);
+      }
+      form.removeAttribute('aria-busy'); closeLocation(dialog);
+      toast('Locația a fost adăugată și selectată.');
+    } catch (error) { message(form, error.message, error.data?.errors || {}); }
+    finally { form.removeAttribute('aria-busy'); buttons.forEach(button => button.disabled = false); }
+  }
+
   async function importLines(input) {
     const file=input.files[0];if(!file)return;const form=input.closest('form'),status=$('[data-import-status]',form);
     if(form.getAttribute('aria-busy')==='true')return;
@@ -314,10 +360,16 @@
   function initialize(root) {
     $$('[data-nir-form]',root).forEach(form=>{currencyChanged(form);locationsChanged(form);renumber(form);});
     const exportForm=$('[data-nir-export-form]',root);if(exportForm)exportDates(exportForm);
+    $$('[data-receipt-location-dialog]',root).forEach(dialog=>{
+      dialog.addEventListener('cancel',event=>{event.preventDefault();event.stopPropagation();closeLocation(dialog);});
+      dialog.addEventListener('click',event=>{if(event.target===dialog){const rect=dialog.getBoundingClientRect();if(event.clientX<rect.left||event.clientX>rect.right||event.clientY<rect.top||event.clientY>rect.bottom)closeLocation(dialog);}});
+    });
   }
   function exportDates(form){const block=$('[data-export-dates]',form);if(block){block.hidden=form.elements.period.value!=='custom';$$('input',block).forEach(input=>{input.required=!block.hidden;input.disabled=block.hidden;});}}
 
   document.addEventListener('click',event=>{
+    const locationOpen=event.target.closest('[data-receipt-location-open]');if(locationOpen){event.preventDefault();openLocation(locationOpen);return;}
+    const locationClose=event.target.closest('[data-receipt-location-close]');if(locationClose){event.preventDefault();closeLocation(locationClose.closest('dialog'));return;}
     const trigger=event.target.closest('[data-nir-modal-open]');if(trigger&&!event.ctrlKey&&!event.metaKey){event.preventDefault();openModal(trigger);return;}
     const close=event.target.closest('[data-nir-modal-close]');if(close&&$('[data-nir-dialog]')?.open){event.preventDefault();closeModal();return;}
     const add=event.target.closest('[data-nir-add-line]');if(add){event.preventDefault();const line=addLine(add.closest('form'));line?.scrollIntoView({behavior:'smooth',block:'start'});$('[data-line-name]',line || document)?.focus({preventScroll:true});return;}
@@ -353,6 +405,7 @@
     if(event.target.name==='vat_in_cost')preview(form);
   });
   document.addEventListener('submit',event=>{
+    if(event.target.matches('[data-receipt-location-form]')){event.preventDefault();saveLocation(event.target);return;}
     if(event.target.matches('[data-nir-form]')){event.preventDefault();submitForm(event.target,event.submitter);}
     if(event.target.matches('[data-nir-export-form]')){const form=event.target;const start=form.elements.from?.value,end=form.elements.to?.value;if(form.elements.period.value==='custom'&&start>end){event.preventDefault();message(form,'Data de început trebuie să fie înainte de data de sfârșit.');return;}const progress=$('[data-export-progress]',form);if(progress)progress.hidden=false;setTimeout(()=>{if(progress)progress.textContent='Exportul a fost solicitat. Descărcarea începe când fișierul este pregătit.';},1500);}
   });

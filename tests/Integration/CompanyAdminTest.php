@@ -303,6 +303,66 @@ final class CompanyAdminTest extends DatabaseTestCase
         self::assertSame(1, (int) $this->pdo->query('SELECT COUNT(*) FROM company_warehouses')->fetchColumn());
     }
 
+    public function testReceiptLocationsCrudDefaultAndHistoricalReferences(): void
+    {
+        $company = $this->createCompany(['legal_name'=>'Firma locațiilor']);
+        $warehouse = $this->createWarehouse($company, 'Depozit');
+        $base = self::BASE . $company . '/locatii/';
+        self::assertSame(200, $this->request('GET', $base . 'nou/modal/')->getStatusCode());
+        $this->assertFieldError($this->post($base . 'nou/', ['warehouse_id'=>$warehouse,'name'=>'']), 'name');
+        self::assertSame(419, $this->request('POST', $base . 'nou/', ['name'=>'Fără CSRF'])->getStatusCode());
+        self::assertSame(200, $this->post($base . 'nou/', ['warehouse_id'=>$warehouse,'name'=>'Sediu'])->getStatusCode());
+        $first = (int) $this->pdo->query('SELECT MAX(id) FROM nir_locations')->fetchColumn();
+        self::assertSame(1, (int) $this->pdo->query('SELECT is_default FROM nir_locations WHERE id=' . $first)->fetchColumn());
+        $this->assertFieldError($this->post($base . 'nou/', ['warehouse_id'=>$warehouse,'name'=>' sediu ']), 'name');
+        self::assertSame(200, $this->post($base . 'nou/', ['warehouse_id'=>$warehouse,'name'=>'Atelier','is_default'=>1])->getStatusCode());
+        $second = (int) $this->pdo->query('SELECT MAX(id) FROM nir_locations')->fetchColumn();
+        self::assertSame(0, (int) $this->pdo->query('SELECT is_default FROM nir_locations WHERE id=' . $first)->fetchColumn());
+        self::assertSame(200, $this->post($base . $second . '/editare/', ['warehouse_id'=>$warehouse,'name'=>'Recepție atelier','is_default'=>1])->getStatusCode());
+        $nir = new \App\Modules\Inventory\NirService($this->pdo);
+        $actor = ['id'=>$this->adminId,'role'=>'administrator'];
+        $defaults = $nir->defaults($actor)['values'];
+        self::assertSame($second, (int) $defaults['location_id']);
+        $draft = $nir->save(null, array_replace($defaults, ['lines'=>[]]), $actor);
+        $before = $this->pdo->query('SELECT location_snapshot FROM nir_documents WHERE id=' . (int) $draft['id'])->fetchColumn();
+        self::assertSame(200, $this->request('GET', $base . $second . '/sterge/modal/')->getStatusCode());
+        self::assertSame(200, $this->post($base . $second . '/sterge/')->getStatusCode());
+        self::assertSame(0, (int) $this->pdo->query('SELECT is_active FROM nir_locations WHERE id=' . $second)->fetchColumn());
+        self::assertSame($second, (int) $this->pdo->query('SELECT location_id FROM nir_documents WHERE id=' . (int) $draft['id'])->fetchColumn());
+        self::assertSame($before, $this->pdo->query('SELECT location_snapshot FROM nir_documents WHERE id=' . (int) $draft['id'])->fetchColumn());
+        self::assertSame($first, (int) $nir->defaults($actor)['values']['location_id']);
+        self::assertSame(404, $this->post($base . $second . '/editare/', ['warehouse_id'=>$warehouse,'name'=>'Nu reactivăm'])->getStatusCode());
+        self::assertSame(200, $this->post($base . $first . '/sterge/')->getStatusCode());
+        self::assertSame([], $nir->defaults($actor)['locations'], 'Deleted locations must not be silently recreated.');
+        self::assertSame(200, $this->request('GET', '/admin/nir-uri/' . $draft['id'] . '/')->getStatusCode());
+        self::assertStringNotContainsString('Istoricul recepției', (string) $this->request('GET', '/admin/nir-uri/' . $draft['id'] . '/')->getBody());
+    }
+
+    public function testReceiptLocationOwnershipAndNirCreationUseTheSameRules(): void
+    {
+        $company = $this->createCompany(['legal_name'=>'Firma recepțiilor']);
+        $a = $this->createWarehouse($company, 'Gestiune A');
+        $b = $this->createWarehouse($company, 'Gestiune B');
+        $base = self::BASE . $company . '/locatii/';
+        $nir = new \App\Modules\Inventory\NirService($this->pdo);
+        $actor = ['id'=>$this->adminId,'role'=>'administrator'];
+        $one = $nir->saveLocation($a, ['name'=>'Locație din NIR','is_default'=>1], $actor);
+        $two = $nir->saveLocation($b, ['name'=>'Locație din NIR','is_default'=>1], $actor);
+        self::assertSame(1, (int) $one['is_default']);
+        self::assertSame(1, (int) $two['is_default']);
+        $this->assertFieldError($this->post($base . $one['id'] . '/editare/', ['warehouse_id'=>$b,'name'=>'Nu mutăm']), 'warehouse_id');
+        $this->assertFieldError($this->post($base . 'nou/', ['warehouse_id'=>999999,'name'=>'Gestiune inexistentă']), 'warehouse_id');
+        self::assertSame(404, $this->post(self::BASE . '999999/locatii/' . $one['id'] . '/sterge/')->getStatusCode());
+        $duplicate = $this->post('/admin/nir-uri/locatii/', ['warehouse_id'=>$a,'name'=>'locație din nir']);
+        $this->assertFieldError($duplicate, 'name');
+        foreach (['nou/', $one['id'] . '/editare/', $one['id'] . '/sterge/'] as $path) {
+            self::assertSame(419, $this->request('POST', $base . $path, ['_csrf'=>'bad'])->getStatusCode());
+        }
+        unset($_SESSION['user_id']);
+        self::assertSame(303, $this->request('GET', $base . $one['id'] . '/editare/modal/')->getStatusCode());
+        self::assertSame(303, $this->post($base . $one['id'] . '/sterge/')->getStatusCode());
+    }
+
     /** @param array<string,mixed> $values */
     private function createCompany(array $values): int
     {

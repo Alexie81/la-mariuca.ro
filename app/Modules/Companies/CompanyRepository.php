@@ -153,6 +153,64 @@ final class CompanyRepository
         });
     }
 
+    /** @return list<array<string,mixed>> */
+    public function receiptLocations(int $companyId): array
+    {
+        $query = $this->pdo->prepare('SELECT l.*, w.name AS warehouse_name, (SELECT COUNT(*) FROM nir_documents d WHERE d.location_id=l.id) AS document_count FROM nir_locations l JOIN company_warehouses w ON w.id=l.warehouse_id WHERE w.company_id=:company AND l.is_active=1 ORDER BY w.is_default DESC,w.id,l.is_default DESC,l.id');
+        $query->execute(['company'=>$companyId]);
+        return $query->fetchAll();
+    }
+
+    /** @return array<string,mixed>|null */
+    public function receiptLocation(int $companyId, int $id): ?array
+    {
+        foreach ($this->receiptLocations($companyId) as $location) {
+            if ((int) $location['id'] === $id) { return $location; }
+        }
+        return null;
+    }
+
+    public function saveReceiptLocation(int $companyId, int $warehouseId, ?int $id, string $name, bool $makeDefault): int
+    {
+        return $this->write(function () use ($companyId, $warehouseId, $id, $name, $makeDefault): int {
+            $this->pdo->exec('UPDATE nir_write_lock SET revision=revision+1 WHERE id=1');
+            $warehouse = $this->warehouse($companyId, $warehouseId);
+            if ($warehouse === null || !(bool) $warehouse['is_active']) { throw new CompanyValidationException(['warehouse_id'=>'Alege o gestiune activă a firmei.']); }
+            $existing = $id === null ? null : $this->receiptLocation($companyId, $id);
+            if ($id !== null && ($existing === null || (int) $existing['warehouse_id'] !== $warehouseId)) { throw new CompanyNotFoundException('Locația nu mai este disponibilă în această gestiune.'); }
+            $key = static fn(string $value): string => mb_strtolower(preg_replace('/\s+/u', ' ', trim($value)) ?? trim($value));
+            $siblings = array_values(array_filter($this->receiptLocations($companyId), static fn(array $row): bool => (int) $row['warehouse_id'] === $warehouseId));
+            foreach ($siblings as $sibling) {
+                if ((int) $sibling['id'] !== $id && $key((string) $sibling['name']) === $key($name)) { throw new CompanyValidationException(['name'=>'Există deja o locație cu această denumire în gestiunea aleasă.']); }
+            }
+            $default = $makeDefault || (bool) ($existing['is_default'] ?? false) || !array_filter($siblings, static fn(array $row): bool => (bool) $row['is_default']);
+            if ($default) { $this->pdo->prepare('UPDATE nir_locations SET is_default=0 WHERE warehouse_id=:warehouse')->execute(['warehouse'=>$warehouseId]); }
+            $values = ['name'=>$name,'is_default'=>(int) $default,'now'=>$this->now()];
+            if ($id === null) {
+                $this->pdo->prepare("INSERT INTO nir_locations (warehouse_id,name,address,is_active,is_default,created_at,updated_at) VALUES (:warehouse,:name,'',1,:is_default,:created,:now)")->execute($values + ['warehouse'=>$warehouseId,'created'=>$values['now']]);
+                return (int) $this->pdo->lastInsertId();
+            }
+            $this->pdo->prepare('UPDATE nir_locations SET name=:name,is_default=:is_default,updated_at=:now WHERE id=:id')->execute($values + ['id'=>$id]);
+            return $id;
+        });
+    }
+
+    public function deleteReceiptLocation(int $companyId, int $id): void
+    {
+        $this->write(function () use ($companyId, $id): void {
+            $this->pdo->exec('UPDATE nir_write_lock SET revision=revision+1 WHERE id=1');
+            $location = $this->receiptLocation($companyId, $id) ?? throw new CompanyNotFoundException('Locația nu mai este disponibilă.');
+            // Keep document references and confirmed snapshots; retired locations cannot be selected again.
+            $this->pdo->prepare('UPDATE nir_locations SET is_active=0,is_default=0,updated_at=:now WHERE id=:id')->execute(['id'=>$id,'now'=>$this->now()]);
+            if ((bool) $location['is_default']) {
+                $next = $this->pdo->prepare('SELECT id FROM nir_locations WHERE warehouse_id=:warehouse AND is_active=1 ORDER BY id LIMIT 1');
+                $next->execute(['warehouse'=>$location['warehouse_id']]);
+                $nextId = $next->fetchColumn();
+                if ($nextId !== false) { $this->pdo->prepare('UPDATE nir_locations SET is_default=1,updated_at=:now WHERE id=:id')->execute(['id'=>$nextId,'now'=>$this->now()]); }
+            }
+        });
+    }
+
     /**
      * @template T
      * @param callable():T $operation

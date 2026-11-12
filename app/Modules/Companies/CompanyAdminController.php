@@ -22,6 +22,7 @@ final class CompanyAdminController
         private readonly Auth $auth,
         private readonly View $view,
         private readonly Config $config,
+        private readonly ReceiptLocationService $locations,
     ) {}
 
     public function index(ServerRequestInterface $request): ResponseInterface
@@ -33,6 +34,7 @@ final class CompanyAdminController
             'companies'=>$companies,
             'selected_company'=>$selected,
             'warehouses'=>$selected === null ? [] : $this->companies->warehouses((int) $selected['id']),
+            'receipt_locations'=>$selected === null ? [] : $this->locations->all((int) $selected['id']),
             'company_count'=>count($companies), 'warehouse_count'=>$warehouseCount,
             'totals'=>['company_count'=>count($companies),'warehouse_count'=>$warehouseCount],
         ])->withHeader('Cache-Control', 'no-store');
@@ -66,6 +68,56 @@ final class CompanyAdminController
     public function warehouseDeleteForm(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
     {
         return $this->form($request, 'delete_warehouse', (int) $args['companyId'], (int) $args['id']);
+    }
+
+    /** @param array<string,string> $args */
+    public function locationForm(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        return $this->receiptLocationForm($request, $args);
+    }
+
+    /** @param array<string,string> $args */
+    public function saveLocation(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $input = (array) ($request->getParsedBody() ?? []);
+        try {
+            $this->locations->save((int) $args['companyId'], $input, isset($args['id']) ? (int) $args['id'] : null);
+            return $this->success($request, 'Locația de recepție a fost salvată.', $this->listUrl((int) $args['companyId']) . '#locatii-receptie');
+        } catch (CompanyValidationException $e) {
+            return $this->wantsJson($request) ? $this->failure($request, $e->getMessage(), $e->errors, 422) : $this->receiptLocationForm($request, $args, $input, $e->errors, 422);
+        } catch (CompanyNotFoundException $e) {
+            return $this->failure($request, $e->getMessage(), [], 404);
+        }
+    }
+
+    /** @param array<string,string> $args */
+    public function deleteLocation(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        try {
+            $this->locations->delete((int) $args['companyId'], (int) $args['id']);
+            return $this->success($request, 'Locația de recepție a fost eliminată.', $this->listUrl((int) $args['companyId']) . '#locatii-receptie');
+        } catch (CompanyNotFoundException $e) { return $this->failure($request, $e->getMessage(), [], 404); }
+    }
+
+    /** @param array<string,string> $args @param array<string,mixed>|null $submitted @param array<string,string> $errors */
+    private function receiptLocationForm(ServerRequestInterface $request, array $args, ?array $submitted = null, array $errors = [], int $status = 200): ResponseInterface
+    {
+        try {
+            $companyId = (int) $args['companyId'];
+            $company = $this->companies->company($companyId);
+            $warehouses = array_values(array_filter($this->companies->warehouses($companyId), static fn(array $row): bool => (bool) $row['is_active']));
+            $location = isset($args['id']) ? $this->locations->get($companyId, (int) $args['id']) : null;
+            $delete = str_contains($request->getUri()->getPath(), '/sterge/');
+            $values = $submitted ?? $location ?? ['name'=>'','warehouse_id'=>$warehouses[0]['id'] ?? '', 'is_default'=>false];
+            $title = $delete ? 'Ștergi această locație?' : ($location ? 'Editează locația' : 'Adaugă o locație de recepție');
+            $path = 'admin/detaliile-firmei/' . $companyId . '/locatii/' . ($location ? $location['id'] . ($delete ? '/sterge/' : '/editare/') : 'nou/');
+            $modal = str_ends_with($request->getUri()->getPath(), '/modal/');
+            return $this->view->render($modal ? 'admin/partials/receipt-location-form.twig' : 'admin/pages/company-form.twig', $this->context() + [
+                'form_partial'=>'admin/partials/receipt-location-form.twig','form_title'=>$title,'company'=>$company,'location'=>$location,
+                'warehouses'=>$warehouses,'values'=>$values,'errors'=>$errors,'is_delete'=>$delete,
+                'form_action'=>$this->config->path($path),'back_url'=>$this->listUrl($companyId) . '#locatii-receptie',
+            ], $status)->withHeader('Cache-Control', 'no-store');
+        } catch (CompanyNotFoundException $e) { return $this->notFound($e->getMessage()); }
     }
 
     /** @param array<string,string> $args */

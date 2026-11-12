@@ -28,8 +28,8 @@ function response(data,ok=true){return {ok,status:ok?200:422,headers:{get:()=> '
 function deferred(){let resolve,reject;const promise=new Promise((yes,no)=>{resolve=yes;reject=no;});return {promise,resolve,reject};}
 function harness(fetch){
   const document=new Element();document.documentElement=new Element();document.createElement=tag=>new Element(tag);document.addEventListener=()=>{};
-  const context=vm.createContext({document,fetch,FormData,DataTransfer,AbortController,URL,setTimeout,clearTimeout,location:{origin:'http://localhost',assign(){}},sessionStorage:{getItem:()=>null},matchMedia:()=>({matches:true})});
-  const source=fs.readFileSync(path.resolve(__dirname,'../../public/assets/js/nir-admin.js'),'utf8').replace(/\}\)\(\);\s*$/, 'globalThis.nirTest={submitForm,importLines,fetchRate,createInline,acceptFiles};})();');
+  const context=vm.createContext({document,fetch,FormData,DataTransfer,AbortController,URL,Option:function(text,value){const option=new Element('option');option.textContent=text;option.value=value;return option;},setTimeout,clearTimeout,location:{origin:'http://localhost',assign(){}},sessionStorage:{getItem:()=>null},matchMedia:()=>({matches:true})});
+  const source=fs.readFileSync(path.resolve(__dirname,'../../public/assets/js/nir-admin.js'),'utf8').replace(/\}\)\(\);\s*$/, 'globalThis.nirTest={submitForm,importLines,fetchRate,createInline,acceptFiles,locationsChanged,saveLocation,setLocationOwner(owner,opener){locationOwner=owner;locationOpener=opener;}};})();');
   vm.runInContext(source,context);return context.nirTest;
 }
 function form(values={}){
@@ -97,4 +97,32 @@ test('import at the attachment limit cannot lose its source document or modify e
   input.files=[{name:'new-invoice.xml',size:200,lastModified:40}];await api.importLines(input);
   assert.equal(requests,0);assert.equal(attachments.files.length,30);assert.equal(existingLine.isConnected,true);assert.match(status.textContent,/documentul sursă trebuie păstrat/);assert.equal(body.inert,false);assert.equal(submit.disabled,false);
   input.files=[files[0]];await api.importLines(input);assert.equal(requests,1,'already attached source remains importable without adding a 31st file');assert.equal(attachments.files.length,30);
+});
+
+
+test('changing warehouse selects its default location without overwriting an existing choice',()=>{
+  const api=harness(async()=>{}),{f}=form({warehouse_id:'2'}),select=new Element('select');f.elements.location_id=select;
+  for(const [id,warehouse,preferred] of [['1','1','1'],['2','2','0'],['3','2','1']]){const option=new Element('option');option.value=id;option.dataset={warehouse,default:preferred};select.append(option);}
+  select.value='1';api.locationsChanged(f);assert.equal(select.value,'3');assert.equal(select.options[0].disabled,true);
+  select.value='2';api.locationsChanged(f);assert.equal(select.value,'2');
+});
+
+test('location modal saves once and updates only the location selector in the NIR form',async()=>{
+  const pending=deferred();let requests=0;const api=harness(()=>{requests++;return pending.promise;});
+  const {f:owner}=form({_csrf:'token',warehouse_id:'1',invoice_number:'Factura nesalvată','lines[0][supplier_name]':'Produs păstrat'});
+  owner.dataset.locationUrl='/location';owner.elements.location_id=new Element('select');
+  const {f:location,submit}=form({name:'Recepție nouă',is_default:'1'}),dialog=new Element('dialog'),opener=new Element('button');
+  dialog.open=true;dialog.close=()=>dialog.open=false;location.parents.dialog=dialog;location.queries.button=[submit];api.setLocationOwner(owner,opener);
+  const saving=api.saveLocation(location);await api.saveLocation(location);assert.equal(requests,1);
+  pending.resolve(response({success:true,location:{id:3},locations:[{id:1,name:'Veche',warehouse_id:1,is_default:0},{id:3,name:'Recepție nouă',warehouse_id:1,is_default:1}]}));await saving;
+  assert.equal(owner.elements.location_id.value,'3');assert.equal(owner.elements.location_id.options[2].dataset.default,'1');
+  assert.equal(owner.elements.invoice_number.value,'Factura nesalvată');assert.equal(owner.elements['lines[0][supplier_name]'].value,'Produs păstrat');
+  assert.equal(dialog.open,false);assert.equal(opener.focused,true);assert.equal(submit.disabled,false);
+});
+
+test('location validation failure leaves both forms and the selected location intact',async()=>{
+  const api=harness(async()=>response({success:false,message:'Denumire duplicată',errors:{name:'Există deja o locație.'}},false));
+  const {f:owner}=form({_csrf:'token',warehouse_id:'1',invoice_number:'Date păstrate'});owner.dataset.locationUrl='/location';owner.elements.location_id=new Element('select');owner.elements.location_id.value='7';
+  const {f:location,errors,submit}=form({name:'Sediu'}),dialog=new Element('dialog');dialog.open=true;location.parents.dialog=dialog;location.queries.button=[submit];api.setLocationOwner(owner,new Element('button'));
+  await api.saveLocation(location);assert.equal(dialog.open,true);assert.equal(owner.elements.location_id.value,'7');assert.equal(location.elements.name.value,'Sediu');assert.equal(errors.hidden,false);assert.equal(submit.disabled,false);
 });

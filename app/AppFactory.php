@@ -176,7 +176,7 @@ final class AppFactory
         $adminPushController = new AdminPushController($push, $auth, $view, $config);
         $orderNotificationSettingsController = new OrderNotificationSettingsController(new OrderNotificationSettingsService($pdo), new AdminNotificationService($pdo), $auth, $view, $config);
         $paymentMethodSettingsController = new PaymentMethodSettingsController($paymentMethodSettings, new AdminNotificationService($pdo), $auth, $view, $config, new \App\Modules\Payments\PaymentFeeService($pdo));
-        $companyAdminController = new CompanyAdminController(new CompanyAdminService(new CompanyRepository($pdo), new CompanyStampStorage($root)), new AdminNotificationService($pdo), $auth, $view, $config);
+        $companyAdminController = new CompanyAdminController(new CompanyAdminService(new CompanyRepository($pdo), new CompanyStampStorage($root)), new AdminNotificationService($pdo), $auth, $view, $config, new \App\Modules\Companies\ReceiptLocationService(new CompanyRepository($pdo)));
         $nirController = new \App\Modules\Inventory\NirAdminController(
             new \App\Modules\Inventory\NirService($pdo), new \App\Modules\Inventory\NirDocumentStorage($root),
             new \App\Modules\Inventory\NirImportService(), new \App\Modules\Inventory\NirExportService($root),
@@ -378,6 +378,15 @@ final class AppFactory
             $group->get('/detaliile-firmei/{companyId:[0-9]+}/gestiuni/{id:[0-9]+}/sterge/modal/', [$companyAdminController, 'warehouseDeleteForm']);
             $group->post('/detaliile-firmei/{companyId:[0-9]+}/gestiuni/{id:[0-9]+}/sterge/', [$companyAdminController, 'deleteWarehouse']);
             $group->get('/comenzi/', [$adminController, 'orders']);
+            $group->get('/detaliile-firmei/{companyId:[0-9]+}/locatii/nou/', [$companyAdminController, 'locationForm']);
+            $group->get('/detaliile-firmei/{companyId:[0-9]+}/locatii/nou/modal/', [$companyAdminController, 'locationForm']);
+            $group->post('/detaliile-firmei/{companyId:[0-9]+}/locatii/nou/', [$companyAdminController, 'saveLocation']);
+            $group->get('/detaliile-firmei/{companyId:[0-9]+}/locatii/{id:[0-9]+}/editare/', [$companyAdminController, 'locationForm']);
+            $group->get('/detaliile-firmei/{companyId:[0-9]+}/locatii/{id:[0-9]+}/editare/modal/', [$companyAdminController, 'locationForm']);
+            $group->post('/detaliile-firmei/{companyId:[0-9]+}/locatii/{id:[0-9]+}/editare/', [$companyAdminController, 'saveLocation']);
+            $group->get('/detaliile-firmei/{companyId:[0-9]+}/locatii/{id:[0-9]+}/sterge/', [$companyAdminController, 'locationForm']);
+            $group->get('/detaliile-firmei/{companyId:[0-9]+}/locatii/{id:[0-9]+}/sterge/modal/', [$companyAdminController, 'locationForm']);
+            $group->post('/detaliile-firmei/{companyId:[0-9]+}/locatii/{id:[0-9]+}/sterge/', [$companyAdminController, 'deleteLocation']);
             $group->get('/comenzi/notificari/', [$orderNotificationSettingsController, 'form']);
             $group->get('/comenzi/notificari/modal/', [$orderNotificationSettingsController, 'form']);
             $group->post('/comenzi/notificari/', [$orderNotificationSettingsController, 'save']);

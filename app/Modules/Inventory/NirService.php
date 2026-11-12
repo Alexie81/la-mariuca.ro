@@ -11,9 +11,10 @@ use PDO;
 final class NirService
 {
     private readonly NirRepository $repository;
+    private readonly \App\Modules\Companies\ReceiptLocationService $locations;
     private const MONEY=['net_bani','tax_bani','total_bani','discount_bani','net_ron_bani','tax_ron_bani','total_ron_bani','inventory_bani'];
     private const COSTS=['unit_price','discount_percent','vat_percent','extra_cost_ron','net_override','tax_override','gross_override','unit_cost_ron','last_price','initial_value_bani','remaining_value_bani','value_bani','price_history'];
-    public function __construct(PDO $pdo) { $this->repository=new NirRepository($pdo); }
+    public function __construct(PDO $pdo) { $this->repository=new NirRepository($pdo); $this->locations=new \App\Modules\Companies\ReceiptLocationService(new \App\Modules\Companies\CompanyRepository($pdo)); }
 
     /** @param array<string,mixed> $actor @return array<string,bool> */
     public function permissions(array $actor): array
@@ -292,13 +293,11 @@ final class NirService
     /** @param array<string,mixed> $input @param array<string,mixed> $actor @return array<string,mixed> */
     public function saveLocation(int $warehouseId,array $input,array $actor): array
     {
-        $this->allow($actor,'edit'); return $this->repository->transaction(function()use($warehouseId,$input,$actor):array {
-            if($this->repository->one('company_warehouses',['id'=>$warehouseId])===null) { throw new NirNotFoundException('Gestiunea nu există.'); }
-            $name=trim((string)($input['name'] ?? '')); if($name==='') { throw new NirValidationException(['name'=>'Completează denumirea locației.']); }
-            $now=$this->repository->now();
-            $id=$this->repository->insert('nir_locations',['warehouse_id'=>$warehouseId,'name'=>mb_substr($name,0,190),'address'=>mb_substr(trim((string)($input['address'] ?? '')),0,2000),'is_active'=>1,'is_default'=>0,'created_at'=>$now,'updated_at'=>$now]);
-            $row=$this->repository->one('nir_locations',['id'=>$id]) ?? []; $this->audit(null,'location_created',$actor,null,$row); return $row;
-        });
+        $this->allow($actor,'edit');
+        $warehouse=$this->repository->one('company_warehouses',['id'=>$warehouseId]) ?? throw new NirNotFoundException('Gestiunea nu există.');
+        try {
+            return $this->locations->save((int) $warehouse['company_id'], array_replace($input,['warehouse_id'=>$warehouseId]));
+        } catch (\App\Modules\Companies\CompanyValidationException $e) { throw new NirValidationException($e->errors); }
     }
 
     /** @param array<string,mixed> $filters @param array<string,mixed> $actor @return array<string,mixed> */

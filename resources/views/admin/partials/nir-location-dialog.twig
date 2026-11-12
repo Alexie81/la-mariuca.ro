@@ -1,0 +1,14 @@
+{% import 'admin/partials/nir-ui.twig' as ui %}
+<dialog class="nir-dialog nir-location-dialog" data-receipt-location-dialog aria-labelledby="nir-location-title">
+ <form class="nir-form" method="post" data-receipt-location-form>
+  <header class="nir-form__header"><span class="nir-form__mark">{{ ui.icon('warehouse') }}</span><div><span class="nir-eyebrow">Locul recepției</span><h2 id="nir-location-title">Adaugă o locație</h2><p>Produsele tale, la locul potrivit.</p></div><button type="button" class="nir-close" data-receipt-location-close aria-label="Închide locația">{{ ui.icon('close') }}</button></header>
+  <div class="nir-form__body">
+   <div class="nir-location-context">{{ ui.icon('warehouse') }}<div><small>În gestiunea</small><strong data-location-warehouse-label></strong></div></div>
+   <div class="nir-form-errors" data-nir-errors hidden role="alert" tabindex="-1"></div>
+   {{ ui.field('name','Denumire locație','',{}, {required:true,max:190,placeholder:'De exemplu, Sediu sau Depozit · recepție'}) }}
+   <label class="nir-location-switch"><input type="checkbox" name="is_default" value="1" role="switch"><span class="nir-location-switch__icon">{{ ui.icon('check') }}</span><span><strong>Locație implicită</strong><small>O selectăm automat la recepțiile noi din această gestiune.</small></span><i aria-hidden="true"></i></label>
+   <p class="nir-location-hint">Poți schimba ulterior denumirea și preferința din Detaliile firmei. Prima locație devine automat implicită.</p>
+  </div>
+  <footer class="nir-form__footer"><button type="button" class="nir-button nir-button--cancel" data-receipt-location-close>Renunță</button><button type="submit" class="nir-button nir-button--primary">{{ ui.icon('check') }}<span>Salvează locația</span></button></footer>
+ </form>
+</dialog>

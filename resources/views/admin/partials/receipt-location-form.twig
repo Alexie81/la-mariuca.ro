@@ -1,0 +1,32 @@
+{% import 'admin/partials/company-ui.twig' as ui %}
+<form class="company-form company-form--warehouse{{ is_delete ? ' company-form--delete' : '' }}" method="post" action="{{ form_action }}" data-company-form>
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  <header class="company-form__header">
+    <span class="company-form__mark{{ is_delete ? ' is-danger' : '' }}">{{ ui.icon(is_delete ? 'trash' : 'pin') }}</span>
+    <div class="company-form__intro"><span class="company-eyebrow">Organizarea recepțiilor</span><h2 id="company-dialog-title">{{ form_title }}</h2><p>{{ is_delete ? 'Documentele existente își păstrează datele.' : 'Un nume clar pentru locul în care primești produsele.' }}</p></div>
+    <a class="company-form__close" href="{{ back_url }}" data-company-modal-close aria-label="Închide">{{ ui.icon('close') }}</a>
+  </header>
+  <div class="company-form__body">
+    <div class="company-form__errors" data-company-errors role="alert" tabindex="-1"{% if not errors %} hidden{% endif %}>Verifică informațiile evidențiate.</div>
+    {% if is_delete %}
+      <div class="company-delete-summary"><span>{{ ui.icon('pin') }}</span><div><small>Locație de recepție</small><strong>{{ location.name }}</strong><p>{{ location.warehouse_name }}</p></div></div>
+      <div class="company-delete-notice"><strong>Locația nu va mai apărea la recepțiile noi.</strong><p>NIR-urile deja înregistrate rămân neschimbate. Dacă există documente în lucru care folosesc această locație, alege altă locație înainte de confirmare.</p></div>
+      {% if location.is_default %}<p class="company-delete-default">{{ ui.icon('star') }}<span>O altă locație disponibilă din aceeași gestiune va deveni implicită.</span></p>{% endif %}
+    {% else %}
+      <section class="company-form-section company-form-section--simple">
+        {% if location or warehouses|length == 1 %}
+          {% set selected = warehouses[0]|default({}) %}
+          <input type="hidden" name="warehouse_id" value="{{ location.warehouse_id|default(selected.id|default('')) }}">
+          <div class="company-warehouse-context"><span>{{ ui.icon('warehouse') }}</span><div><small>Gestiune</small><strong>{{ location.warehouse_name|default(selected.name|default('Nicio gestiune disponibilă')) }}</strong></div></div>
+        {% else %}
+          <label class="company-field"><span>Gestiune <b>*</b></span><select name="warehouse_id" required><option value="">Alege gestiunea</option>{% for warehouse in warehouses %}<option value="{{ warehouse.id }}"{{ values.warehouse_id|default('') == warehouse.id ? ' selected' : '' }}>{{ warehouse.name }}</option>{% endfor %}</select><small class="company-field__error" data-field-error="warehouse_id"{% if not errors.warehouse_id|default('') %} hidden{% endif %}>{{ errors.warehouse_id|default('') }}</small></label>
+        {% endif %}
+        {{ ui.field('name', 'Denumire locație', values.name|default(''), errors, {required:true,max:190,placeholder:'De exemplu, Sediu sau Depozit · recepție'}) }}
+        {% if location.is_default|default(false) %}<input type="hidden" name="is_default" value="1">{% endif %}
+        <label class="company-switchbox" for="receipt-location-default"><input id="receipt-location-default" name="is_default" type="checkbox" role="switch" value="1"{{ values.is_default|default(false) ? ' checked' : '' }}{{ location.is_default|default(false) ? ' disabled' : '' }}><span class="company-switchbox__icon">{{ ui.icon('star') }}</span><span class="company-switchbox__copy"><strong>Locație implicită</strong><small>{{ location.is_default|default(false) ? 'Pentru a schimba preferința, setează altă locație ca implicită.' : 'Se selectează automat la un NIR nou pentru această gestiune.' }}</small></span><span class="company-switch" aria-hidden="true"><i>{{ ui.icon('check') }}</i></span></label>
+        <p class="company-location-help">Prima locație devine automat implicită. Poți avea o singură locație implicită pentru fiecare gestiune.</p>
+      </section>
+    {% endif %}
+  </div>
+  <footer class="company-form__footer"><a class="company-button company-button--cancel" href="{{ back_url }}" data-company-modal-close>Renunță</a><button class="company-button {{ is_delete ? 'company-button--danger' : 'company-button--primary' }}" type="submit"{% if not is_delete and not warehouses %} disabled{% endif %}>{{ ui.icon(is_delete ? 'trash' : 'check') }}<span>{{ is_delete ? 'Șterge locația' : 'Salvează locația' }}</span></button></footer>
+</form>
