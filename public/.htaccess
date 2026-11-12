@@ -14,6 +14,9 @@ DirectoryIndex index.php
 <Files "index.php">
     Require all granted
 </Files>
+<Files ".user.ini">
+    Require all denied
+</Files>
 
 <IfModule mod_headers.c>
     Header always set X-Content-Type-Options "nosniff"

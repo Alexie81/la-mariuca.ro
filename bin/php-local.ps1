@@ -41,5 +41,5 @@ if ($opensslConfig) {
     $env:OPENSSL_CONF = $opensslConfig
 }
 
-& $phpExe -d "extension_dir=$extensionDir" @extensionArgs @PhpArgs
+& $phpExe -d "extension_dir=$extensionDir" -d "upload_max_filesize=15M" -d "post_max_size=512M" -d "max_file_uploads=30" -d "max_input_vars=60000" @extensionArgs @PhpArgs
 exit $LASTEXITCODE

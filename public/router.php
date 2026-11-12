@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
 $file = __DIR__ . ($path === '/' ? '' : $path);
+if (basename($file) === '.user.ini') {
+    http_response_code(404);
+    return true;
+}
 if ($path !== '/' && is_file($file)) {
     return false;
 }

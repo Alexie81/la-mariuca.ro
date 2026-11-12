@@ -1,0 +1,2 @@
+{% extends 'admin/layouts/base.twig' %}
+{% block content %}<section class="admin-card" style="padding:32px"><h1>Verifică recepția</h1><p role="alert">{{ error_message }}</p>{% for field,message in errors %}{% if message != error_message %}<p>{{ message }}</p>{% endif %}{% endfor %}<a class="button" href="{{ back_url }}">Înapoi la NIR-uri</a></section>{% endblock %}

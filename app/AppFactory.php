@@ -144,6 +144,13 @@ final class AppFactory
         $twig->addFunction(new TwigFunction('favorite_count', static fn(): int => count(array_unique(array_map('intval', (array) ($_SESSION['favorites'] ?? []))))));
         $twig->addFunction(new TwigFunction('is_favorite', static fn(int|string $productId): bool => in_array((int) $productId, array_unique(array_map('intval', (array) ($_SESSION['favorites'] ?? []))), true)));
         $twig->addFilter(new TwigFilter('json_decode', static fn(string $value): array => json_decode($value, true) ?: []));
+        $twig->addFilter(new TwigFilter('decimal_ro', static function (int|string|null $value): string {
+            $text=(string) $value;
+            if (!preg_match('/^(-?)(\d+)(?:\.(\d+))?$/D',$text,$parts)) { return $text; }
+            $whole=preg_replace('/\B(?=(\d{3})+(?!\d))/', '.', $parts[2]);
+            $fraction=rtrim($parts[3] ?? '', '0');
+            return $parts[1].$whole.($fraction===''?'':','.$fraction);
+        }));
         $twig->addFilter(new TwigFilter(
             'product_description_html',
             static fn(?string $value): string => $productDescriptions->sanitize((string) $value),
@@ -170,6 +177,12 @@ final class AppFactory
         $orderNotificationSettingsController = new OrderNotificationSettingsController(new OrderNotificationSettingsService($pdo), new AdminNotificationService($pdo), $auth, $view, $config);
         $paymentMethodSettingsController = new PaymentMethodSettingsController($paymentMethodSettings, new AdminNotificationService($pdo), $auth, $view, $config, new \App\Modules\Payments\PaymentFeeService($pdo));
         $companyAdminController = new CompanyAdminController(new CompanyAdminService(new CompanyRepository($pdo), new CompanyStampStorage($root)), new AdminNotificationService($pdo), $auth, $view, $config);
+        $nirController = new \App\Modules\Inventory\NirAdminController(
+            new \App\Modules\Inventory\NirService($pdo), new \App\Modules\Inventory\NirDocumentStorage($root),
+            new \App\Modules\Inventory\NirImportService(), new \App\Modules\Inventory\NirExportService($root),
+            new \App\Modules\Inventory\NirExchangeRateService($root), new SupplierAdminService($pdo),
+            new AdminNotificationService($pdo), $auth, $view, $config,
+        );
 
         $app = SlimAppFactory::create();
         $basePath = '/' . trim($config->get('APP_BASE_PATH'), '/');
@@ -234,7 +247,7 @@ final class AppFactory
         $app->post('/admin/', [$adminController, 'login']);
         $app->post('/admin/deconectare/', [$adminController, 'logout']);
 
-        $app->group('/admin', function (RouteCollectorProxy $group) use ($adminController, $adminPushController, $twoFactorController, $orderNotificationSettingsController, $paymentMethodSettingsController, $companyAdminController): void {
+        $app->group('/admin', function (RouteCollectorProxy $group) use ($adminController, $adminPushController, $twoFactorController, $orderNotificationSettingsController, $paymentMethodSettingsController, $companyAdminController, $nirController): void {
             $group->get('/categorii/', [$adminController, 'categories']);
             $group->get('/categorii/verifica-nume/', [$adminController, 'categoryNameAvailability']);
             $group->get('/categorii/verifica-slug/', [$adminController, 'categorySlugAvailability']);
@@ -306,6 +319,44 @@ final class AppFactory
             $group->post('/furnizori/{id:[0-9]+}/editare/', [$adminController, 'saveSupplier']);
             $group->post('/furnizori/{id:[0-9]+}/sterge/', [$adminController, 'deleteSupplier']);
             $group->get('/detaliile-firmei/', [$companyAdminController, 'index']);
+            $group->get('/nir-uri/', [$nirController, 'index']);
+            $group->get('/nir-uri/fifo/', [$nirController, 'fifo']);
+            $group->get('/nir-uri/sold-initial/', [$nirController, 'actionForm']);
+            $group->get('/nir-uri/sold-initial/modal/', [$nirController, 'actionForm']);
+            $group->post('/nir-uri/sold-initial/', [$nirController, 'opening']);
+            $group->get('/nir-uri/retururi/{id:[0-9]+}/receptie/', [$nirController, 'returnForm']);
+            $group->get('/nir-uri/retururi/{id:[0-9]+}/receptie/modal/', [$nirController, 'returnForm']);
+            $group->post('/nir-uri/retururi/{id:[0-9]+}/receptie/', [$nirController, 'receiveReturn']);
+            $group->post('/nir-uri/retururi/{id:[0-9]+}/amanare/', [$nirController, 'dismissReturn']);
+            $group->post('/nir-uri/referinte/{id:[0-9]+}/reasociere/', [$nirController, 'reassign']);
+            $group->get('/nir-uri/produse/', [$nirController, 'lookup']);
+            $group->get('/nir-uri/curs/', [$nirController, 'exchangeRate']);
+            $group->post('/nir-uri/asociere/', [$nirController, 'matchLine']);
+            $group->post('/nir-uri/furnizor/', [$nirController, 'supplier']);
+            $group->post('/nir-uri/locatii/', [$nirController, 'location']);
+            $group->post('/nir-uri/import/', [$nirController, 'import']);
+            $group->get('/nir-uri/export/', [$nirController, 'actionForm']);
+            $group->get('/nir-uri/export/modal/', [$nirController, 'actionForm']);
+            $group->get('/nir-uri/export/{format:pdf|xlsx|zip}/', [$nirController, 'export']);
+            $group->get('/nir-uri/nou/', [$nirController, 'form']);
+            $group->get('/nir-uri/nou/modal/', [$nirController, 'form']);
+            $group->post('/nir-uri/nou/', [$nirController, 'save']);
+            $group->get('/nir-uri/{id:[0-9]+}/', [$nirController, 'detail']);
+            foreach (['editare','corectie'] as $action) {
+                $group->get('/nir-uri/{id:[0-9]+}/'.$action.'/', [$nirController, 'form']);
+                $group->get('/nir-uri/{id:[0-9]+}/'.$action.'/modal/', [$nirController, 'form']);
+                $group->post('/nir-uri/{id:[0-9]+}/'.$action.'/', [$nirController, 'save']);
+            }
+            foreach (['confirma','sterge','storno','documente'] as $action) {
+                $group->get('/nir-uri/{id:[0-9]+}/'.$action.'/', [$nirController, 'actionForm']);
+                $group->get('/nir-uri/{id:[0-9]+}/'.$action.'/modal/', [$nirController, 'actionForm']);
+                $group->post('/nir-uri/{id:[0-9]+}/'.$action.'/', [$nirController, 'mutate']);
+            }
+            $group->get('/nir-uri/{id:[0-9]+}/documente/{attachment:[0-9]+}/', [$nirController, 'download']);
+            $group->post('/nir-uri/{id:[0-9]+}/documente/{attachment:[0-9]+}/sterge/', [$nirController, 'detach']);
+            $group->get('/nir-uri/{id:[0-9]+}/documente/{attachment:[0-9]+}/sterge/', [$nirController, 'detachForm']);
+            $group->get('/nir-uri/{id:[0-9]+}/documente/{attachment:[0-9]+}/sterge/modal/', [$nirController, 'detachForm']);
+            $group->get('/nir-uri/{id:[0-9]+}/export/{format:pdf|xlsx|zip}/', [$nirController, 'export']);
             $group->get('/detaliile-firmei/nou/', [$companyAdminController, 'companyForm']);
             $group->get('/detaliile-firmei/nou/modal/', [$companyAdminController, 'companyForm']);
             $group->post('/detaliile-firmei/nou/', [$companyAdminController, 'saveCompany']);
