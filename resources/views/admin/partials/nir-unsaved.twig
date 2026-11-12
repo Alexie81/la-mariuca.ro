@@ -1,0 +1,9 @@
+{% import 'admin/partials/nir-ui.twig' as ui %}
+<dialog class="nir-unsaved" data-nir-unsaved-dialog aria-labelledby="nir-unsaved-title" aria-describedby="nir-unsaved-copy">
+ <div class="nir-unsaved__mark">{{ ui.icon('document') }}<span>{{ ui.icon('edit') }}</span></div>
+ <small>Modificări nesalvate</small>
+ <h2 id="nir-unsaved-title">Sigur vrei să renunți?</h2>
+ <p id="nir-unsaved-copy">Ai modificări care nu au fost salvate. Dacă închizi formularul, pierzi datele completate și fișierele selectate în această sesiune.</p>
+ <div class="nir-unsaved__note">{{ ui.icon('shield') }}<span>Poți continua de unde ai rămas.</span></div>
+ <footer><button class="nir-unsaved__keep" type="button" data-nir-unsaved-keep>Continuă editarea</button><button class="nir-unsaved__discard" type="button" data-nir-unsaved-discard>Renunță la modificări</button></footer>
+</dialog>

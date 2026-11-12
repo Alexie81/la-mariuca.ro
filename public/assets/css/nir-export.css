@@ -1,0 +1,32 @@
+.nir-export-loader{box-sizing:border-box;width:min(408px,calc(100% - 32px));max-height:calc(100dvh - 32px);margin:auto;padding:32px 30px 22px;border:1px solid #ffffffd9;border-radius:28px;background:radial-gradient(ellipse at 50% 0,#f7eef5,transparent 60%),#fffdff;color:#4d3a55;text-align:center;overflow:auto;box-shadow:0 24px 90px #39263c24;font:400 14px/1.6 "Nunito Sans",Arial,sans-serif}
+.nir-export-loader[open]{animation:nir-export-appear .22s cubic-bezier(.2,.75,.3,1) both}
+.nir-export-loader::backdrop{background:#2f243b33;backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px)}
+.nir-export-loader [hidden]{display:none!important}
+.nir-export-orbit{position:relative;display:grid;place-items:center;width:112px;height:112px;margin:0 auto 24px}
+.nir-export-orbit>img{display:block;width:74px;height:74px;border-radius:50%;object-fit:cover;box-shadow:0 5px 18px #996a8622}
+.nir-export-orbit>svg{position:absolute;inset:0;width:112px;height:112px;fill:none;stroke-width:3;overflow:visible;animation:nir-export-orbit 1.7s linear infinite}
+.nir-export-orbit__track{stroke:#e9e0ea}
+.nir-export-orbit__arc{stroke:#aa668f;stroke-linecap:round;stroke-dasharray:85 320;transform-origin:56px 56px;animation:nir-export-stroke 1.7s ease-in-out infinite}
+.nir-export-loader__eyebrow{display:block;margin:0 0 8px;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#9e7a96;font-weight:600}
+.nir-export-loader h2{font:600 23px/1.3 "Nunito Sans",Arial,sans-serif;letter-spacing:-.035em;color:#4d3a55;margin:0 0 10px}
+.nir-export-loader p{font-size:14px;line-height:1.65;color:#938198;margin:0 auto;max-width:290px;overflow-wrap:anywhere}
+.nir-export-loader__actions{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:21px}
+.nir-export-loader__actions:not(:has(button:not([hidden]))){display:none}
+.nir-transfer-progress{margin:22px auto 0;max-width:290px}
+.nir-transfer-progress progress{appearance:none;display:block;width:100%;height:6px;border:0;border-radius:9px;overflow:hidden;background:#eee6ee;color:#a3618b}
+.nir-transfer-progress progress::-webkit-progress-bar{background:#eee6ee;border-radius:9px}
+.nir-transfer-progress progress::-webkit-progress-value{background:linear-gradient(90deg,#ba829f,#91658c);border-radius:9px;transition:width .15s linear}
+.nir-transfer-progress progress::-moz-progress-bar{background:#a3618b;border-radius:9px}
+.nir-transfer-progress span{display:block;margin-top:10px;font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;color:#88678c}
+.nir-export-loader__actions button{appearance:none;display:inline-flex;align-items:center;justify-content:center;min-height:44px;min-width:100px;padding:10px 16px;border:1px solid #e8dce9;border-radius:12px;background:#fff;color:#8c7195;font:600 13px/1.4 "Nunito Sans",Arial,sans-serif;box-shadow:none;cursor:pointer;transition:background .18s,border-color .18s}
+.nir-export-loader__actions button::before,.nir-export-loader__actions button::after{display:none}
+.nir-export-loader__actions button:hover{background:#f8f1f8;border-color:#d5bbd3}
+.nir-export-loader__actions button:focus-visible{outline:3px solid #b585a466;outline-offset:3px}
+.nir-export-loader__actions [data-export-retry]{background:#a3618b;border-color:#a3618b;color:#fff}
+.nir-export-loader.has-error .nir-export-orbit>svg,.nir-export-loader.has-error .nir-export-orbit__arc{animation:none}
+.nir-export-loader.has-error .nir-export-orbit__arc{stroke:#bf6d77;stroke-dasharray:320}
+@keyframes nir-export-orbit{to{transform:rotate(360deg)}}
+@keyframes nir-export-stroke{0%,100%{stroke-dasharray:35 320;stroke-dashoffset:0}50%{stroke-dasharray:210 320;stroke-dashoffset:-50}}
+@keyframes nir-export-appear{from{opacity:0;transform:translateY(8px) scale(.97)}to{opacity:1;transform:none}}
+@media(max-width:480px){.nir-export-loader{padding:27px 22px 20px;border-radius:24px}.nir-export-loader h2{font-size:22px}.nir-export-orbit{margin-bottom:20px}.nir-export-loader__eyebrow{font-size:10px}}
+@media(prefers-reduced-motion:reduce){.nir-export-loader[open],.nir-export-orbit>svg,.nir-export-orbit__arc{animation:none!important}.nir-export-orbit__arc{stroke-dasharray:190 320}}

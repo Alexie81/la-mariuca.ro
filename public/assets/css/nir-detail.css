@@ -46,7 +46,7 @@
 .nir-workspace .nir-download:nth-of-type(2){background:#ecf6f0;color:#337b60}
 .nir-workspace .nir-download:nth-of-type(3){background:#f1f2f7;color:#69728e}
 .nir-workspace .nir-download:hover{filter:brightness(.97);transform:translateY(-1px)}
-.nir-workspace__body{display:grid;gap:22px;padding-top:21px}
+.nir-workspace__body{display:grid;grid-template-columns:minmax(0,1fr);gap:22px;padding-top:21px}
 .nir-workspace-help{display:flex;gap:12px;align-items:center;padding:0 5px;min-width:0}
 .nir-workspace-help>span{display:grid;place-items:center;width:35px;height:35px;flex:none;color:#b07843;background:#fbf1e3;border-radius:50%}
 .nir-workspace-help>span svg{width:18px;height:18px}
@@ -186,7 +186,7 @@
  .nir-workspace-help p{font-size:13px;margin-top:3px}
  .nir-workspace .nir-workspace-help .nir-button{grid-column:2;justify-self:start;font-size:13px;min-height:36px;padding:4px 0}
  .nir-section-links{gap:8px;justify-content:space-between}
- .nir-section-links a{font-size:12px;gap:5px;padding:0 1px 10px;min-height:42px;justify-content:center;text-align:center;white-space:nowrap}
+ .nir-section-links a{font-size:12px;gap:5px;padding:0 1px 10px;min-height:42px;justify-content:center;text-align:center;white-space:normal;min-width:0}
  .nir-section-links svg{display:none}
  .nir-section-links a>span{min-width:20px;width:20px;height:20px;font-size:11px;border-radius:6px}
  .nir-sheet__heading{padding:20px 17px 17px;gap:12px}

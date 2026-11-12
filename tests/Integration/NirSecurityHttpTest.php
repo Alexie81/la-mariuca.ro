@@ -170,13 +170,13 @@ final class NirSecurityHttpTest extends DatabaseTestCase
         [$document] = $this->draft('PARTIAL-RETURNS');
         $document = $this->service()->confirm((int) $document['id'], (int) $document['row_version'], 'confirm-partial-returns', true, $this->actor());
         $lineId = $document['lines'][0]['id'];
-        $input = ['invoice_number' => 'RV-REPEATED', 'invoice_date' => $document['invoice_date'], 'reason' => 'Ambalaj deteriorat', 'quantities' => [$lineId => '0.5']];
+        $input = ['attachments' => [['stored_name'=>'qa-return.pdf','original_name'=>'Dovadă.pdf','sha256'=>hash('sha256','qa-return')]], 'invoice_number' => 'RV-REPEATED', 'invoice_date' => $document['invoice_date'], 'reason' => 'Ambalaj deteriorat', 'quantities' => [$lineId => '0.5']];
         $this->service()->reverse((int) $document['id'], (int) $document['row_version'], $input, 'first-partial-return', $this->actor());
         $document = $this->service()->document((int) $document['id'], $this->actor());
         $input['quantities'][$lineId] = '0.25';
         $input['row_version'] = $document['row_version'];
         $input['idempotency_key'] = 'second-partial-return';
-        $response = $this->request('POST', '/admin/nir-uri/' . $document['id'] . '/storno/', $input);
+        $response = $this->request('POST', '/admin/nir-uri/' . $document['id'] . '/storno/', $input, false, ['attachments'=>[$this->returnUpload()]]);
         self::assertSame(422, $response->getStatusCode(), (string) $response->getBody());
         $xpath = $this->html((string) $response->getBody());
         self::assertSame('0.25', $xpath->evaluate('string(//input[@name="quantities[' . $lineId . ']"]/@value)'));
@@ -184,7 +184,7 @@ final class NirSecurityHttpTest extends DatabaseTestCase
         self::assertSame(0, $xpath->query('//input[@name="accept_warnings"]/ancestor::*[@hidden]')->length);
         self::assertSame(2, (int) $this->pdo->query('SELECT COUNT(*) FROM nir_documents')->fetchColumn());
         $input['accept_warnings'] = '1';
-        self::assertSame(303, $this->request('POST', '/admin/nir-uri/' . $document['id'] . '/storno/', $input)->getStatusCode());
+        self::assertSame(303, $this->request('POST', '/admin/nir-uri/' . $document['id'] . '/storno/', $input, false, ['attachments'=>[$this->returnUpload()]])->getStatusCode());
         self::assertSame(3, (int) $this->pdo->query('SELECT COUNT(*) FROM nir_documents')->fetchColumn());
     }
 
@@ -266,6 +266,54 @@ final class NirSecurityHttpTest extends DatabaseTestCase
         self::assertSame(2, (int) $this->pdo->query('SELECT COUNT(*) FROM nir_documents')->fetchColumn());
         self::assertSame(1, (int) $this->pdo->query('SELECT COUNT(*) FROM nir_attachments')->fetchColumn());
         self::assertCount(1, $this->filesWithHash($hash), 'A replay must discard the second temporary copy of the same upload.');
+        $page = $this->request('GET', '/admin/nir-uri/' . $returnId . '/');
+        self::assertSame(200, $page->getStatusCode());
+        $body = (string) $page->getBody();
+        foreach (['Retur confirmat', 'Produsele returnate', 'Documentele returului', 'Factura corectivă și returul', 'Totalul returului'] as $label) {
+            self::assertStringContainsString($label, $body);
+        }
+        foreach (['Recepție confirmată', 'Produsele recepționate', 'Documentele recepției', 'Totalul recepției'] as $label) {
+            self::assertStringNotContainsString($label, $body);
+        }
+        $xpath = $this->html($body);
+        self::assertSame((string) $document['number'], $xpath->evaluate('string(//button[@data-nir-copy]/@data-nir-copy)'));
+        self::assertSame('/admin/nir-uri/' . $document['id'] . '/', $xpath->evaluate('string(//a[@class="nir-original__open"]/@href)'));
+        $originalDate = (new DateTimeImmutable($document['nir_at'], new DateTimeZone('UTC')))->setTimezone(new DateTimeZone('Europe/Bucharest'))->format('d.m.Y, H:i');
+        self::assertStringContainsString($originalDate, $xpath->evaluate('string(//aside[@aria-label="Documentul original"])'));
+    }
+
+    public function testOriginalReceiptListsEachReturnWithDateCopyAndNavigation(): void
+    {
+        [$draft]=$this->draft('LINKED-RETURNS');
+        $document=$this->service()->confirm((int)$draft['id'],(int)$draft['row_version'],'linked-returns-confirm',true,$this->actor());
+        $returns=[];
+        for($i=1;$i<=2;$i++) {
+            $current=$this->service()->document((int)$document['id'],$this->actor());
+            $input=['row_version'=>$current['row_version'],'idempotency_key'=>'linked-returns-'.$i,'invoice_number'=>'RV-LINK-'.$i,'invoice_date'=>$document['invoice_date'],'reason'=>'Retur în tranșe','quantities'=>[$document['lines'][0]['id']=>'1']];
+            $response=$this->request('POST','/admin/nir-uri/'.$document['id'].'/storno/',$input,true,['attachments'=>[$this->returnUpload()]]);
+            self::assertSame(200,$response->getStatusCode(),(string)$response->getBody());
+            $returns[]=json_decode((string)$response->getBody(),true,512,JSON_THROW_ON_ERROR)['document'];
+        }
+        $page=$this->request('GET','/admin/nir-uri/'.$document['id'].'/');
+        self::assertSame(200,$page->getStatusCode());
+        $xpath=$this->html((string)$page->getBody());
+        $root='//section[@aria-label="Retururi către furnizor asociate"]';
+        self::assertSame(2,$xpath->query($root.'//article')->length);
+        foreach($returns as $i=>$return) {
+            $card=$root.'//article['.($i+1).']';
+            self::assertSame($return['number'],$xpath->evaluate('string('.$card.'//button/@data-nir-copy)'));
+            self::assertSame('/admin/nir-uri/'.$return['id'].'/',$xpath->evaluate('string('.$card.'//a/@href)'));
+            self::assertStringContainsString('RV-LINK-'.($i+1),$xpath->evaluate('string('.$card.')'));
+            $date=(new DateTimeImmutable($return['nir_at'],new DateTimeZone('UTC')))->setTimezone(new DateTimeZone('Europe/Bucharest'))->format('d.m.Y, H:i');
+            self::assertStringContainsString($date,$xpath->evaluate('string('.$card.')'));
+            $target=$this->request('GET','/admin/nir-uri/'.$return['id'].'/');
+            self::assertSame(200,$target->getStatusCode());
+            self::assertStringContainsString('Documentul original',(string)$target->getBody());
+        }
+        $last=end($returns);
+        $this->service()->delete((int)$last['id'],(int)$last['row_version'],$this->actor());
+        $page=$this->request('GET','/admin/nir-uri/'.$document['id'].'/');
+        self::assertSame(1,$this->html((string)$page->getBody())->query($root.'//article')->length);
     }
 
     /** @return array{0:array<string,mixed>,1:array<string,mixed>} */
@@ -277,6 +325,43 @@ final class NirSecurityHttpTest extends DatabaseTestCase
         $values['invoice_number'] = $invoice;
         $values['lines'] = [['product_id' => $variant['product_id'], 'variant_id' => $variant['id'], 'supplier_name' => 'Produs recepționat', 'supplier_code' => 'SECURITY-01', 'invoice_quantity' => '2', 'received_quantity' => '2', 'accepted_quantity' => '2', 'rejected_quantity' => '0', 'unit_price' => '10', 'vat_percent' => '21', 'conversion_factor' => '1', 'purchase_unit' => 'buc', 'stock_unit' => 'buc', 'price_mode' => 'unit']];
         return [$this->service()->save(null, $values, $this->actor()), $values];
+    }
+
+    private function returnUpload(): UploadedFile
+    {
+        $path=$this->temporary('.png');
+        $bytes=base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j4s8AAAAASUVORK5CYII=') . 'nir-return-' . bin2hex(random_bytes(12));
+        file_put_contents($path,$bytes); $this->uploadedHashes[]=hash('sha256',$bytes);
+        return new UploadedFile($path,'dovada-retur.png','image/png',strlen($bytes));
+    }
+
+    public function testSupplierReturnRequiresAnActualUploadedFileBeforeChangingStock(): void
+    {
+        [$draft]=$this->draft('MANDATORY-RETURN-DOCUMENT');
+        $document=$this->service()->confirm((int)$draft['id'],(int)$draft['row_version'],'mandatory-document-confirm',true,$this->actor());
+        $stock=$this->pdo->query('SELECT * FROM nir_stock_balances')->fetchAll();
+        $layers=$this->pdo->query('SELECT * FROM nir_fifo_layers')->fetchAll();
+        $input=['row_version'=>$document['row_version'],'idempotency_key'=>'mandatory-document-return','invoice_number'=>'RV-DOCUMENT','invoice_date'=>$document['invoice_date'],'reason'=>'Produs deteriorat','quantities'=>[$document['lines'][0]['id']=>'1']];
+        foreach ([[],[['stored_name'=>'fake.pdf','sha256'=>str_repeat('a',64)]]] as $forged) {
+            $response=$this->request('POST','/admin/nir-uri/'.$document['id'].'/storno/',$input+['attachments'=>$forged],true);
+            self::assertSame(422,$response->getStatusCode());
+            $result=json_decode((string)$response->getBody(),true,512,JSON_THROW_ON_ERROR);
+            self::assertArrayHasKey('attachments',$result['errors']);
+            self::assertSame($stock,$this->pdo->query('SELECT * FROM nir_stock_balances')->fetchAll());
+            self::assertSame($layers,$this->pdo->query('SELECT * FROM nir_fifo_layers')->fetchAll());
+            self::assertSame(1,(int)$this->pdo->query('SELECT COUNT(*) FROM nir_documents')->fetchColumn());
+            self::assertSame($document['row_version'],$this->service()->document((int)$document['id'],$this->actor())['row_version']);
+        }
+        $page=$this->request('GET','/admin/nir-uri/'.$document['id'].'/storno/');
+        self::assertStringContainsString('Vezi cât poți returna din fiecare produs.',(string)$page->getBody());
+        self::assertStringContainsString('Din alte intrări compatibile',(string)$page->getBody());
+        $xpath=$this->html((string)$page->getBody());
+        self::assertSame(1,$xpath->query('//input[@type="file" and @required]')->length);
+        self::assertGreaterThan(0,$xpath->query('//input[@role="switch" and @data-reverse-select]')->length);
+        $saved=$this->request('POST','/admin/nir-uri/'.$document['id'].'/storno/',$input,true,['attachments'=>[$this->returnUpload()]]);
+        self::assertSame(200,$saved->getStatusCode(),(string)$saved->getBody());
+        self::assertSame(2,(int)$this->pdo->query('SELECT COUNT(*) FROM nir_documents')->fetchColumn());
+        self::assertSame(1,(int)$this->pdo->query('SELECT COUNT(*) FROM nir_attachments')->fetchColumn());
     }
 
     private function service(): NirService { return new NirService($this->pdo); }

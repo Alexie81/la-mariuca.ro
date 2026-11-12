@@ -161,6 +161,7 @@ final class NirExportService
         };
         $border = ['borderStyle'=>'thin','color'=>['rgb'=>'E7D9DD']];
         $company = $document['company'] ?? [];
+        $isSupplierReturn = ($document['type'] ?? '') === 'supplier_return';
         $merge('A1:B3');
         $this->draw($sheet, $this->publicImage('/assets/images/logo-la-mariuca-transparent.png'), 'A1', 72, 122);
         $merge('C1:F1', ($company['trade_name'] ?? '') ?: ($company['legal_name'] ?? 'La Măriuca Boutique'));
@@ -173,17 +174,17 @@ final class NirExportService
         $sheet->getStyle('C1:F1')->getFont()->setSize(18)->setBold(true)->getColor()->setRGB('714652');
         $sheet->getStyle('C2:F2')->getFont()->setBold(true);
         $sheet->getStyle('C3:F3')->getFont()->setSize(8)->getColor()->setRGB('8A747C');
-        $merge('G1:L2', 'NOTĂ DE RECEPȚIE ȘI CONSTATARE DE DIFERENȚE');
+        $merge('G1:L2', $isSupplierReturn ? 'RETUR CĂTRE FURNIZOR' : 'NOTĂ DE RECEPȚIE ȘI CONSTATARE DE DIFERENȚE');
         $sheet->getStyle('G1:L2')->getFont()->setSize(18)->setBold(true);
-        $merge('G3:L3', '(NIR)');
+        $merge('G3:L3', $isSupplierReturn ? '(STORNO)' : '(NIR)');
         $sheet->getStyle('G3:L3')->getFont()->setSize(14)->setBold(true)->getColor()->setRGB('B05D73');
-        $merge('M1:M3', "Cod formular:\nNIR");
+        $merge('M1:M3', "Cod formular:\n" . ($isSupplierReturn ? 'RETUR' : 'NIR'));
         $fill('M1:M3', 'FBF5F4');
         $sheet->getStyle('G1:M3')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
         $sheet->getStyle('M1:M3')->getFont()->setBold(true);
         $number = self::number($document);
         if (($document['status'] ?? 'draft') === 'draft') { $number .= ' · Ciornă'; }
-        $merge('A5:F6', "Nr. NIR\n" . $number);
+        $merge('A5:F6', ($isSupplierReturn ? "Nr. document\n" : "Nr. NIR\n") . $number);
         $merge('G5:M6', "din data de\n" . self::dateOnly($document['nir_at'] ?? ''));
         $fill('A5:M6', '855260');
         $sheet->getStyle('A5:M6')->getFont()->setBold(true)->getColor()->setRGB('FFFFFF');
@@ -194,7 +195,7 @@ final class NirExportService
             ['Furnizor:', ($supplier['company_name'] ?? '') ?: ($supplier['alias'] ?? '')],
             ['CUI furnizor:', $supplier['tax_id'] ?? ''],
             ['Gestiune:', $document['warehouse']['name'] ?? ''],
-            ['Loc recepție:', $document['location']['name'] ?? ''],
+            [$isSupplierReturn ? 'Loc stoc returnat:' : 'Loc recepție:', $document['location']['name'] ?? ''],
         ];
         $right = [
             ['Factura furnizor nr. / data:', self::invoiceLabel($document)],
@@ -218,6 +219,7 @@ final class NirExportService
         $sheet->getStyle('A7:M10')->getBorders()->getAllBorders()->applyFromArray($border);
         $sheet->getStyle('A7:M10')->getAlignment()->setIndent(1);
         $headers = ['Nr. crt.','Cod / SKU','Imagine','Denumirea bunurilor recepționate','U.M.','Cantitate document','Cantitate recepționată','Diferență cantitativă','Preț unitar fără TVA','Valoare fără TVA','TVA %','Valoare TVA','Valoare totală'];
+        if ($isSupplierReturn) { $headers[3] = 'Denumirea bunurilor returnate'; $headers[6] = 'Cantitate returnată'; }
         $this->putRow($sheet, 12, $headers);
         $fill('A12:M12', '855260');
         $sheet->getStyle('A12:M12')->getFont()->setSize(8)->setBold(true)->getColor()->setRGB('FFFFFF');
@@ -272,7 +274,7 @@ final class NirExportService
         $noteTitle = $total + 2;
         $noteRow = $total + 3;
         $stampRow = $total + 5;
-        $merge('A'.$noteTitle.':M'.$noteTitle, 'Constatări privind recepția / diferențe calitative sau cantitative:');
+        $merge('A'.$noteTitle.':M'.$noteTitle, $isSupplierReturn ? 'Observații privind returul către furnizor:' : 'Constatări privind recepția / diferențe calitative sau cantitative:');
         $fill('A'.$noteTitle.':M'.$noteTitle, 'FBF5F4');
         $sheet->getStyle('A'.$noteTitle)->getFont()->setBold(true);
         $sheet->getRowDimension($noteTitle)->setRowHeight(24);

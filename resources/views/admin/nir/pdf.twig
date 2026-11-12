@@ -93,6 +93,7 @@ h1 { color:#684552; font-size:19px; font-weight:bold; line-height:1.3; margin:0;
     } %}
     <img class="{{ class }}" alt="" src="data:image/svg+xml,{{ ('<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="' ~ color ~ '" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">' ~ paths[name] ~ '</svg>')|url_encode }}">
 {% endmacro %}
+{% set is_supplier_return = nir.type|default('') == 'supplier_return' %}
 {% set company = nir.company|default({}) %}
 {% set supplier = nir.supplier|default({}) %}
 {% set preview = nir.preview|default(false) %}
@@ -105,11 +106,11 @@ h1 { color:#684552; font-size:19px; font-weight:bold; line-height:1.3; margin:0;
         {% if logo %}<td class="identity-logo"><img class="logo" src="{{ logo }}" alt="La Măriuca Boutique"></td>{% endif %}
         <td><div class="trade-name">{{ company.trade_name|default('La Măriuca Boutique', true) }}</div><div class="legal-name">{{ company.legal_name|default('', true) }}</div><div class="company-reference">CUI {{ company.tax_id|default('—', true) }}{% if company.trade_register|default('') %}<br>Reg. Com. {{ company.trade_register }}{% endif %}</div></td>
     </tr></table></td>
-    <td class="brand-heading"><h1>NOTĂ DE RECEPȚIE ȘI<br>CONSTATARE DE DIFERENȚE</h1><div class="nir-caption">(NIR)</div></td>
-    <td class="brand-code"><div class="form-code">{{ _self.icon('document', 'code-icon', '#b17888') }} Cod formular:<strong>NIR</strong>{% if preview or nir.status|default('draft') != 'confirmed' %}<div class="form-state">{{ preview ? 'PREVIZUALIZARE' : status_label }}{% if preview or nir.status|default('draft') == 'draft' %}<br>Fără intrare în stoc{% endif %}</div>{% endif %}</div></td>
+    <td class="brand-heading"><h1>{% if is_supplier_return %}RETUR CĂTRE<br>FURNIZOR{% else %}NOTĂ DE RECEPȚIE ȘI<br>CONSTATARE DE DIFERENȚE{% endif %}</h1><div class="nir-caption">{{ is_supplier_return ? '(STORNO)' : '(NIR)' }}</div></td>
+    <td class="brand-code"><div class="form-code">{{ _self.icon('document', 'code-icon', '#b17888') }} Cod formular:<strong>{{ is_supplier_return ? 'RETUR' : 'NIR' }}</strong>{% if preview or nir.status|default('draft') != 'confirmed' %}<div class="form-state">{{ preview ? 'PREVIZUALIZARE' : status_label }}{% if preview or nir.status|default('draft') == 'draft' %}<br>Fără intrare în stoc{% endif %}</div>{% endif %}</div></td>
 </tr></tbody></table>
 <table class="document-band"><tr>
-    <td class="number">{{ _self.icon('document', 'band-icon', '#f2d8c5') }}<div class="band-label">Nr. NIR</div><div class="band-value">{{ number }}</div></td>
+    <td class="number">{{ _self.icon('document', 'band-icon', '#f2d8c5') }}<div class="band-label">{{ is_supplier_return ? 'Nr. document' : 'Nr. NIR' }}</div><div class="band-value">{{ number }}</div></td>
     <td class="date">{{ _self.icon('calendar', 'band-icon', '#f2d8c5') }}<div class="band-label">din data de</div><div class="band-value">{{ nir_date|split(' ')|first|trim(',') }}</div></td>
     <td class="space"></td>
 </tr></table>
@@ -117,14 +118,14 @@ h1 { color:#684552; font-size:19px; font-weight:bold; line-height:1.3; margin:0;
     <td class="left"><div class="metadata-card"><table><tr><td class="meta-label">{{ _self.icon('person', 'meta-icon') }}Furnizor:</td><td class="meta-value">{{ supplier.company_name|default(supplier.alias|default('', true), true) }}</td></tr>
         <tr><td class="meta-label">{{ _self.icon('identity', 'meta-icon') }}CUI furnizor:</td><td class="meta-value">{{ supplier.tax_id|default('') }}</td></tr>
         <tr><td class="meta-label">{{ _self.icon('warehouse', 'meta-icon') }}Gestiune:</td><td class="meta-value">{{ nir.warehouse.name|default('') }}</td></tr>
-        <tr><td class="meta-label">{{ _self.icon('pin', 'meta-icon') }}Loc recepție:</td><td class="meta-value">{{ nir.location.name|default('') }}</td></tr></table></div></td>
+        <tr><td class="meta-label">{{ _self.icon('pin', 'meta-icon') }}{{ is_supplier_return ? 'Loc stoc returnat:' : 'Loc recepție:' }}</td><td class="meta-value">{{ nir.location.name|default('') }}</td></tr></table></div></td>
     <td class="right"><div class="metadata-card"><table><tr><td class="meta-label">{{ _self.icon('invoice', 'meta-icon') }}Factura furnizor nr. / data:</td><td class="meta-value">{{ nir.invoice_series|default('') }} {{ nir.invoice_number|default('') }}{% if nir.invoice_date|default('') %} / {{ nir.invoice_date|date('d.m.Y') }}{% endif %}</td></tr>
         <tr><td class="meta-label">{{ _self.icon('invoice', 'meta-icon') }}Factura inițială stornată nr. / data:</td><td class="meta-value">{{ nir.original_invoice_series|default('') }} {{ nir.original_invoice_number|default('') }}{% if nir.original_invoice_date|default('') %} / {{ nir.original_invoice_date|date('d.m.Y') }}{% endif %}</td></tr>
         <tr><td class="meta-label">{{ _self.icon('case', 'meta-icon') }}Tip operațiune:</td><td class="meta-value">{{ type_label }}</td></tr>
         <tr><td class="meta-label">{{ _self.icon('info', 'meta-icon') }}Motiv storno / retur / diferență:</td><td class="meta-value">{{ nir.reason|default('') }}</td></tr></table></div></td>
 </tr></tbody></table>
 <table class="lines"><thead><tr>
-    <th>Nr.<br>crt.</th><th>Cod / SKU</th><th>Imagine</th><th>Denumirea<br>bunurilor<br>recepționate</th><th>U.M.</th><th>Cantitate<br>document</th><th>Cantitate<br>recepționată</th><th>Diferență<br>cantitativă</th><th>Preț unitar<br>fără TVA</th><th>Valoare<br>fără TVA</th><th>TVA<br>%</th><th>Valoare<br>TVA</th><th>Valoare<br>totală</th>
+    <th>Nr.<br>crt.</th><th>Cod / SKU</th><th>Imagine</th><th>Denumirea<br>bunurilor<br>{{ is_supplier_return ? 'returnate' : 'recepționate' }}</th><th>U.M.</th><th>Cantitate<br>document</th><th>Cantitate<br>{{ is_supplier_return ? 'returnată' : 'recepționată' }}</th><th>Diferență<br>cantitativă</th><th>Preț unitar<br>fără TVA</th><th>Valoare<br>fără TVA</th><th>TVA<br>%</th><th>Valoare<br>TVA</th><th>Valoare<br>totală</th>
 </tr></thead><tbody>
 {% for line in lines %}{% set unit_price = line.price_mode|default('unit') == 'unit' ? line.unit_price|default(0) : (line.accepted_quantity|default(0) != 0 ? (line.net_bani|default(0) / 100 / line.accepted_quantity)|round(6) : 0) %}<tr>
     <td class="index">{{ loop.index }}</td>
@@ -136,7 +137,7 @@ h1 { color:#684552; font-size:19px; font-weight:bold; line-height:1.3; margin:0;
 </tr>{% else %}<tr><td colspan="13">Nicio poziție completată.</td></tr>{% endfor %}
 <tr class="totals-row"><td colspan="9" class="total-label">TOTAL</td>{% if view_costs %}<td class="amount">{{ (nir.net_bani|default(0) / 100)|number_format(2, ',', '.') }} {{ money_label }}</td><td class="center">{% if vat_rates|length == 1 %}{{ _self.decimal(vat_rates|first) }}%{% elseif vat_rates|length > 1 %}Mixt{% endif %}</td><td class="amount">{{ (nir.tax_bani|default(0) / 100)|number_format(2, ',', '.') }} {{ money_label }}</td><td class="amount grand-total">{{ (nir.total_bani|default(0) / 100)|number_format(2, ',', '.') }} {{ money_label }}</td>{% else %}<td colspan="4" class="center protected">Valorile financiare sunt protejate</td>{% endif %}</tr>
 </tbody></table>
-<div class="notes"><div class="notes-heading">{{ _self.icon('clipboard', 'meta-icon') }}Constatări privind recepția / diferențe calitative sau cantitative:</div>
+<div class="notes"><div class="notes-heading">{{ _self.icon('clipboard', 'meta-icon') }}{{ is_supplier_return ? 'Observații privind returul către furnizor:' : 'Constatări privind recepția / diferențe calitative sau cantitative:' }}</div>
     {% if nir.notes|default('') %}<p>{{ nir.notes }}</p>{% endif %}
     {% for line in lines %}{% if line.difference_notes|default('') or line.difference_label|default('') or line.accepted_quantity|default(line.received_quantity) != line.received_quantity %}<div class="line-observation"><strong>Poziția {{ loop.index }}{% if line.sku|default('') %} · {{ line.sku }}{% endif %}:</strong>{% if line.accepted_quantity|default(line.received_quantity) != line.received_quantity %} acceptat {{ _self.decimal(line.accepted_quantity) }} {{ line.purchase_unit|default('buc') }}.{% endif %}{% if line.difference_label|default('') %} {{ line.difference_label }}.{% endif %}{% if line.difference_notes|default('') %} {{ line.difference_notes }}{% endif %}</div>{% endif %}{% endfor %}
 </div>

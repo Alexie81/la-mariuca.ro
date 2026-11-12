@@ -316,7 +316,7 @@ final class NirWorkflowHttpAuditTest extends DatabaseTestCase
         self::assertSame(0, $this->rowCount('nir_fifo_layers'));
     }
 
-    public function testConfirmedReceiptOffersCorrectionAndReturnButCannotBeDeletedOrEditedAsDraft(): void
+    public function testConfirmedReceiptOffersCorrectionReturnAndLastDocumentDeletionButNotDraftEditing(): void
     {
         $draft=$this->service()->save(null,$this->input('CONFIRMED'),$this->actor());
         $confirmed=$this->json($this->request('POST','/admin/nir-uri/'.$draft['id'].'/confirma/',['row_version'=>$draft['row_version'],'idempotency_key'=>'http-confirm-audit','accept_warnings'=>1],true))['document'];
@@ -325,8 +325,11 @@ final class NirWorkflowHttpAuditTest extends DatabaseTestCase
             foreach (['/','/modal/'] as $suffix) { self::assertSame(200,$this->request('GET','/admin/nir-uri/'.$draft['id'].'/'.$action.$suffix)->getStatusCode()); }
         }
         self::assertSame(303,$this->request('GET','/admin/nir-uri/'.$draft['id'].'/editare/')->getStatusCode());
-        self::assertSame(409,$this->request('POST','/admin/nir-uri/'.$draft['id'].'/sterge/',['row_version'=>$confirmed['row_version']],true)->getStatusCode());
-        self::assertSame(1,$this->rowCount('nir_documents'));
+        $delete=(string)$this->request('GET','/admin/nir-uri/'.$draft['id'].'/sterge/modal/')->getBody();
+        self::assertStringContainsString('Stocul după ștergere',$delete);
+        self::assertStringContainsString('Stocul contabil poate deveni negativ',$delete);
+        self::assertSame(200,$this->request('POST','/admin/nir-uri/'.$draft['id'].'/sterge/',['row_version'=>$confirmed['row_version']],true)->getStatusCode());
+        self::assertSame(0,$this->rowCount('nir_documents'));
     }
 
     public function testIndividualAndRegistryExportsProduceRealFilesAndHonourSearch(): void
@@ -515,9 +518,11 @@ XML;
         $draft=$this->service()->save(null,$this->input('RETURN-REMAINING'),$this->actor());
         $document=$this->service()->confirm((int)$draft['id'],(int)$draft['row_version'],'return-remaining-confirm',true,$this->actor());
         $lineId=(int)$document['lines'][0]['id'];
-        $input=['invoice_number'=>'RET-PARTIAL','invoice_date'=>$document['invoice_date'],'reason'=>'Ambalaj deteriorat','quantities'=>[$lineId=>'0.5']];
+        $input=['attachments'=>[['stored_name'=>'qa-return.pdf','original_name'=>'Dovadă.pdf','sha256'=>hash('sha256','qa-return')]],'invoice_number'=>'RET-PARTIAL','invoice_date'=>$document['invoice_date'],'reason'=>'Ambalaj deteriorat','quantities'=>[$lineId=>'0.5']];
         $return=$this->service()->reverse((int)$document['id'],(int)$document['row_version'],$input,'first-partial-http',$this->actor());
-        self::assertStringContainsString('Retur către furnizor',(string)$this->request('GET','/admin/nir-uri/'.$return['id'].'/')->getBody());
+        $returnPage=(string)$this->request('GET','/admin/nir-uri/'.$return['id'].'/')->getBody();
+        self::assertStringContainsString('Retur către furnizor',$returnPage);
+        self::assertStringContainsString('0,5 buc returnate',$returnPage);
         self::assertContains('supplier_return',array_column($this->service()->document((int)$return['id'],$this->actor())['audit'],'action'));
         $document=$this->service()->document((int)$document['id'],$this->actor());
         $input['reason']=''; $input['row_version']=$document['row_version']; $input['idempotency_key']='second-partial-http';

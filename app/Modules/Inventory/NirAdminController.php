@@ -76,6 +76,7 @@ final class NirAdminController
             $permissions = $this->nirs->permissions($this->actor());
             $permission = match ($kind) { 'delete'=>'edit', 'attachments'=>'edit', default=>$kind };
             if (empty($permissions[$permission])) { throw new \RuntimeException('Nu ai permisiunea pentru această acțiune.', 403); }
+            if($kind==='delete' && empty($doc['can_delete'])) { throw new NirConflictException('Poți șterge doar ultimul NIR confirmat, după număr. Drafturile se pot șterge oricând.'); }
             return $this->render($this->modal($request) ? 'admin/partials/nir-action-content.twig' : 'admin/pages/nir-action.twig', array_replace($this->nirs->defaults($this->actor()), [
                 'action_kind'=>$kind,'document'=>$doc,'values'=>[], 'errors'=>[], 'warnings'=>[],
                 'products'=>$kind==='opening'?$this->nirs->selectProducts($this->actor()):[],
@@ -150,7 +151,7 @@ final class NirAdminController
                 $doc = $this->nirs->document($id, $this->actor());
                 $this->nirs->delete($id, $version, $this->actor());
                 foreach ($doc['attachments'] ?? [] as $file) { $this->storage->remove((string) $file['stored_name']); }
-                return $this->success($request, 'Ciorna a fost ștearsă.', $this->url());
+                return $this->success($request, $doc['status']==='draft' ? 'Draftul a fost șters.' : 'Documentul a fost șters, iar efectul lui asupra stocului contabil a fost anulat.', $this->url());
             }
             if ($kind === 'reverse' || $kind === 'attachments') { $this->requirePermission($kind === 'reverse' ? 'reverse' : 'edit'); $stored = $this->uploads($request); $input['attachments'] = $stored; }
             $doc = match ($kind) {
@@ -529,13 +530,18 @@ final class NirAdminController
         $document['operation_type']=$document['type'] ?? 'supplier_receipt';
         $document['supplier_name']=$document['supplier']['alias'] ?? $document['supplier']['company_name'] ?? '';
         $document['warehouse_name']=$document['warehouse']['name'] ?? '';
-        foreach (['nir_at','received_at','created_at','confirmed_at'] as $field) { $document['display_'.$field]=$this->date((string) ($document[$field] ?? '')); }
+        foreach (['nir_at','received_at','created_at','confirmed_at','original_nir_at'] as $field) { $document['display_'.$field]=$this->date((string) ($document[$field] ?? '')); }
         $document['display_invoice_date']=$this->date((string) ($document['invoice_date'] ?? ''),'d.m.Y');
+        foreach ($document['reversals'] ?? [] as $i=>$return) {
+            $document['reversals'][$i]['display_nir_at']=$this->date((string) ($return['nir_at'] ?? ''));
+        }
         foreach ($document['lines'] ?? [] as $i=>$line) {
             $document['lines'][$i]['image_url']=$this->imageUrl((string) ($line['image_path'] ?? ''));
-            $available=\Brick\Math\BigDecimal::of((int) ($line['available_units'] ?? 0))->dividedBy(10000,4);
             $factor=\Brick\Math\BigDecimal::of((string) ($line['conversion_factor'] ?? '1'));
-            $document['lines'][$i]['available_quantity']=(string) ($factor->isPositive()?$available->dividedBy($factor,4,\Brick\Math\RoundingMode::Down):$available);
+            foreach(['available','compatible','returnable','document_remaining'] as $quantity) {
+                $amount=\Brick\Math\BigDecimal::of((int) ($line[$quantity.'_units'] ?? 0))->dividedBy(10000,4);
+                $document['lines'][$i][$quantity.'_quantity']=(string) ($factor->isPositive()?$amount->dividedBy($factor,4,\Brick\Math\RoundingMode::Down):$amount);
+            }
         }
         $labels=[
             'draft_created'=>'Recepție salvată în lucru','draft_updated'=>'Document actualizat','draft_deleted'=>'Document în lucru șters',

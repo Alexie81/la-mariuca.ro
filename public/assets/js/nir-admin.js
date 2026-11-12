@@ -16,6 +16,7 @@
   let toastTimer;
   let locationOwner = null;
   let locationOpener = null;
+  let stockHelpOpener = null;
   const selectedFiles = new WeakMap();
   const matchRequests = new WeakMap();
   const rateRequests = new WeakMap();
@@ -31,7 +32,7 @@
     $$('[aria-invalid="true"]', form).forEach(field => field.removeAttribute('aria-invalid'));
     $$('[data-field-error]', form).forEach(field => { field.textContent = ''; field.hidden = true; });
     Object.entries(errors).forEach(([key, value]) => {
-      const name = key.replace(/^lines\.(\d+)\.(.+)$/, 'lines[$1][$2]');
+      const name = key.replace(/^lines\.(\d+)\.(.+)$/, 'lines[$1][$2]').replace(/^quantities\.(\d+)$/, 'quantities[$1]').replace(/^attachments$/, 'attachments[]');
       const field = Array.from(form.elements).find(element => element.name === name);
       if (field) { if (!revealed) { window.NirFlow?.reveal(field); revealed = true; } field.setAttribute('aria-invalid','true'); const details = field.closest('details'); if (details) details.open = true; }
       const error = $$('[data-field-error]', form).find(element => element.dataset.fieldError === name);
@@ -76,36 +77,45 @@
     }
   }
 
-  function closeModal() {
+  function closeModal(discard = false) {
     const dialog = $('[data-nir-dialog]');
     if (!dialog?.open) return;
     if ($('[data-nir-form][aria-busy="true"]', dialog)) return;
+    const form = $('[data-nir-form]', dialog);
+    if (!discard && window.NirUnsaved && !window.NirUnsaved.requestClose(form, () => closeModal(true))) return;
     modalAbort?.abort(); pickerAbort?.abort(); pickerLine = null;
     const finish = () => { dialog.close(); dialog.classList.remove('is-closing'); document.documentElement.classList.remove('has-nir-dialog'); openingTrigger?.focus({preventScroll:true}); };
     if (matchMedia('(prefers-reduced-motion: reduce)').matches) finish();
     else { dialog.classList.add('is-closing'); setTimeout(finish,180); }
   }
 
-  function toast(text) {
+  function toast(text, duration = 2500) {
     const element = $('[data-nir-toast]');
     if (!element) return;
     clearTimeout(toastTimer); $('span',element).textContent = text; element.hidden = false;
-    toastTimer = setTimeout(() => { element.hidden = true; },2500);
+    toastTimer = setTimeout(() => { element.hidden = true; },duration);
   }
 
   async function submitForm(form, submitter) {
     if(form.getAttribute('aria-busy') === 'true') return;
     if(!submitter?.formNoValidate && !form.reportValidity()) return;
+    const returns=$$('[data-reverse-select]',form);
+    if(returns.length && !returns.some(input=>input.checked)){message(form,'Selectează cel puțin un produs pentru retur.');return;}
     const data = new FormData(form);
     if(submitter?.name) data.set(submitter.name,submitter.value);
     const buttons = $$('button[type="submit"]',form);
+    const formBody=$('.nir-form__body',form),bodyWasInert=formBody?.inert;
+    if(formBody)formBody.inert=true;
     form.setAttribute('aria-busy','true'); buttons.forEach(button => { button.disabled = true; });
     try {
-      const response = await fetch(form.action, {method:'POST',body:data,headers:{'Accept':'application/json','X-Requested-With':'XMLHttpRequest'}});
+      const response = window.NirUpload ? await window.NirUpload.post(form,form.action,data) : await fetch(form.action, {method:'POST',body:data,headers:{'Accept':'application/json','X-Requested-With':'XMLHttpRequest'}});
       const result = await json(response);
+      window.NirUnsaved?.markSaved(form);
       if(result.redirect) { try { sessionStorage.setItem('nir-feedback',result.message || 'Recepția a fost salvată.'); } catch { /* Redirect still works when storage is unavailable. */ } location.assign(result.redirect); }
       else { form.removeAttribute('aria-busy'); closeModal(); toast(result.message || 'Modificările au fost salvate.'); }
     } catch(error) {
+      if(formBody)formBody.inert=bodyWasInert;
+      if(error.data?.errors?.accept_alternative_stock){const box=$('[data-reverse-alternative]',form);if(box){box.hidden=false;const input=$('input',box);if(input){input.required=true;input.checked=false;}}}
       const warnings = error.data?.warnings || [];
       if(warnings.length) {
         let box = $('[data-nir-warnings]',form);
@@ -118,7 +128,7 @@
         box.scrollIntoView({behavior:'smooth',block:'center'});
       }
       if(!warnings.length || Object.keys(error.data?.errors || {}).length) message(form,error.message,error.data?.errors || {});
-    } finally { form.removeAttribute('aria-busy'); buttons.forEach(button => { button.disabled=false; }); }
+    } finally { form.removeAttribute('aria-busy'); if(formBody)formBody.inert=bodyWasInert; buttons.forEach(button => { button.disabled=false; }); }
   }
 
   function lineValue(line,key) { return $('[name$="['+key+']"]',line)?.value || ''; }
@@ -203,7 +213,7 @@
   function acceptFiles(form, files) {
     const input=$('[data-nir-files]',form);if(!input)return;
     const transfer=new DataTransfer();(selectedFiles.get(input) || []).forEach(file=>transfer.items.add(file));
-    for(const file of files){if(!/\.(pdf|jpe?g|png|webp|xlsx|xml)$/i.test(file.name)){message(form,'Format neacceptat: '+file.name);continue;}if(Array.from(transfer.files).some(existing=>existing.name===file.name&&existing.size===file.size&&existing.lastModified===file.lastModified))continue;if(transfer.files.length>=30){message(form,'Poți încărca cel mult 30 de fișiere odată.');break;}transfer.items.add(file);}
+    for(const file of files){if(!/\.(pdf|jpe?g|png|webp|xlsx|xml)$/i.test(file.name)){message(form,'Format neacceptat: '+file.name);continue;}if(Array.from(transfer.files).some(existing=>existing===file))continue;if(transfer.files.length>=30){message(form,'Poți încărca cel mult 30 de fișiere odată.');break;}transfer.items.add(file);}
     input.files=transfer.files;selectedFiles.set(input,Array.from(input.files));fileList(form);
   }
 
@@ -349,9 +359,10 @@
     status.hidden=false;status.textContent='Citim documentul. Verificăm denumirile și valorile…';input.disabled=true;
     try{
       const attachments=selectedFiles.get($('[data-nir-files]',form)) || [];
-      if(attachments.length>=30&&!attachments.some(existing=>existing.name===file.name&&existing.size===file.size&&existing.lastModified===file.lastModified))throw new Error('Elimină un atașament înainte de import: documentul sursă trebuie păstrat, iar limita este de 30 de fișiere.');
+      if(attachments.length>=30&&!attachments.some(existing=>existing===file))throw new Error('Elimină un atașament înainte de import: documentul sursă trebuie păstrat, iar limita este de 30 de fișiere.');
       const data=new FormData();data.set('_csrf',form.elements._csrf.value);data.set('file',file);data.set('supplier_id',form.elements.supplier_id.value);
-      const result=await json(await fetch(form.dataset.importUrl,{method:'POST',body:data,headers:{Accept:'application/json','X-Requested-With':'XMLHttpRequest'}}));
+      const response=window.NirUpload ? await window.NirUpload.post(form,form.dataset.importUrl,data) : await fetch(form.dataset.importUrl,{method:'POST',body:data,headers:{Accept:'application/json','X-Requested-With':'XMLHttpRequest'}});
+      const result=await json(response);
       const imported=result.data || result.import || result;const lines=imported.lines || [];
       if(!lines.length)throw new Error('Nu au fost găsite poziții importabile în acest fișier.');
       const current=$$('[data-nir-line]',form),empty=current.length===1&&!lineValue(current[0],'supplier_name')&&!lineValue(current[0],'variant_id');
@@ -385,7 +396,41 @@
     finally {if(rateRequests.get(form)===request)button.disabled=false;}
   }
 
+  function reverseSelection(row, changed = false) {
+    const toggle = $('[data-reverse-select]',row), field = $('[data-reverse-quantity]',row);
+    if(!toggle || !field) return;
+    const available = number(field.max) > 0;
+    toggle.disabled = !available;
+    if(!available) toggle.checked = false;
+    if(changed) {
+      if(toggle.checked) field.value = field.dataset.previousQuantity || compactDecimal(field.max);
+      else {if(number(field.value)>0) field.dataset.previousQuantity=field.value;field.value='0';}
+    }
+    field.disabled = !toggle.checked;
+    field.required = toggle.checked;
+    field.min = toggle.checked ? '0.0001' : '0';
+    row.classList.toggle('is-selected',toggle.checked);
+    row.classList.toggle('is-unavailable',!available);
+    const hint=$('[data-reverse-hint]',row);
+    if(hint)hint.textContent=!available?'Nicio cantitate disponibilă':toggle.checked?'Poți modifica această cantitate':'Activează produsul pentru retur';
+    const form=row.closest('form'),summary=$('[data-reverse-summary]',form);
+    if(summary){const count=$$('[data-reverse-select]',form).filter(input=>input.checked).length;summary.textContent=count?count+' '+(count===1?'produs selectat':'produse selectate'):'Niciun produs selectat';}
+    reverseAlternative(form);
+  }
+
+  function reverseAlternative(form) {
+    const box=$('[data-reverse-alternative]',form);if(!box)return;
+    const needed=$$('[data-reverse-quantity]',form).some(field=>!field.disabled && number(field.value)>number(field.dataset.originalAvailable));
+    const input=$('input',box);box.hidden=!needed;
+    if(input){input.required=needed;if(!needed)input.checked=false;}
+    $$('[data-reverse-quantity]',form).forEach(field=>{
+      const exceeded=!field.disabled && number(field.value)>number(field.max);
+      field.setCustomValidity?.(exceeded?'La acest furnizor și preț de achiziție poți returna cel mult '+decimal(number(field.max))+' '+(field.dataset.unit || 'buc')+' din acest document.':'');
+    });
+  }
+
   function initialize(root) {
+    $$('.nir-reverse-row',root).forEach(row=>reverseSelection(row));
     $$('[data-nir-registry-search]',root).forEach(form=>{
       const input=$('input[type="search"]',form),clear=$('[data-nir-search-clear]',form);
       if(!input||!clear||form.classList.contains('has-clear-control'))return;
@@ -397,7 +442,7 @@
       clear.addEventListener('click',reset);
       sync();
     });
-    $$('[data-nir-form]',root).forEach(form=>{currencyChanged(form);locationsChanged(form);renumber(form);window.NirFlow?.init(form);});
+    $$('[data-nir-form]',root).forEach(form=>{currencyChanged(form);locationsChanged(form);renumber(form);window.NirFlow?.init(form);window.NirUnsaved?.track(form);});
     const exportForm=$('[data-nir-export-form]',root);if(exportForm)exportDates(exportForm);
     $$('[data-receipt-location-dialog]',root).forEach(dialog=>{
       dialog.addEventListener('cancel',event=>{event.preventDefault();event.stopPropagation();closeLocation(dialog);});
@@ -406,11 +451,40 @@
   }
   function exportDates(form){const block=$('[data-export-dates]',form);if(block){block.hidden=form.elements.period.value!=='custom';$$('input',block).forEach(input=>{input.required=!block.hidden;input.disabled=block.hidden;});}}
 
+  async function copyDocumentNumber(button) {
+    if(button.disabled || !button.dataset.nirCopy)return;
+    button.disabled=true;
+    let copied=false;
+    try {
+      if(navigator.clipboard?.writeText) {
+        try { await navigator.clipboard.writeText(button.dataset.nirCopy);copied=true; } catch { /* Keep the user-initiated fallback available. */ }
+      }
+      if(!copied) {
+        const field=document.createElement('textarea');
+        field.value=button.dataset.nirCopy;field.readOnly=true;
+        field.style.cssText='position:fixed;left:0;top:0;width:1px;height:1px;opacity:0;font-size:16px;';
+        document.body.append(field);
+        try { field.focus({preventScroll:true});field.select();copied=document.execCommand('copy'); } finally { field.remove(); }
+      }
+      if(!copied)throw new Error('Copy failed');
+      button.classList.add('is-copied');
+      toast('Numărul documentului a fost copiat.',1700);
+      setTimeout(()=>button.classList.remove('is-copied'),1700);
+    } catch { toast('Copierea nu a reușit. Poți selecta și copia manual numărul.',4000); }
+    finally { button.disabled=false;button.focus({preventScroll:true}); }
+  }
+
   document.addEventListener('click',event=>{
+    const copy=event.target.closest('[data-nir-copy]');if(copy){event.preventDefault();copyDocumentNumber(copy);return;}
+    const help=event.target.closest('[data-nir-stock-help]');
+    if(help){const dialog=$('[data-nir-stock-help-dialog]');if(dialog?.showModal){stockHelpOpener=help;dialog.showModal();}return;}
+    if(event.target.closest('[data-nir-stock-help-close]')){$('[data-nir-stock-help-dialog]')?.close();stockHelpOpener?.focus({preventScroll:true});return;}
+    const download=event.target.closest('[data-nir-download]');
+    if(download && window.NirExports && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey){event.preventDefault();window.NirExports.download(download.href,download);return;}
     const locationOpen=event.target.closest('[data-receipt-location-open]');if(locationOpen){event.preventDefault();openLocation(locationOpen);return;}
     const locationClose=event.target.closest('[data-receipt-location-close]');if(locationClose){event.preventDefault();closeLocation(locationClose.closest('dialog'));return;}
     const trigger=event.target.closest('[data-nir-modal-open]');if(trigger&&!event.ctrlKey&&!event.metaKey){event.preventDefault();openModal(trigger);return;}
-    const close=event.target.closest('[data-nir-modal-close]');if(close&&$('[data-nir-dialog]')?.open){event.preventDefault();closeModal();return;}
+    const close=event.target.closest('[data-nir-modal-close]');if(close){if($('[data-nir-dialog]')?.open){event.preventDefault();closeModal();return;}const form=close.closest('[data-nir-form]');if(window.NirUnsaved && !window.NirUnsaved.requestClose(form,()=>location.assign(close.href)))event.preventDefault();return;}
     const add=event.target.closest('[data-nir-add-line]');if(add){event.preventDefault();const line=addLine(add.closest('form'));line?.scrollIntoView({behavior:'smooth',block:'start'});$('[data-line-name]',line || document)?.focus({preventScroll:true});return;}
     const remove=event.target.closest('[data-nir-remove-line]');if(remove){event.preventDefault();const form=remove.closest('form');remove.closest('[data-nir-line]').remove();if(!$$('[data-nir-line]',form).length)addLine(form);renumber(form);return;}
     const supplier=event.target.closest('[data-nir-add-supplier]');if(supplier){event.preventDefault();createInline(supplier,'supplier');return;}
@@ -434,6 +508,7 @@
   document.addEventListener('input',event=>{
     const search=event.target.closest('[data-product-search]');if(search){pickerAbort?.abort();clearTimeout(searchTimer);searchTimer=setTimeout(()=>loadProducts(search.closest('form'),search.value),260);return;}
     const form=event.target.closest('[data-nir-form]');if(!form)return;
+    if(event.target.matches('[data-reverse-quantity]'))reverseAlternative(form);
     if(event.target.matches('[data-line-name]'))$('[data-line-title]',event.target.closest('[data-nir-line]')).textContent=event.target.value || 'Produs nou';
     if(/\[(purchase_unit|stock_unit|conversion_factor)\]$/.test(event.target.name || ''))event.target.dataset.manuallyChanged='1';
     if(event.target.closest('[data-nir-line]') || event.target.name==='exchange_rate')preview(form);
@@ -450,19 +525,22 @@
     if(event.target.matches('[data-nir-camera]')){acceptFiles(form,Array.from(event.target.files));event.target.value='';}
     if(event.target.matches('[data-nir-import]'))importLines(event.target);
     if(event.target.matches('[data-export-period]'))exportDates(form);
-    if(event.target.matches('[data-reverse-select]')){const field=$('[data-reverse-quantity]',event.target.closest('.nir-reverse-row'));if(field)field.value=event.target.checked?field.max:'0';}
+    if(event.target.matches('[data-reverse-select]'))reverseSelection(event.target.closest('.nir-reverse-row'),true);
+    if(event.target.matches('[data-reverse-quantity]'))reverseAlternative(form);
     if(event.target.closest('[data-nir-line]'))preview(form);
     if(event.target.name==='vat_in_cost')preview(form);
   });
   document.addEventListener('submit',event=>{
     if(event.target.matches('[data-receipt-location-form]')){event.preventDefault();saveLocation(event.target);return;}
     if(event.target.matches('[data-nir-form]')){event.preventDefault();submitForm(event.target,event.submitter);}
-    if(event.target.matches('[data-nir-export-form]')){const form=event.target;const start=form.elements.from?.value,end=form.elements.to?.value;if(form.elements.period.value==='custom'&&start>end){event.preventDefault();message(form,'Data de început trebuie să fie înainte de data de sfârșit.');return;}const progress=$('[data-export-progress]',form);if(progress)progress.hidden=false;setTimeout(()=>{if(progress)progress.textContent='Exportul a fost solicitat. Descărcarea începe când fișierul este pregătit.';},1500);}
+    if(event.target.matches('[data-nir-export-form]')){const form=event.target;const start=form.elements.from?.value,end=form.elements.to?.value;if(form.elements.period.value==='custom'&&start>end){event.preventDefault();message(form,'Data de început trebuie să fie înainte de data de sfârșit.');return;}if(window.NirExports){event.preventDefault();window.NirExports.fromForm(form);return;}const progress=$('[data-export-progress]',form);if(progress)progress.hidden=false;setTimeout(()=>{if(progress)progress.textContent='Exportul a fost solicitat. Descărcarea începe când fișierul este pregătit.';},1500);}
   });
   document.addEventListener('dragover',event=>{const zone=event.target.closest('[data-nir-dropzone]');if(zone){event.preventDefault();zone.classList.add('is-dragging');}});
   document.addEventListener('dragleave',event=>{event.target.closest('[data-nir-dropzone]')?.classList.remove('is-dragging');});
   document.addEventListener('drop',event=>{const zone=event.target.closest('[data-nir-dropzone]');if(zone){event.preventDefault();zone.classList.remove('is-dragging');acceptFiles(zone.closest('form'),Array.from(event.dataTransfer.files));}});
   $$('[data-nir-dialog]').forEach(dialog=>{dialog.addEventListener('cancel',event=>{event.preventDefault();const panel=$('[data-nir-product-panel]:not([hidden])',dialog);if(panel){closePicker(panel.closest('form'));}else closeModal();});dialog.addEventListener('click',event=>{if(event.target===dialog)closeModal();});});
+  document.addEventListener('nir:download-message',event=>toast(event.detail,6000));
+  $('[data-nir-stock-help-dialog]')?.addEventListener('cancel',event=>{event.preventDefault();event.stopPropagation();event.currentTarget.close();stockHelpOpener?.focus({preventScroll:true});});
   initialize(document);
   try{const feedback=sessionStorage.getItem('nir-feedback');if(feedback){sessionStorage.removeItem('nir-feedback');toast(feedback);}}catch{/* Storage can be unavailable in private browsing. */}
 })();

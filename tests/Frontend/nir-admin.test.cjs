@@ -29,7 +29,7 @@ function deferred(){let resolve,reject;const promise=new Promise((yes,no)=>{reso
 function harness(fetch){
   const document=new Element();document.documentElement=new Element();document.createElement=tag=>new Element(tag);document.addEventListener=()=>{};
   const context=vm.createContext({document,fetch,FormData,DataTransfer,AbortController,URL,Option:function(text,value){const option=new Element('option');option.textContent=text;option.value=value;return option;},setTimeout,clearTimeout,location:{origin:'http://localhost',assign(){}},sessionStorage:{getItem:()=>null},matchMedia:()=>({matches:true})});
-  const source=fs.readFileSync(path.resolve(__dirname,'../../public/assets/js/nir-admin.js'),'utf8').replace(/\}\)\(\);\s*$/, 'globalThis.nirTest={loadProducts,submitForm,importLines,fetchRate,createInline,acceptFiles,locationsChanged,saveLocation,setLocationOwner(owner,opener){locationOwner=owner;locationOpener=opener;}};})();');
+  const source=fs.readFileSync(path.resolve(__dirname,'../../public/assets/js/nir-admin.js'),'utf8').replace(/\}\)\(\);\s*$/, 'globalThis.nirTest={reverseSelection,loadProducts,submitForm,importLines,fetchRate,createInline,acceptFiles,locationsChanged,saveLocation,setLocationOwner(owner,opener){locationOwner=owner;locationOpener=opener;}};})();');
   context.window=context;
   vm.runInContext(source,context);return context.nirTest;
 }
@@ -81,6 +81,14 @@ test('additional file selections retain earlier files and deduplicate the same s
   input.files=[];f.queries['[data-nir-files]']=[input];f.queries['[data-nir-file-list]']=[list];
   const first={name:'catalog.xlsx',size:32*1024*1024,lastModified:1},second={name:'detail.png',size:200,lastModified:2};
   api.acceptFiles(f,[first]);input.files=[second];api.acceptFiles(f,input.files);api.acceptFiles(f,[first]);
+  assert.deepEqual(input.files,[first,second]);assert.equal(list.children.length,2);
+});
+
+test('different files with identical names, sizes and timestamps are never silently dropped',()=>{
+  const api=harness(async()=>{throw new Error('No request expected');}),{f}=form(),input=new Element('input'),list=new Element();
+  input.files=[];f.queries['[data-nir-files]']=[input];f.queries['[data-nir-file-list]']=[list];
+  const first={name:'factura.pdf',size:123,lastModified:1},second={name:'factura.pdf',size:123,lastModified:1};
+  api.acceptFiles(f,[first]);api.acceptFiles(f,[second]);
   assert.deepEqual(input.files,[first,second]);assert.equal(list.children.length,2);
 });
 
@@ -146,4 +154,28 @@ test('catalog response is discarded if supplier changes while searching',async()
   const loading=api.loadProducts(f,'FURN-01');f.elements.supplier_id.value='2';
   pending.resolve(response({items:[{product_name:'Wrong supplier',sku:'SKU'}]}));await loading;
   assert.equal(results.children.length,0);
+});
+
+
+test('return quantities activate only for selected products and preserve a partial quantity when toggled',()=>{
+  const api=harness(async()=>{}),{f}=form(),row=new Element(),toggle=new Element('input'),quantity=new Element('input'),hint=new Element(),summary=new Element();
+  row.parents.form=f;row.queries['[data-reverse-select]']=[toggle];row.queries['[data-reverse-quantity]']=[quantity];row.queries['[data-reverse-hint]']=[hint];
+  f.queries['[data-reverse-select]']=[toggle];f.queries['[data-reverse-summary]']=[summary];
+  quantity.max='2.5000';quantity.value='0';toggle.checked=false;
+  api.reverseSelection(row);assert.equal(quantity.disabled,true);assert.equal(quantity.required,false);
+  toggle.checked=true;api.reverseSelection(row,true);assert.equal(quantity.disabled,false);assert.equal(quantity.required,true);assert.equal(quantity.value,'2.5');assert.equal(quantity.min,'0.0001');assert.equal(summary.textContent,'1 produs selectat');
+  quantity.value='0.75';toggle.checked=false;api.reverseSelection(row,true);assert.equal(quantity.disabled,true);assert.equal(quantity.value,'0');
+  toggle.checked=true;api.reverseSelection(row,true);assert.equal(quantity.value,'0.75');
+  quantity.max='0';api.reverseSelection(row);assert.equal(toggle.disabled,true);assert.equal(toggle.checked,false);assert.equal(quantity.disabled,true);
+});
+
+test('alternative stock needs acknowledgement only beyond the original receipt availability',()=>{
+  const api=harness(async()=>{}),{f}=form(),row=new Element(),toggle=new Element('input'),quantity=new Element('input'),box=new Element(),ack=new Element('input');
+  row.parents.form=f;row.queries['[data-reverse-select]']=[toggle];row.queries['[data-reverse-quantity]']=[quantity];
+  f.queries['[data-reverse-select]']=[toggle];f.queries['[data-reverse-quantity]']=[quantity];f.queries['[data-reverse-alternative]']=[box];box.queries.input=[ack];
+  quantity.max='2';quantity.value='1';quantity.dataset.originalAvailable='1';quantity.dataset.unit='buc';quantity.setCustomValidity=text=>quantity.validationMessage=text;toggle.checked=true;
+  api.reverseSelection(row);assert.equal(box.hidden,true);assert.equal(ack.required,false);
+  quantity.value='2';api.reverseSelection(row);assert.equal(box.hidden,false);assert.equal(ack.required,true);assert.equal(quantity.validationMessage,'');
+  quantity.value='3';api.reverseSelection(row);assert.match(quantity.validationMessage,/cel mult 2 buc/);
+  ack.checked=true;quantity.value='1';api.reverseSelection(row);assert.equal(box.hidden,true);assert.equal(ack.checked,false);assert.equal(quantity.validationMessage,'');
 });

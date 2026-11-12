@@ -1,0 +1,14 @@
+{% import 'admin/partials/nir-ui.twig' as ui %}
+<dialog class="nir-stock-help" data-nir-stock-help-dialog id="nir-stock-help" aria-labelledby="nir-stock-help-title">
+ <header><span>{{ ui.icon('info') }}</span><div><small>Pe scurt</small><h2 id="nir-stock-help-title">Ce poți returna?</h2></div><button type="button" data-nir-stock-help-close aria-label="Închide explicația">{{ ui.icon('close') }}</button></header>
+ <div class="nir-stock-help__body">
+  <p>Poți returna produsele care <strong>mai există în stoc</strong>. Lângă fiecare produs vezi cantitatea rămasă din acest NIR și cantitatea din alte intrări compatibile.</p>
+  <div class="nir-stock-help__example"><span>Un exemplu simplu</span><div><strong>2<small>primite</small></strong><i>−</i><strong>1<small>vândută</small></strong><i>=</i><strong>1<small>rămasă</small></strong></div><p>Ai primit 2 bucăți și ai vândut una. Din acest NIR mai ai o bucată. Dacă mai ai una identică din alt NIR compatibil, poți returna 2, după confirmarea avertismentului.</p></div>
+  <p><strong>Ce înseamnă o intrare compatibilă?</strong><br>Același produs și aceeași variantă, de la același furnizor, la același preț de achiziție, în aceeași gestiune.</p>
+  <p><strong>De ce verificăm aceste cantități?</strong><br>Pentru a evita erorile de contabilitate în gestionarea stocului. O bucată deja vândută sau returnată nu mai poate fi scăzută încă o dată. De aceea, poți returna cel mult cantitatea care mai este disponibilă la același furnizor și preț de achiziție.</p>
+  <div class="nir-stock-help__tip">{{ ui.icon('document') }}<p>NIR-urile originale rămân neschimbate. Returul scade stocul total, iar aplicația păstrează intern de unde au fost scăzute bucățile. Această legătură nu este adăugată pe NIR-uri sau în rapoartele exportate.</p></div>
+  <section class="nir-stock-help__trace"><h3>{{ ui.icon('link') }}Fiecare intrare are propria identitate</h3><p>La achiziție, fiecare intrare a produsului primește un <strong>ID unic de lot</strong>. Acesta păstrează legătura cu furnizorul, factura, NIR-ul, data și prețul de achiziție.</p><p>Un alt NIR înseamnă o intrare nouă, cu alt ID, chiar dacă produsul, furnizorul și prețul sunt identice. Dacă din 2 bucăți primite ai vândut una, o mai poți returna pe cea rămasă din acel NIR.</p><p>La emiterea facturii de vânzare, ieșirea trebuie legată de intrarea din care provin bucățile. Astfel se poate verifica <strong>de unde ai cumpărat, cu cât ai cumpărat și cu cât ai vândut</strong>, pentru corectitudinea documentelor contabile.</p></section>
+  <p class="nir-stock-help__footnote">Disponibilitatea este verificată din nou când apeși „Emite returul”.</p>
+ </div>
+ <footer><button type="button" data-nir-stock-help-close>Am înțeles {{ ui.icon('check') }}</button></footer>
+</dialog>
