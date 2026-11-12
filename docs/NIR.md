@@ -40,17 +40,17 @@ Cantitățile nu pot depăși loturile eligibile rămase în gestiunea recepție
 
 ### Retur de la client
 
-În **Stoc contabil și FIFO** apar retururile care încă necesită recepție contabilă. **Ascunde pentru astăzi** amână afișarea pentru utilizatorul curent; avertizarea reapare la o vizită într-o zi ulterioară până la rezolvare. Acesta este un mesaj în administrare, nu o promisiune de email sau push zilnic.
+În **Evidența stocului** apar retururile care încă necesită recepție contabilă. **Ascunde pentru astăzi** amână afișarea pentru utilizatorul curent; avertizarea reapare la o vizită într-o zi ulterioară până la rezolvare. Acesta este un mesaj în administrare, nu o promisiune de email sau push zilnic.
 
 Recepția cere gestiunea, locația, referința/datele facturii de retur și confirmarea că produsele au fost primite fizic. Reintrarea folosește costurile și consumurile FIFO originale. Schimbarea stării comerciale a comenzii nu creează singură un NIR. Când istoricul nu oferă costuri verificabile, recepția contabilă este blocată cu explicație; nu se inventează loturi cu cost zero.
 
-### Stoc, FIFO și sold inițial
+### Evidența stocului și sold inițial
 
-Pagina FIFO prezintă loturile, consumurile, cantitățile rămase și reconcilierea: **stocul contabil al gestiunii = suma cantităților rămase în loturile sale**. Consumurile care nu au încă loturi suficiente rămân identificate separat și se reconciliază la recepțiile eligibile.
+Pagina Evidența stocului prezintă loturile, consumurile, cantitățile rămase și reconcilierea: **stocul contabil al gestiunii = suma cantităților rămase în loturile sale**. Consumurile care nu au încă loturi suficiente rămân identificate separat și se reconciliază la recepțiile eligibile.
 
 Administratorul poate înregistra un **Sold inițial** pentru un produs urmărit contabil, cu gestiune, dată, cantitate, cost real și explicație. Este o operațiune distinctă, auditată, destinată stocului documentat anterior primei recepții. Nu se folosește pentru a presupune costuri istorice necunoscute.
 
-Referințele furnizorilor pot fi reasociate explicit din pagina FIFO, cu motiv. O asociere existentă nu este înlocuită silențios cu alt produs.
+Referințele furnizorilor pot fi reasociate explicit din pagina Evidența stocului, cu motiv. O asociere existentă nu este înlocuită silențios cu alt produs.
 
 ### Exporturi
 
@@ -70,8 +70,8 @@ Coloanele opționale pe care La Măriuca nu le stochează — de exemplu, unele 
 | Registru și fișă NIR | Da | Da |
 | Costuri, prețuri și fișiere originale | Da | Nu |
 | Creare, editare, confirmare, corectare și retur furnizor | Da | Nu |
-| Exporturi, FIFO, referințe și furnizori inline | Da | Nu |
-| Sold inițial FIFO | Da | Nu |
+| Exporturi, evidența stocului, referințe și furnizori inline | Da | Nu |
+| Sold inițial | Da | Nu |
 
 Acestea sunt rolurile administrative disponibile în autentificarea actuală. Serviciul de domeniu pregătește și permisiuni pentru un rol `manager`, însă acest rol nu este activat prin prezentul modul și nu primește acces nou la administrare.
 
@@ -100,11 +100,13 @@ Facturile de ieșire și emiterea fiscală a facturilor corective rămân module
 
 `NirService::consume()` este punctul de integrare pentru factura de ieșire efectiv emisă. Checkout-ul, plata și simpla schimbare a statusului comenzii nu îl apelează. Legarea definitivă la entitatea viitoare de factură se face în etapa facturilor de ieșire. Stocurile și comenzile istorice nu sunt transformate automat în loturi FIFO cu costuri presupuse.
 
-Schema MySQL este livrată, dar rularea migrării și concurența pe MySQL/InnoDB, Apache/shared hosting și accesul de rețea către BNR trebuie verificate în mediul țintă. Nu au fost validate în această intervenție și nu s-a făcut publicare în producție.
+Schema MySQL este livrată, dar rularea migrării și concurența pe MySQL/InnoDB, Apache/shared hosting și accesul de rețea către BNR trebuie verificate în mediul țintă. Nu s-a făcut publicare în producție. Preluarea BNR a fost verificată separat în rețeaua locală, folosind arhiva oficială `https://curs.bnr.ro/files/xml/years/nbrfxratesAAAA.xml`; acest rezultat nu validează conectivitatea hostingului.
 
 Limitele PHP pentru formularul de 1.000 de poziții și atașamente sunt incluse în `public/.user.ini` pentru PHP-FPM/CGI și în `bin/php-local.ps1` pentru serverul local: `max_input_vars=60000`, `upload_max_filesize=15M`, `post_max_size=512M`, `max_file_uploads=30`. Pe hosting se verifică valorile efectiv aplicate și limita proxy/webserverului, conform checklistului de deployment.
 
 ## Verificări efectuate
+
+Auditul funcțional extins din 12.11.2026, matricea funcțiilor testate, defectele remediate și limitele integrării sunt în **[NIR_QA.md](NIR_QA.md)**. FIFO este exclusiv regula internă de consum; interfața și exporturile folosesc denumiri funcționale, fără numele algoritmului.
 
 Testele locale rulează pe baze SQLite temporare. Suita dedicată documentelor și protecțiilor HTTP a trecut: 19 teste, 121 de aserțiuni. Acoperă formatele și securitatea importurilor/exporturilor, redacția costurilor, versiunile vechi, apartenența și accesul la atașamente, perioadele exportate la limita miezului nopții locale, avertismentele fără JavaScript și reluarea unui retur multipart fără duplicarea documentului sau fișierului.
 
