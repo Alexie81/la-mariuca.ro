@@ -208,22 +208,47 @@
   }
 
   async function loadProducts(form,query='') {
-    const results=$('[data-product-results]',form);if(!results)return;
-    pickerAbort?.abort();pickerAbort=new AbortController();results.innerHTML='<p role="status">Căutăm în catalog…</p>';
-    try{
-      const url=new URL(form.dataset.productUrl,location.origin);url.searchParams.set('q',query);url.searchParams.set('supplier_id',form.elements.supplier_id?.value || '');
-      const data=await json(await fetch(url,{headers:{Accept:'application/json'},signal:pickerAbort.signal}));
-      const products=data.items || data.products || data.results || [];
+    const results=$('[data-product-results]',form), status=$('[data-product-status]',form);
+    if(!results)return;
+    pickerAbort?.abort(); const request=new AbortController(); pickerAbort=request;
+    const supplier=form.elements.supplier_id?.value || '';
+    results.innerHTML='<div class="nir-catalog-empty" role="status">Căutăm în catalog…</div>';
+    results.setAttribute('aria-busy','true');
+    if(status)status.textContent='Căutare în curs…';
+    try {
+      const url=new URL(form.dataset.productUrl,location.origin);url.searchParams.set('q',query);url.searchParams.set('supplier_id',supplier);
+      const data=await json(await fetch(url,{headers:{Accept:'application/json'},signal:request.signal}));
+      if(request.signal.aborted || pickerAbort!==request || supplier!==(form.elements.supplier_id?.value || ''))return;
+      const products=data.items || [];
       results.replaceChildren();
-      if(!products.length){results.innerHTML='<p>Niciun produs găsit. Încearcă numele sau SKU-ul exact.</p>';return;}
-      products.forEach(product=>{const button=document.createElement('button');button.type='button';button.className='nir-product-option';button.setAttribute('role','listitem');const image=product.image_url || '';button.innerHTML=(image?'<img src="'+escape(image)+'" alt="" loading="lazy">':'<i>'+icon+'</i>')+'<span><strong>'+escape(product.product_name || product.name)+'</strong><small>'+escape(product.option_summary || '')+(product.option_summary?' · ':'')+escape(product.sku || product.primary_sku || '')+'</small></span>';button.addEventListener('click',()=>selectProduct(form,product));results.append(button);});
-    }catch(error){if(error.name!=='AbortError')results.innerHTML='<p>'+escape(error.message)+'</p>';}
+      if(status)status.textContent=products.length ? (products[0].search_match==='exact' ? 'Potrivire exactă · ' : '')+products.length+' '+(products.length===1?'variantă disponibilă':'variante disponibile') : 'Niciun rezultat';
+      if(!products.length){results.innerHTML='<div class="nir-catalog-empty"><strong>Nu am găsit produsul</strong>Încearcă alt nume sau verifică exact codul introdus.</div>';return;}
+      products.forEach(product=>{
+        const button=document.createElement('button');button.type='button';button.className='nir-catalog-option';
+        const image=product.image_url || '';
+        button.innerHTML=(image?'<img src="'+escape(image)+'" alt="" loading="lazy">':'<i>'+icon+'</i>')+
+          '<span class="nir-catalog-copy"><strong>'+escape(product.product_name || product.name)+'</strong><small>'+escape(product.option_summary || 'Variantă standard')+'</small><span class="nir-catalog-code">'+escape(product.sku || product.primary_sku || 'Fără SKU')+'</span></span><span class="nir-catalog-arrow" aria-hidden="true">›</span>';
+        button.addEventListener('click',()=>selectProduct(form,product));results.append(button);
+      });
+    }catch(error){if(!request.signal.aborted && pickerAbort===request){results.innerHTML='<div class="nir-catalog-empty" role="alert"><strong>Căutarea nu a reușit</strong>'+escape(error.message)+'</div>';if(status)status.textContent='Încearcă din nou';}}
+    finally{if(pickerAbort===request)results.removeAttribute('aria-busy');}
   }
 
+  function openPicker(button) {
+    const form=button.closest('form'); pickerLine=button.closest('[data-nir-line]');
+    const panel=$('[data-nir-product-panel]',form); panel.hidden=false;
+    Array.from(form.children).forEach(child=>{if(child!==panel && !child.inert){child.inert=true;child.dataset.pickerInert='1';}});
+    const search=$('[data-product-search]',form);search.value=lineValue(pickerLine,'supplier_name');search.focus();loadProducts(form,search.value);
+  }
+  function closePicker(form) {
+    clearTimeout(searchTimer);pickerAbort?.abort();
+    const panel=$('[data-nir-product-panel]',form);if(panel)panel.hidden=true;
+    $$('[data-picker-inert]',form).forEach(child=>{child.inert=false;delete child.dataset.pickerInert;});
+    $('[data-nir-product-picker]',pickerLine || form)?.focus();pickerLine=null;
+  }
   function selectProduct(form,product) {
     const line=pickerLine;if(!line)return;
-    applyProduct(line,product);
-    $('[data-nir-product-panel]',form).hidden=true;preview(form);$('[data-nir-product-picker]',line).focus();pickerLine=null;
+    applyProduct(line,product);preview(form);closePicker(form);
   }
 
   function applyProduct(line,product) {
@@ -377,16 +402,27 @@
     const trigger=event.target.closest('[data-nir-modal-open]');if(trigger&&!event.ctrlKey&&!event.metaKey){event.preventDefault();openModal(trigger);return;}
     const close=event.target.closest('[data-nir-modal-close]');if(close&&$('[data-nir-dialog]')?.open){event.preventDefault();closeModal();return;}
     const add=event.target.closest('[data-nir-add-line]');if(add){event.preventDefault();const line=addLine(add.closest('form'));line?.scrollIntoView({behavior:'smooth',block:'start'});$('[data-line-name]',line || document)?.focus({preventScroll:true});return;}
-    const remove=event.target.closest('[data-nir-remove-line]');if(remove){const form=remove.closest('form');remove.closest('[data-nir-line]').remove();if(!$$('[data-nir-line]',form).length)addLine(form);renumber(form);return;}
+    const remove=event.target.closest('[data-nir-remove-line]');if(remove){event.preventDefault();const form=remove.closest('form');remove.closest('[data-nir-line]').remove();if(!$$('[data-nir-line]',form).length)addLine(form);renumber(form);return;}
     const supplier=event.target.closest('[data-nir-add-supplier]');if(supplier){event.preventDefault();createInline(supplier,'supplier');return;}
     const newLocation=event.target.closest('[data-nir-add-location]');if(newLocation){event.preventDefault();createInline(newLocation,'location');return;}
-    const picker=event.target.closest('[data-nir-product-picker]');if(picker){const form=picker.closest('form');pickerLine=picker.closest('[data-nir-line]');const panel=$('[data-nir-product-panel]',form);panel.hidden=false;const search=$('[data-product-search]',form);search.value=lineValue(pickerLine,'supplier_name');search.focus();loadProducts(form,search.value);return;}
-    const pickerClose=event.target.closest('[data-product-close]');if(pickerClose){const form=pickerClose.closest('form');$('[data-nir-product-panel]',form).hidden=true;$('[data-nir-product-picker]',pickerLine || form)?.focus();pickerLine=null;pickerAbort?.abort();return;}
+    const picker=event.target.closest('[data-nir-product-picker]');if(picker){openPicker(picker);return;}
+    const pickerClose=event.target.closest('[data-product-close]');if(pickerClose){closePicker(pickerClose.closest('form'));return;}
     const removeFile=event.target.closest('[data-remove-file]');if(removeFile){const form=removeFile.closest('form'),input=$('[data-nir-files]',form),transfer=new DataTransfer();Array.from(input.files).filter((_,index)=>index!==Number(removeFile.dataset.removeFile)).forEach(file=>transfer.items.add(file));input.files=transfer.files;selectedFiles.set(input,Array.from(input.files));fileList(form);return;}
     const rateButton=event.target.closest('[data-nir-fetch-rate]');if(rateButton)fetchRate(rateButton);
   });
+  document.addEventListener('keydown',event=>{
+    const panel=event.target.closest('[data-nir-product-panel]');if(!panel || panel.hidden)return;
+    if(event.key==='Escape'){event.preventDefault();event.stopPropagation();closePicker(panel.closest('form'));return;}
+    // Searching must not submit the underlying NIR form.
+    if(event.key==='Enter' && event.target.matches('[data-product-search]')){event.preventDefault();clearTimeout(searchTimer);loadProducts(panel.closest('form'),event.target.value);return;}
+    if(event.key==='Tab'){
+      const focusable=$$('button:not([disabled]),input',panel),first=focusable[0],last=focusable[focusable.length-1];
+      if(event.shiftKey && event.target===first){event.preventDefault();last?.focus();}
+      else if(!event.shiftKey && event.target===last){event.preventDefault();first?.focus();}
+    }
+  });
   document.addEventListener('input',event=>{
-    const search=event.target.closest('[data-product-search]');if(search){clearTimeout(searchTimer);searchTimer=setTimeout(()=>loadProducts(search.closest('form'),search.value),260);return;}
+    const search=event.target.closest('[data-product-search]');if(search){pickerAbort?.abort();clearTimeout(searchTimer);searchTimer=setTimeout(()=>loadProducts(search.closest('form'),search.value),260);return;}
     const form=event.target.closest('[data-nir-form]');if(!form)return;
     if(event.target.matches('[data-line-name]'))$('[data-line-title]',event.target.closest('[data-nir-line]')).textContent=event.target.value || 'Produs nou';
     if(/\[(purchase_unit|stock_unit|conversion_factor)\]$/.test(event.target.name || ''))event.target.dataset.manuallyChanged='1';
@@ -416,7 +452,7 @@
   document.addEventListener('dragover',event=>{const zone=event.target.closest('[data-nir-dropzone]');if(zone){event.preventDefault();zone.classList.add('is-dragging');}});
   document.addEventListener('dragleave',event=>{event.target.closest('[data-nir-dropzone]')?.classList.remove('is-dragging');});
   document.addEventListener('drop',event=>{const zone=event.target.closest('[data-nir-dropzone]');if(zone){event.preventDefault();zone.classList.remove('is-dragging');acceptFiles(zone.closest('form'),Array.from(event.dataTransfer.files));}});
-  $$('[data-nir-dialog]').forEach(dialog=>{dialog.addEventListener('cancel',event=>{event.preventDefault();const panel=$('[data-nir-product-panel]:not([hidden])',dialog);if(panel){panel.hidden=true;pickerLine=null;}else closeModal();});dialog.addEventListener('click',event=>{if(event.target===dialog)closeModal();});});
+  $$('[data-nir-dialog]').forEach(dialog=>{dialog.addEventListener('cancel',event=>{event.preventDefault();const panel=$('[data-nir-product-panel]:not([hidden])',dialog);if(panel){closePicker(panel.closest('form'));}else closeModal();});dialog.addEventListener('click',event=>{if(event.target===dialog)closeModal();});});
   initialize(document);
   try{const feedback=sessionStorage.getItem('nir-feedback');if(feedback){sessionStorage.removeItem('nir-feedback');toast(feedback);}}catch{/* Storage can be unavailable in private browsing. */}
 })();

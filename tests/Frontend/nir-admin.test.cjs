@@ -29,7 +29,7 @@ function deferred(){let resolve,reject;const promise=new Promise((yes,no)=>{reso
 function harness(fetch){
   const document=new Element();document.documentElement=new Element();document.createElement=tag=>new Element(tag);document.addEventListener=()=>{};
   const context=vm.createContext({document,fetch,FormData,DataTransfer,AbortController,URL,Option:function(text,value){const option=new Element('option');option.textContent=text;option.value=value;return option;},setTimeout,clearTimeout,location:{origin:'http://localhost',assign(){}},sessionStorage:{getItem:()=>null},matchMedia:()=>({matches:true})});
-  const source=fs.readFileSync(path.resolve(__dirname,'../../public/assets/js/nir-admin.js'),'utf8').replace(/\}\)\(\);\s*$/, 'globalThis.nirTest={submitForm,importLines,fetchRate,createInline,acceptFiles,locationsChanged,saveLocation,setLocationOwner(owner,opener){locationOwner=owner;locationOpener=opener;}};})();');
+  const source=fs.readFileSync(path.resolve(__dirname,'../../public/assets/js/nir-admin.js'),'utf8').replace(/\}\)\(\);\s*$/, 'globalThis.nirTest={loadProducts,submitForm,importLines,fetchRate,createInline,acceptFiles,locationsChanged,saveLocation,setLocationOwner(owner,opener){locationOwner=owner;locationOpener=opener;}};})();');
   context.window=context;
   vm.runInContext(source,context);return context.nirTest;
 }
@@ -126,4 +126,24 @@ test('location validation failure leaves both forms and the selected location in
   const {f:owner}=form({_csrf:'token',warehouse_id:'1',invoice_number:'Date păstrate'});owner.dataset.locationUrl='/location';owner.elements.location_id=new Element('select');owner.elements.location_id.value='7';
   const {f:location,errors,submit}=form({name:'Sediu'}),dialog=new Element('dialog');dialog.open=true;location.parents.dialog=dialog;location.queries.button=[submit];api.setLocationOwner(owner,new Element('button'));
   await api.saveLocation(location);assert.equal(dialog.open,true);assert.equal(owner.elements.location_id.value,'7');assert.equal(location.elements.name.value,'Sediu');assert.equal(errors.hidden,false);assert.equal(submit.disabled,false);
+});
+
+
+test('a late catalog response cannot replace the newest query results',async()=>{
+  const older=deferred(),newer=deferred();let count=0;
+  const api=harness(()=>++count===1?older.promise:newer.promise),{f}=form({supplier_id:'1'}),results=new Element(),status=new Element();
+  f.dataset.productUrl='/products';f.queries['[data-product-results]']=[results];f.queries['[data-product-status]']=[status];
+  const first=api.loadProducts(f,'cardigan'),second=api.loadProducts(f,'LM-01');
+  newer.resolve(response({items:[{product_name:'Produs exact',sku:'LM-01',search_match:'exact'}]}));await second;
+  older.resolve(response({items:[{product_name:'Rezultat vechi',sku:'OLD'},{product_name:'Alt rezultat',sku:'OLD-2'}]}));await first;
+  assert.equal(results.children.length,1);assert.match(results.children[0].innerHTML,/Produs exact/);
+  assert.match(status.textContent,/Potrivire exactă/);
+});
+
+test('catalog response is discarded if supplier changes while searching',async()=>{
+  const pending=deferred(),api=harness(()=>pending.promise),{f}=form({supplier_id:'1'}),results=new Element();
+  f.dataset.productUrl='/products';f.queries['[data-product-results]']=[results];
+  const loading=api.loadProducts(f,'FURN-01');f.elements.supplier_id.value='2';
+  pending.resolve(response({items:[{product_name:'Wrong supplier',sku:'SKU'}]}));await loading;
+  assert.equal(results.children.length,0);
 });

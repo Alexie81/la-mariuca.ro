@@ -119,6 +119,62 @@ final class NirAdminHttpTest extends DatabaseTestCase
         }
     }
 
+    public function testSaveConfirmEndpointRequiresPermissionAndRejectsIncompleteWithoutPersistence(): void
+    {
+        $form=$this->request('GET','/admin/nir-uri/nou/modal/');
+        self::assertStringContainsString('Salvează și confirmă',(string)$form->getBody());
+        self::assertStringContainsString('Salvează draft',(string)$form->getBody());
+        self::assertStringNotContainsString('Salvează în lucru',(string)$form->getBody());
+        $response=$this->request('POST','/admin/nir-uri/nou/',['_csrf'=>$_SESSION['_csrf'],'intent'=>'save_confirm','idempotency_key'=>'incomplete-http'],true);
+        self::assertSame(422,$response->getStatusCode(),(string)$response->getBody());
+        self::assertSame(0,(int)$this->pdo->query('SELECT COUNT(*) FROM nir_documents')->fetchColumn());
+        $_SESSION['user_id']=$this->operatorId;
+        self::assertSame(403,$this->request('POST','/admin/nir-uri/nou/',['_csrf'=>$_SESSION['_csrf'],'intent'=>'save_confirm','idempotency_key'=>'operator-http'],true)->getStatusCode());
+    }
+
+    public function testRegistryShowsIncompleteDraftWithResumeActionAndShortNumber(): void
+    {
+        $service=new NirService($this->pdo); $actor=['id'=>$this->adminId,'role'=>'administrator'];
+        $draft=$service->save(null,$service->defaults($actor)['values'],$actor);
+        $response=$this->request('GET','/admin/nir-uri/'); $html=(string)$response->getBody();
+        self::assertSame(200,$response->getStatusCode());
+        self::assertStringContainsString('Draft · incomplet',$html); self::assertStringContainsString('Reia completarea',$html);
+        self::assertStringContainsString('Draft #1',$html); self::assertStringContainsString('/admin/nir-uri/'.$draft['id'].'/editare/',$html);
+        self::assertStringNotContainsString($draft['temp_number'],$html);
+        $found=$service->registry(['search'=>'Draft #1'],$actor);
+        self::assertSame([$draft['id']],array_column($found['items'],'id'));
+        self::assertSame(0,$service->registry(['search'=>'Draft #2'],$actor)['total']);
+    }
+
+    public function testDirectConfirmationIsIdempotentAndProductLinksStayPublic(): void
+    {
+        $service=new NirService($this->pdo); $actor=['id'=>$this->adminId,'role'=>'administrator'];
+        $values=$service->defaults($actor)['values'];
+        $values['supplier_id']=(new SupplierAdminService($this->pdo))->save(['alias'=>'Direct HTTP','company_name'=>'Direct HTTP SRL']);
+        $values['invoice_number']='DIRECT-HTTP';
+        $variant=$this->pdo->query("SELECT v.id,v.product_id,p.slug FROM product_variants v JOIN products p ON p.id=v.product_id WHERE p.track_in_conta=1 AND p.status='published' LIMIT 1")->fetch();
+        $values['lines']=[['product_id'=>$variant['product_id'],'variant_id'=>$variant['id'],'supplier_name'=>'Produs HTTP','invoice_quantity'=>'2','received_quantity'=>'2','accepted_quantity'=>'2','rejected_quantity'=>'0','unit_price'=>'10','vat_percent'=>'21','conversion_factor'=>'1','purchase_unit'=>'buc','stock_unit'=>'buc','price_mode'=>'unit']];
+        $body=['_csrf'=>$_SESSION['_csrf'],'intent'=>'save_confirm','idempotency_key'=>'direct-http-confirm','accept_warnings'=>'1']+$values;
+        $response=$this->request('POST','/admin/nir-uri/nou/',$body,true);
+        self::assertSame(200,$response->getStatusCode(),(string)$response->getBody());
+        $doc=json_decode((string)$response->getBody(),true,512,JSON_THROW_ON_ERROR)['document'];
+        self::assertSame('confirmed',$doc['status']);
+        self::assertStringEndsWith('-1',$doc['number']);
+        self::assertSame(1,(int)$this->pdo->query('SELECT next_number FROM nir_draft_sequence WHERE id=1')->fetchColumn());
+        $retry=$this->request('POST','/admin/nir-uri/nou/',$body,true);
+        self::assertSame(200,$retry->getStatusCode(),(string)$retry->getBody());
+        self::assertSame($doc['id'],json_decode((string)$retry->getBody(),true,512,JSON_THROW_ON_ERROR)['document']['id']);
+        self::assertSame(1,(int)$this->pdo->query('SELECT COUNT(*) FROM nir_documents')->fetchColumn());
+        self::assertSame(1,(int)$this->pdo->query('SELECT COUNT(*) FROM nir_stock_movements')->fetchColumn());
+        $detail=$this->request('GET','/admin/nir-uri/'.$doc['id'].'/');
+        self::assertSame(200,$detail->getStatusCode(),(string)$detail->getBody());
+        self::assertStringContainsString('href="/produs/'.$variant['slug'].'/" target="_blank" rel="noopener"',(string)$detail->getBody());
+        self::assertStringContainsString('Vezi produsul',(string)$detail->getBody());
+        self::assertStringContainsString('data-nir-lightbox',(string)$detail->getBody());
+        $this->pdo->prepare("UPDATE products SET status='draft' WHERE id=?")->execute([$variant['product_id']]);
+        self::assertStringNotContainsString('Vezi produsul',(string)$this->request('GET','/admin/nir-uri/'.$doc['id'].'/')->getBody());
+    }
+
     /** @param array<string,mixed> $body */
     private function request(string $method,string $path,array $body=[],bool $json=false): ResponseInterface
     {

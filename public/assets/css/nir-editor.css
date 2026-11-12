@@ -1,0 +1,152 @@
+/* NIR editor: approved plum/rose palette, compact catalog and readable numbers. */
+.nir-admin .nir-table-money,.nir-admin .nir-stats strong,.nir-admin .nir-table td[data-label="Total"] strong,
+.nir-editor input[inputmode="decimal"],.nir-editor .nir-line-total strong,.nir-editor .nir-form-summary strong{
+ font-family:"Nunito Sans",Arial,sans-serif;font-variant-numeric:tabular-nums lining-nums;font-weight:650;letter-spacing:-.025em
+}
+.nir-admin .nir-table-money{font-size:21px;color:#443048;line-height:1.45;white-space:nowrap}
+.nir-admin .nir-table-money>span{font-family:inherit;font-size:12px;font-weight:600;letter-spacing:.03em;color:#857488;margin-left:4px}
+.nir-admin .nir-stats strong{font-size:34px}
+.nir-row-incomplete{background:linear-gradient(90deg,#fff7f7,#fff 48%)}
+.nir-row-incomplete td:first-child{box-shadow:inset 3px 0 #d95b70}
+.nir-draft-incomplete{display:inline-flex;align-items:center;gap:7px;padding:8px 11px;background:#fff0f1;border:1px solid #f4c7ce;border-radius:10px;color:#b83750;font-size:13px;font-weight:700;white-space:nowrap}
+.nir-draft-incomplete svg{width:16px;height:16px;flex:none}
+.nir-table .nir-draft-hint{color:#9e6571;font-size:12px;margin-top:5px}
+.nir-admin .nir-resume{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:11px 13px;border-radius:12px;background:#f9ecf2;border:1px solid #edcfdf;color:#8c355e;font-size:13px;font-weight:700;min-height:44px;text-decoration:none;transition:background .18s,box-shadow .18s}
+.nir-admin .nir-resume:hover{background:#f4dce8;box-shadow:0 4px 14px #672b5010}
+.nir-resume svg{width:16px;height:16px;flex:none}
+.nir-editor .nir-form__footer>.nir-button--confirm-save{background:#278267;border:1px solid #278267;color:#fff;box-shadow:0 5px 16px #22775f20;font-size:14px;white-space:nowrap}
+.nir-editor .nir-form__footer>.nir-button--confirm-save:hover{background:#206e57;border-color:#206e57;box-shadow:0 7px 20px #22775f28}
+.nir-editor.is-guided[data-flow-current="4"] .nir-form__footer>button[value="save"]{background:#fff;border:1px solid #ded4df;box-shadow:none;color:#654b6a;font-size:14px}
+.nir-editor.is-guided:not([data-flow-current="4"]) [data-flow-confirm],.nir-editor [data-flow-confirm][hidden]{display:none!important}
+.nir-editor .nir-line-collapsible{padding:0;overflow:visible;border:1px solid #e7dbe6;border-radius:18px;box-shadow:0 5px 18px #4d224404;background:#fff}
+.nir-editor .nir-line-collapsible>.nir-line__head{display:flex;list-style:none;align-items:center;gap:12px;cursor:pointer;background:linear-gradient(110deg,#faf4f8,#fcfbfd);border-radius:17px;min-height:76px;border-bottom:1px solid transparent;margin:0;padding:15px 18px;transition:background .2s,border-color .2s}
+.nir-editor .nir-line-collapsible[open]>.nir-line__head{border-radius:17px 17px 0 0;border-bottom-color:#eee3ed}
+.nir-line-collapsible>.nir-line__head::-webkit-details-marker{display:none}
+.nir-editor .nir-line__head:hover{background:#f5eaf2}
+.nir-editor .nir-line__head:focus-visible{outline:2px solid #a34475;outline-offset:3px}
+.nir-editor .nir-line__head>div{flex:1;min-width:0}
+.nir-editor .nir-line__head h4{color:#48304f;font-weight:700;font-size:16px;line-height:1.4;overflow-wrap:anywhere}
+.nir-editor .nir-line__number{background:#f0e1ed;color:#884471;border:1px solid #e4cfe0;border-radius:11px;min-width:34px;width:34px;height:36px;font-weight:700;font-family:"Nunito Sans",Arial,sans-serif}
+.nir-line-chevron{width:26px;height:26px;display:grid;place-items:center;flex:none;color:#975c83;transition:transform .29s}
+.nir-line-chevron svg{width:18px;height:18px}
+.nir-line-collapsible[open]:not([data-disclosure-closing])>.nir-line__head>.nir-line-chevron{transform:rotate(90deg)}
+.nir-editor .nir-line-collapsible>.nir-disclosure-body{padding:18px}
+.nir-editor .nir-line-details{margin:17px 0;border:1px solid #dfd3eb;background:#faf7fd;border-radius:14px;padding:0;overflow:visible}
+.nir-editor .nir-line-details>summary{display:flex;list-style:none;align-items:center;gap:12px;padding:14px;cursor:pointer;color:#644077;min-height:68px;margin:0;border-radius:13px;transition:background .2s}
+.nir-editor .nir-line-details>summary:hover{background:#f2eafa}
+.nir-editor .nir-line-details>summary::-webkit-details-marker{display:none}
+.nir-editor .nir-line-details>summary:focus-visible{outline:2px solid #a27bb4;outline-offset:3px}
+.nir-unit-icon{width:38px;height:38px;flex:none;display:grid;place-items:center;background:#ede3f4;border:1px solid #e0d1eb;border-radius:11px}
+.nir-unit-icon svg{width:20px;height:20px}
+.nir-unit-copy{display:grid;gap:4px;flex:1;min-width:0}
+.nir-unit-copy strong{font:650 14px/1.4 "Nunito Sans",Arial,sans-serif;color:#62436e}
+.nir-unit-copy small{font-size:12px;line-height:1.5;color:#8c7898}
+.nir-unit-arrow{display:grid;place-items:center;flex:none;transition:transform .29s}
+.nir-unit-arrow svg{width:17px;height:17px}
+.nir-line-details[open]:not([data-disclosure-closing])>summary .nir-unit-arrow{transform:rotate(90deg)}
+.nir-editor .nir-line-details>.nir-disclosure-body{padding:0 16px 16px}
+.nir-catalog-picker[hidden]{display:none!important}
+.nir-catalog-picker{position:absolute;inset:0;z-index:15;display:flex;align-items:center;justify-content:center;padding:22px;background:#40314430;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);border-radius:inherit}
+.nir-catalog-dialog{display:flex;flex-direction:column;width:min(860px,100%);max-height:100%;min-height:0;background:#fff;border:1px solid #eddfeb;border-radius:25px;box-shadow:0 24px 80px #3a1b4540;overflow:hidden;animation:nir-catalog-enter .22s ease-out}
+.nir-catalog-header{display:flex;align-items:center;gap:14px;padding:23px 24px;background:linear-gradient(115deg,#f8eef5,#fff9f7);border-bottom:1px solid #eee0eb;flex:none}
+.nir-catalog-header>div{flex:1;min-width:0}
+.nir-catalog-mark{width:48px;height:48px;display:grid;place-items:center;flex:none;border-radius:15px;background:linear-gradient(135deg,#8a466f,#633b65);box-shadow:0 6px 15px #632f611e;color:#fff}
+.nir-catalog-mark svg{width:24px;height:24px}
+.nir-catalog-header h3{font-family:"Nunito Sans",Arial,sans-serif;font-size:25px;font-weight:650;letter-spacing:-.04em;line-height:1.25;margin:4px 0 5px;color:#49314f}
+.nir-catalog-header p{font-size:13px;line-height:1.5;margin:0;color:#88728b}
+.nir-catalog-header .nir-eyebrow{color:#a54f7b;font-size:11px;font-weight:700;letter-spacing:.1em}
+.nir-catalog-header .nir-close{width:38px;height:38px;flex:none;margin-left:auto;background:#ffffffa0;border:1px solid #e8dbe6;color:#875c7c}
+.nir-catalog-toolbar{padding:20px 22px 13px;flex:none}
+.nir-catalog-search{display:flex;gap:11px;align-items:center;background:#fff;border:1px solid #dbc9d9;border-radius:14px;min-height:54px;padding:0 14px;box-shadow:0 3px 10px #56325004;transition:border .2s,box-shadow .2s}
+.nir-catalog-search:focus-within{border-color:#b56b96;box-shadow:0 0 0 4px #a24c7e0c}
+.nir-catalog-search>svg{width:21px;height:21px;color:#9e5b87;flex:none}
+.nir-form .nir-catalog-search input{width:100%;flex:1;min-width:0;padding:14px 0;border:0!important;box-shadow:none!important;outline:0;background:transparent!important;color:#4d3a54;font:400 15px/1.5 "Nunito Sans",Arial,sans-serif}
+.nir-catalog-search input::placeholder{color:#9e91a1}
+.nir-catalog-key{color:#a48ca3;font-size:11px;background:#f8f3f7;border:1px solid #eee6ed;border-radius:6px;padding:3px 7px}
+.nir-catalog-context{display:flex;justify-content:space-between;align-items:center;gap:10px;padding-top:12px;font-size:13px;line-height:1.5;color:#7b5a7c}
+.nir-catalog-context>span{font-weight:650}
+.nir-catalog-context small{display:flex;align-items:center;gap:5px;font-size:12px;color:#9c8c9f}
+.nir-catalog-context svg{width:14px;height:14px}
+.nir-catalog-results{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-content:start;gap:10px;overflow-y:auto;overscroll-behavior:contain;min-height:0;max-height:46dvh;padding:4px 22px 20px;scrollbar-width:thin;scrollbar-color:#c5a6bf transparent}
+.nir-catalog-results:has(>.nir-catalog-option:only-child){grid-template-columns:1fr}
+.nir-form .nir-catalog-option{appearance:none;display:flex;align-items:center;gap:13px;width:100%;min-width:0;text-align:left;padding:12px;border:1px solid #e9dfe7;border-radius:16px;background:#fff;color:#4c354f;font-family:"Nunito Sans",Arial,sans-serif;cursor:pointer;box-shadow:0 3px 8px #4d224403;transition:border-color .18s,box-shadow .18s,background .18s}
+.nir-form .nir-catalog-option::before,.nir-form .nir-catalog-option::after{display:none}
+.nir-form .nir-catalog-option:hover,.nir-form .nir-catalog-option:focus-visible{border-color:#bb82a4;background:#fdf8fc;box-shadow:0 5px 16px #78436613;outline:none}
+.nir-catalog-option>img,.nir-catalog-option>i{width:64px;height:76px;flex:none;object-fit:cover;border-radius:11px;background:#f5eef4;border:1px solid #eee4ec}
+.nir-catalog-option>i{display:grid;place-items:center;color:#b38da8}
+.nir-catalog-option>i svg{width:25px;height:25px}
+.nir-catalog-copy{display:grid;gap:6px;min-width:0;flex:1}
+.nir-catalog-copy strong{font-family:inherit;font-size:15px;font-weight:700;line-height:1.4;color:#4c354f;overflow-wrap:anywhere}
+.nir-catalog-copy small{font-size:12px;line-height:1.4;color:#8c788e;overflow-wrap:anywhere}
+.nir-catalog-code{justify-self:start;font-size:11px;font-weight:600;line-height:1.5;padding:3px 7px;border-radius:6px;background:#f7f3f7;color:#806284;border:1px solid #eee4ec;overflow-wrap:anywhere;max-width:100%}
+.nir-catalog-arrow{display:grid;place-items:center;width:26px;height:26px;flex:none;border-radius:50%;background:#f6edf3;color:#a26b90;font-size:20px;font-family:Arial,sans-serif}
+.nir-catalog-empty{grid-column:1/-1;padding:28px 20px;text-align:center;background:#fcf9fc;border:1px dashed #ddcbdc;border-radius:16px;color:#947d95;font-size:14px;line-height:1.6}
+.nir-catalog-empty strong{display:block;font-size:17px;color:#63466c;margin-bottom:5px}
+.nir-catalog-footer{flex:none;display:flex;align-items:flex-start;gap:9px;background:#faf7fa;border-top:1px solid #eee4ec;padding:14px 22px;color:#957e98;font-size:12px;line-height:1.6}
+.nir-catalog-footer svg{width:16px;height:16px;margin-top:2px;flex:none}
+@keyframes nir-catalog-enter{from{opacity:0;transform:translateY(9px) scale(.985)}to{opacity:1;transform:none}}
+@media(max-width:700px){
+ .nir-editor .nir-form__footer{flex-wrap:wrap}
+ .nir-editor.is-guided[data-flow-current="4"] .nir-form__footer{display:grid;grid-template-columns:36px minmax(0,1fr) minmax(0,.8fr);gap:7px}
+ .nir-editor.is-guided[data-flow-current="4"] .nir-form__footer>button[type=submit]{margin:0;font-size:12px;padding:10px 7px;min-height:46px;white-space:normal;line-height:1.4}
+ .nir-editor .nir-line-collapsible>.nir-disclosure-body{padding:13px}
+ .nir-editor .nir-line-collapsible>.nir-line__head{padding:13px 12px;gap:9px}
+ .nir-editor .nir-line__head h4{font-size:15px}
+ .nir-editor .nir-line__head p{font-size:12px;overflow-wrap:anywhere}
+ .nir-editor .nir-line__head .nir-icon-button{width:34px;height:38px;flex:none;min-height:38px}
+ .nir-editor .nir-line__number{width:29px;min-width:29px;height:32px}
+ .nir-line-chevron{width:19px}
+ .nir-unit-copy strong{font-size:13px}
+ .nir-unit-copy small{font-size:12px}
+ .nir-editor .nir-line-details>summary{padding:12px;gap:10px}
+ .nir-unit-icon{width:32px;height:36px}
+ .nir-editor .nir-line-details>.nir-disclosure-body{padding:0 12px 12px}
+ .nir-catalog-picker{padding:10px}
+ .nir-catalog-dialog{border-radius:20px}
+ .nir-catalog-header{padding:17px 15px;gap:11px;align-items:flex-start}
+ .nir-catalog-mark{width:37px;height:40px;border-radius:12px}
+ .nir-catalog-header h3{font-size:21px;margin:5px 0}
+ .nir-catalog-header p{font-size:12px}
+ .nir-catalog-header .nir-close{width:33px;height:33px}
+ .nir-catalog-toolbar{padding:15px 13px 10px}
+ .nir-catalog-key{display:none}
+ .nir-catalog-search{padding:0 11px;gap:9px}
+ .nir-form .nir-catalog-search input{font-size:14px}
+ .nir-catalog-context{flex-wrap:wrap;gap:4px}
+ .nir-catalog-results{grid-template-columns:1fr;gap:9px;padding:4px 13px 15px;max-height:44dvh}
+ .nir-form .nir-catalog-option{padding:10px;gap:11px;border-radius:13px}
+ .nir-catalog-copy strong{font-size:14px}
+ .nir-catalog-option>img,.nir-catalog-option>i{width:57px;height:68px}
+ .nir-catalog-footer{padding:12px 14px;font-size:12px}
+ .nir-catalog-arrow{width:23px;height:23px}
+ .nir-admin .nir-table-money{font-size:23px}
+ .nir-row-incomplete td:first-child{box-shadow:none}
+ .nir-row-incomplete{border-color:#f1c9d1!important}
+ .nir-admin .nir-resume{width:100%}
+}
+@media(prefers-reduced-motion:reduce){.nir-catalog-dialog{animation:none}.nir-line-chevron,.nir-unit-arrow{transition:none}}
+.nir-workspace .nir-image-zoom{position:relative;display:block;overflow:hidden;cursor:zoom-in;transition:box-shadow .2s,transform .2s}
+.nir-workspace .nir-image-zoom:hover{transform:translateY(-2px);box-shadow:0 6px 18px #62365725}
+.nir-image-zoom>span{position:absolute;right:4px;bottom:4px;width:25px;height:25px;display:grid;place-items:center;background:#fffffff0;backdrop-filter:blur(8px);border:1px solid #ffffffc0;border-radius:8px;box-shadow:0 2px 7px #63405e20;color:#935f83}
+.nir-image-zoom>span svg{width:15px;height:15px}
+.nir-item__main .nir-view-product{display:inline-flex;align-items:center;gap:5px;margin-left:12px;color:#92537b;font-size:12px;font-weight:650;padding:4px 7px;border:1px solid #eadbe6;border-radius:7px;transition:background .2s;text-decoration:none;vertical-align:middle;min-height:30px}
+.nir-view-product:hover{background:#f9edf5}
+.nir-view-product svg{width:13px;height:13px}
+.has-nir-image{overflow:hidden}
+.nir-lightbox{border:0;padding:18px;margin:auto;width:min(1060px,96vw);max-width:96vw;max-height:96dvh;background:transparent;overflow:visible;outline:none}
+.nir-lightbox::backdrop{background:#faf6fa45;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.nir-lightbox[open]{animation:nir-catalog-enter .28s cubic-bezier(.2,.75,.25,1)}
+.nir-lightbox.is-closing{animation:nir-image-out .21s ease-in forwards}
+.nir-lightbox figure{position:relative;display:flex;align-items:center;justify-content:center;width:fit-content;max-width:100%;margin:0 auto;padding:0}
+.nir-lightbox img{display:block;width:auto;height:auto;max-width:100%;max-height:calc(96dvh - 36px);object-fit:contain;border-radius:22px;box-shadow:0 20px 70px #513d4e25}
+.nir-lightbox figcaption{position:absolute;bottom:17px;left:50%;transform:translateX(-50%);padding:12px 21px;max-width:calc(100% - 30px);border:1px solid #ffffffcc;border-radius:999px;background:#ffffffb8;backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);box-shadow:0 5px 22px #4f344018;color:#56334e;font:650 15px/1.45 "Nunito Sans",Arial,sans-serif;text-align:center;width:max-content}
+.nir-lightbox [data-nir-lightbox-close]{position:absolute;top:12px;right:12px;display:grid;place-items:center;width:44px;height:44px;min-height:44px;padding:0;border-radius:50%;background:#ffffffe0;border:1px solid #ead7e2;color:#7b4a69;box-shadow:0 4px 16px #4e29421c;cursor:pointer}
+.nir-lightbox [data-nir-lightbox-close] svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.7}
+@keyframes nir-image-out{to{opacity:0;transform:translateY(9px) scale(.98)}}
+@media(max-width:600px){.nir-lightbox{padding:5px;width:98vw;max-width:98vw}.nir-lightbox img{border-radius:17px}.nir-lightbox figcaption{font-size:13px;padding:10px 14px;bottom:12px}.nir-item__main .nir-view-product{margin:6px 0 0;display:flex;width:fit-content;min-height:36px}}
+@media(prefers-reduced-motion:reduce){.nir-lightbox[open],.nir-lightbox.is-closing{animation:none}}
+
+.nir-editor .nir-line-details>summary>span{margin-left:0}
+.nir-editor .nir-line-details>summary>span svg{transform:none}
+.nir-editor .nir-line-details>summary .nir-unit-icon svg{width:20px;height:20px}
+.nir-editor .nir-line-details>summary .nir-unit-arrow svg{width:17px;height:17px}

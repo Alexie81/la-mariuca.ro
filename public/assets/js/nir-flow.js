@@ -18,6 +18,8 @@
     const back = form.querySelector('[data-flow-back]'), next = form.querySelector('[data-flow-next]');
     if (back) back.disabled = step === 1;
     if (next) next.hidden = step === 4;
+    const confirm = form.querySelector('[data-flow-confirm]');
+    if (confirm) confirm.hidden = step !== 4;
     const caption = form.querySelector('[data-flow-caption]');
     if (caption) caption.textContent = `Pasul ${step} din 4 · ${labels[step - 1]}`;
     const intro = form.querySelector('[data-flow-intro]'); if (intro) intro.hidden = step !== 1;
@@ -34,7 +36,7 @@
     const section = element.closest('[data-flow-step]');
     if (section) show(form, section.dataset.flowStep);
     let parent = element.parentElement;
-    while (parent && parent !== form) { if (parent.tagName === 'DETAILS') parent.open = true; parent = parent.parentElement; }
+    while (parent && parent !== form) { if (parent.tagName === 'DETAILS') { if (window.NirDisclosure) window.NirDisclosure.open(parent); else parent.open = true; } parent = parent.parentElement; }
   }
 
   function refresh(form) {
@@ -67,6 +69,7 @@
     if (step === 2) {
       const unmatched = all('[data-nir-line]', form).find(line => line.querySelector('[data-line-tracked]')?.checked && !line.querySelector('[name$="[variant_id]"]')?.value);
       if (unmatched) {
+        reveal(unmatched.querySelector('[data-nir-product-picker]'));
         const error = unmatched.querySelector('[data-line-error]');
         if (error) { error.textContent = 'Alege produsul din magazin, pentru a ști unde va intra cantitatea recepționată.'; error.hidden = false; }
         unmatched.querySelector('[data-nir-product-picker]')?.focus();
