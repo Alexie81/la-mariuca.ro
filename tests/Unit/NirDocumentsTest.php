@@ -133,14 +133,127 @@ final class NirDocumentsTest extends TestCase
         $book->disconnectWorksheets();
     }
 
+    public function testDesignedXlsxSummaryPreservesCompanyAndSupplierSnapshotsAsSafeText(): void
+    {
+        $document = self::document();
+        $document['company'] = array_replace($document['company'], [
+            'legal_name' => '=HYPERLINK("https://example.test/company","Firma arhivată")',
+            'county' => 'Iași', 'postal_code' => '700001', 'country' => 'România',
+            'email' => 'firma-snapshot@example.test', 'phone' => '0730123456',
+            'bank_name' => 'BCR', 'iban' => 'RO49AAAA1B31007593840000',
+            'website' => 'https://firma-snapshot.example.test', 'share_capital_bani' => 20000,
+        ]);
+        $document['supplier'] = array_replace($document['supplier'], [
+            'company_name' => '=HYPERLINK("https://example.test/supplier","Furnizor arhivat")',
+            'trade_register' => 'J22/456/2021', 'city' => 'Pașcani', 'county' => 'Iași',
+            'country' => 'România', 'phone' => '0740654321',
+            'bank_name' => 'Banca Transilvania', 'iban' => 'RO09BBBB1B31007593840000',
+        ]);
+        $file = (new NirExportService(dirname(__DIR__, 2)))->individual($document, 'xlsx');
+        $this->exports[] = $file['path'];
+        $book = IOFactory::load($file['path']);
+        self::assertSame(['Rezumat NIR', 'Poziții NIR', 'Diferențe', 'Documente & Audit', 'Dicționar câmpuri'], $book->getSheetNames());
+        self::assertSame('EK', $book->getSheetByName('Poziții NIR')->getHighestColumn());
+        $summary = $book->getSheetByName('Rezumat NIR');
+        self::assertSame('L', $summary->getHighestColumn());
+        self::assertSame('A8', $summary->getFreezePane());
+        foreach (['A9' => $document['company']['legal_name'], 'G9' => $document['supplier']['company_name']] as $cell => $value) {
+            self::assertSame($value, $summary->getCell($cell)->getValue());
+            self::assertSame(DataType::TYPE_STRING, $summary->getCell($cell)->getDataType());
+        }
+        $summaryText = json_encode($summary->toArray(null, false, false), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+        foreach (['tax_id', 'trade_register', 'registered_address', 'city', 'county', 'postal_code', 'country', 'email', 'phone', 'bank_name', 'iban', 'website'] as $key) {
+            self::assertStringContainsString($document['company'][$key], $summaryText, 'Company snapshot: ' . $key);
+        }
+        foreach (['tax_id', 'trade_register', 'address', 'city', 'county', 'country', 'email', 'phone', 'bank_name', 'iban'] as $key) {
+            self::assertStringContainsString($document['supplier'][$key], $summaryText, 'Supplier snapshot: ' . $key);
+        }
+        self::assertStringContainsString('Capital social 200,00 RON', $summaryText);
+        self::assertStringContainsString('Factură AT 1001', $summaryText);
+        self::assertStringContainsString('2026-11-12', $summaryText);
+        self::assertStringContainsString('Rochiță de zi „Ana”', $summary->getCell('B23')->getValue());
+        self::assertStringContainsString('LM-G-001', $summary->getCell('B23')->getValue());
+        foreach ($book->getAllSheets() as $sheet) {
+            self::assertStringNotContainsString('FIFO', strtoupper(json_encode($sheet->toArray(null, false, false), JSON_THROW_ON_ERROR)), $sheet->getTitle());
+        }
+        $book->disconnectWorksheets();
+    }
+
+    public function testXlsxSummaryUsesAuthoritativeBaniForEachLineAndDocumentTotals(): void
+    {
+        $document = self::document();
+        $document['lines'][] = array_replace($document['lines'][0], [
+            'id' => 2, 'position' => 2, 'product_name' => 'Poziție cu valori exacte', 'sku' => 'EXACT-002',
+            'invoice_quantity' => '3.0000', 'received_quantity' => '3.0000', 'accepted_quantity' => '3.0000',
+            'stock_quantity' => '3.0000', 'unit_price' => '0.014000', 'price_mode' => 'net_exact',
+            'net_override' => '0.03', 'tax_override' => '0.01', 'net_bani' => 3, 'tax_bani' => 1,
+            'total_bani' => 4, 'inventory_bani' => 3, 'difference_reason' => '', 'difference_notes' => '',
+        ]);
+        $document = array_replace($document, ['net_bani' => 9903, 'tax_bani' => 2080, 'total_bani' => 11983, 'inventory_bani' => 9903]);
+        $file = (new NirExportService(dirname(__DIR__, 2)))->individual($document, 'xlsx');
+        $this->exports[] = $file['path'];
+        $book = IOFactory::load($file['path']);
+        $summary = $book->getSheetByName('Rezumat NIR');
+        foreach (['J23' => 99.00, 'K23' => 20.79, 'L23' => 119.79, 'J24' => 0.03, 'K24' => 0.01, 'L24' => 0.04] as $cell => $expected) {
+            self::assertSame(DataType::TYPE_NUMERIC, $summary->getCell($cell)->getDataType());
+            self::assertEqualsWithDelta($expected, $summary->getCell($cell)->getValue(), 0.000001, $cell);
+        }
+        $totals = ['Subtotal' => 99.03, 'TVA' => 20.80, 'TOTAL DOCUMENT' => 119.83, 'Intrare în stoc · RON' => 99.03, 'TVA 21%' => 20.80];
+        foreach ($summary->getRowIterator() as $row) {
+            $index = $row->getRowIndex();
+            $label = $summary->getCell('G' . $index)->getValue();
+            if (is_string($label) && array_key_exists($label, $totals)) {
+                self::assertEqualsWithDelta($totals[$label], $summary->getCell('J' . $index)->getValue(), 0.000001, $label);
+                unset($totals[$label]);
+            }
+        }
+        self::assertSame([], $totals, 'Every document total and VAT subtotal must remain in the designed summary.');
+        $book->disconnectWorksheets();
+    }
+
+    public function testXlsxLogoIsEmbeddedAsPngWithoutBlackTransparencyBackground(): void
+    {
+        $file = (new NirExportService(dirname(__DIR__, 2)))->individual(self::document(), 'xlsx');
+        $this->exports[] = $file['path'];
+        $book = IOFactory::load($file['path']);
+        $logo = null;
+        foreach ($book->getSheetByName('Rezumat NIR')->getDrawingCollection() as $drawing) {
+            if ($drawing->getCoordinates() === 'A2') { $logo = $drawing; break; }
+        }
+        self::assertNotNull($logo, 'The summary must retain the actual La Măriuca logo.');
+        $bytes = file_get_contents($logo->getPath());
+        self::assertNotFalse($bytes);
+        self::assertSame(IMAGETYPE_PNG, getimagesizefromstring($bytes)[2]);
+        $image = imagecreatefromstring($bytes);
+        self::assertNotFalse($image);
+        foreach ([[0, 0], [imagesx($image) - 1, 0], [0, imagesy($image) - 1], [imagesx($image) - 1, imagesy($image) - 1]] as [$x, $y]) {
+            $color = imagecolorsforindex($image, imagecolorat($image, $x, $y));
+            self::assertTrue($color['alpha'] >= 120 || min($color['red'], $color['green'], $color['blue']) >= 240, 'Logo corner must be transparent or white, never black.');
+        }
+        imagedestroy($image);
+        $book->disconnectWorksheets();
+    }
+
     public function testCostsAndAuditPayloadsAreOmittedFromRestrictedExports(): void
     {
-        $document=self::document();$document['audit']=[['action'=>'confirmed','before_json'=>'{"secret_cost":987.654}','after_json'=>'{"secret_cost":456.789}']];
+        $document=self::document();
+        $document=array_replace($document,['type'=>'opening_balance','net_bani'=>387654,'tax_bani'=>81407,'total_bani'=>469061,'net_ron_bani'=>387654,'tax_ron_bani'=>81407,'total_ron_bani'=>469061,'inventory_bani'=>387654]);
+        $document['lines'][0]=array_replace($document['lines'][0],['unit_price'=>'1938.270000','unit_cost_ron'=>'1938.270000','net_bani'=>387654,'tax_bani'=>81407,'total_bani'=>469061,'inventory_bani'=>387654]);
+        $document['audit']=[['action'=>'confirmed','before_json'=>'{"secret_cost":987.654}','after_json'=>'{"secret_cost":456.789}','context_json'=>'{"cost_context":654.987}']];
         $exporter=new NirExportService(dirname(__DIR__,2));$file=$exporter->individual($document,'xlsx',false);$this->exports[]=$file['path'];
         $book=IOFactory::load($file['path']);$sheet=$book->getSheetByName('Poziții NIR');
         self::assertNull($sheet->getCell('BY2')->getValue());self::assertNull($sheet->getCell('CG2')->getValue());self::assertNull($sheet->getCell('DP2')->getValue());
-        $all='';foreach($book->getAllSheets() as $tab){$all.=json_encode($tab->toArray());}
-        self::assertStringNotContainsString('987.654',$all);self::assertStringNotContainsString('456.789',$all);$book->disconnectWorksheets();
+        foreach (array_merge(range(77,94),range(118,125)) as $column) { self::assertNull($sheet->getCell([$column,2])->getValue(), 'Protected cost column '.$column); }
+        self::assertCount(5,$book->getAllSheets());
+        foreach($book->getAllSheets() as $tab){
+            $values=json_encode($tab->toArray(null,false,false),JSON_THROW_ON_ERROR);
+            foreach(['987.654','456.789','654.987','1938.27','3876.54','814.07','4690.61'] as $secret){self::assertStringNotContainsString($secret,$values,$tab->getTitle());}
+            self::assertStringNotContainsString('FIFO',strtoupper($values),$tab->getTitle());
+        }
+        self::assertSame('Observații recepție',$book->getSheetByName('Rezumat NIR')->getCell('J22')->getValue());
+        self::assertNull($book->getSheetByName('Rezumat NIR')->getCell('K23')->getValue());
+        self::assertNull($book->getSheetByName('Rezumat NIR')->getCell('L23')->getValue());
+        $book->disconnectWorksheets();
         $registry=$exporter->registry([$document],'xlsx',['from'=>'2026-11-01','to'=>'2026-11-30'],false);$this->exports[]=$registry['path'];
         $book=IOFactory::load($registry['path']);$sheet=$book->getActiveSheet();self::assertSame('C7',$sheet->getFreezePane());self::assertNull($sheet->getCell('X7')->getValue());self::assertSame('AL',$sheet->getHighestColumn());$book->disconnectWorksheets();
     }
