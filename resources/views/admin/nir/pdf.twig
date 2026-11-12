@@ -30,7 +30,7 @@ h1 { margin:2px 0 0; font-size:20px; line-height:1.1; font-weight:normal; color:
 .label { color:#917d85; font-size:7.5px; letter-spacing:.65px; text-transform:uppercase; }
 .date-value { margin-top:3px; color:#58424c; font-size:10px; }
 .info { margin-bottom:6px; }
-.info > tbody > tr > td { width:33.33%; padding-right:9px; }
+.info > tbody > tr > td { width:50%; padding-right:9px; }
 .info > tbody > tr > td.last { padding-right:0; }
 .info-card { border:1px solid #e7dddd; border-radius:8px; padding:6px 10px; background:#ffffff; }
 .info-heading { margin-bottom:3px; padding-bottom:3px; border-bottom:1px solid #f0e6e7; }
@@ -110,7 +110,7 @@ h1 { margin:2px 0 0; font-size:20px; line-height:1.1; font-weight:normal; color:
     <td class="brand-status"><span class="status {{ preview or nir.status == 'draft' ? 'status-draft' : (nir.status == 'reversed' ? 'status-reversed' : '') }}">{{ preview ? 'Previzualizare' : status_label }}</span><div class="status-detail">{% if preview %}Exemplu de prezentare · Fără efecte contabile{% else %}Formular 14-3-1A{% if nir.status == 'draft' %}<br>Document de lucru · Fără intrare în stoc{% elseif nir.status == 'reversed' %}<br>Recepție stornată · Istoric păstrat{% endif %}{% endif %}</div></td>
 </tr></table>
 <table class="document-band"><tr>
-    <td class="reference"><div class="document-number">{{ number }}</div><div class="document-kind">{{ type_label }}</div></td>
+    <td class="reference"><div class="document-number">{{ number }}</div><div class="document-kind">{{ type_label }}</div>{% if nir.original_id|default(null) %}<div class="document-kind">NIR original: {{ nir.original_number|default('#' ~ nir.original_id, true) }}</div>{% endif %}</td>
     <td class="date"><div class="label">Data documentului</div><div class="date-value">{{ nir_date }}</div></td>
     <td class="date"><div class="label">Recepție fizică</div><div class="date-value">{{ received_date }}</div></td>
 </tr></table>
@@ -124,7 +124,7 @@ h1 { margin:2px 0 0; font-size:20px; line-height:1.1; font-weight:normal; color:
         {% if company.city|default('') or company.county|default('') or company.postal_code|default('') or company.country|default('') %}<p class="secondary">{{ company.city|default('') }}{% if company.county|default('') %}{% if company.city|default('') %}, {% endif %}{{ company.county }}{% endif %}{% if company.postal_code|default('') %} · {{ company.postal_code }}{% endif %}{% if company.country|default('') %} · {{ company.country }}{% endif %}</p>{% endif %}
         {% if company.email|default('') or company.phone|default('') %}<div class="divider secondary">{% if company.email|default('') %}{{ company.email }}{% endif %}{% if company.phone|default('') %}{% if company.email|default('') %} · {% endif %}{{ company.phone }}{% endif %}</div>{% endif %}
     </div></td>
-    <td><div class="info-card">
+    <td class="last"><div class="info-card">
         <div class="info-heading"><span class="section-number">02</span><span class="info-title">Furnizor / partener</span></div>
         <div class="entity-name">{{ supplier.company_name|default(supplier.alias|default('—', true), true) }}</div>
         <p>CUI <strong>{{ supplier.tax_id|default('—', true) }}</strong>{% if supplier.trade_register|default('') %} · {{ supplier.trade_register }}{% endif %}</p>
@@ -132,14 +132,6 @@ h1 { margin:2px 0 0; font-size:20px; line-height:1.1; font-weight:normal; color:
         {% if supplier.city|default('') or supplier.county|default('') or supplier.country|default('') %}<p class="secondary">{{ supplier.city|default('') }}{% if supplier.county|default('') %}{% if supplier.city|default('') %}, {% endif %}{{ supplier.county }}{% endif %}{% if supplier.country|default('') %} · {{ supplier.country }}{% endif %}</p>{% endif %}
         {% if supplier.email|default('') or supplier.phone|default('') %}<p class="secondary">{{ supplier.email|default('') }}{% if supplier.phone|default('') %}{% if supplier.email|default('') %} · {% endif %}{{ supplier.phone }}{% endif %}</p>{% endif %}
         <div class="divider"><span class="secondary">{{ nir.type == 'opening_balance' ? 'Referință document' : 'Factură furnizor' }}</span><p><strong>{{ nir.invoice_series|default('') }} {{ nir.invoice_number|default('—', true) }}</strong> · {{ nir.invoice_date|default('—', true) }}</p></div>
-    </div></td>
-    <td class="last"><div class="info-card">
-        <div class="info-heading"><span class="section-number">03</span><span class="info-title">Destinația recepției</span></div>
-        <div class="entity-name">{{ nir.warehouse.name|default('—', true) }}</div>
-        <p>{{ nir.location.name|default('—', true) }}</p>
-        {% if nir.location.address|default('') %}<p class="secondary">{{ nir.location.address }}</p>{% endif %}
-        <div class="divider"><p>Monedă <strong>{{ nir.currency|default('RON') }}</strong> · Curs <strong>{{ _self.decimal(nir.exchange_rate|default('1')) }}</strong></p><p class="secondary">Data cursului: {{ nir.exchange_rate_date|default('—', true) }}</p></div>
-        {% if nir.original_id|default(null) %}<p class="secondary">NIR original: <strong>{{ nir.original_number|default('#' ~ nir.original_id, true) }}</strong></p>{% endif %}
     </div></td>
 </tr></tbody></table>
 <table class="section-heading"><tr><td class="section-title">Bunurile recepționate</td><td class="section-count">{{ lines|length }} {{ lines|length == 1 ? 'poziție în document' : 'poziții în document' }} · {{ nir.currency|default('RON') }}</td></tr></table>
