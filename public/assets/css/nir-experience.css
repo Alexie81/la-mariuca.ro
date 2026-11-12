@@ -1,0 +1,385 @@
+/* Guided NIR workspace. Scope typography and disclosure to the receipt/editor. */
+.nir-admin .nir-back--pill{display:inline-flex;align-items:center;gap:11px;min-height:48px;padding:6px 17px 6px 7px;margin:0 0 20px;border:1px solid #eadce2;border-radius:999px;background:#ffffffed;color:#804659!important;font:550 14px/1.3 var(--nir-sans);box-shadow:0 3px 12px #733e5008;text-decoration:none;transition:background .2s,border-color .2s,box-shadow .2s,transform .2s}
+.nir-back--pill .nir-back__icon{display:grid;place-items:center;width:34px;height:34px;flex:none;border-radius:50%;background:#faedf2;color:#ac4966;box-shadow:inset 0 0 0 1px #f2dce5}
+.nir-back--pill .nir-back__icon svg{width:17px;height:17px;stroke-width:1.8;transition:transform .2s}
+.nir-admin .nir-back--pill:hover{background:#fff7fa;border-color:#d8b1c0;box-shadow:0 5px 18px #733e5010;transform:translateY(-1px)}
+.nir-back--pill:hover .nir-back__icon svg{transform:translateX(-2px)}
+.nir-admin .nir-back--pill:active{transform:translateY(0);box-shadow:0 1px 5px #733e5008}
+@media(max-width:650px){.nir-admin .nir-back--pill{min-height:44px;margin-bottom:16px;padding:5px 15px 5px 6px;font-size:13px;gap:9px}.nir-back--pill .nir-back__icon{width:32px;height:32px}}
+@media(prefers-reduced-motion:reduce){.nir-admin .nir-back--pill,.nir-back--pill .nir-back__icon svg{transition:none}}
+.nir-enhanced .nir-editor .nir-flow-nav{display:grid!important}
+.nir-enhanced .nir-editor .nir-flow-caption{display:flex!important}
+.nir-enhanced .nir-editor .nir-flow-review,.nir-enhanced .nir-editor .nir-flow-review-note{display:block!important}
+.nir-enhanced .nir-editor [hidden]{display:none!important}
+
+.nir-detail-view,.nir-editor{--nir-ink:#333b42;--nir-muted:#6f7780;--nir-line:#e6e8eb;--nir-rose:#ba4b66;--nir-sage:#287f69;color:var(--nir-ink)}
+
+.nir-detail-view :is(h1,h2,h3,h4),.nir-editor :is(h2,h3,h4){font-family:var(--nir-sans);font-weight:600;letter-spacing:-.035em;color:#303740}
+
+.nir-detail-view .nir-eyebrow,.nir-editor .nir-eyebrow{text-transform:none;letter-spacing:.03em;font-size:12px;font-weight:600;color:#ae536a}
+
+.nir-detail-view .nir-detail-hero{padding:26px 28px;background:linear-gradient(110deg,#fff,#fff7f8);border:1px solid #eddfe3;border-radius:22px;box-shadow:0 6px 30px #54303b05}
+
+.nir-detail-view .nir-detail-identity h1{font-size:32px;margin:6px 0 7px;letter-spacing:-.045em}
+
+.nir-detail-view .nir-detail-identity p{font-size:14px;color:#727782;margin:0}
+
+.nir-detail-view .nir-form__mark{background:#fbeaf0;border:1px solid #f0d4df;color:#b74966;box-shadow:none;width:56px;height:58px;border-radius:18px}
+
+.nir-detail-view .nir-panel{border:1px solid #e5e7eb;border-radius:20px;box-shadow:0 5px 24px #23293404;background:#fff;overflow:hidden;scroll-margin-top:94px}
+
+.nir-detail-view .nir-panel__heading{padding:22px 24px;border-bottom:1px solid #edf0f2;background:#fff}
+
+.nir-detail-view .nir-panel__heading h2{font-size:22px;margin:5px 0 0;line-height:1.35}
+
+.nir-detail-view .nir-panel__heading p{font-size:13px;color:#727782;margin:7px 0 0}
+
+.nir-detail-view .nir-panel__heading>svg{width:22px;height:22px;color:#9aadb0}
+
+.nir-detail-view .nir-button{border-radius:12px;min-height:44px;font-size:14px;font-weight:600;box-shadow:none;white-space:nowrap;justify-content:center}
+
+.nir-detail-view .nir-button--primary{background:#b94e68;border-color:#b94e68;box-shadow:0 5px 16px #b94e681a}
+
+.nir-detail-view .nir-button--soft{background:#fff;border-color:#ead7df;color:#a3455d}
+
+.nir-detail-view .nir-icon-button{border-radius:12px;box-shadow:none}
+
+.nir-reception-journey{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;list-style:none;padding:0;margin:0}
+
+.nir-reception-journey li{position:relative;display:flex;align-items:center;gap:12px;min-width:0;border:1px solid #e5e8eb;background:#fafbfc;border-radius:16px;padding:16px;color:#8c929a}
+
+.nir-reception-journey li>span{display:grid;place-items:center;width:40px;height:40px;flex:none;border-radius:12px;background:#f0f2f4;color:#9199a2}
+
+.nir-reception-journey li>div{min-width:0;flex:1}
+.nir-reception-journey strong{display:block;font-size:14px;line-height:1.45;font-weight:600;color:#545e68}
+.nir-reception-journey small{display:block;font-size:12px;line-height:1.55;margin-top:4px}
+
+.nir-reception-journey li>svg{width:16px;height:16px;color:#31856c}
+.nir-reception-journey .is-done{background:#f7fbf9;border-color:#dcebe3}
+.nir-reception-journey .is-done>span{background:#e7f3ed;color:#287f69}
+.nir-reception-journey .is-current{background:#fff7f9;border-color:#eac4d0}
+.nir-reception-journey .is-current>span{background:#b94e68;color:white}
+.nir-reception-journey .is-current small{color:#a3455d}
+
+.nir-next-action{display:flex;align-items:center;gap:16px;background:#f3f7fc;border:1px solid #dfe8f3;border-radius:18px;padding:20px 22px}
+
+.nir-next-action>span{display:grid;place-items:center;width:42px;height:42px;flex:none;background:#e3edf8;border-radius:13px;color:#587aa7}
+.nir-next-action>div{flex:1;min-width:0}
+.nir-next-action strong{font-size:15px;font-weight:600;color:#3a506e}
+.nir-next-action p{font-size:13px;line-height:1.7;margin:5px 0 0;color:#63748c}
+.nir-next-action .nir-button{font-size:13px;background:white;border-color:#d3dfed;color:#3a506e}
+.nir-next-action.is-confirmed{background:#f2f9f5;border-color:#d8e9df}
+.nir-next-action.is-confirmed>span{background:#e2f2e9;color:#287f69}
+
+.nir-detail-nav{display:flex;flex-wrap:wrap;gap:8px;padding:6px;border:1px solid #e6e8ec;border-radius:15px;background:#fff}
+
+.nir-detail-nav a{display:flex;align-items:center;justify-content:center;gap:8px;padding:11px 15px;color:#67717d;text-decoration:none;font-size:13px;font-weight:550;border-radius:10px;transition:background .2s,color .2s;flex:1;white-space:nowrap}
+.nir-detail-nav a:hover{background:#f9edf1;color:#a3455d}
+.nir-detail-nav svg{width:17px;height:17px}
+.nir-detail-nav span{padding:1px 7px;background:#f0f2f5;border-radius:6px;font-size:12px}
+
+.nir-detail-body .nir-info-grid{padding:18px 24px 24px;gap:0 22px}
+.nir-detail-body .nir-info-grid>div{padding:14px 0;border-bottom:1px solid #f0f1f3}
+.nir-detail-body .nir-info-grid dt{font-size:12px;letter-spacing:0;color:#7c8490}
+.nir-detail-body .nir-info-grid dd{font-size:14px;font-weight:500;color:#343e4b}
+.nir-detail-body .nir-info-grid small{font-size:12px;color:#848c98;margin-top:5px}
+
+.nir-detail-view .nir-note{border:1px solid #e8ebf0;background:#f8fafc;border-radius:13px;padding:15px;color:#637083;font-size:13px;line-height:1.7;margin:0 24px 22px}
+.nir-detail-view .nir-note strong{font-weight:600;color:#465568}
+
+.nir-detail-body .nir-receipt{padding:24px;background:#fff;border-color:#e6e8eb;border-radius:20px}
+.nir-detail-view .nir-receipt:before,.nir-detail-view .nir-receipt:after{display:none}
+.nir-detail-view .nir-receipt header>span:first-child{background:#f4edf8;color:#9372ac;border-radius:13px;width:42px;height:42px;margin-bottom:15px}
+.nir-detail-view .nir-receipt h2{font-size:22px;letter-spacing:-.03em;margin:6px 0 24px}
+.nir-detail-view .nir-receipt .nir-eyebrow{color:#8b7399}
+.nir-detail-view .nir-receipt dl>div{font-size:14px;line-height:1.5;padding:12px 0}
+.nir-detail-view .nir-receipt dd{font:500 15px var(--nir-sans);font-variant-numeric:tabular-nums}
+.nir-detail-view .nir-receipt .nir-receipt__total{padding:18px 16px;border:1px solid #eadce3;border-radius:14px;background:#fff6f9;margin:8px -2px}
+.nir-detail-view .nir-receipt__total dd{font:500 28px var(--nir-sans);letter-spacing:-.04em}
+.nir-detail-view .nir-receipt__total dd small{font:500 12px var(--nir-sans);margin-left:6px}
+.nir-detail-view .nir-receipt>p{font-size:12px;color:#78818e;border-top:1px solid #edf0f3;padding-top:14px;margin-bottom:0}
+
+.nir-detail-body .nir-detail-products{padding:16px;display:grid;gap:12px}
+.nir-detail-body .nir-detail-product{padding:18px;border:1px solid #e6e9ee;border-radius:15px;background:#fff;margin:0}
+.nir-detail-body .nir-detail-product h3{font-size:16px;letter-spacing:-.02em;color:#313c49}
+.nir-detail-body .nir-product-image{width:58px;height:68px;border-radius:12px;border:1px solid #e6e9ee;background:#f5f7f9}
+.nir-detail-body .nir-detail-product__price{font:500 22px var(--nir-sans);letter-spacing:-.035em}
+.nir-detail-body .nir-detail-product__price small{font-size:12px}
+.nir-detail-body .nir-detail-product__main>div>small{display:block;font-size:12px;color:#8c929b}
+.nir-detail-body .nir-detail-product p{color:#7c8591;font-size:12px;margin:4px 0 7px}
+
+.nir-product-accepted{display:inline-flex;font-size:12px;color:#34836c;background:#ecf7f1;padding:3px 9px;border-radius:7px;margin:0 8px 5px 0}
+
+.nir-product-inspection{margin-top:13px;border-top:1px solid #edf0f3}
+.nir-product-inspection>summary{list-style:none;display:flex;align-items:center;gap:8px;padding:13px 0 0;font-size:13px;font-weight:500;color:#707a89;cursor:pointer}
+.nir-product-inspection>summary::-webkit-details-marker{display:none}
+.nir-product-inspection>summary svg{width:15px;height:15px;margin-left:auto;transition:transform .2s}
+.nir-product-inspection[open]>summary svg{transform:rotate(90deg)}
+.nir-product-inspection[open]>summary{color:#a3455d}
+.nir-detail-body .nir-product-measures{margin-top:14px}
+.nir-detail-body .nir-product-measures>span{padding:11px;background:#f8fafc;border-color:#e9edf1;border-radius:10px}
+.nir-detail-body .nir-product-measures strong{font-weight:550;font-size:13px;color:#4a5768}
+.nir-detail-body .nir-product-measures small{font-size:12px;color:#7b8592}
+
+.nir-detail-view .nir-attachments>div{border-color:#e5e9ef;background:#fff;border-radius:13px}
+.nir-detail-view .nir-attachments>div>span{background:#eef4fa;color:#668bb4;border-radius:11px}
+.nir-detail-view .nir-attachments strong{font-size:13px;font-weight:550;color:#435166}
+.nir-detail-view .nir-attachments small{color:#8b93a0}
+
+/* Four-step editor: the form still renders completely without JavaScript. */
+.nir-dialog:has(.nir-editor){width:min(1120px,calc(100% - 40px));background:#f7f8fa}
+
+.nir-editor{background:#f7f8fa}
+.nir-editor .nir-form__header{background:#fff;border-color:#e7e9ee;padding:24px 28px;gap:15px}
+.nir-editor .nir-form__header h2{font-size:27px;margin:4px 0 6px}
+.nir-editor .nir-form__header p{font-size:13px;color:#7a8390}
+.nir-editor .nir-form__mark{width:50px;height:52px;border:1px solid #eed7df;border-radius:15px;background:#fcf0f4;color:#af4e67;box-shadow:none}
+
+.nir-flow-nav{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));flex:none;gap:8px;padding:17px 28px 13px;background:#fff}
+
+.nir-editor .nir-flow-nav button{display:flex;align-items:center;gap:10px;padding:12px 14px;margin:0;min-width:0;border:1px solid #e7eaf0;border-radius:13px;background:#fff;box-shadow:none;color:#7d8591;text-align:left;cursor:pointer;transition:background .18s,border-color .18s}
+
+.nir-flow-nav button>span{display:grid;place-items:center;width:26px;height:26px;flex:none;border-radius:9px;background:#f0f2f5;font:600 12px var(--nir-sans)}
+.nir-flow-nav strong{font-size:13px;font-weight:550;white-space:nowrap}
+.nir-flow-nav button.is-filled>span{background:#e8f5ee;color:#30876b}
+.nir-editor .nir-flow-nav button.is-current{background:#fff2f6;border-color:#dca4b5;color:#a84360}
+.nir-flow-nav button.is-current>span{background:#b94e68;color:white}
+.nir-flow-nav button:hover{border-color:#d6b4bf}
+
+.nir-flow-caption{display:flex;align-items:center;justify-content:space-between;flex:none;padding:0 28px 16px;background:#fff;border-bottom:1px solid #e7eaf0;gap:10px;font-size:12px;color:#87909b}
+.nir-flow-caption>span:first-child{font-weight:550;color:#707b8a}
+.nir-flow-caption>span:last-child{display:flex;align-items:center;gap:6px}
+.nir-flow-caption svg{width:14px;height:14px;color:#7e9f91}
+
+.nir-editor .nir-form__body{padding:24px 28px;scrollbar-color:#cad0d9 transparent;background:#f7f8fa}
+.nir-editor .nir-form__body::-webkit-scrollbar-thumb{background:#cad0d9;border-color:#f7f8fa}
+
+.nir-editor .nir-guidance{padding:14px 16px;background:#eef5fc;border:1px solid #dce7f2;border-radius:13px;margin-bottom:18px;color:#617c9c}
+.nir-editor .nir-guidance strong{font-size:13px;color:#476380}
+.nir-editor .nir-guidance span{font-size:12px;line-height:1.6;color:#74889e}
+
+.nir-editor .nir-form-section{padding:24px;border-radius:17px;border:1px solid #e5e8ee;background:#fff;box-shadow:0 4px 18px #343d4a03;margin-bottom:16px}
+.nir-editor .nir-form-section:before{display:none}
+.nir-editor .nir-form-section>header{margin-bottom:24px;gap:13px}
+.nir-editor .nir-step{width:36px;height:38px;border-radius:11px;border:1px solid #ead8df;color:#ac4b66;background:#fff4f7;box-shadow:none;font-size:12px}
+.nir-editor .nir-form-section>header h3{font-size:22px;margin:4px 0 7px}
+.nir-editor .nir-form-section>header p{font-size:13px;color:#7b8490;line-height:1.6}
+.nir-editor .nir-form-section>header>svg{color:#aab4be;width:23px;height:23px}
+
+.nir-editor .nir-field{font-size:13px;color:#5a6677;font-weight:500;gap:7px}
+.nir-editor .nir-field>span{font-size:13px}
+.nir-editor .nir-field small{font-size:12px;line-height:1.6;color:#8a929f;font-weight:400}
+.nir-editor .nir-field :is(input,select,textarea){font-family:var(--nir-sans);font-size:14px;background:#fff;border-color:#dce1e8;color:#3f4c60;border-radius:10px;min-height:46px;box-shadow:0 1px 2px #313c4b03}
+.nir-editor .nir-field :is(input,select,textarea):focus{border-color:#ba6d85;box-shadow:0 0 0 3px #c55e7915}
+.nir-editor .nir-fields{gap:18px;margin-top:20px}
+.nir-editor .nir-field b{color:#bd637a}
+
+.nir-editor-extra{border:1px solid #e1e6ec;border-radius:15px;background:#fff;margin-bottom:14px;overflow:hidden}
+.nir-editor-extra>summary{display:flex;align-items:center;gap:13px;padding:17px 20px;list-style:none;cursor:pointer}
+.nir-editor-extra>summary::-webkit-details-marker{display:none}
+.nir-editor-extra>summary>span{display:grid;place-items:center;flex:none;width:37px;height:38px;border-radius:11px;background:#f2f5f9;color:#7e91ab}
+.nir-editor-extra>summary>div{flex:1;min-width:0}
+.nir-editor-extra strong{font-size:14px;font-weight:550;color:#505e71}
+.nir-editor-extra small{display:block;font-size:12px;color:#68788d;line-height:1.55;margin-top:4px}
+.nir-editor-extra>summary>svg{width:16px;height:16px;color:#9ba6b4;transition:transform .2s}
+.nir-editor-extra[open]>summary>svg{transform:rotate(90deg)}
+.nir-editor-extra[open]>summary{border-bottom:1px solid #edf0f3}
+.nir-editor-extra .nir-form-section{border:0;box-shadow:none;margin:0;border-radius:0;padding:20px}
+.nir-editor-extra .nir-form-section>header{display:none}
+.nir-editor-extra .nir-fields{margin-top:0}
+
+.nir-editor .nir-inline-create{border-color:#e2e8ee;background:#f9fbfd;border-radius:12px}
+.nir-editor .nir-inline-create>summary{color:#7387a0;font-size:13px}
+.nir-editor .nir-inline-create[open]{padding:16px}
+.nir-editor .nir-button{border-radius:11px;min-height:43px;font-size:13px;font-weight:600;white-space:nowrap;box-shadow:none}
+.nir-editor .nir-button--soft{background:#fff;border-color:#dfd7e0;color:#a3445f}
+.nir-editor .nir-button--cancel{background:#fff;border-color:#e0e4ea;color:#768394}
+
+.nir-editor .nir-line{padding:0;border:1px solid #e0e5ed;border-radius:16px;margin-bottom:18px;background:#fff;overflow:hidden;box-shadow:0 4px 18px #28375004}
+.nir-editor .nir-line__head{padding:16px 18px;background:#f8fafc;border-bottom:1px solid #e8edf2}
+.nir-editor .nir-line__head h4{font-size:16px;font-weight:550;letter-spacing:-.02em}
+.nir-editor .nir-line__head p{font-size:12px;color:#68788d}
+.nir-editor .nir-line__number{border-radius:10px;background:white;border:1px solid #e1e7f0;color:#889bb1;font-family:var(--nir-sans);font-size:12px;box-shadow:none}
+.nir-editor .nir-product-match{border-color:#dfebe4;background:#f7fbf9;border-radius:12px;margin:18px;padding:14px}
+.nir-editor .nir-product-match__main strong{font-size:15px;color:#40594f;line-height:1.5}
+.nir-editor .nir-product-match__main .nir-eyebrow{font-size:11px;color:#739589}
+.nir-editor .nir-product-match__main>span:last-of-type{font-size:12px;color:#849b91}
+.nir-editor .nir-product-match__image{border-radius:10px;border-color:#e0e9e4;background:white;color:#9eb3a7}
+.nir-editor .nir-product-match .nir-button{background:white;border-color:#cfe0d7;color:#3b8067}
+
+.nir-line-identity-options{margin:0 18px 15px;border:1px solid #e8ecf1;border-radius:11px;background:#fff}
+.nir-line-identity-options>summary{display:flex;align-items:center;gap:8px;list-style:none;cursor:pointer;padding:12px 14px;font-size:12px;color:#8090a4}
+.nir-line-identity-options>summary::-webkit-details-marker{display:none}
+.nir-line-identity-options>summary svg{width:16px;height:16px}
+.nir-line-identity-options>summary svg:last-child{margin-left:auto;transition:transform .2s}
+.nir-line-identity-options[open]>summary svg:last-child{transform:rotate(90deg)}
+.nir-editor .nir-line-identity-options .nir-line__identity{padding:0 14px 14px;margin:0}
+
+.nir-editor .nir-line-switches{padding:0 18px 16px;gap:13px;border-bottom:1px solid #f0f2f6}
+.nir-editor .nir-toggle{font-size:13px;color:#637587}
+.nir-editor .nir-mini-check{font-size:12px;color:#8995a5}
+.nir-editor .nir-line__quantities,.nir-editor .nir-line__pricing{padding:18px}
+.nir-editor .nir-line-caption{font-size:13px;letter-spacing:0;text-transform:none;color:#56677c;font-weight:550}
+.nir-editor .nir-line__quantities .nir-fields,.nir-editor .nir-line__pricing .nir-fields{margin-top:13px}
+.nir-editor .nir-line-details{border-color:#e4e9ef;margin:0 18px;border-radius:11px;background:#fbfcfe}
+.nir-editor .nir-line-details summary{font-size:12px;color:#7f90a5}
+.nir-editor .nir-line__pricing{border-top:1px solid #ecf0f5;margin-top:16px}
+.nir-editor .nir-price-mode{font-size:12px}
+.nir-editor .nir-price-mode select{font-size:12px;border-color:#dce3ed;background:white;border-radius:8px;color:#738399}
+.nir-editor .nir-line-total{background:#f4f7fb;border:1px solid #e4eaf2;border-radius:11px;padding:13px;margin-top:15px;color:#6c7f94}
+.nir-editor .nir-line-total strong{font-family:var(--nir-sans);font-size:16px;font-weight:500;letter-spacing:-.02em}
+.nir-editor .nir-line-total small{font-size:11px;color:#8a9aaf}
+.nir-editor .nir-button--add{background:#fff5f8;border:1px dashed #dbadbc;color:#aa4762;min-height:48px;justify-content:center;box-shadow:none}
+
+.nir-flow-review{border:1px solid #e5e9ef;border-radius:14px;overflow:hidden;margin-bottom:18px}
+.nir-flow-review>div{display:flex;align-items:center;gap:14px;padding:14px 17px;border-bottom:1px solid #edf0f4}
+.nir-flow-review>div:last-child{border:0}
+.nir-flow-review>div>span{flex:1;min-width:0}
+.nir-flow-review small{display:block;color:#68788d;font-size:12px;margin-bottom:5px}
+.nir-flow-review strong{display:block;color:#536278;font-size:14px;font-weight:500;line-height:1.6;overflow-wrap:anywhere}
+.nir-editor .nir-flow-review button{display:grid;place-items:center;background:#f7f9fc;border:1px solid #e3e8ef;border-radius:10px;color:#8e9aae;width:34px;height:34px;padding:0;box-shadow:none;flex:none;cursor:pointer}
+.nir-flow-review button svg{width:16px;height:16px}
+.nir-flow-review-note{font-size:13px;line-height:1.7;color:#68788d;margin:0 0 18px}
+
+.nir-editor .nir-form-summary{border:1px solid #e8dce3;background:#fff8fa;border-radius:14px;gap:0;padding:0;overflow:hidden;margin-bottom:20px}
+.nir-editor .nir-form-summary>div{padding:17px;border-right:1px solid #efe3e8}
+.nir-editor .nir-form-summary>div:last-child{border:0;background:#fdf0f5}
+.nir-editor .nir-form-summary span{font-size:12px;color:#a0808e}
+.nir-editor .nir-form-summary strong{font:500 21px var(--nir-sans);color:#98546a;letter-spacing:-.03em}
+.nir-editor .nir-form__footer{background:#fff;border-color:#e4e8ef;padding:16px 24px;gap:12px}
+.nir-editor.is-guided .nir-form__footer>a{display:none}
+.nir-editor.is-guided .nir-form__footer>p{font-size:12px;flex:1;margin:0;color:#68788d}
+.nir-editor.is-guided .nir-form__footer>button{margin:0}
+.nir-editor.is-guided:not([data-flow-current="4"]) .nir-form__footer>button[type=submit]{background:white;border-color:#dfe3e9;color:#7d899b;box-shadow:none}
+.nir-editor .nir-flow-next{background:#b94e68;border-color:#b94e68;color:white;box-shadow:0 5px 15px #b94e681a;min-width:125px}
+.nir-editor .nir-flow-back{padding-inline:14px}
+.nir-editor .nir-flow-back:disabled{opacity:.4;cursor:default}
+
+.nir-editor.is-guided [data-flow-step]:not([hidden]){animation:nir-flow-enter .2s ease-out}
+.nir-editor.is-guided .nir-form-section:last-of-type{margin-bottom:0}
+
+@keyframes nir-flow-enter{from{opacity:.45;transform:translateY(6px)}
+to{opacity:1;transform:none}
+}
+
+@media(max-width:1000px){.nir-editor.is-guided .nir-form__footer>p{display:none}
+.nir-editor.is-guided .nir-form__footer>button[type=submit]{margin-left:auto}
+.nir-reception-journey{gap:8px}
+.nir-reception-journey li{padding:13px;gap:9px}
+.nir-next-action{flex-wrap:wrap}
+.nir-next-action>.nir-button{margin-left:58px}
+}
+
+@media(max-width:650px){.nir-detail-view{gap:14px}
+.nir-detail-view .nir-detail-hero{padding:20px 17px}
+.nir-detail-view .nir-detail-identity h1{font-size:25px}
+.nir-detail-view .nir-detail-identity p{font-size:12px}
+.nir-detail-view .nir-detail-hero>.nir-badge{margin-left:50px}
+.nir-reception-journey li{padding:12px 9px;display:block;text-align:center;border-radius:13px}
+.nir-reception-journey li>span{margin:0 auto 8px;width:32px;height:32px;border-radius:10px}
+.nir-reception-journey li>span svg{width:17px;height:17px}
+.nir-reception-journey strong{font-size:12px;line-height:1.5}
+.nir-reception-journey small,.nir-reception-journey li>svg{display:none}
+.nir-next-action{display:grid;grid-template-columns:34px minmax(0,1fr);padding:16px;gap:12px;border-radius:15px}
+.nir-next-action strong{font-size:14px}
+.nir-next-action p{font-size:12px}
+.nir-next-action>span{width:34px;height:34px;align-self:flex-start}
+.nir-next-action>.nir-button{grid-column:2;justify-self:start;margin-left:0;font-size:12px;min-height:40px;padding:9px 12px}
+.nir-detail-nav{gap:4px;padding:5px}
+.nir-detail-nav a{padding:10px 5px;font-size:12px;gap:5px;white-space:normal;text-align:center}
+.nir-detail-nav svg{display:none}
+.nir-detail-nav span{font-size:11px;padding:1px 5px}
+.nir-detail-body .nir-panel__heading{padding:18px}
+.nir-detail-view .nir-panel__heading h2{font-size:20px}
+.nir-detail-body .nir-info-grid{padding:4px 18px 18px;gap:0 18px}
+.nir-detail-body .nir-info-grid dd{font-size:13px}
+.nir-detail-body .nir-info-grid dt{font-size:12px}
+.nir-detail-view .nir-note{margin:0 18px 18px;font-size:12px;padding:13px}
+.nir-detail-body .nir-receipt{padding:20px}
+.nir-detail-view .nir-receipt>header{display:block}
+.nir-detail-view .nir-receipt header>span:first-child{display:none}
+.nir-detail-view .nir-receipt h2{font-size:20px;margin:5px 0 15px}
+.nir-detail-view .nir-receipt dl>div{font-size:13px;padding:10px 0}
+.nir-detail-body .nir-detail-products{padding:12px}
+.nir-detail-body .nir-detail-product{padding:14px}
+.nir-detail-body .nir-detail-product h3{font-size:14px}
+.nir-detail-body .nir-detail-product__main{grid-template-columns:46px minmax(0,1fr);gap:11px}
+.nir-detail-body .nir-product-image{width:46px;height:58px}
+.nir-detail-body .nir-detail-product__price{font-size:20px;grid-column:2;margin:0;justify-self:start}
+.nir-product-accepted{font-size:11px}
+.nir-product-inspection>summary{font-size:12px}
+.nir-detail-view .nir-attachments strong{font-size:12px}
+.nir-detail-view .nir-file-section .nir-attachments{padding:0 14px 14px}
+
+.nir-dialog:has(.nir-editor){width:calc(100% - 12px);border-radius:20px}
+.nir-editor .nir-form__header{padding:17px 16px;gap:12px}
+.nir-editor .nir-form__header h2{font-size:22px}
+.nir-editor .nir-form__header p{font-size:12px}
+.nir-editor .nir-form__header>.nir-form__mark{display:none}
+.nir-flow-nav{gap:5px;padding:12px 12px 10px}
+.nir-editor .nir-flow-nav button{display:flex;flex-direction:column;justify-content:center;gap:6px;padding:9px 4px;border-radius:11px}
+.nir-flow-nav button>span{width:23px;height:23px;font-size:11px;border-radius:8px}
+.nir-flow-nav strong{font-size:12px;line-height:1.3}
+.nir-flow-caption{padding:0 14px 12px;font-size:12px}
+.nir-flow-caption>span:last-child{display:none}
+.nir-editor .nir-form__body{padding:14px 12px}
+.nir-editor .nir-guidance{padding:12px;margin-bottom:13px}
+.nir-editor .nir-guidance strong{font-size:12px}
+.nir-editor .nir-guidance span{font-size:12px}
+.nir-editor .nir-form-section{padding:17px 14px;border-radius:14px;margin-bottom:13px}
+.nir-editor .nir-form-section>header{margin-bottom:18px;gap:10px}
+.nir-editor .nir-form-section>header h3{font-size:19px;line-height:1.4}
+.nir-editor .nir-form-section>header p{font-size:12px}
+.nir-editor .nir-form-section>header>svg{display:none}
+.nir-editor .nir-step{width:29px;height:32px;border-radius:9px;font-size:11px}
+.nir-editor .nir-fields{gap:15px;margin-top:17px}
+.nir-editor .nir-field :is(input,select,textarea){font-size:16px;min-height:45px;padding:11px;border-radius:10px}
+.nir-editor .nir-field>span{font-size:12px}
+.nir-editor-extra>summary{padding:14px;gap:10px}
+.nir-editor-extra strong{font-size:13px}
+.nir-editor-extra small{font-size:12px}
+.nir-editor-extra .nir-form-section{padding:15px 13px}
+.nir-editor .nir-form__footer{padding:12px;gap:7px;flex-wrap:nowrap}
+.nir-editor.is-guided .nir-form__footer>p{display:none}
+.nir-editor .nir-form__footer .nir-flow-back{min-width:36px;width:36px;flex:none;padding:9px}
+.nir-editor .nir-flow-back>span{display:none}
+.nir-editor .nir-flow-back>svg{width:17px;height:17px}
+.nir-editor .nir-form__footer>button[type=submit]{font-size:12px;min-width:0;padding:11px 8px;gap:5px;flex:1;justify-content:center}
+.nir-editor .nir-form__footer>button[type=submit]>svg{display:none}
+.nir-editor .nir-form__footer .nir-flow-next{min-width:98px;padding:11px 10px;font-size:12px;gap:6px}
+.nir-editor .nir-flow-next svg{width:16px;height:16px}
+.nir-editor .nir-line__head{padding:14px 12px}
+.nir-editor .nir-line__head h4{font-size:14px}
+.nir-editor .nir-line__head p{font-size:12px}
+.nir-editor .nir-product-match{margin:12px;padding:12px;gap:10px;flex-wrap:wrap}
+.nir-editor .nir-product-match__main{flex:1;min-width:0}
+.nir-editor .nir-product-match__main strong{font-size:14px}
+.nir-editor .nir-product-match .nir-button{margin:0;width:100%;justify-content:center;min-height:41px}
+.nir-editor .nir-line-identity-options{margin:0 12px 13px}
+.nir-line-identity-options>summary{padding:11px;font-size:12px}
+.nir-line-identity-options>summary>svg:first-child{display:none}
+.nir-editor .nir-line-switches{padding:0 13px 14px;gap:12px}
+.nir-editor .nir-line__quantities,.nir-editor .nir-line__pricing{padding:14px 12px}
+.nir-editor .nir-line__pricing-head{flex-wrap:wrap;gap:10px}
+.nir-editor .nir-line__quantities .nir-fields--four,.nir-editor .nir-line__pricing .nir-fields--four{grid-template-columns:repeat(2,minmax(0,1fr));gap:13px 10px}
+.nir-editor .nir-line-details{margin:0 12px}
+.nir-editor .nir-line-caption{font-size:12px}
+.nir-editor .nir-line-total{padding:12px;gap:12px}
+.nir-editor .nir-line-total strong{font-size:14px}
+.nir-editor .nir-line-total small{font-size:11px}
+.nir-editor .nir-form-summary{display:block}
+.nir-editor .nir-form-summary>div{display:flex;align-items:center;justify-content:space-between;border-right:0;border-bottom:1px solid #efe3e8;padding:14px}
+.nir-editor .nir-form-summary strong{font-size:20px}
+.nir-flow-review>div{padding:13px;gap:10px}
+.nir-flow-review strong{font-size:13px}
+.nir-flow-review-note{font-size:12px}
+.nir-editor .nir-upload{padding:14px;gap:12px}
+.nir-editor .nir-upload>span{display:none}
+.nir-editor .nir-upload .nir-button{width:100%;justify-content:center}
+.nir-editor .nir-import-note{padding:14px;gap:10px;flex-wrap:wrap}
+.nir-editor .nir-import-note>.nir-button{width:100%;justify-content:center}
+}
+
+@media(prefers-reduced-motion:reduce){.nir-detail-view *,.nir-editor *{animation:none!important;transition:none!important;scroll-behavior:auto!important}
+}
+

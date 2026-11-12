@@ -82,7 +82,12 @@ final class NirSecurityHttpTest extends DatabaseTestCase
             self::assertSame(200, $response->getStatusCode(), (string) $response->getBody());
             $xpath = $this->html((string) $response->getBody());
             self::assertSame((string) $document['row_version'], $xpath->evaluate('string(//input[@name="row_version"]/@value)'), $action);
-            self::assertStringContainsString((string) $document['temp_number'], (string) $response->getBody(), $action);
+            if ($action === 'confirma') {
+                self::assertStringContainsString((string) $document['invoice_number'], (string) $response->getBody(), $action);
+                self::assertSame('/admin/nir-uri/' . $document['id'] . '/confirma/', $xpath->evaluate('string(//form/@action)'));
+            } else {
+                self::assertStringContainsString((string) $document['temp_number'], (string) $response->getBody(), $action);
+            }
         }
     }
 

@@ -26,12 +26,13 @@
     box.replaceChildren();
     const p = document.createElement('p'); p.textContent = text; box.append(p); box.hidden = false;
     const displayed = new Set([String(text)]);
+    let revealed = false;
     $$('[aria-invalid="true"]', form).forEach(field => field.removeAttribute('aria-invalid'));
     $$('[data-field-error]', form).forEach(field => { field.textContent = ''; field.hidden = true; });
     Object.entries(errors).forEach(([key, value]) => {
       const name = key.replace(/^lines\.(\d+)\.(.+)$/, 'lines[$1][$2]');
       const field = Array.from(form.elements).find(element => element.name === name);
-      if (field) { field.setAttribute('aria-invalid','true'); const details = field.closest('details'); if (details) details.open = true; }
+      if (field) { if (!revealed) { window.NirFlow?.reveal(field); revealed = true; } field.setAttribute('aria-invalid','true'); const details = field.closest('details'); if (details) details.open = true; }
       const error = $$('[data-field-error]', form).find(element => element.dataset.fieldError === name);
       if (error) { error.textContent = String(value); error.hidden = false; }
       else if(!displayed.has(String(value))) { const line = document.createElement('p'); line.textContent = String(value); box.append(line); displayed.add(String(value)); }
@@ -66,7 +67,8 @@
       if (text.trimStart().startsWith('{')) { const result = JSON.parse(text); throw new Error(result.message || 'Nu ai acces la această acțiune.'); }
       body.innerHTML = text;
       initialize(body);
-      $('input:not([type="hidden"]),select,textarea,button', body)?.focus({preventScroll:true});
+      if(trigger.dataset.editorStep) window.NirFlow?.show($('[data-nir-editor]',body),trigger.dataset.editorStep);
+      $$('input:not([type="hidden"]),select,textarea,button', body).find(control=>control.getClientRects().length>0)?.focus({preventScroll:true});
     } catch(error) {
       if(error.name === 'AbortError') return;
       body.innerHTML = '<div class="nir-form__header"><h2>Nu am putut deschide formularul</h2><button type="button" class="nir-close" data-nir-modal-close aria-label="Închide">×</button></div><div class="nir-form__body"><p>' + escape(error.message) + '</p><a class="nir-button nir-button--soft" href="'+escape(trigger.href)+'">Deschide pagina completă</a></div>';
@@ -147,6 +149,7 @@
     $$('[data-nir-line]',form).forEach(line=>{const amounts=linePreview(line);if(!amounts){valid=false;return;}net+=BigInt(amounts.net_bani);tax+=BigInt(amounts.tax_bani);total+=BigInt(amounts.total_bani);});
     const code=form.elements.currency?.value.toUpperCase() || 'RON';
     [['net',net],['tax',tax],['total',total]].forEach(([key,value])=>{const node=$('[data-summary-'+key+']',form);if(node)node.textContent=valid?currency(Number(value)/100,code):'Verifică valorile';});
+    window.NirFlow?.refresh(form);
   }
 
   function renumber(form) {
@@ -337,7 +340,7 @@
       status.replaceChildren();const summary=document.createElement('p');summary.textContent=lines.length+' poziții importate. Verifică asocierile, cantitățile și valorile înainte de confirmare.';status.append(summary);
       const warnings=imported.warnings || result.warnings || [];status.classList.toggle('has-warnings',warnings.length>0);
       if(warnings.length){const title=document.createElement('strong');title.textContent='Verificări necesare pentru această factură';status.append(title);const list=document.createElement('ul');warnings.forEach(warning=>{const li=document.createElement('li');li.textContent=typeof warning==='string'?warning:(warning.message || String(warning));list.append(li);});status.append(list);status.scrollIntoView({behavior:'smooth',block:'center'});}
-      else $('[data-nir-lines]',form).scrollIntoView({behavior:'smooth',block:'start'});
+      else { window.NirFlow?.show(form,2); $('[data-nir-lines]',form).scrollIntoView({behavior:'smooth',block:'start'}); }
     }catch(e){status.textContent=e.message;}finally{input.disabled=false;input.value='';form.removeAttribute('aria-busy');if(body)body.inert=false;buttons.forEach((button,index)=>button.disabled=disabled[index]);}
   }
 
@@ -358,7 +361,7 @@
   }
 
   function initialize(root) {
-    $$('[data-nir-form]',root).forEach(form=>{currencyChanged(form);locationsChanged(form);renumber(form);});
+    $$('[data-nir-form]',root).forEach(form=>{currencyChanged(form);locationsChanged(form);renumber(form);window.NirFlow?.init(form);});
     const exportForm=$('[data-nir-export-form]',root);if(exportForm)exportDates(exportForm);
     $$('[data-receipt-location-dialog]',root).forEach(dialog=>{
       dialog.addEventListener('cancel',event=>{event.preventDefault();event.stopPropagation();closeLocation(dialog);});

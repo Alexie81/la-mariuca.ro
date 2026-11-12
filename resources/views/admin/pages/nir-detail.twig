@@ -3,7 +3,7 @@
 {% block title %}{{ document.number|default('Fișă NIR') }}{% endblock %}
 {% block content %}
 <div class="nir-admin" data-nir-page>
-<a href="{{ url('admin/nir-uri/') }}" class="nir-back">{{ ui.icon('back') }}Înapoi la registru</a>
+<a href="{{ url('admin/nir-uri/') }}" class="nir-back nir-back--pill"><span class="nir-back__icon">{{ ui.icon('back') }}</span><span>Înapoi la registru</span></a>
 {% include 'admin/partials/nir-detail-content.twig' %}
 {{ ui.modal_shell() }}
 </div>

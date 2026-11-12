@@ -30,6 +30,7 @@ function harness(fetch){
   const document=new Element();document.documentElement=new Element();document.createElement=tag=>new Element(tag);document.addEventListener=()=>{};
   const context=vm.createContext({document,fetch,FormData,DataTransfer,AbortController,URL,Option:function(text,value){const option=new Element('option');option.textContent=text;option.value=value;return option;},setTimeout,clearTimeout,location:{origin:'http://localhost',assign(){}},sessionStorage:{getItem:()=>null},matchMedia:()=>({matches:true})});
   const source=fs.readFileSync(path.resolve(__dirname,'../../public/assets/js/nir-admin.js'),'utf8').replace(/\}\)\(\);\s*$/, 'globalThis.nirTest={submitForm,importLines,fetchRate,createInline,acceptFiles,locationsChanged,saveLocation,setLocationOwner(owner,opener){locationOwner=owner;locationOpener=opener;}};})();');
+  context.window=context;
   vm.runInContext(source,context);return context.nirTest;
 }
 function form(values={}){
