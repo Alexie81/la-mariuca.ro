@@ -89,3 +89,15 @@ node --test tests/Frontend/nir-calculations.test.cjs tests/Frontend/nir-admin.te
 .\bin\php-local.ps1 bin/compile-templates.php
 git diff --check
 ```
+
+## Actualizare 13.11.2026 — retururi, stoc negativ și ștergerea ultimului NIR
+
+- Suită integrală: **689 teste / 6.933 aserțiuni**. După ultima ajustare a facturii fără stoc/deficitului vechi: **189 teste NIR și AccountingStock / 1.397 aserțiuni**, plus **55 teste JavaScript**. PHPStan, lint PHP și compilarea a 120 template-uri Twig au trecut.
+- Verificate: stoc contabil −1 înaintea NIR-ului, intrare ulterioară, ștergere după vânzare și revenire la −1; idempotency, lipsa realocării la ștergere, restaurarea exactă a retururilor furnizor/client, numerotare numerică 9/10, drafturi independente/compactate și blocarea documentelor confirmate mai vechi. Inventarul online rămâne identic în testele de modificare contabilă.
+- Verificate: minimum un fișier real la retur, cantitate activată prin switch, prag disponibil pe furnizor/preț/gestiune, confirmarea folosirii intrărilor compatibile, nume/conținut de fișier acceptate în NIR-uri diferite și guard pentru modificările nesalvate.
+- Legături în ambele sensuri: test HTTP cu două retururi în tranșe, numere/date/copiere/URL distinct pentru fiecare, fără limită de afișare adăugată, legătura eliminată după ștergerea returului. Testele nu emit facturi fiscale.
+- Browser intern Paula/8080: 320/390/768 px și desktop; verificări vizuale pentru returul roz-roșu, informații, renunțare, loader LM, legătura originalului și lista retururilor. Copierea a returnat efectiv numărul documentului; navigarea a deschis documentul corect. Confirmarea ștergerii a fost doar previzualizată, fără executare în baza principală.
+- Fișiere XLSX/ZIP descărcate efectiv sunt valide; captura „Stopped” nu s-a reprodus. Proba privată de 33 MB a separat stocarea de 68–78 ms de primirea prin serverul PHP local de 6,8–9,2 secunde. Aceste rezultate nu validează performanța hostingului.
+- Migrarea SQLite 049 aplicată după backup consistent: integritate OK, zero încălcări FK și comparație identică pentru documentele, comenzile, produsele și inventarul online existente. MySQL/concurența reală și Apache nu au fost rulate.
+
+Această actualizare înlocuiește regula inițială care interzicea orice ștergere de NIR confirmat. Nu autorizează bifarea roadmapului, publicarea sau conectarea automată a viitoarelor facturi fiscale. Capturi și probe: `storage/qa/nir-return-ui/`, `storage/qa/nir-upload-performance/`, excluse din Git.

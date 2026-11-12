@@ -12,7 +12,7 @@ Modulul se deschide din **Stoc și achiziții → NIR-uri**, la `/admin/nir-uri/
 4. Atașează factura și dovezile recepției. Poți selecta fișiere, folosi drag-and-drop sau fotografia documentul pe telefon.
 5. Pentru fiecare poziție, păstrează denumirea și codul furnizorului și asociază produsul/varianta din magazin. Verifică separat cantitățile facturate, primite fizic, acceptate și respinse, unitățile și factorul de conversie. Când există diferențe, alege motivul; pentru „Alt motiv”, scrie explicația.
 6. Introdu valorile în forma disponibilă pe factură: preț unitar, valoare netă a liniei, net + TVA exact sau total cu TVA. Poți completa discountul, cota TVA și costurile suplimentare alocate în RON. Rezumatul final se recalculează pe server.
-7. **Salvează în lucru** creează o ciornă, fără intrare în stoc. Redeschide documentul pentru completări sau apasă **Confirmă recepția**. Citește avertismentele și acceptă-le explicit numai după verificare.
+7. **Salvează draft** creează o ciornă, fără intrare în stoc. Redeschide documentul pentru completări sau apasă **Confirmă recepția**. Citește avertismentele și acceptă-le explicit numai după verificare.
 
 La confirmare se atribuie numărul final și se înregistrează împreună documentul, cantitățile acceptate în stocul contabil, mișcările, loturile FIFO și auditul. Pozițiile excluse de la urmărirea contabilă rămân în document și în totalurile facturii, dar nu produc stoc ori loturi.
 
@@ -26,7 +26,11 @@ La confirmare se atribuie numărul final și se înregistrează împreună docum
 
 ### Corectare, ștergere și documente suplimentare
 
-O ciornă poate fi editată sau ștearsă. Un NIR confirmat nu se șterge.
+Un draft poate fi editat sau șters oricând; drafturile rămase sunt renumerotate consecutiv, separat de documentele confirmate.
+
+**Ultimul NIR confirmat, după numărul anual**, poate fi șters de un administrator cu drept de confirmare, inclusiv dacă marfa lui a fost vândută. Drafturile nu participă la această verificare. Modalul prezintă stocul contabil înainte și după ștergere; serverul verifică din nou ultimul număr și versiunea la salvare. Se inversează întreaga cantitate a documentului: de exemplu **−1 → NIR +2 → +1 → ștergere → −1**. La ștergerea unui retur furnizor, cantitățile și valorile revin în intrările efectiv folosite. Numărul șters poate fi atribuit următorului document confirmat.
+
+Ștergerea nu modifică comenzile, vânzările, alte NIR-uri sau stocul online. Consumul alocat intrării șterse rămâne în așteptarea justificării printr-o intrare ulterioară; nu este mutat automat pe alt NIR în timpul ștergerii. Auditul intern și mișcarea de compensare rămân păstrate, iar reluarea unei cereri vechi nu poate recrea documentul șters.
 
 **Corectarea controlată** este disponibilă numai pentru o recepție furnizor confirmată, fără storno și cu loturi complet neconsumate. Completează motivul și aplică modificările. Recepția rămâne confirmată până la salvarea corecției; dacă o verificare eșuează, tranzacția restaurează datele și stocul anterior.
 
@@ -34,9 +38,11 @@ Fișierele unui document confirmat se pot adăuga sau elimina separat. Aceste ac
 
 ### Retur către furnizor
 
-Din recepția confirmată, deschide **Retur către furnizor**, selectează cantitățile, introdu referința și data facturii corective, motivul și eventualele documente justificative. Se creează un document negativ separat, legat de original. Registrul arată dacă recepția este stornată parțial sau integral.
+Din recepția confirmată, deschide **Retur către furnizor**, selectează cantitățile, introdu referința și data facturii corective, motivul și cel puțin un fișier justificativ obligatoriu. Se creează un document negativ separat, legat de original. Registrul arată dacă recepția este stornată parțial sau integral.
 
-Cantitățile nu pot depăși loturile eligibile rămase în gestiunea recepției originale. Produsele întoarse ulterior de un client pot deveni eligibile prin trasabilitatea lor originală. Dacă au fost recepționate în altă gestiune, este necesar mai întâi un transfer documentat; modulul nu mută implicit stocul între gestiuni.
+În NIR-ul inițial, secțiunea **Retururi către furnizor** afișează toate documentele asociate, unul sub altul, cu număr, dată/oră, referința facturii corective, copiere și acces direct. Fiecare retur păstrează legătura inversă către NIR-ul original. Un document șters dispare din listă.
+
+Pentru fiecare produs se afișează „Pe stoc din acest NIR”, cantitatea compatibilă din alte intrări și limita efectivă de retur. Se folosesc întâi bucățile originale; dacă nu ajung, operatorul poate accepta explicit folosirea altor intrări numai pentru același produs/variantă, furnizor, preț net de achiziție în RON și gestiune. Cantitatea cerută nu poate depăși stocul compatibil disponibil sau cantitatea documentară nereturnată. Prețul ori furnizorul diferit nu este compatibil. Alocarea internă scade disponibilul sursei efective, fără rescrierea celuilalt NIR, a exporturilor sale sau a vânzărilor anterioare. Nu apare în PDF/XLSX ca transfer între documente. Aceste verificări previn erorile contabile și returnarea aceleiași bucăți de două ori. Produsele întoarse ulterior de un client pot deveni eligibile prin trasabilitatea lor originală. Dacă au fost recepționate în altă gestiune, este necesar mai întâi un transfer documentat; modulul nu mută implicit stocul între gestiuni.
 
 ### Retur de la client
 
@@ -81,6 +87,8 @@ Autorizarea se verifică pe server pentru fiecare rută. Câmpurile financiare s
 
 - `NirAdminController` adaptează cererile HTTP și pregătește datele pentru Twig; `NirService` execută regulile; `NirRepository` concentrează SQL-ul. `NirDecimal` folosește `brick/math`: cantități cu 4 zecimale, prețuri/costuri unitare cu 6, curs cu 8 și totaluri în bani întregi. Calculul contabil nu folosește `float` binar.
 - Migrarea `047_nir_receipts.sql` are variante SQLite și MySQL. `nir_stock_balances` este evidența contabilă nouă, pe gestiune și produs/variantă; `nir_fifo_layers`, consumurile și mișcările oferă trasabilitatea. Recepțiile nu modifică stocul comercial, rezervările sau cantitățile disponibile în checkout.
+- Stocul contabil poate fi negativ: o factură emisă înainte de introducerea achiziției scade imediat soldul. NIR-ul introdus ulterior adaugă cantitatea și atribuie costurile consumurilor în așteptare fără o a doua scădere. Migrarea `049_nir_negative_accounting_stock.sql` reflectă în sold consumurile anterior păstrate numai în așteptare. Eventualul deficit din evidența veche este preluat o singură dată, înaintea primei intrări sau facturi din noua evidență.
+- Disponibilitatea magazinului este controlată separat de setările de disponibilitate online și stoc online ale produselor. Un sold contabil zero/negativ nu dezactivează produsul și nu modifică acele setări.
 - Firma, furnizorul, locația, gestiunea și identificarea produsului se păstrează în document ca instantanee. Editarea ulterioară a catalogului nu rescrie denumirile și valorile unei recepții confirmate.
 - Scrierile critice sunt tranzacționale și serializate prin blocarea înregistrării `nir_write_lock`. `row_version` detectează formularele vechi. Cheile de idempotency împiedică dublarea confirmării, corecției, returului și soldului inițial; hash-ul cererii ignoră câmpurile de transport și numele aleatoriu al copiei încărcate, păstrând identitatea conținutului.
 - Auditul păstrează autorul, momentul, acțiunea și modificările. Evenimentele domeniului sunt înregistrate în `nir_outbox`; acestea nu reprezintă, prin ele însele, emailuri sau notificări push trimise.
@@ -88,7 +96,7 @@ Autorizarea se verifică pe server pentru fiecare rută. Câmpurile financiare s
 
 ### Fișiere și importuri sigure
 
-`NirDocumentStorage` păstrează originalele în `storage/private/nir-documents/`, în afara webrootului. Sunt acceptate PDF, JPG/JPEG, PNG, WebP, XLSX și XML, maximum 15 MB/fișier și 30 de fișiere într-o încărcare. Extensia, conținutul MIME, dimensiunea și structura sunt verificate; numele stocat este aleatoriu, iar SHA-256 identifică duplicatele. Aceeași încărcare nu poate fi atașată de două ori aceluiași document.
+`NirDocumentStorage` păstrează originalele în `storage/private/nir-documents/`, în afara webrootului. Sunt acceptate PDF, JPG/JPEG, PNG, WebP, XLSX și XML, fără plafon de bytes impus de aplicație, cu maximum 30 de fișiere într-o încărcare; limitele efective ale găzduirii rămân aplicabile. Extensia, conținutul MIME, dimensiunea și structura sunt verificate; numele stocat este aleatoriu, iar fiecare atașament are ID propriu și legătură la NIR. Nume identice nu sunt identități de fișier. Același conținut poate fi folosit în NIR-uri distincte, inclusiv confirmate; SHA-256 deduplică numai copia identică în același document. Frontendul păstrează fișiere distincte chiar dacă numele, dimensiunea și data sunt identice.
 
 XML-ul nu permite DTD/entități externe. XLSX-ul are limite pentru arhiva dezarhivată și nu execută formule importate. Exporturile scriu textele ca texte, pentru a preveni interpretarea lor ca formule Excel. PDF-ul și miniaturile citesc numai imagini locale autorizate, fără descărcări arbitrare de URL-uri.
 
@@ -102,7 +110,7 @@ Facturile de ieșire și emiterea fiscală a facturilor corective rămân module
 
 Schema MySQL este livrată, dar rularea migrării și concurența pe MySQL/InnoDB, Apache/shared hosting și accesul de rețea către BNR trebuie verificate în mediul țintă. Nu s-a făcut publicare în producție. Preluarea BNR a fost verificată separat în rețeaua locală, folosind arhiva oficială `https://curs.bnr.ro/files/xml/years/nbrfxratesAAAA.xml`; acest rezultat nu validează conectivitatea hostingului.
 
-Limitele PHP pentru formularul de 1.000 de poziții și atașamente sunt incluse în `public/.user.ini` pentru PHP-FPM/CGI și în `bin/php-local.ps1` pentru serverul local: `max_input_vars=60000`, `upload_max_filesize=15M`, `post_max_size=512M`, `max_file_uploads=30`. Pe hosting se verifică valorile efectiv aplicate și limita proxy/webserverului, conform checklistului de deployment.
+Limitele PHP pentru formularul de 1.000 de poziții și atașamente sunt incluse în `public/.user.ini` pentru PHP-FPM/CGI și în `bin/php-local.ps1` pentru serverul local: `max_input_vars=60000`, `upload_max_filesize=0`, `post_max_size=0`, `max_file_uploads=30`. Pe hosting se verifică valorile efectiv aplicate și limita proxy/webserverului, conform checklistului de deployment.
 
 ## Verificări efectuate
 
@@ -111,3 +119,11 @@ Auditul funcțional extins din 12.11.2026, matricea funcțiilor testate, defecte
 Testele locale rulează pe baze SQLite temporare. Suita dedicată documentelor și protecțiilor HTTP a trecut: 19 teste, 121 de aserțiuni. Acoperă formatele și securitatea importurilor/exporturilor, redacția costurilor, versiunile vechi, apartenența și accesul la atașamente, perioadele exportate la limita miezului nopții locale, avertismentele fără JavaScript și reluarea unui retur multipart fără duplicarea documentului sau fișierului.
 
 PDF-ul a fost randat și inspectat vizual în variantă scurtă și cu mai multe pagini; antetul tabelului se repetă, iar numerotarea paginilor rămâne vizibilă. Verificările integrale ale aplicației și ale interfeței sunt consemnate în `docs/PROGRESS.md`. Această documentație nu bifează etapa din roadmap; finalizarea ei se confirmă separat de utilizator.
+
+### Interacțiuni și transferuri (actualizare 12.11.2026)
+
+Adăugarea, editarea și returul cer confirmare înainte de închiderea unui formular cu modificări nesalvate. „Continuă editarea” păstrează datele și fișierele selectate. Reîncărcarea sau navigarea folosește avertismentul nativ al browserului. Numai salvarea reușită resetează protecția.
+
+Exporturile și descărcările afișează după 300 ms un dialog cu indicator circular și sigla LM. Uploadurile afișează progresul real al transferului, apoi așteptarea răspunsului serverului; 100% transferat nu este prezentat ca salvare finalizată. Erorile păstrează formularul. Generarea fișierului și preluarea acestuia de browser sunt pași separați.
+
+Returul către furnizor are accente roz-roșu în fișă și registru, terminologie distinctă de recepție inclusiv în PDF/XLSX, și cardul NIR-ului original cu număr, dată/oră București, acces direct și copiere. Valorile documentului de retur rămân negative; identificatorul LM-NIR este păstrat.
