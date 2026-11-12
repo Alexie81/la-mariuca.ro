@@ -93,6 +93,32 @@ final class NirAdminHttpTest extends DatabaseTestCase
         self::assertSame(200,$detail->getStatusCode(),(string) $detail->getBody());
     }
 
+    public function testEditingCompactsStoredDecimalsAndPreservesManuallySubmittedPrecision(): void
+    {
+        $service = new NirService($this->pdo);
+        $values = $service->defaults(['id'=>$this->adminId,'role'=>'administrator'])['values'];
+        $values['supplier_id'] = (new SupplierAdminService($this->pdo))->save(['alias'=>'Decimal QA','company_name'=>'Decimal QA SRL']);
+        $values['invoice_number'] = 'DECIMAL-01';
+        $variant = $this->pdo->query('SELECT v.id,v.product_id FROM product_variants v JOIN products p ON p.id=v.product_id WHERE p.track_in_conta=1 LIMIT 1')->fetch();
+        $values['lines'] = [['product_id'=>$variant['product_id'],'variant_id'=>$variant['id'],'supplier_name'=>'Precizie păstrată','invoice_quantity'=>'2','received_quantity'=>'2','accepted_quantity'=>'2','rejected_quantity'=>'0','unit_price'=>'85.125600','vat_percent'=>'21','discount_percent'=>'0','conversion_factor'=>'1','purchase_unit'=>'buc','stock_unit'=>'buc','price_mode'=>'unit']];
+        $saved = $this->request('POST','/admin/nir-uri/nou/',['_csrf'=>$_SESSION['_csrf']]+$values,true);
+        self::assertSame(200,$saved->getStatusCode(),(string) $saved->getBody());
+        $document = json_decode((string) $saved->getBody(),true,512,JSON_THROW_ON_ERROR)['document'];
+        foreach (['editare/','editare/modal/'] as $suffix) {
+            $response = $this->request('GET','/admin/nir-uri/'.$document['id'].'/'.$suffix);
+            self::assertSame(200,$response->getStatusCode());
+            $html = (string) $response->getBody();
+            foreach (['unit_price'=>'85.1256','vat_percent'=>'21','discount_percent'=>'0','accepted_quantity'=>'2','conversion_factor'=>'1'] as $field=>$expected) {
+                self::assertStringContainsString('name="lines[0]['.$field.']" type="text" value="'.$expected.'"',$html);
+            }
+        }
+        $submitted = $this->request('POST','/admin/nir-uri/nou/',['_csrf'=>$_SESSION['_csrf'],'intent'=>'add_line','lines'=>[['supplier_name'=>'Valori introduse manual','unit_price'=>'85,1200','vat_percent'=>'21.00','accepted_quantity'=>'2.500']]]);
+        self::assertSame(200,$submitted->getStatusCode());
+        foreach (['unit_price'=>'85,1200','vat_percent'=>'21.00','accepted_quantity'=>'2.500'] as $field=>$expected) {
+            self::assertStringContainsString('name="lines[0]['.$field.']" type="text" value="'.$expected.'"',(string) $submitted->getBody());
+        }
+    }
+
     /** @param array<string,mixed> $body */
     private function request(string $method,string $path,array $body=[],bool $json=false): ResponseInterface
     {

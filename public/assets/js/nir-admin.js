@@ -5,6 +5,7 @@
   const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
   const escape = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
   const number = value => Number(String(value || '0').replace(/\s/g, '').replace(',', '.')) || 0;
+  const compactDecimal = value => /^-?\d+[.,]\d+$/.test(String(value ?? '')) ? String(value).replace(/0+$/, '').replace(/[.,]$/, '') : value;
   const decimal = value => Number(value).toLocaleString('ro-RO', {maximumFractionDigits: 4});
   const currency = (value, code) => Number(value).toLocaleString('ro-RO', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' ' + code;
   let openingTrigger = null;
@@ -121,7 +122,7 @@
   }
 
   function lineValue(line,key) { return $('[name$="['+key+']"]',line)?.value || ''; }
-  function setLineValue(line,key,value) { if(key==='tracked'){const checkbox=$('[data-line-tracked]',line);if(checkbox)checkbox.checked=Boolean(value)&&value!=='0';return;} const field=$('[name$="['+key+']"]',line); if(field) field.value=value ?? ''; }
+  function setLineValue(line,key,value) { if(key==='tracked'){const checkbox=$('[data-line-tracked]',line);if(checkbox)checkbox.checked=Boolean(value)&&value!=='0';return;} const field=$('[name$="['+key+']"]',line); if(field) field.value=(field.inputMode==='decimal' ? compactDecimal(value) : value) ?? ''; }
   function linePreview(line) {
     const form=line.closest('form'),mode=lineValue(line,'price_mode') || 'unit';
     const code=form.elements.currency?.value.toUpperCase() || 'RON';
@@ -237,7 +238,7 @@
 
   function applyReference(line,reference,batch=false) {
     if(!reference)return;
-    ['purchase_unit','stock_unit','conversion_factor'].forEach(key=>{const field=$('[name$="['+key+']"]',line);if(field&&!field.dataset.manuallyChanged&&reference[key])field.value=reference[key];});
+    ['purchase_unit','stock_unit','conversion_factor'].forEach(key=>{const field=$('[name$="['+key+']"]',line);if(field&&!field.dataset.manuallyChanged&&reference[key])setLineValue(line,key,reference[key]);});
     const history=$('[data-price-history]',line);if(history&&reference.last_price){history.textContent='Ultimul preț la acest furnizor: '+decimal(reference.last_price)+' '+(reference.last_currency || 'RON');history.hidden=false;}
     if(!batch)preview(line.closest('form'));
   }
@@ -354,7 +355,7 @@
       const result=await json(await fetch(url,{headers:{Accept:'application/json'},signal:request.signal}));
       if(!form.isConnected || rateRequests.get(form)!==request)return;
       if(signature()!==original){status.textContent='Datele au fost schimbate. Solicită din nou cursul pentru valorile actuale.';return;}
-      if(result.rate){form.elements.exchange_rate.value=result.rate;form.elements.exchange_rate_date.value=result.date;}
+      if(result.rate){form.elements.exchange_rate.value=compactDecimal(result.rate);form.elements.exchange_rate_date.value=result.date;}
       status.textContent=result.message || 'Cursul a fost actualizat.';preview(form);
     } catch(error) {if(error.name!=='AbortError')status.textContent=error.message+' Poți introduce manual cursul verificat.';}
     finally {if(rateRequests.get(form)===request)button.disabled=false;}

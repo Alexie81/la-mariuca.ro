@@ -489,6 +489,23 @@ final class NirAdminController
             foreach (['nir_at','received_at'] as $field) { $values[$field]=$this->date((string) ($doc[$field] ?? ''),'Y-m-d\TH:i'); }
         }
         if (empty($values['lines'])) { $values['lines'] = [$this->blankLine()]; }
+        // Database decimals are fixed precision; form values need no padding.
+        // A submitted value is left untouched, including deliberately entered zeros.
+        if ($submitted === null) {
+            $compactDecimal = static function (mixed $value): mixed {
+                if (!is_scalar($value) || !preg_match('/^-?\d+\.\d+$/D', (string) $value)) { return $value; }
+                return rtrim(rtrim((string) $value, '0'), '.');
+            };
+            foreach (['exchange_rate'] as $field) {
+                if (isset($values[$field])) { $values[$field] = $compactDecimal($values[$field]); }
+            }
+            foreach ($values['lines'] as &$line) {
+                foreach (['invoice_quantity', 'received_quantity', 'accepted_quantity', 'rejected_quantity', 'conversion_factor', 'unit_price', 'discount_percent', 'vat_percent', 'extra_cost_ron', 'net_override', 'tax_override', 'gross_override', 'stock_quantity'] as $field) {
+                    if (isset($line[$field])) { $line[$field] = $compactDecimal($line[$field]); }
+                }
+            }
+            unset($line);
+        }
         return $this->render($this->modal($request) ? 'admin/partials/nir-form-content.twig' : 'admin/pages/nir-form.twig', array_replace($defaults,[
             'products'=>$this->nirs->selectProducts($this->actor()),
             'values'=>$values,'document'=>$doc,'errors'=>$errors,'warnings'=>$warnings, 'is_edit'=>$id!==null, 'is_correction'=>$correction,
