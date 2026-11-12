@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>{% block title %}Dashboard{% endblock %} · Administrare La Măriuca</title>
-  <link rel="stylesheet" href="{{ url('assets/css/admin.css?v=20261031-category-tree-v17') }}">
+  <link rel="stylesheet" href="{{ url('assets/css/admin.css?v=20261113-sidebar-scroll') }}">
   {% if admin_section|default('') == 'categories' %}<link rel="stylesheet" href="{{ url('assets/css/category-editor.css?v=20261107-payment-rules') }}">{% endif %}
   {% if admin_section|default('') in ['customers', 'newsletter'] %}<link rel="stylesheet" href="{{ url('assets/css/customer-admin.css?v=20261101-v15') }}">{% endif %}
   {% if admin_section|default('') == 'newsletter' %}<link rel="stylesheet" href="{{ url('assets/css/newsletter-admin.css?v=20261103-v2') }}">{% endif %}
@@ -72,6 +72,7 @@
       </div>
       <div class="admin-sidebar__caption">Administrare magazin</div>
 
+      <div class="admin-sidebar__scroll" tabindex="0" role="region" aria-label="Meniul de administrare">
       <nav class="admin-nav" aria-label="Secțiuni">
         <span class="admin-nav__label">Activitate zilnică</span>
         <a class="admin-nav__item{{ active_admin_section == 'dashboard' ? ' is-active' : '' }}" href="{{ url('admin') }}"{% if active_admin_section == 'dashboard' %} aria-current="page"{% endif %}>
@@ -137,6 +138,7 @@
       <div class="admin-security-note">
         <span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 5 6v5c0 4.6 2.8 8.2 7 10 4.2-1.8 7-5.4 7-10V6l-7-3Z"/><path d="m9 12 2 2 4-4"/></svg></span>
         <div><strong>Sesiune protejată</strong><small>Datele sunt accesibile doar echipei.</small></div>
+      </div>
       </div>
       <div class="admin-sidebar__profile">
         <span class="admin-avatar admin-avatar--logo">
