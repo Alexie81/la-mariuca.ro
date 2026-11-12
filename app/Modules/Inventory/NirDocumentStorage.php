@@ -9,7 +9,6 @@ use Psr\Http\Message\UploadedFileInterface;
 /** Private original documents. Access is always mediated by the authorized NIR controller. */
 final class NirDocumentStorage
 {
-    public const MAX_BYTES = 15 * 1024 * 1024;
     private const MIME_TYPES = [
         'pdf' => ['application/pdf'],
         'jpg' => ['image/jpeg'], 'jpeg' => ['image/jpeg'],
@@ -25,8 +24,11 @@ final class NirDocumentStorage
     /** @return array<string, mixed> */
     public function store(UploadedFileInterface $file): array
     {
-        if ($file->getError() !== UPLOAD_ERR_OK || ($file->getSize() ?? 0) <= 0 || $file->getSize() > self::MAX_BYTES) {
-            throw new \InvalidArgumentException('Alege un document de maximum 15 MB. Încărcarea trebuie să fie completă.');
+        if (in_array($file->getError(), [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true)) {
+            throw new \InvalidArgumentException('Serverul a oprit încărcarea fișierului. Verifică limita de încărcare din configurația găzduirii.');
+        }
+        if ($file->getError() !== UPLOAD_ERR_OK) {
+            throw new \InvalidArgumentException('Documentul nu a fost încărcat complet. Alege fișierul și încearcă din nou.');
         }
         $name = self::safeName($file->getClientFilename() ?? 'document');
         $extension = strtolower(pathinfo($name, PATHINFO_EXTENSION));
@@ -37,53 +39,66 @@ final class NirDocumentStorage
         if ($stream->isSeekable()) {
             $stream->rewind();
         }
-        $bytes = '';
-        while (!$stream->eof() && strlen($bytes) <= self::MAX_BYTES) {
-            $part = $stream->read(min(65536, self::MAX_BYTES + 1 - strlen($bytes)));
-            if ($part === '') {
-                break;
-            }
-            $bytes .= $part;
-        }
-        if ($bytes === '' || strlen($bytes) > self::MAX_BYTES) {
-            throw new \InvalidArgumentException('Documentul este gol sau depășește limita de 15 MB.');
-        }
-        $mime = (new \finfo(FILEINFO_MIME_TYPE))->buffer($bytes);
-        if (!in_array($mime, self::MIME_TYPES[$extension], true)) {
-            throw new \InvalidArgumentException('Conținutul fișierului nu corespunde extensiei. Alege documentul original.');
-        }
-        if (str_starts_with((string) $mime, 'image/')) {
-            $dimensions = @getimagesizefromstring($bytes);
-            if ($dimensions === false || $dimensions[0] * $dimensions[1] > 40_000_000 || $dimensions[0] < 1 || $dimensions[1] < 1) {
-                throw new \InvalidArgumentException('Imaginea este invalidă sau depășește 40 megapixeli.');
-            }
-        }
-        if ($extension === 'xml') {
-            self::validateXml($bytes);
-            $mime = 'application/xml';
-        }
         if (!is_dir($this->directory()) && !mkdir($this->directory(), 0770, true) && !is_dir($this->directory())) {
             throw new \RuntimeException('Documentele nu pot fi salvate momentan.');
         }
         $storedName = bin2hex(random_bytes(20)) . '.' . $extension;
         $path = $this->directory() . '/' . $storedName;
-        if (file_put_contents($path, $bytes, LOCK_EX) !== strlen($bytes)) {
-            @unlink($path);
-            throw new \RuntimeException('Documentul nu a putut fi salvat integral.');
+        $output = @fopen($path, 'xb');
+        if ($output === false) {
+            throw new \RuntimeException('Documentul nu poate fi salvat momentan.');
         }
-        @chmod($path, 0660);
+        $size = 0;
+        $hash = hash_init('sha256');
         try {
+            // Copy to private storage in chunks, without loading large originals into memory.
+            try {
+                while (true) {
+                    $part = $stream->read(65536);
+                    if ($part === '') {
+                        if (!$stream->eof()) {
+                            throw new \RuntimeException('Documentul nu a putut fi citit integral.');
+                        }
+                        break;
+                    }
+                    if (fwrite($output, $part) !== strlen($part)) {
+                        throw new \RuntimeException('Documentul nu a putut fi salvat integral.');
+                    }
+                    $size += strlen($part);
+                    hash_update($hash, $part);
+                }
+            } finally {
+                fclose($output);
+            }
+            if ($size === 0 || ($file->getSize() !== null && $size !== $file->getSize())) {
+                throw new \InvalidArgumentException('Documentul este gol sau încărcarea este incompletă. Încearcă din nou.');
+            }
+            $mime = (new \finfo(FILEINFO_MIME_TYPE))->file($path);
+            if (!in_array($mime, self::MIME_TYPES[$extension], true)) {
+                throw new \InvalidArgumentException('Conținutul fișierului nu corespunde extensiei. Alege documentul original.');
+            }
+            if (str_starts_with((string) $mime, 'image/')) {
+                $dimensions = @getimagesize($path);
+                if ($dimensions === false || $dimensions[0] * $dimensions[1] > 40_000_000 || $dimensions[0] < 1 || $dimensions[1] < 1) {
+                    throw new \InvalidArgumentException('Imaginea este invalidă sau depășește 40 megapixeli.');
+                }
+            }
+            if ($extension === 'xml') {
+                self::validateXmlFile($path);
+                $mime = 'application/xml';
+            }
             if ($extension === 'xlsx') {
-                self::validateWorkbook($path);
+                self::validateWorkbook($path, false);
                 $mime = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
             }
+            @chmod($path, 0660);
         } catch (\Throwable $exception) {
             @unlink($path);
             throw $exception;
         }
         return [
             'stored_name' => $storedName, 'original_name' => $name, 'mime_type' => $mime,
-            'extension' => $extension, 'size_bytes' => strlen($bytes), 'sha256' => hash('sha256', $bytes),
+            'extension' => $extension, 'size_bytes' => $size, 'sha256' => hash_final($hash),
             'extraction_status' => in_array($extension, ['xlsx', 'xml'], true) ? 'pending' : 'manual',
         ];
     }
@@ -137,7 +152,33 @@ final class NirDocumentStorage
         }
     }
 
-    public static function validateWorkbook(string $path): void
+    private static function validateXmlFile(string $path): void
+    {
+        $previous = libxml_use_internal_errors(true);
+        libxml_clear_errors();
+        $reader = new \XMLReader();
+        try {
+            if (!$reader->open($path, null, LIBXML_NONET)) {
+                throw new \InvalidArgumentException('Fișierul XML nu este valid.');
+            }
+            $reader->setParserProperty(\XMLReader::LOADDTD, false);
+            $reader->setParserProperty(\XMLReader::SUBST_ENTITIES, false);
+            while ($reader->read()) {
+                if (in_array($reader->nodeType, [\XMLReader::DOC_TYPE, \XMLReader::ENTITY, \XMLReader::ENTITY_REF], true)) {
+                    throw new \InvalidArgumentException('XML-ul nu poate conține definiții DTD sau entități externe.');
+                }
+            }
+            if (libxml_get_errors() !== []) {
+                throw new \InvalidArgumentException('Fișierul XML nu este valid.');
+            }
+        } finally {
+            $reader->close();
+            libxml_clear_errors();
+            libxml_use_internal_errors($previous);
+        }
+    }
+
+    public static function validateWorkbook(string $path, bool $forImport = true): void
     {
         $zip = new \ZipArchive();
         if ($zip->open($path) !== true) {
@@ -155,7 +196,8 @@ final class NirDocumentStorage
                 }
                 $total += $entry['size'];
                 $entryName = str_replace('\\', '/', $entry['name']);
-                if ($total > 80 * 1024 * 1024 || $entry['size'] > 30 * 1024 * 1024 || str_contains(strtolower($entryName), 'vbaproject') || preg_match('~(^/|^[A-Za-z]:|(^|/)\.\.(/|$))~D', $entryName)) {
+                // Expansion limits apply to parsing cells, not storing the original attachment.
+                if (($forImport && ($total > 80 * 1024 * 1024 || $entry['size'] > 30 * 1024 * 1024)) || str_contains(strtolower($entryName), 'vbaproject') || preg_match('~(^/|^[A-Za-z]:|(^|/)\.\.(/|$))~D', $entryName)) {
                     throw new \InvalidArgumentException('Registrul XLSX conține date excesive sau conținut nepermis.');
                 }
             }

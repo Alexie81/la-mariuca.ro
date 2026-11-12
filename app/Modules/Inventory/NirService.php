@@ -784,6 +784,12 @@ final class NirService
             catch(NirConflictException) { $row['draft_issues']=['references']; $row['draft_incomplete']=true; }
         }
         if($details) {
+            foreach(['created_by','confirmed_by'] as $field) {
+                if(empty($row[$field])) { continue; }
+                $user=$this->repository->one('users',['id'=>$row[$field]]);
+                $name=trim(($user['first_name']??'').' '.($user['last_name']??''));
+                if($name!=='') { $row[$field.'_name']=$name; }
+            }
             $row['lines']=$lines; $row['attachments']=$this->repository->all('nir_attachments',['nir_id'=>$row['id']]); $row['audit']=$this->repository->all('nir_audit',['nir_id'=>$row['id']],'id DESC'); $row['reversals']=$reversals;
             foreach($row['audit'] as &$event) { foreach(['before','after','context'] as $key) { $event[$key]=json_decode($event[$key.'_json'],true); } } unset($event);
             foreach($row['lines'] as &$line) { $line['price_history']=$this->priceHistory($line,(int)$row['supplier_id'],(int)$row['id']); } unset($line);

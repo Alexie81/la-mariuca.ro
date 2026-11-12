@@ -210,7 +210,7 @@ final class NirIoAuditTest extends TestCase
         fclose($stream);
         $zip->addFile($oversized, 'xl/oversized.xml');
         $zip->close();
-        self::assertLessThan(NirDocumentStorage::MAX_BYTES, filesize($path));
+        self::assertLessThan(1024 * 1024, filesize($path));
         $this->expectException(\InvalidArgumentException::class);
         NirDocumentStorage::validateWorkbook($path);
     }

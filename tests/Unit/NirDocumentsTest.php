@@ -63,11 +63,60 @@ final class NirDocumentsTest extends TestCase
         (new NirDocumentStorage($this->temporary))->store(new UploadedFile($path,'image.png','image/png',filesize($path)));
     }
 
-    public function testUploadRejectsOversizeBeforeReading(): void
+    public function testLargeWorkbookAttachmentKeepsOriginalWithoutTheOldSizeCeiling(): void
+    {
+        $book = new Spreadsheet();
+        $book->getActiveSheet()->fromArray([['Denumire', 'Cantitate', 'Preț'], ['Rochiță', 2, 85]]);
+        $path = $this->temporary . '/large.xlsx';
+        (new Xlsx($book))->save($path);
+        $book->disconnectWorksheets();
+        $payload = $this->temporary . '/large-media.bin';
+        $handle = fopen($payload, 'wb');
+        ftruncate($handle, 32 * 1024 * 1024);
+        fclose($handle);
+        $zip = new \ZipArchive();
+        self::assertTrue($zip->open($path));
+        $zip->addFile($payload, 'xl/media/large-media.bin');
+        $zip->setCompressionName('xl/media/large-media.bin', \ZipArchive::CM_STORE);
+        $zip->close();
+        clearstatcache(true, $path);
+        self::assertGreaterThan(32 * 1024 * 1024, filesize($path));
+        $storage = new NirDocumentStorage($this->temporary);
+        $stored = $storage->store(new UploadedFile($path, 'catalog.xlsx', 'application/octet-stream', filesize($path)));
+        self::assertSame(filesize($path), $stored['size_bytes']);
+        self::assertSame(hash_file('sha256', $path), $stored['sha256']);
+        self::assertSame($stored['sha256'], hash_file('sha256', $storage->path($stored['stored_name'])));
+        self::assertSame('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', $stored['mime_type']);
+        // The original can be kept even when automatic cell extraction is too expensive.
+        $this->expectException(\InvalidArgumentException::class);
+        (new NirImportService())->parse($storage->path($stored['stored_name']), 'xlsx');
+    }
+
+    public function testUploadRejectsTruncatedFileAndRemovesPartialCopy(): void
     {
         $path=$this->temporary.'/big.pdf';file_put_contents($path,'%PDF-1.7');
+        try {
+            (new NirDocumentStorage($this->temporary))->store(new UploadedFile($path,'big.pdf','application/pdf',16 * 1024 * 1024));
+            self::fail('Incomplete upload must be rejected.');
+        } catch (\InvalidArgumentException $exception) {
+            self::assertStringContainsString('incompletă', $exception->getMessage());
+            self::assertSame([], glob($this->temporary . '/storage/private/nir-documents/*'));
+        }
+    }
+
+    public function testHostingLimitErrorIsExplainedWithoutAnApplicationSizeLimit(): void
+    {
         $this->expectException(\InvalidArgumentException::class);
-        (new NirDocumentStorage($this->temporary))->store(new UploadedFile($path,'big.pdf','application/pdf',NirDocumentStorage::MAX_BYTES+1));
+        $this->expectExceptionMessage('configurația găzduirii');
+        (new NirDocumentStorage($this->temporary))->store(new UploadedFile('', 'large.pdf', 'application/pdf', 0, UPLOAD_ERR_INI_SIZE));
+    }
+
+    public function testXmlAttachmentRejectsExternalEntitiesDuringStreamingValidation(): void
+    {
+        $path = $this->temporary . '/unsafe.xml';
+        file_put_contents($path, '<!DOCTYPE Invoice [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><Invoice>&xxe;</Invoice>');
+        $this->expectException(\InvalidArgumentException::class);
+        (new NirDocumentStorage($this->temporary))->store(new UploadedFile($path, 'unsafe.xml', 'application/xml', filesize($path)));
     }
 
     public function testXmlRejectsExternalEntities(): void
@@ -353,10 +402,69 @@ final class NirDocumentsTest extends TestCase
             $pdf=$exporter->individual($document,'pdf');$this->exports[]=$pdf['path'];
             self::assertStringStartsWith('%PDF-',(string)file_get_contents($pdf['path'],false,null,0,8));self::assertGreaterThan(10000,filesize($pdf['path']));
             $file=$exporter->registry([$document],'zip',['from'=>'2026-11-01','to'=>'2026-11-30']);$this->exports[]=$file['path'];
-            $zip=new \ZipArchive();self::assertTrue($zip->open($file['path']));self::assertNotFalse($zip->locateName('Registru_NIR.xlsx'));self::assertNotFalse($zip->locateName('NIR-2026-000001/NIR-2026-000001.pdf'));self::assertSame(self::ubl(),$zip->getFromName('NIR-2026-000001/documente/001_original.xml'));self::assertSame(4,$zip->numFiles);$zip->close();
+            $zip=new \ZipArchive();self::assertTrue($zip->open($file['path']));self::assertNotFalse($zip->locateName('Registru_NIR.xlsx'));self::assertNotFalse($zip->locateName('NIR-2026-000001/NIR-2026-000001.pdf'));self::assertNotFalse($zip->locateName('NIR-2026-000001/documente/'));self::assertSame(self::ubl(),$zip->getFromName('NIR-2026-000001/documente/001_original.xml'));self::assertSame(5,$zip->numFiles);$zip->close();
+            $individual=$exporter->individual($document,'zip');$this->exports[]=$individual['path'];
+            self::assertTrue($zip->open($individual['path']));self::assertNotFalse($zip->locateName('NIR-2026-000001.pdf'));self::assertNotFalse($zip->locateName('documente/'));self::assertSame(self::ubl(),$zip->getFromName('documente/001_original.xml'));self::assertSame(4,$zip->numFiles);$zip->close();
             $restricted=$exporter->individual($document,'zip',false);$this->exports[]=$restricted['path'];
-            self::assertTrue($zip->open($restricted['path']));self::assertFalse($zip->locateName('NIR-2026-000001/documente/001_original.xml'));self::assertNotFalse($zip->locateName('NIR-2026-000001/documente/ACCES_RESTRICTIONAT.txt'));$zip->close();
+            self::assertTrue($zip->open($restricted['path']));self::assertFalse($zip->locateName('documente/001_original.xml'));self::assertNotFalse($zip->locateName('documente/ACCES_RESTRICTIONAT.txt'));$zip->close();
         }finally{$storage->remove($attachment['stored_name']);}
+    }
+
+    public function testRegistryKeepsReferenceColumnsNativeValuesAndFilterAwareTotals(): void
+    {
+        $document=self::document();
+        $document['number']='LM-NIR-2026-1';
+        $document['supplier']['company_name']='=1+2';
+        $document['invoice_number']='0000123';
+        $document['lines'][0]['accepted_quantity']='2.5000';
+        $draft=array_replace($document,['id'=>2,'number'=>null,'temp_number'=>'DRAFT-INTERNAL','draft_sequence'=>2,'status'=>'draft','draft_incomplete'=>true,'currency'=>'EUR','total_bani'=>12345,'total_ron_bani'=>61523]);
+        $draft['exchange_rate']='4.98360000';
+        $file=(new NirExportService(dirname(__DIR__,2)))->registry([$document,$draft],'xlsx',['from'=>'2026-11-01','to'=>'2026-11-30','search'=>'=1+2']);$this->exports[]=$file['path'];
+        $book=IOFactory::load($file['path']);$sheet=$book->getActiveSheet();
+        self::assertSame(['Registru NIR'],$book->getSheetNames());
+        self::assertSame('AL',$sheet->getHighestColumn());
+        self::assertSame('A6:AL8',$sheet->getAutoFilter()->getRange());
+        self::assertSame('C7',$sheet->getFreezePane());
+        self::assertFalse($sheet->getShowGridlines());
+        self::assertCount(1,$sheet->getDrawingCollection());
+        self::assertSame('LM-NIR-2026-1',$sheet->getCell('B7')->getValue());
+        self::assertSame('Draft #2',$sheet->getCell('B8')->getValue());
+        self::assertSame('Draft - incomplet',$sheet->getCell('D8')->getValue());
+        self::assertSame('=1+2',$sheet->getCell('I7')->getValue());
+        self::assertSame(DataType::TYPE_STRING,$sheet->getCell('I7')->getDataType());
+        self::assertSame(DataType::TYPE_STRING,$sheet->getCell('L4')->getDataType());
+        self::assertSame('0000123',$sheet->getCell('L7')->getValue());
+        self::assertSame(DataType::TYPE_NUMERIC,$sheet->getCell('E7')->getDataType());
+        self::assertSame('12.11.2026',$sheet->getCell('E7')->getFormattedValue());
+        self::assertSame('11:00',$sheet->getCell('F7')->getFormattedValue());
+        foreach(['A7'=>'1','P7'=>'1','R7'=>'1','S7'=>'3','T7'=>'2','U7'=>'2.5','V7'=>'0','W7'=>'-1','AF7'=>'0','P8'=>'4.9836'] as $cell=>$expected){
+            self::assertSame($expected,$sheet->getCell($cell)->getFormattedValue(),$cell.' must not contain a dangling decimal separator.');
+        }
+        self::assertEquals(2,$sheet->getCell('A4')->getCalculatedValue());
+        self::assertEquals(2,$sheet->getCell('C4')->getCalculatedValue());
+        self::assertEqualsWithDelta(735.02,$sheet->getCell('E4')->getCalculatedValue(),0.00001);
+        // A filtered or manually hidden row must not remain in the summary.
+        $sheet->getRowDimension(8)->setVisible(false);
+        \PhpOffice\PhpSpreadsheet\Calculation\Calculation::getInstance($book)->clearCalculationCache();
+        self::assertEquals(1,$sheet->getCell('A4')->getCalculatedValue());
+        self::assertEqualsWithDelta(119.79,$sheet->getCell('E4')->getCalculatedValue(),0.00001);
+        self::assertNull($sheet->getCell('AE7')->getValue());
+        $book->disconnectWorksheets();
+    }
+
+    public function testEmptyRegistryAndIndividualArchiveKeepUsefulStructure(): void
+    {
+        $exporter=new NirExportService(dirname(__DIR__,2));
+        $file=$exporter->registry([],'xlsx');$this->exports[]=$file['path'];
+        $book=IOFactory::load($file['path']);$sheet=$book->getActiveSheet();
+        foreach(['A4','C4','E4','I4'] as $cell){self::assertEquals(0,$sheet->getCell($cell)->getCalculatedValue(),$cell);}
+        self::assertSame('A6:AL7',$sheet->getAutoFilter()->getRange());
+        self::assertNull($sheet->getCell('B7')->getValue());$book->disconnectWorksheets();
+        $file=$exporter->individual(self::document(),'zip');$this->exports[]=$file['path'];
+        $zip=new \ZipArchive();self::assertTrue($zip->open($file['path']));
+        self::assertNotFalse($zip->locateName('documente/'));
+        self::assertNotFalse($zip->locateName('NIR-2026-000001.pdf'));
+        self::assertSame(3,$zip->numFiles);$zip->close();
     }
 
     public static function document(): array

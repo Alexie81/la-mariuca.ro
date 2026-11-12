@@ -27,8 +27,8 @@ final class NirImportService
     /** @return array{header: array<string,mixed>, lines: list<array<string,mixed>>, warnings: list<string>} */
     public function parse(string $absolutePath, string $extension): array
     {
-        if (!is_file($absolutePath) || is_link($absolutePath) || filesize($absolutePath) > NirDocumentStorage::MAX_BYTES) {
-            throw new \InvalidArgumentException('Documentul nu poate fi citit sau depășește 15 MB.');
+        if (!is_file($absolutePath) || is_link($absolutePath) || !is_readable($absolutePath)) {
+            throw new \InvalidArgumentException('Documentul nu poate fi citit.');
         }
         return match (strtolower($extension)) {
             'xlsx' => $this->xlsx($absolutePath),
@@ -130,6 +130,9 @@ final class NirImportService
     /** @return array{header: array<string,mixed>, lines: list<array<string,mixed>>, warnings: list<string>} */
     private function xml(string $path): array
     {
+        if (filesize($path) > 80 * 1024 * 1024) {
+            throw new \InvalidArgumentException('Acest XML este prea mare pentru extragerea automată. Îl poți atașa integral și completa produsele manual.');
+        }
         $document = NirDocumentStorage::validateXml((string) file_get_contents($path));
         if ($document->documentElement?->localName !== 'Invoice' || $document->documentElement->namespaceURI !== 'urn:oasis:names:specification:ubl:schema:xsd:Invoice-2') {
             throw new \InvalidArgumentException('Importă o factură XML UBL Invoice 2. Documentele de storno se înregistrează prin retur furnizor.');

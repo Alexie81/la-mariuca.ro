@@ -280,6 +280,42 @@ final class NirWorkflowHttpAuditTest extends DatabaseTestCase
         self::assertSame(404,$this->request('GET','/admin/nir-uri/'.$document['id'].'/documente/'.$file['id'].'/',[],true)->getStatusCode());
     }
 
+    public function testLargeWorkbookCanBeAttachedDownloadedAndImportedWithoutChangingStock(): void
+    {
+        $book = new Spreadsheet();
+        $book->getActiveSheet()->fromArray([['Denumire', 'Cantitate', 'Preț'], ['Produs de test', 2, 85]]);
+        $path = $this->temporary('.xlsx');
+        (new Xlsx($book))->save($path);
+        $book->disconnectWorksheets();
+        $payload = $this->temporary('.bin');
+        $handle = fopen($payload, 'wb');
+        ftruncate($handle, 17 * 1024 * 1024);
+        fclose($handle);
+        $zip = new \ZipArchive();
+        self::assertTrue($zip->open($path));
+        $zip->addFile($payload, 'xl/media/original.bin');
+        $zip->setCompressionName('xl/media/original.bin', \ZipArchive::CM_STORE);
+        $zip->close();
+        clearstatcache(true, $path);
+        $size = filesize($path);
+        self::assertGreaterThan(15 * 1024 * 1024, $size);
+        $draft = $this->service()->save(null, $this->input('LARGE-XLSX'), $this->actor());
+        $saved = $this->json($this->request('POST', '/admin/nir-uri/' . $draft['id'] . '/documente/', ['row_version' => $draft['row_version']], true, ['attachments' => [new UploadedFile($path, 'catalog.xlsx', 'application/zip', $size)]]));
+        $file = $saved['document']['attachments'][0];
+        self::assertSame($size, (int) $file['size_bytes']);
+        self::assertSame(hash_file('sha256', $path), $file['sha256']);
+        $download = $this->request('GET', '/admin/nir-uri/' . $draft['id'] . '/documente/' . $file['id'] . '/');
+        self::assertSame(200, $download->getStatusCode());
+        $hash = hash_init('sha256');
+        $body = $download->getBody();
+        while (!$body->eof()) { hash_update($hash, $body->read(65536)); }
+        self::assertSame($file['sha256'], hash_final($hash));
+        $imported = $this->json($this->request('POST', '/admin/nir-uri/import/', [], true, ['file' => new UploadedFile($path, 'catalog.xlsx', 'application/zip', $size)]));
+        self::assertSame('Produs de test', $imported['lines'][0]['supplier_name']);
+        self::assertSame(1, $this->rowCount('nir_attachments'));
+        self::assertSame(0, $this->rowCount('nir_fifo_layers'));
+    }
+
     public function testConfirmedReceiptOffersCorrectionAndReturnButCannotBeDeletedOrEditedAsDraft(): void
     {
         $draft=$this->service()->save(null,$this->input('CONFIRMED'),$this->actor());
@@ -308,6 +344,7 @@ final class NirWorkflowHttpAuditTest extends DatabaseTestCase
         $book=IOFactory::load($path); $text=json_encode($book->getActiveSheet()->toArray(),JSON_THROW_ON_ERROR); $book->disconnectWorksheets();
         self::assertStringContainsString('EXPORT-INCLUDE',$text);
         self::assertStringNotContainsString('EXPORT-EXCLUDE',$text);
+        self::assertStringContainsString('QA HTTP',$text);
         self::assertSame(200,$this->request('GET','/admin/nir-uri/export/zip/?period=all')->getStatusCode());
     }
 

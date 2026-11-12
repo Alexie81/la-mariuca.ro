@@ -13,6 +13,7 @@ use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\Shared\Date;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\Border;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Worksheet\MemoryDrawing;
 use PhpOffice\PhpSpreadsheet\Worksheet\PageSetup;
@@ -319,15 +320,11 @@ final class NirExportService
     private function registryWorkbook(array $documents,array $period,bool $costs): Spreadsheet
     {
         $book=new Spreadsheet(); $sheet=$book->getActiveSheet()->setTitle('Registru NIR');
-        $sheet->mergeCells('A1:B4'); $this->draw($sheet,$this->publicImage('/assets/images/logo-la-mariuca-transparent.png'),'A1',68);
-        $sheet->mergeCells('C1:AL1')->setCellValue('C1','REGISTRU DETALIAT NIR');
-        $sheet->mergeCells('C2:AL2')->setCellValue('C2','La Măriuca Boutique · Recepții, diferențe și trasabilitate');
-        $this->cell($sheet,3,3,'Perioadă: '.($period['from']??'Toate datele').' — '.($period['to']??'prezent').' · Generat: '.self::displayDate(gmdate('Y-m-d H:i:s'))); $sheet->mergeCells('C3:AL3');
-        $lineCount=array_sum(array_map(static fn(array $d):int=>count($d['lines']??[]),$documents));
-        $fileCount=array_sum(array_map(static fn(array $d):int=>count($d['attachments']??[]),$documents));
-        $totals=array_sum(array_column($documents,'total_ron_bani'));
-        $sheet->mergeCells('C4:AL4'); $this->cell($sheet,3,4,count($documents).' documente · '.$lineCount.' poziții · '.$fileCount.' atașamente'.($costs?' · Total '.number_format($totals/100,2,',','.').' RON':'').' · Filtru: '.($period['status']??'toate'));
-        $sheet->getStyle('C1:AL1')->getFont()->setSize(21)->setBold(true)->getColor()->setARGB('FF643C46');
+        $book->getProperties()->setCreator('La Măriuca Boutique')->setTitle('Registru detaliat NIR')->setDescription('Recepții și stornări · documente, cantități și valori');
+        $book->getDefaultStyle()->getFont()->setName('Aptos')->setSize(11);
+        $sheet->setShowGridlines(false)->setSelectedCell('A1');
+        $sheet->getSheetView()->setZoomScale(90);
+        $sheet->getTabColor()->setRGB('75485F');
         $this->heading($sheet,self::REGISTRY_COLUMNS,6);
         foreach($documents as $index=>$d){
             $row=$index+7;
@@ -336,14 +333,118 @@ final class NirExportService
             $values[]=null;
             array_push($values,count($d['attachments']??[]),$d['original_number']??$d['original_id']??'',trim(($d['notes']??'').' '.($d['reason']??'')),self::excelDate($d['confirmed_at']??''),$d['confirmed_by_name']??$d['confirmed_by']??'',self::excelDate($d['created_at']??''),$d['created_by_name']??$d['created_by']??'');
             $this->putRow($sheet,$row,$values);
+            $sheet->setCellValue('W'.$row,'=ROUND(T'.$row.'-S'.$row.',4)');
             foreach(['E','G','M','Q'] as $col){$sheet->getStyle($col.$row)->getNumberFormat()->setFormatCode('dd.mm.yyyy');}
             foreach(['F','H'] as $col){$sheet->getStyle($col.$row)->getNumberFormat()->setFormatCode('hh:mm');}
             foreach(['AI','AK'] as $col){$sheet->getStyle($col.$row)->getNumberFormat()->setFormatCode('dd.mm.yyyy hh:mm');}
-            $sheet->getStyle('S'.$row.':W'.$row)->getNumberFormat()->setFormatCode('0.0000');
+            $sheet->getStyle('P'.$row)->getNumberFormat()->setFormatCode('General');
+            $sheet->getStyle('S'.$row.':W'.$row)->getNumberFormat()->setFormatCode('General');
             $sheet->getStyle('X'.$row.':AE'.$row)->getNumberFormat()->setFormatCode('#,##0.00');
         }
-        $sheet->freezePane('C7');$this->table($sheet,38,max(7,count($documents)+6),6); $sheet->getColumnDimension('I')->setWidth(30);$sheet->getColumnDimension('AH')->setWidth(42);
+        $last=max(7,count($documents)+6);
+        $sheet->freezePane('C7');
+        $this->table($sheet,38,$last,6);
+        $this->styleRegistry($sheet,$documents,$period,$costs,$last);
         return $book;
+    }
+
+    /** @param list<array<string,mixed>> $documents @param array<string,mixed> $period */
+    private function styleRegistry(Worksheet $sheet,array $documents,array $period,bool $costs,int $last): void
+    {
+        $widths=['A'=>8,'B'=>28,'C'=>26,'D'=>23,'E'=>15,'F'=>11,'G'=>17,'H'=>11,'I'=>34,'J'=>20,'K'=>16,'L'=>27,'M'=>17,'N'=>35,'O'=>12,'P'=>16,'Q'=>17,'R'=>11,'S'=>18,'T'=>20,'U'=>18,'V'=>18,'W'=>19,'X'=>22,'Y'=>22,'Z'=>22,'AA'=>20,'AB'=>18,'AC'=>22,'AD'=>23,'AE'=>23,'AF'=>18,'AG'=>28,'AH'=>58,'AI'=>24,'AJ'=>26,'AK'=>24,'AL'=>26];
+        foreach($widths as $col=>$width){$sheet->getColumnDimension($col)->setWidth($width);}
+        $sheet->getRowDimension(1)->setRowHeight(34);
+        $sheet->getRowDimension(2)->setRowHeight(25);
+        $sheet->getRowDimension(3)->setRowHeight(25);
+        $sheet->getRowDimension(4)->setRowHeight(48);
+        $sheet->getRowDimension(5)->setRowHeight(12);
+        $sheet->getRowDimension(6)->setRowHeight(48);
+        $sheet->mergeCells('A1:B3');
+        $this->registryLogo($sheet);
+        $company=$documents[0]['company']??[];
+        foreach(['C1:H1','C2:H2','C3:H3','I1:N1','I2:N2','I3:N3'] as $range){$sheet->mergeCells($range);}
+        $this->cell($sheet,3,1,'Registru detaliat NIR');
+        $this->cell($sheet,3,2,'LA MĂRIUCA BOUTIQUE · Recepții și stornări');
+        $identity=implode(' · ',array_filter([$company['legal_name']??'',empty($company['tax_id'])?'':'CUI '.$company['tax_id']]));
+        $this->cell($sheet,3,3,$identity);
+        $this->cell($sheet,9,1,'PERIOADA SELECTATĂ');
+        $from=empty($period['from'])?'Toate datele':substr(self::displayDate($period['from']),0,10);
+        $to=empty($period['to'])?'prezent':substr(self::displayDate($period['to']),0,10);
+        $this->cell($sheet,9,2,$from.' — '.$to);
+        $this->cell($sheet,9,3,'Generat la '.self::displayDate(gmdate('Y-m-d H:i:s')));
+        $sheet->getStyle('C1:N3')->getAlignment()->setVertical(Alignment::VERTICAL_CENTER)->setIndent(1);
+        $sheet->getStyle('C1')->getFont()->setSize(24)->setBold(true)->getColor()->setRGB('513447');
+        $sheet->getStyle('C2')->getFont()->setSize(11)->setBold(true)->getColor()->setRGB('A34E72');
+        $sheet->getStyle('C3')->getFont()->setSize(11)->getColor()->setRGB('766976');
+        $sheet->getStyle('I1')->getFont()->setSize(10)->setBold(true)->getColor()->setRGB('A34E72');
+        $sheet->getStyle('I2')->getFont()->setSize(15)->getColor()->setRGB('513447');
+        $sheet->getStyle('I3')->getFont()->setSize(11)->getColor()->setRGB('766976');
+        // Native numeric/formula cells keep the overview useful when Excel filters change.
+        $cards=[
+            ['A4:B4','=SUBTOTAL(103,B7:B'.$last.')','0"  DOCUMENTE"','F4EDF2','75485F'],
+            ['C4:D4','=SUBTOTAL(109,R7:R'.$last.')','0"  POZIȚII"','F5F2FA','76618A'],
+            ['E4:H4',$costs?'=ROUND(SUBTOTAL(109,AC7:AC'.$last.'),2)':'Valori restricționate','#,##0.00" RON  ·  TOTAL CU TVA"','75485F','FFFFFF'],
+            ['I4:K4','=SUBTOTAL(109,AF7:AF'.$last.')','0"  ATAȘAMENTE"','EAF5F0','347C68'],
+        ];
+        foreach($cards as [$range,$value,$format,$background,$foreground]){
+            $sheet->mergeCells($range);$cell=explode(':',$range)[0];
+            $sheet->setCellValue($cell,$value);
+            $sheet->getStyle($range)->applyFromArray(['fill'=>['fillType'=>Fill::FILL_SOLID,'startColor'=>['rgb'=>$background]],'font'=>['size'=>13,'bold'=>true,'color'=>['rgb'=>$foreground]],'alignment'=>['horizontal'=>Alignment::HORIZONTAL_CENTER,'vertical'=>Alignment::VERTICAL_CENTER],'borders'=>['outline'=>['borderStyle'=>Border::BORDER_MEDIUM,'color'=>['rgb'=>'FFFFFF']]]]);
+            $sheet->getStyle($cell)->getNumberFormat()->setFormatCode($format);
+        }
+        $sheet->mergeCells('L4:N4');
+        $filter=match($period['status']??''){'draft'=>'Drafturi','confirmed'=>'Confirmate','reversed'=>'Stornate',default=>'Toate stările'};
+        $this->cell($sheet,12,4,'FILTRU · '.$filter.(empty($period['search'])?'':' · '.$period['search']));
+        $sheet->getStyle('L4:N4')->applyFromArray(['font'=>['size'=>11,'color'=>['rgb'=>'766976']],'alignment'=>['vertical'=>Alignment::VERTICAL_CENTER,'wrapText'=>true,'indent'=>1]]);
+        foreach(['A6:H6'=>'75485F','I6:N6'=>'8C6277','O6:R6'=>'81718D','S6:W6'=>'507C75','X6:AE6'=>'75485F','AF6:AL6'=>'737686'] as $range=>$color){
+            $sheet->getStyle($range)->getFill()->getStartColor()->setRGB($color);
+        }
+        $sheet->getStyle('A6:AL6')->getFont()->setSize(11);
+        $sheet->getStyle('A6:AL6')->getAlignment()->setIndent(1);
+        $sheet->getStyle('A7:AL'.$last)->getFont()->setSize(11)->getColor()->setRGB('4E4852');
+        $sheet->getStyle('A7:AL'.$last)->getAlignment()->setIndent(1);
+        foreach(['A','D','E','F','G','H','M','O','Q','R','AF','AI','AK'] as $col){$sheet->getStyle($col.'7:'.$col.$last)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)->setIndent(0);}
+        $sheet->getStyle('S7:AE'.$last)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+        $sheet->getStyle('B7:B'.$last)->getFont()->setBold(true)->getColor()->setRGB('75485F');
+        for($row=7;$row<=$last;++$row){
+            $sheet->getRowDimension($row)->setRowHeight(54);
+            $style=$sheet->getStyle('A'.$row.':AL'.$row);
+            $style->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB($row%2===0?'FAF7FA':'FFFFFF');
+            $style->getBorders()->getBottom()->setBorderStyle(Border::BORDER_HAIR)->getColor()->setRGB('E8DFE6');
+            $document=$documents[$row-7]??null;
+            if($document===null){continue;}
+            $status=$document['status']??'draft';
+            [$fill,$text]=match($status){'confirmed'=>['EAF5F0','347C68'],'reversed'=>['F3EEF8','775D93'],default=>!empty($document['draft_incomplete'])?['FDEDED','B84A58']:['FFF5E5','91682F']};
+            $sheet->getStyle('D'.$row)->getFill()->getStartColor()->setRGB($fill);
+            $sheet->getStyle('D'.$row)->getFont()->setBold(true)->getColor()->setRGB($text);
+            $sheet->getStyle('AC'.$row)->getFill()->getStartColor()->setRGB('F4EDF2');
+            $sheet->getStyle('AC'.$row)->getFont()->setBold(true)->getColor()->setRGB('75485F');
+        }
+        // This field has no persisted counterpart; a blank is not a measured zero.
+        $sheet->getComment('AE6')->getText()->createTextRun('Diferența valorică nu este stocată separat în La Măriuca. Celulele rămân necompletate.');
+        $sheet->getComment('E4')->getText()->createTextRun('Totalul în RON al documentelor vizibile, inclusiv drafturi dacă sunt selectate. Nu adună monede diferite; folosește valorile convertite ale fiecărui NIR.');
+        if($documents===[]){$sheet->getComment('A6')->getText()->createTextRun('Nu există NIR-uri pentru filtrele selectate.');}
+        // Avoid compressing 38 columns onto one illegible printed page.
+        $sheet->getPageSetup()->setPaperSize(PageSetup::PAPERSIZE_A3)->setFitToWidth(3)->setColumnsToRepeatAtLeftByStartAndEnd('A','B');
+    }
+
+    private function registryLogo(Worksheet $sheet): void
+    {
+        $path=$this->publicImage('/assets/images/logo-la-mariuca-transparent.png');
+        if($path===null){return;}
+        $bytes=$this->thumbnail($path);if($bytes===null){return;}
+        $logo=@imagecreatefromstring($bytes);if($logo===false){return;}
+        // A softly rounded identity plaque; all report text remains native Excel text.
+        $image=imagecreatetruecolor(500,196);
+        $white=imagecolorallocate($image,255,255,255);$border=imagecolorallocate($image,235,220,227);
+        imagefill($image,0,0,$white);
+        imagefilledrectangle($image,30,3,470,192,$border);imagefilledrectangle($image,3,30,497,165,$border);
+        foreach([[30,30],[470,30],[30,165],[470,165]] as [$x,$y]){imagefilledellipse($image,$x,$y,54,54,$border);}
+        imagefilledrectangle($image,30,5,470,190,$white);imagefilledrectangle($image,5,30,495,165,$white);
+        foreach([[30,30],[470,30],[30,165],[470,165]] as [$x,$y]){imagefilledellipse($image,$x,$y,50,50,$white);}
+        $scale=min(430/imagesx($logo),150/imagesy($logo));$width=(int)round(imagesx($logo)*$scale);$height=(int)round(imagesy($logo)*$scale);
+        imagecopyresampled($image,$logo,(int)((500-$width)/2),(int)((196-$height)/2),0,0,$width,$height,imagesx($logo),imagesy($logo));imagedestroy($logo);
+        $drawing=new MemoryDrawing();$drawing->setName('La Măriuca Boutique — logo original');$drawing->setImageResource($image);$drawing->setRenderingFunction(MemoryDrawing::RENDERING_PNG);$drawing->setMimeType(MemoryDrawing::MIMETYPE_PNG);$drawing->setCoordinates('A1')->setWidth(240)->setOffsetX(7)->setOffsetY(8)->setWorksheet($sheet);
     }
 
     /** @param list<array<string,mixed>> $documents @param array<string,mixed>|null $period */
@@ -355,10 +456,11 @@ final class NirExportService
             if($period!==null){$registry=$this->temporary('xlsx');$temporary[]=$registry;$this->saveWorkbook($this->registryWorkbook($documents,$period,$costs),$registry);$zip->addFile($registry,'Registru_NIR.xlsx');$zip->setCompressionName('Registru_NIR.xlsx',\ZipArchive::CM_STORE);}
             $storage=new NirDocumentStorage($this->root);
             foreach($documents as $document){
-                $folder=NirDocumentStorage::safeName(self::number($document));
-                foreach(['pdf','xlsx'] as $format){$file=$this->individual($document,$format,$costs);$temporary[]=$file['path'];$entry=$folder.'/'.$file['filename'];$zip->addFile($file['path'],$entry);$zip->setCompressionName($entry,\ZipArchive::CM_STORE);}
-                if(!$costs){$zip->addFromString($folder.'/documente/ACCES_RESTRICTIONAT.txt','Documentele originale pot conține prețuri și nu sunt incluse fără dreptul NIR_VIEW_COSTS.');continue;}
-                foreach($document['attachments']??[] as $i=>$file){$original=$storage->path($file['stored_name']??null);if($original===null){throw new \RuntimeException('Lipsește un document original din arhivă: '.($file['original_name']??'document').'.');}if(!hash_equals((string)($file['sha256']??''),(string)hash_file('sha256',$original))){throw new \RuntimeException('Integritatea documentului original nu poate fi confirmată: '.($file['original_name']??'document').'.');}$entry=$folder.'/documente/'.sprintf('%03d_',$i+1).NirDocumentStorage::safeName($file['original_name']??'document');$zip->addFile($original,$entry);$zip->setCompressionName($entry,\ZipArchive::CM_STORE);}
+                $prefix=$period===null?'':NirDocumentStorage::safeName(self::number($document)).'/';
+                foreach(['xlsx','pdf'] as $format){$file=$this->individual($document,$format,$costs);$temporary[]=$file['path'];$entry=$prefix.$file['filename'];$zip->addFile($file['path'],$entry);$zip->setCompressionName($entry,\ZipArchive::CM_STORE);}
+                $zip->addEmptyDir($prefix.'documente');
+                if(!$costs){$zip->addFromString($prefix.'documente/ACCES_RESTRICTIONAT.txt','Documentele originale pot conține prețuri și nu sunt incluse fără dreptul NIR_VIEW_COSTS.');continue;}
+                foreach($document['attachments']??[] as $i=>$file){$original=$storage->path($file['stored_name']??null);if($original===null){throw new \RuntimeException('Lipsește un document original din arhivă: '.($file['original_name']??'document').'.');}if(!hash_equals((string)($file['sha256']??''),(string)hash_file('sha256',$original))){throw new \RuntimeException('Integritatea documentului original nu poate fi confirmată: '.($file['original_name']??'document').'.');}$entry=$prefix.'documente/'.sprintf('%03d_',$i+1).NirDocumentStorage::safeName($file['original_name']??'document');$zip->addFile($original,$entry);$zip->setCompressionName($entry,\ZipArchive::CM_STORE);}
             }
             if(!$zip->close()){throw new \RuntimeException('Arhiva nu a putut fi finalizată.');}
         }catch(\Throwable $exception){@$zip->close();throw $exception;}finally{foreach($temporary as $file){$this->cleanup($file);}}
@@ -465,9 +567,9 @@ final class NirExportService
     /** @param array<string,mixed> $data */
     private static function money(array $data,string $key): ?float { return array_key_exists($key,$data)?((int)$data[$key])/100:null; }
     /** @param array<string,mixed> $document */
-    private static function number(array $document): string { return (string)(($document['number']??'')?:($document['temp_number']??'NIR')); }
+    private static function number(array $document): string { return (string)(($document['number']??'')?:($document['display_number']??(!empty($document['draft_sequence'])?'Draft #'.(int)$document['draft_sequence']:($document['temp_number']??'NIR')))); }
     /** @param array<string,mixed> $document */
-    private static function status(array $document): string { return match($document['status']??'draft'){'confirmed'=>'Confirmat','reversed'=>'Stornat',default=>'Ciornă'}; }
+    private static function status(array $document): string { return match($document['status']??'draft'){'confirmed'=>'Confirmat','reversed'=>'Stornat',default=>!empty($document['draft_incomplete'])?'Draft - incomplet':'Draft'}; }
     /** @param array<string,mixed> $document */
     private static function type(array $document): string { return match($document['type']??'supplier_receipt'){'supplier_return'=>'Retur furnizor / storno','customer_return'=>'Recepție retur client','opening_balance'=>'Sold inițial',default=>'Recepție furnizor'}; }
     private static function differenceLabel(string $reason): string { return match($reason){'shortage','missing'=>'Lipsă','excess'=>'Plus','damaged'=>'Deteriorat','wrong_product'=>'Produs greșit','price_difference'=>'Diferență de preț','vat_difference'=>'Diferență TVA','other'=>'Alt motiv',default=>$reason}; }
