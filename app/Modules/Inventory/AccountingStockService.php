@@ -55,6 +55,23 @@ final class AccountingStockService
             $now = $occurredAt ?? gmdate('c');
             $documentHash = hash('sha256', mb_strtolower($invoiceNumber, 'UTF-8'));
 
+            // The receipt ledger is warehouse-aware and preserves exact FIFO costs.
+            // Only this posted-invoice entry point bridges into FIFO; checkout and status changes never do.
+            $warehouse = $this->pdo->query('SELECT id FROM company_warehouses WHERE is_active=1 ORDER BY is_default DESC,id LIMIT 1')->fetchColumn();
+            if ($warehouse !== false) {
+                $actorQuery = $this->pdo->prepare('SELECT id,role FROM users WHERE id=:id');
+                $actorQuery->execute(['id'=>$actorId]);
+                $actor = $actorQuery->fetch();
+                if (!is_array($actor)) { throw new RuntimeException('Operatorul facturii nu există.'); }
+                $items = $this->pdo->prepare("SELECT id,accounting_scope_type,accounting_scope_id,product_id,CASE WHEN accounting_scope_type='variant' THEN accounting_scope_id ELSE NULL END AS variant_id,accounting_sku,quantity FROM order_items WHERE order_id=:id AND accounting_scope_type IS NOT NULL ORDER BY id");
+                $items->execute(['id'=>$orderId]);
+                $receipts = new NirService($this->pdo);
+                foreach ($items->fetchAll() as $item) {
+                    $receipts->consume((int)$warehouse,$this->targetFromSnapshot($item),(int)$item['quantity']*10000,'order_item',(int)$item['id'],'invoice:'.$documentHash.':item:'.$item['id'],$actor);
+                }
+            }
+
+            // Carry any older shortage before recording this invoice in the legacy ledger.
             foreach ($statement->fetchAll() as $row) {
                 $target = $this->targetFromSnapshot($row);
                 $quantity = (int) $row['quantity'];
@@ -75,21 +92,6 @@ final class AccountingStockService
                 );
             }
 
-            // The receipt ledger is warehouse-aware and preserves exact FIFO costs.
-            // Only this posted-invoice entry point bridges into FIFO; checkout and status changes never do.
-            $warehouse = $this->pdo->query('SELECT id FROM company_warehouses WHERE is_active=1 ORDER BY is_default DESC,id LIMIT 1')->fetchColumn();
-            if ($warehouse !== false) {
-                $actorQuery = $this->pdo->prepare('SELECT id,role FROM users WHERE id=:id');
-                $actorQuery->execute(['id'=>$actorId]);
-                $actor = $actorQuery->fetch();
-                if (!is_array($actor)) { throw new RuntimeException('Operatorul facturii nu există.'); }
-                $items = $this->pdo->prepare("SELECT id,accounting_scope_type,accounting_scope_id,product_id,CASE WHEN accounting_scope_type='variant' THEN accounting_scope_id ELSE NULL END AS variant_id,accounting_sku,quantity FROM order_items WHERE order_id=:id AND accounting_scope_type IS NOT NULL ORDER BY id");
-                $items->execute(['id'=>$orderId]);
-                $receipts = new NirService($this->pdo);
-                foreach ($items->fetchAll() as $item) {
-                    $receipts->consume((int)$warehouse,$this->targetFromSnapshot($item),(int)$item['quantity']*10000,'order_item',(int)$item['id'],'invoice:'.$documentHash.':item:'.$item['id'],$actor);
-                }
-            }
         });
     }
 

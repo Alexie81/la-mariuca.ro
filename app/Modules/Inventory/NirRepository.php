@@ -151,6 +151,50 @@ final class NirRepository
         return $number;
     }
 
+    /** Number order, not creation date or ID: drafts never participate. */
+    public function lastConfirmedId(): ?int
+    {
+        $last=null; $highest=[0,0];
+        foreach($this->pdo->query("SELECT id,number FROM nir_documents WHERE status='confirmed'")->fetchAll() as $row) {
+            if(!preg_match('/^(?:LM-)?NIR-(\d{4})-(\d+)$/D',(string)$row['number'],$parts)) { continue; }
+            $position=[(int)$parts[1],(int)$parts[2]];
+            if($position>$highest) { $highest=$position; $last=(int)$row['id']; }
+        }
+        return $last;
+    }
+
+    /** Runs inside the same write transaction as deletion/confirmation. */
+    public function compactDraftNumbers(): void
+    {
+        $drafts=$this->pdo->query("SELECT id,draft_sequence FROM nir_documents WHERE status='draft' ORDER BY id")->fetchAll();
+        $this->pdo->exec('UPDATE nir_documents SET draft_sequence=NULL');
+        $number=1;
+        foreach($drafts as $draft) {
+            $this->update('nir_documents',['draft_sequence'=>$number++],['id'=>$draft['id']]);
+        }
+        $this->pdo->prepare('UPDATE nir_draft_sequence SET next_number=:number WHERE id=1')->execute(['number'=>$number]);
+    }
+
+    public function releaseLastNumber(string $number): void
+    {
+        if(preg_match('/^(?:LM-)?NIR-(\d{4})-(\d+)$/D',$number,$parts)) {
+            $this->update('nir_sequences',['next_number'=>(int)$parts[2]],['year'=>(int)$parts[1]]);
+        }
+    }
+
+    public function preserveDeletedRequestKeys(int $id): void
+    {
+        $this->pdo->prepare('UPDATE nir_idempotency SET nir_id=NULL WHERE nir_id=:id OR result_id=:result')->execute(['id'=>$id,'result'=>$id]);
+    }
+
+    /** A legacy negative balance is a shortage, never an invented zero-cost purchase. */
+    public function legacyDeficit(string $scopeType,int $scopeId): int
+    {
+        $query=$this->pdo->prepare('SELECT quantity FROM accounting_stock_balances b WHERE scope_type=:type AND scope_id=:id AND quantity<0 AND NOT EXISTS (SELECT 1 FROM nir_stock_balances n WHERE n.scope_type=b.scope_type AND n.scope_id=b.scope_id)');
+        $query->execute(['type'=>$scopeType,'id'=>$scopeId]);
+        return max(0,-(int)$query->fetchColumn()*10000);
+    }
+
     /** @return array{total:int,draft:int,confirmed:int} */
     public function counts(): array
     {

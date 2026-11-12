@@ -280,6 +280,10 @@ final class NirDocumentsTest extends TestCase
         $file=(new NirExportService(dirname(__DIR__,2)))->individual($document,'xlsx');$this->exports[]=$file['path'];
         $book=IOFactory::load($file['path']);$sheet=$book->getSheetByName('NIR');
         self::assertSame('INI 000042 / 30.10.2026',$sheet->getCell('J8')->getValue());
+        self::assertSame('RETUR CĂTRE FURNIZOR',$sheet->getCell('G1')->getValue());
+        self::assertSame('(STORNO)',$sheet->getCell('G3')->getValue());
+        self::assertSame('Denumirea bunurilor returnate',$sheet->getCell('D12')->getValue());
+        self::assertSame('Cantitate returnată',$sheet->getCell('G12')->getValue());
         foreach (['J8'=>'INI 000042 / 30.10.2026','J10'=>$document['reason'],'B13'=>'0000123','D13'=>$document['lines'][0]['supplier_name']] as $cell=>$value) {
             self::assertSame($value,$sheet->getCell($cell)->getValue(),$cell);
             self::assertSame(DataType::TYPE_STRING,$sheet->getCell($cell)->getDataType(),$cell);

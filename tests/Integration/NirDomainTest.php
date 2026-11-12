@@ -55,12 +55,131 @@ final class NirDomainTest extends DatabaseTestCase
         self::assertTrue($this->service->fifo([],$this->actor)['reconciliation'][0]['balanced']);
     }
 
-    public function testStaleDraftCannotOverwriteAndConfirmedCannotBeDeleted(): void
+    public function testStaleDraftCannotOverwriteAndLastConfirmedCanBeDeleted(): void
     {
         $draft=$this->draft(); $input=$draft; $input['notes']='Actualizat'; $updated=$this->service->save($draft['id'],$input,$this->actor);
         try { $this->service->save($draft['id'],$draft,$this->actor); self::fail('Stale version accepted'); } catch(NirConflictException $e) { self::assertSame(409,$e->getCode()); }
         $confirmed=$this->service->confirm($updated['id'],$updated['row_version'],'confirm-delete-001',true,$this->actor);
-        try { $this->service->delete($confirmed['id'],$confirmed['row_version'],$this->actor); self::fail('Confirmed deletion accepted'); } catch(NirConflictException) { self::assertSame(1,$this->countRows('nir_documents')); }
+        $this->service->delete($confirmed['id'],$confirmed['row_version'],$this->actor);
+        self::assertSame(0,$this->countRows('nir_documents')); self::assertSame(0,$this->balance());
+    }
+
+    public function testNegativeStockReceiptAndDeletionRestoreMinusOneWithoutChangingStorefront(): void
+    {
+        $commercial=$this->pdo->query('SELECT * FROM inventory ORDER BY variant_id')->fetchAll();
+        $draft=$this->draft(['invoice_quantity'=>'2','received_quantity'=>'2','accepted_quantity'=>'2']); $line=$draft['lines'][0];
+        $target=array_intersect_key($line,array_flip(['scope_type','scope_id','product_id','variant_id','sku']));
+        $this->service->consume($draft['warehouse_id'],$target,10000,'invoice_line',19001,'sale-before-purchase',$this->actor);
+        self::assertSame(-10000,$this->balance());
+        $confirmed=$this->service->confirm($draft['id'],$draft['row_version'],'purchase-after-sale',true,$this->actor);
+        self::assertSame(10000,$this->balance()); self::assertSame(0,$this->countRows('nir_pending_consumptions'));
+        $sales=$this->pdo->query("SELECT * FROM nir_stock_movements WHERE source_type='invoice_line'")->fetchAll();
+        $this->service->delete($confirmed['id'],$confirmed['row_version'],$this->actor);
+        self::assertSame(-10000,$this->balance()); self::assertSame(0,$this->countRows('nir_fifo_layers'));
+        self::assertSame(10000,(int)$this->pdo->query('SELECT SUM(quantity_units) FROM nir_pending_consumptions')->fetchColumn());
+        self::assertSame($sales,$this->pdo->query("SELECT * FROM nir_stock_movements WHERE source_type='invoice_line'")->fetchAll());
+        self::assertSame($commercial,$this->pdo->query('SELECT * FROM inventory ORDER BY variant_id')->fetchAll());
+        self::assertTrue($this->service->fifo([],$this->actor)['reconciliation'][0]['balanced']);
+        self::assertSame('-1',(new AccountingStockReadModel($this->pdo))->quantities([(int)$line['product_id']])[$line['product_id']]);
+        $next=$this->draft([],['invoice_number'=>'REPLACEMENT']);
+        $next=$this->service->confirm($next['id'],$next['row_version'],'replacement-purchase',true,$this->actor);
+        self::assertSame($confirmed['number'],$next['number']); self::assertSame(20000,$this->balance());
+        // Original sale and deleted confirmation retries cannot consume twice or recreate the receipt.
+        $this->service->consume($draft['warehouse_id'],$target,10000,'invoice_line',19001,'sale-before-purchase',$this->actor);
+        self::assertSame(20000,$this->balance());
+        try { $this->service->confirm($draft['id'],$draft['row_version'],'purchase-after-sale',true,$this->actor); self::fail('Deleted confirmation recreated'); }
+        catch(\App\Modules\Inventory\NirNotFoundException) { self::assertSame(20000,$this->balance()); }
+    }
+
+    public function testDeletionAfterSaleNeverConsumesStockFromAnotherReceipt(): void
+    {
+        $first=$this->confirmed(['invoice_quantity'=>'2','received_quantity'=>'2','accepted_quantity'=>'2']);
+        $draft=$this->draft(['invoice_quantity'=>'1','received_quantity'=>'1','accepted_quantity'=>'1'],['invoice_number'=>'LAST-BACKDATED','received_at'=>'2025-01-01T12:00']);
+        $last=$this->service->confirm($draft['id'],$draft['row_version'],'last-purchase-early-stock',true,$this->actor);
+        $line=$last['lines'][0]; $target=array_intersect_key($line,array_flip(['scope_type','scope_id','product_id','variant_id','sku']));
+        $this->service->consume($last['warehouse_id'],$target,10000,'invoice_line',19002,'sale-from-last-receipt',$this->actor);
+        $other=$this->pdo->query('SELECT * FROM nir_fifo_layers WHERE nir_id='.$first['id'])->fetchAll();
+        $this->service->delete($last['id'],$last['row_version'],$this->actor);
+        self::assertSame(10000,$this->balance());
+        self::assertSame($other,$this->pdo->query('SELECT * FROM nir_fifo_layers WHERE nir_id='.$first['id'])->fetchAll());
+        self::assertSame(10000,(int)$this->pdo->query('SELECT SUM(quantity_units) FROM nir_pending_consumptions')->fetchColumn());
+        self::assertTrue($this->service->fifo([],$this->actor)['reconciliation'][0]['balanced']);
+    }
+
+    public function testOnlyHighestConfirmedNumberCanBeDeletedIgnoringDraftsAndStaleScreens(): void
+    {
+        $first=$this->confirmed();
+        $draft=$this->draft([],['invoice_number'=>'NEXT']); $last=$this->service->confirm($draft['id'],$draft['row_version'],'next-to-delete',true,$this->actor);
+        $one=$this->draft([],['invoice_number'=>'DRAFT-A']); $two=$this->draft([],['invoice_number'=>'DRAFT-B']);
+        self::assertFalse($this->service->document($first['id'],$this->actor)['can_delete']);
+        self::assertTrue($this->service->document($last['id'],$this->actor)['can_delete']);
+        try { $this->service->delete($first['id'],$first['row_version'],$this->actor); self::fail('Non-last deletion allowed'); }
+        catch(NirConflictException) { self::assertSame(60000,$this->balance()); }
+        try { $this->service->delete($last['id'],0,$this->actor); self::fail('Stale deletion allowed'); }
+        catch(NirConflictException) { self::assertSame(60000,$this->balance()); }
+        $this->service->delete($one['id'],$one['row_version'],$this->actor);
+        self::assertSame('Draft #1',$this->service->document($two['id'],$this->actor)['display_number']);
+        $this->service->delete($last['id'],$last['row_version'],$this->actor);
+        self::assertSame(30000,$this->balance());
+        self::assertTrue($this->service->document($first['id'],$this->actor)['can_delete']);
+        self::assertSame('Draft #1',$this->service->document($two['id'],$this->actor)['display_number']);
+        $this->service->delete($two['id'],$two['row_version'],$this->actor);
+        self::assertSame('Draft #1',$this->draft([],['invoice_number'=>'DRAFT-C'])['display_number']);
+    }
+
+    public function testDeletingLatestSupplierReturnRestoresExactQuantitiesAndValues(): void
+    {
+        $original=$this->confirmed(['unit_price'=>'0.333333','vat_percent'=>'0']);
+        $layers=$this->pdo->query('SELECT * FROM nir_fifo_layers')->fetchAll();
+        $returned=$this->service->reverse($original['id'],$original['row_version'],['attachments'=>$this->returnEvidence(),'reason'=>'Retur test','invoice_number'=>'RETURN-UNDO','invoice_date'=>gmdate('Y-m-d'),'quantities'=>[$original['lines'][0]['id']=>'1']],'return-to-delete',$this->actor);
+        self::assertSame(20000,$this->balance());
+        $this->service->delete($returned['id'],$returned['row_version'],$this->actor);
+        self::assertSame(30000,$this->balance()); self::assertSame($layers,$this->pdo->query('SELECT * FROM nir_fifo_layers')->fetchAll());
+        self::assertSame('none',$this->service->document($original['id'],$this->actor)['reversal_status']);
+        self::assertSame(0,$this->countRows('nir_fifo_consumptions'));
+    }
+
+    public function testInvoiceBeforeFirstReceiptRetainsLegacyShortage(): void
+    {
+        $now=gmdate('c');
+        $this->pdo->prepare("INSERT INTO accounting_stock_balances(scope_type,scope_id,product_id,variant_id,sku,quantity,created_at,updated_at) VALUES ('product',:id,:id,NULL,'OLD',-1,:now,:now)")->execute(['id'=>$this->variant['product_id'],'now'=>$now]);
+        $draft=$this->draft();
+        $order=$this->order(1);
+        $accounting=new AccountingStockService($this->pdo);
+        $accounting->recordInvoice($order,'LEGACY-NEXT-INVOICE',$this->actor['id']);
+        self::assertSame(-20000,$this->balance());
+        $accounting->recordInvoice($order,'LEGACY-NEXT-INVOICE',$this->actor['id']);
+        self::assertSame(-20000,$this->balance());
+        $confirmed=$this->service->confirm($draft['id'],$draft['row_version'],'legacy-purchase-later',true,$this->actor);
+        self::assertSame(10000,$this->balance());
+        $this->service->delete($confirmed['id'],$confirmed['row_version'],$this->actor);
+        self::assertSame(-20000,$this->balance());
+        self::assertTrue($this->service->fifo([],$this->actor)['reconciliation'][0]['balanced']);
+    }
+
+    public function testPostedInvoiceWithoutReceiptsDebitsOnlyOnceAndLeavesOnlineStockUntouched(): void
+    {
+        $order=$this->order(1);
+        $online=$this->pdo->query('SELECT * FROM inventory ORDER BY variant_id')->fetchAll();
+        $accounting=new AccountingStockService($this->pdo);
+        $accounting->recordInvoice($order,'EMPTY-STOCK-INVOICE',$this->actor['id']);
+        self::assertSame(-10000,$this->balance());
+        $accounting->recordInvoice($order,'EMPTY-STOCK-INVOICE',$this->actor['id']);
+        self::assertSame(-10000,$this->balance());
+        self::assertSame($online,$this->pdo->query('SELECT * FROM inventory ORDER BY variant_id')->fetchAll());
+        self::assertTrue($this->service->fifo([],$this->actor)['reconciliation'][0]['balanced']);
+    }
+
+    public function testFirstReceiptPreservesExistingLegacyNegativeBalanceAndDeletionRestoresIt(): void
+    {
+        $now=gmdate('c');
+        $this->pdo->prepare("INSERT INTO accounting_stock_balances(scope_type,scope_id,product_id,variant_id,sku,quantity,created_at,updated_at) VALUES ('product',:id,:id,NULL,'OLD',-1,:now,:now)")->execute(['id'=>$this->variant['product_id'],'now'=>$now]);
+        $confirmed=$this->confirmed(['invoice_quantity'=>'1','received_quantity'=>'1','accepted_quantity'=>'1']);
+        self::assertSame(0,$this->balance());
+        $this->service->delete($confirmed['id'],$confirmed['row_version'],$this->actor);
+        self::assertSame(-10000,$this->balance());
+        self::assertSame(-1,(int)$this->pdo->query('SELECT quantity FROM accounting_stock_balances')->fetchColumn());
+        self::assertTrue($this->service->fifo([],$this->actor)['reconciliation'][0]['balanced']);
     }
 
     public function testWarningsAndStrictDuplicateAreCheckedBeforeAnyStockEffect(): void
@@ -93,7 +212,7 @@ final class NirDomainTest extends DatabaseTestCase
         self::assertArrayNotHasKey('original_invoice_number',$confirmed);
         for($index=1;$index<=3;$index++) {
             $current=$this->service->document($confirmed['id'],$this->actor);
-            $input=['reason'=>'Retur către furnizor','invoice_number'=>'ST-'.$index,'invoice_date'=>gmdate('Y-m-d'),'quantities'=>[$line['id']=>'1']];
+            $input=['attachments'=>$this->returnEvidence(),'reason'=>'Retur către furnizor','invoice_number'=>'ST-'.$index,'invoice_date'=>gmdate('Y-m-d'),'quantities'=>[$line['id']=>'1']];
             $reverse=$this->service->reverse($confirmed['id'],$current['row_version'],$input,'reverse-fragment-'.$index,$this->actor); $sum+=(int)$reverse['net_bani'];
             foreach ([$reverse,$this->service->document($reverse['id'],$this->actor)] as $returned) {
                 self::assertSame($confirmed['number'],$returned['original_number']);
@@ -107,7 +226,7 @@ final class NirDomainTest extends DatabaseTestCase
         self::assertSame(-100,$sum); self::assertSame(0,$this->balance()); self::assertSame('full',$this->service->document($confirmed['id'],$this->actor)['reversal_status']);
         self::assertSame('0.000000',$this->pdo->query('SELECT unit_cost_ron FROM nir_stock_balances')->fetchColumn());
         $current=$this->service->document($confirmed['id'],$this->actor);
-        $this->expectException(NirValidationException::class); $this->service->reverse($confirmed['id'],$current['row_version'],['reason'=>'Prea mult','invoice_number'=>'ST-4','invoice_date'=>gmdate('Y-m-d'),'quantities'=>[$line['id']=>'1']],'reverse-too-many',$this->actor);
+        $this->expectException(NirValidationException::class); $this->service->reverse($confirmed['id'],$current['row_version'],['attachments'=>$this->returnEvidence(),'reason'=>'Prea mult','invoice_number'=>'ST-4','invoice_date'=>gmdate('Y-m-d'),'quantities'=>[$line['id']=>'1']],'reverse-too-many',$this->actor);
     }
 
     public function testFifoConsumedReceiptCannotBeCorrectedAndNewLayersReconcilePendingSales(): void
@@ -115,7 +234,7 @@ final class NirDomainTest extends DatabaseTestCase
         $confirmed=$this->confirmed(); $line=$confirmed['lines'][0];
         $target=['scope_type'=>$line['scope_type'],'scope_id'=>$line['scope_id'],'product_id'=>$line['product_id'],'variant_id'=>$line['variant_id'],'sku'=>$line['sku']];
         $this->service->consume($confirmed['warehouse_id'],$target,40000,'invoice_line',99,'sale-before-next-lot',$this->actor);
-        self::assertSame(0,$this->balance()); self::assertSame(1,$this->countRows('nir_pending_consumptions'));
+        self::assertSame(-10000,$this->balance()); self::assertSame(1,$this->countRows('nir_pending_consumptions'));
         self::assertFalse($this->service->document($confirmed['id'],$this->actor)['can_correct']);
         $second=$this->draft([],['invoice_number'=>'NEXT-LOT']); $this->service->confirm($second['id'],$second['row_version'],'confirm-next-lot',true,$this->actor);
         self::assertSame(20000,$this->balance()); self::assertSame(0,$this->countRows('nir_pending_consumptions')); self::assertTrue($this->service->fifo([],$this->actor)['reconciliation'][0]['balanced']);
@@ -141,15 +260,27 @@ final class NirDomainTest extends DatabaseTestCase
         $this->expectException(\RuntimeException::class); $this->expectExceptionCode(403); $this->service->confirm($confirmed['id'],$confirmed['row_version'],'operator-must-not',$operator!==[],$operator);
     }
 
-    public function testAttachmentDuplicatesAreBlockedWithinDraftAndAcrossConfirmedDocuments(): void
+    public function testAttachmentsRemainIndependentAcrossReceiptsEvenWithSameNameOrContent(): void
     {
         $file=['stored_name'=>'abc123.pdf','original_name'=>'factura.pdf','mime_type'=>'application/pdf','extension'=>'pdf','size_bytes'=>123,'sha256'=>hash('sha256','invoice'),'extraction_status'=>'manual'];
         $draft=$this->draft([],['attachments'=>[$file]]);
         try { $this->service->attach($draft['id'],[$file],$draft['row_version'],$this->actor); self::fail('Duplicate file accepted'); } catch(NirValidationException) {}
         $this->service->confirm($draft['id'],$draft['row_version'],'attachment-confirm',true,$this->actor);
         $file['stored_name']='def456.pdf'; $other=$this->draft([],['invoice_number'=>'OTHER-INVOICE','attachments'=>[$file]]);
-        try { $this->service->confirm($other['id'],$other['row_version'],'attachment-duplicate',true,$this->actor); self::fail('Duplicate confirmed attachment accepted'); } catch(NirValidationException $e) { self::assertArrayHasKey('attachments',$e->errors); }
-        self::assertSame(30000,$this->balance());
+        $other=$this->service->confirm($other['id'],$other['row_version'],'attachment-reused',true,$this->actor);
+        self::assertSame('confirmed',$other['status']);
+        $file['stored_name']='different-content.pdf'; $file['sha256']=hash('sha256','another invoice with the same filename');
+        $third=$this->draft([],['invoice_number'=>'THIRD-INVOICE','attachments'=>[$file]]);
+        $third=$this->service->confirm($third['id'],$third['row_version'],'attachment-same-name',true,$this->actor);
+        self::assertSame('confirmed',$third['status']);
+        $original=$this->service->document($draft['id'],$this->actor);
+        self::assertSame('abc123.pdf',$original['attachments'][0]['stored_name']);
+        self::assertSame('def456.pdf',$other['attachments'][0]['stored_name']);
+        self::assertSame('different-content.pdf',$third['attachments'][0]['stored_name']);
+        self::assertNotSame($original['attachments'][0]['id'],$other['attachments'][0]['id']);
+        self::assertSame($original['attachments'][0]['sha256'],$other['attachments'][0]['sha256']);
+        self::assertNotSame($original['attachments'][0]['sha256'],$third['attachments'][0]['sha256']);
+        self::assertSame(90000,$this->balance());
     }
 
     public function testTrackingChangesAfterDraftRequireResaveAndUntrackedLinesRemainDocumentary(): void
@@ -170,7 +301,7 @@ final class NirDomainTest extends DatabaseTestCase
         $receipt=$this->service->receiveReturn($returnId,$input,'customer-return-001',$this->actor); self::assertSame('customer_return',$receipt['type']); self::assertSame(1000,$receipt['inventory_bani']); self::assertSame(30000,$this->balance());
         self::assertSame($receipt['id'],$this->service->receiveReturn($returnId,$input,'customer-return-001',$this->actor)['id']);
         $original=$this->service->document($confirmed['id'],$this->actor); self::assertSame(30000,$original['lines'][0]['available_units']);
-        $reverse=$this->service->reverse($original['id'],$original['row_version'],['reason'=>'Retur furnizor după retur client','invoice_number'=>'CREDIT-SUPPLIER','invoice_date'=>gmdate('Y-m-d'),'quantities'=>[$original['lines'][0]['id']=>'3']],'customer-followed-supplier',$this->actor);
+        $reverse=$this->service->reverse($original['id'],$original['row_version'],['attachments'=>$this->returnEvidence(),'reason'=>'Retur furnizor după retur client','invoice_number'=>'CREDIT-SUPPLIER','invoice_date'=>gmdate('Y-m-d'),'quantities'=>[$original['lines'][0]['id']=>'3']],'customer-followed-supplier',$this->actor);
         self::assertSame(-3000,$reverse['inventory_bani']); self::assertSame(0,$this->balance()); self::assertTrue($this->service->fifo([],$this->actor)['reconciliation'][0]['balanced']);
     }
 
@@ -182,7 +313,7 @@ final class NirDomainTest extends DatabaseTestCase
         $defaults=$this->service->defaults($this->actor); $location=array_values(array_filter($defaults['locations'],static fn(array $row):bool=>(int)$row['warehouse_id']===$warehouse))[0];
         $this->service->receiveReturn($returnId,['physically_received'=>true,'invoice_number'=>'CREDIT-B','invoice_date'=>gmdate('Y-m-d'),'warehouse_id'=>$warehouse,'location_id'=>$location['id']],'return-warehouse-b',$this->actor);
         $original=$this->service->document($confirmed['id'],$this->actor); self::assertSame(20000,$original['lines'][0]['available_units']);
-        try { $this->service->reverse($original['id'],$original['row_version'],['reason'=>'Retur total','invoice_number'=>'CREDIT-SUPPLIER-B','invoice_date'=>gmdate('Y-m-d'),'quantities'=>[$original['lines'][0]['id']=>'3']],'reverse-wrong-warehouse',$this->actor); self::fail('Cross warehouse removal accepted'); } catch(NirValidationException) {}
+        try { $this->service->reverse($original['id'],$original['row_version'],['attachments'=>$this->returnEvidence(),'reason'=>'Retur total','invoice_number'=>'CREDIT-SUPPLIER-B','invoice_date'=>gmdate('Y-m-d'),'quantities'=>[$original['lines'][0]['id']=>'3']],'reverse-wrong-warehouse',$this->actor); self::fail('Cross warehouse removal accepted'); } catch(NirValidationException) {}
         foreach($this->service->fifo([],$this->actor)['reconciliation'] as $row) { self::assertTrue($row['balanced']); }
     }
 
@@ -262,7 +393,7 @@ final class NirDomainTest extends DatabaseTestCase
     public function testSupplierReturnRejectsUnrepresentableConvertedQuantityWithValidation(): void
     {
         $document=$this->confirmed(['conversion_factor'=>'0.0001']);
-        try { $this->service->reverse($document['id'],$document['row_version'],['reason'=>'Retur parțial','invoice_number'=>'PRECISION-RETURN','invoice_date'=>gmdate('Y-m-d'),'quantities'=>[$document['lines'][0]['id']=>'0.0001']],'return-precision-test',$this->actor); self::fail('Invalid precision accepted'); }
+        try { $this->service->reverse($document['id'],$document['row_version'],['attachments'=>$this->returnEvidence(),'reason'=>'Retur parțial','invoice_number'=>'PRECISION-RETURN','invoice_date'=>gmdate('Y-m-d'),'quantities'=>[$document['lines'][0]['id']=>'0.0001']],'return-precision-test',$this->actor); self::fail('Invalid precision accepted'); }
         catch(NirValidationException $error) { self::assertArrayHasKey('quantities.'.$document['lines'][0]['id'],$error->errors); }
         self::assertSame(3,$this->balance()); self::assertSame(1,$this->countRows('nir_documents'));
     }
@@ -282,7 +413,7 @@ final class NirDomainTest extends DatabaseTestCase
         $item=$this->pdo->query('SELECT * FROM order_items WHERE order_id='.$order)->fetch(); $return=$this->makeReturn($order,$item['id']);
         $line=$document['lines'][0]; $target=array_intersect_key($line,array_flip(['scope_type','scope_id','product_id','variant_id','sku']));
         $this->service->consume($document['warehouse_id'],$target,30000,'invoice_line',913,'waiting-for-customer-return',$this->actor);
-        self::assertSame(0,$this->balance()); self::assertSame(1,$this->countRows('nir_pending_consumptions'));
+        self::assertSame(-10000,$this->balance()); self::assertSame(1,$this->countRows('nir_pending_consumptions'));
         $received=$this->service->receiveReturn($return,['physically_received'=>true,'invoice_number'=>'RETURN-PENDING','invoice_date'=>gmdate('Y-m-d'),'warehouse_id'=>$document['warehouse_id'],'location_id'=>$document['location_id']],'customer-reconciles-pending',$this->actor);
         self::assertSame(1000,$received['inventory_bani']); self::assertSame(0,$this->balance()); self::assertSame(0,$this->countRows('nir_pending_consumptions'));
         self::assertSame(10000,(int)$this->pdo->query('SELECT SUM(quantity_units) FROM nir_fifo_consumptions WHERE layer_id IN (SELECT id FROM nir_fifo_layers WHERE nir_id='.$received['id'].')')->fetchColumn());
@@ -374,7 +505,7 @@ final class NirDomainTest extends DatabaseTestCase
         catch(NirConflictException) { self::assertSame(20000,$this->balance()); }
         $companies=new CompanyAdminService(new CompanyRepository($this->pdo),new CompanyStampStorage($this->root)); $warehouse=$companies->saveWarehouse($this->company,['name'=>'Gestiune separată'],null);
         $this->service->consume($warehouse,$target,10000,'invoice_line',1012,'consume-other-warehouse',$this->actor);
-        self::assertSame(20000,$this->balance()); self::assertSame(1,$this->countRows('nir_pending_consumptions')); self::assertSame($warehouse,(int)$this->pdo->query('SELECT warehouse_id FROM nir_pending_consumptions')->fetchColumn());
+        self::assertSame(10000,$this->balance()); self::assertSame(20000,(int)$this->pdo->query('SELECT quantity_units FROM nir_stock_balances WHERE warehouse_id='.$document['warehouse_id'])->fetchColumn()); self::assertSame(1,$this->countRows('nir_pending_consumptions')); self::assertSame($warehouse,(int)$this->pdo->query('SELECT warehouse_id FROM nir_pending_consumptions')->fetchColumn());
     }
 
     public function testPartialReturnsFromSeveralOriginalCostsPreserveEveryLastBan(): void
@@ -409,7 +540,7 @@ final class NirDomainTest extends DatabaseTestCase
     public function testUntrackedSupplierReturnStaysDocumentaryAndCannotBeReturnedTwice(): void
     {
         $document=$this->confirmed(['tracked'=>false]); $line=$document['lines'][0];
-        $reverse=$this->service->reverse($document['id'],$document['row_version'],['reason'=>'Retur linie documentară','invoice_number'=>'UNTRACKED-RETURN','invoice_date'=>gmdate('Y-m-d'),'quantities'=>[$line['id']=>'3']],'untracked-full-return',$this->actor);
+        $reverse=$this->service->reverse($document['id'],$document['row_version'],['attachments'=>$this->returnEvidence(),'reason'=>'Retur linie documentară','invoice_number'=>'UNTRACKED-RETURN','invoice_date'=>gmdate('Y-m-d'),'quantities'=>[$line['id']=>'3']],'untracked-full-return',$this->actor);
         self::assertSame(-3630,$reverse['total_bani']); self::assertSame(0,$reverse['inventory_bani']); self::assertSame(0,$this->countRows('nir_stock_movements')); self::assertSame(0,$this->countRows('nir_fifo_layers'));
         $original=$this->service->document($document['id'],$this->actor); self::assertSame('full',$original['reversal_status']); self::assertFalse($original['can_reverse']); self::assertFalse($original['can_correct']);
     }
@@ -525,9 +656,146 @@ final class NirDomainTest extends DatabaseTestCase
         $second=$this->draft([],['invoice_number'=>'DRAFT-SECOND']); self::assertSame('Draft #2',$second['display_number']);
         self::assertSame('Draft #1',$this->service->document($first['id'],$this->actor)['display_number']);
         $this->service->delete($second['id'],$second['row_version'],$this->actor);
-        self::assertSame('Draft #3',$this->draft([],['invoice_number'=>'DRAFT-THIRD'])['display_number']);
+        self::assertSame('Draft #2',$this->draft([],['invoice_number'=>'DRAFT-THIRD'])['display_number']);
         $confirmedFirst=$this->service->confirm($first['id'],$first['row_version'],'confirm-first-draft',true,$this->actor);
         self::assertSame('LM-NIR-'.$year.'-102',$confirmedFirst['number']);
+    }
+
+    public function testSupplierReturnRechecksConsumedStockEvenWhenAnotherReceiptHasEnoughUnits(): void
+    {
+        $original=$this->confirmed(); $line=$original['lines'][0];
+        $second=$this->draft(['invoice_quantity'=>'5','received_quantity'=>'5','accepted_quantity'=>'5'],['invoice_number'=>'SECOND-LOT']);
+        $this->service->confirm($second['id'],$second['row_version'],'confirm-second-return-lot',true,$this->actor);
+        // The form was opened before a sale consumed two units from the original receipt.
+        $target=['scope_type'=>$line['scope_type'],'scope_id'=>$line['scope_id'],'product_id'=>$line['product_id'],'variant_id'=>$line['variant_id'],'sku'=>$line['sku']];
+        $this->service->consume($original['warehouse_id'],$target,20000,'invoice_line',9999,'consume-after-return-open',$this->actor);
+        self::assertSame(60000,$this->balance());
+        $before=[]; foreach(['nir_documents','nir_fifo_layers','nir_stock_balances','nir_stock_movements','nir_attachments','nir_idempotency','nir_sequences'] as $table) { $before[$table]=$this->pdo->query('SELECT * FROM '.$table)->fetchAll(); }
+        $input=['attachments'=>$this->returnEvidence(),'reason'=>'Retur după vânzare','invoice_number'=>'CREDIT-AFTER-SALE','invoice_date'=>gmdate('Y-m-d'),'quantities'=>[$line['id']=>'2']];
+        try { $this->service->reverse($original['id'],$original['row_version'],$input,'return-consumed-units',$this->actor); self::fail('Consumed stock from the original receipt was returned'); }
+        catch(NirValidationException $e) { self::assertArrayHasKey('accept_alternative_stock',$e->errors); }
+        foreach($before as $table=>$rows) { self::assertSame($rows,$this->pdo->query('SELECT * FROM '.$table)->fetchAll(),$table.' changed after rejection'); }
+        $current=$this->service->document($original['id'],$this->actor); self::assertSame(10000,$current['lines'][0]['available_units']);
+        $input['quantities'][$line['id']]='1';
+        $returned=$this->service->reverse($original['id'],$original['row_version'],$input,'return-only-available-unit',$this->actor);
+        self::assertSame('confirmed',$returned['status']); self::assertSame(50000,$this->balance());
+        self::assertTrue($this->service->document($original['id'],$this->actor)['can_reverse']);
+        self::assertTrue($this->service->fifo([],$this->actor)['reconciliation'][0]['balanced']);
+    }
+
+    public function testTwoPlusOneIdenticalUnitsRemainSeparateForSupplierReturns(): void
+    {
+        $first=$this->confirmed(['invoice_quantity'=>'2','received_quantity'=>'2','accepted_quantity'=>'2']);
+        $draft=$this->draft(['invoice_quantity'=>'1','received_quantity'=>'1','accepted_quantity'=>'1'],['invoice_number'=>'SAME-PRICE-NEXT-RECEIPT']);
+        $second=$this->service->confirm($draft['id'],$draft['row_version'],'confirm-next-identical-unit',true,$this->actor);
+        $line=$first['lines'][0];
+        $target=['scope_type'=>$line['scope_type'],'scope_id'=>$line['scope_id'],'product_id'=>$line['product_id'],'variant_id'=>$line['variant_id'],'sku'=>$line['sku']];
+        $this->service->consume($first['warehouse_id'],$target,10000,'invoice_line',9901,'sell-first-of-two',$this->actor);
+        self::assertSame(10000,$this->service->document($first['id'],$this->actor)['lines'][0]['available_units']);
+        self::assertSame(10000,$this->service->document($second['id'],$this->actor)['lines'][0]['available_units']);
+        $this->service->consume($first['warehouse_id'],$target,10000,'invoice_line',9902,'sell-second-of-two',$this->actor);
+        self::assertSame(0,$this->service->document($first['id'],$this->actor)['lines'][0]['available_units']);
+        self::assertSame(10000,$this->service->document($second['id'],$this->actor)['lines'][0]['available_units']);
+        $input=['attachments'=>$this->returnEvidence(),'reason'=>'Retur după vânzarea primului lot','invoice_number'=>'CREDIT-SAME-PRICE','invoice_date'=>gmdate('Y-m-d'),'quantities'=>[$line['id']=>'1']];
+        try { $this->service->reverse($first['id'],$first['row_version'],$input,'reject-sold-identical-unit',$this->actor); self::fail('The second receipt replaced stock already consumed from the first'); }
+        catch(NirValidationException $e) { self::assertNotEmpty($e->errors); }
+        self::assertSame(10000,$this->balance());
+        $input['quantities']=[$second['lines'][0]['id']=>'1'];
+        $returned=$this->service->reverse($second['id'],$second['row_version'],$input,'return-unsold-identical-unit',$this->actor);
+        self::assertSame('confirmed',$returned['status']);
+        self::assertSame(0,$this->balance());
+        self::assertTrue($this->service->fifo([],$this->actor)['reconciliation'][0]['balanced']);
+    }
+
+    public function testAlternativeReturnReducesActualLotAndCannotUseAnotherPriceOrSupplier(): void
+    {
+        $first=$this->confirmed(['invoice_quantity'=>'1','received_quantity'=>'1','accepted_quantity'=>'1']);
+        $secondDraft=$this->draft(['invoice_quantity'=>'2','received_quantity'=>'2','accepted_quantity'=>'2'],['invoice_number'=>'TWO-COMPATIBLE']);
+        $second=$this->service->confirm($secondDraft['id'],$secondDraft['row_version'],'confirm-two-compatible',true,$this->actor);
+        $third=$this->draft(['unit_price'=>'20'],['invoice_number'=>'OTHER-PRICE']);
+        $this->service->confirm($third['id'],$third['row_version'],'confirm-other-price',true,$this->actor);
+        $otherSupplier=(new SupplierAdminService($this->pdo))->save(['alias'=>'Alt furnizor','company_name'=>'Alt furnizor SRL']);
+        $fourth=$this->draft([],['invoice_number'=>'OTHER-SUPPLIER','supplier_id'=>$otherSupplier]);
+        $this->service->confirm($fourth['id'],$fourth['row_version'],'confirm-other-supplier',true,$this->actor);
+        $line=$first['lines'][0];
+        $target=['scope_type'=>$line['scope_type'],'scope_id'=>$line['scope_id'],'product_id'=>$line['product_id'],'variant_id'=>$line['variant_id'],'sku'=>$line['sku']];
+        $this->service->consume($first['warehouse_id'],$target,10000,'invoice_line',9921,'sell-original-single-unit',$this->actor);
+        $sourceBefore=$this->pdo->query('SELECT * FROM nir_documents WHERE id='.$second['id'])->fetch();
+        $sourceLinesBefore=$this->pdo->query('SELECT * FROM nir_lines WHERE nir_id='.$second['id'])->fetchAll();
+        $salesBefore=$this->pdo->query("SELECT * FROM nir_fifo_consumptions WHERE source_type='invoice_line'")->fetchAll();
+        $input=['attachments'=>$this->returnEvidence(),'reason'=>'Retur produs identic','invoice_number'=>'CREDIT-COMPATIBLE','invoice_date'=>gmdate('Y-m-d'),'quantities'=>[$line['id']=>'1'],'accept_alternative_stock'=>'1'];
+        $returned=$this->service->reverse($first['id'],$first['row_version'],$input,'return-alternative-unit',$this->actor);
+        self::assertSame($returned['id'],$this->service->reverse($first['id'],$first['row_version'],$input,'return-alternative-unit',$this->actor)['id']);
+        $current=$this->service->document($second['id'],$this->actor);
+        self::assertSame(10000,$current['lines'][0]['available_units']); self::assertSame(0,$current['lines'][0]['compatible_units']); self::assertSame(10000,$current['lines'][0]['returnable_units']);
+        self::assertSame($sourceBefore,$this->pdo->query('SELECT * FROM nir_documents WHERE id='.$second['id'])->fetch());
+        self::assertSame($sourceLinesBefore,$this->pdo->query('SELECT * FROM nir_lines WHERE nir_id='.$second['id'])->fetchAll());
+        self::assertSame($salesBefore,$this->pdo->query("SELECT * FROM nir_fifo_consumptions WHERE source_type='invoice_line'")->fetchAll());
+        $allocations=$this->pdo->query("SELECT c.*,l.nir_id FROM nir_fifo_consumptions c JOIN nir_fifo_layers l ON l.id=c.layer_id WHERE c.source_type='supplier_return_line'")->fetchAll();
+        self::assertCount(1,$allocations);self::assertSame($second['id'],(int)$allocations[0]['nir_id']); self::assertSame(10000,(int)$allocations[0]['quantity_units']);
+        $input['quantities']=[$second['lines'][0]['id']=>'2'];$input['attachments']=$this->returnEvidence();$input['invoice_number']='CREDIT-SECOND';
+        $before=$this->balance();
+        try { $this->service->reverse($second['id'],$second['row_version'],$input,'reject-other-price-stock',$this->actor);self::fail('Incompatible stock completed the return'); }
+        catch(NirValidationException $e) { self::assertStringContainsString('mai ai doar 1 buc',$e->errors['quantities.'.$second['lines'][0]['id']]); }
+        self::assertSame($before,$this->balance());
+        $input['quantities'][$second['lines'][0]['id']]='1';
+        $this->service->reverse($second['id'],$second['row_version'],$input,'return-second-remaining',$this->actor);
+        self::assertSame(60000,$this->balance());self::assertFalse($this->service->document($second['id'],$this->actor)['can_reverse']);
+        self::assertTrue($this->service->fifo([],$this->actor)['reconciliation'][0]['balanced']);
+    }
+
+    private function returnEvidence(): array
+    {
+        $identity=bin2hex(random_bytes(10));
+        return [['stored_name'=>'qa-return-'.$identity.'.pdf','original_name'=>'Dovadă retur.pdf','mime_type'=>'application/pdf','extension'=>'pdf','size_bytes'=>12,'sha256'=>hash('sha256',$identity)]];
+    }
+
+    public function testDeletedCustomerReturnRestoresOriginalSaleAndCanBeReceivedAgain(): void
+    {
+        $receipt=$this->confirmed(); $order=$this->order(1);
+        (new AccountingStockService($this->pdo))->recordInvoice($order,'SALE-RETURN-DELETE',$this->actor['id']);
+        $item=$this->pdo->query('SELECT * FROM order_items WHERE order_id='.$order)->fetch(); $return=$this->makeReturn($order,$item['id']);
+        $input=['physically_received'=>true,'invoice_number'=>'RETURN-DELETE','invoice_date'=>gmdate('Y-m-d'),'warehouse_id'=>$receipt['warehouse_id'],'location_id'=>$receipt['location_id']];
+        $received=$this->service->receiveReturn($return,$input,'customer-return-delete-001',$this->actor);
+        self::assertSame(30000,$this->balance());
+        $this->service->delete($received['id'],$received['row_version'],$this->actor);
+        self::assertSame(20000,$this->balance());
+        self::assertSame(0,(int)$this->pdo->query('SELECT SUM(returned_units) FROM nir_fifo_consumptions')->fetchColumn());
+        self::assertSame(1,$this->countRows('order_returns')); self::assertSame(1,$this->countRows('orders'));
+        $this->service->receiveReturn($return,$input,'customer-return-delete-002',$this->actor);
+        self::assertSame(30000,$this->balance());
+    }
+
+    public function testLastNumberIsNumericAndDeletionRaceIsRejectedAtomically(): void
+    {
+        $this->pdo->prepare('INSERT INTO nir_sequences(year,next_number) VALUES (:year,9)')->execute(['year'=>(int)date('Y')]);
+        $nine=$this->confirmed(); self::assertStringEndsWith('-9',$nine['number']);
+        $draft=$this->draft([],['invoice_number'=>'TEN']);
+        self::assertTrue($this->service->document($nine['id'],$this->actor)['can_delete']);
+        $ten=$this->service->confirm($draft['id'],$draft['row_version'],'confirm-number-ten',true,$this->actor);
+        self::assertStringEndsWith('-10',$ten['number']);
+        $state=[]; foreach(['nir_documents','nir_stock_balances','nir_stock_movements','nir_fifo_layers','nir_audit','nir_sequences'] as $table) { $state[$table]=$this->pdo->query('SELECT * FROM '.$table)->fetchAll(); }
+        try { $this->service->delete($nine['id'],$nine['row_version'],$this->actor); self::fail('A formerly last receipt was deleted after another confirmation'); }
+        catch(NirConflictException) { foreach($state as $table=>$rows) { self::assertSame($rows,$this->pdo->query('SELECT * FROM '.$table)->fetchAll()); } }
+        $this->service->delete($ten['id'],$ten['row_version'],$this->actor);
+        self::assertSame(10,(int)$this->pdo->query('SELECT next_number FROM nir_sequences')->fetchColumn());
+    }
+
+    public function testNegativeStockMigrationCarriesExistingPendingSalesOnce(): void
+    {
+        $draft=$this->draft(); $line=$draft['lines'][0];
+        $target=array_intersect_key($line,array_flip(['scope_type','scope_id','product_id','variant_id','sku']));
+        $this->service->consume($draft['warehouse_id'],$target,20000,'invoice_line',19008,'existing-pending-invoice',$this->actor);
+        // Model the old schema's balance: pending stock exits had not been debited.
+        $this->pdo->exec('UPDATE nir_stock_balances SET quantity_units=0');
+        $this->pdo->exec("DELETE FROM nir_stock_movements WHERE type='INVOICE_OUT_PENDING'");
+        $this->pdo->exec((string)file_get_contents($this->root.'/database/migrations/sqlite/049_nir_negative_accounting_stock.sql'));
+        self::assertSame(-20000,$this->balance());
+        self::assertSame(-20000,(int)$this->pdo->query('SELECT SUM(quantity_units) FROM nir_stock_movements')->fetchColumn());
+        $receipt=$this->service->confirm($draft['id'],$draft['row_version'],'confirm-existing-pending',true,$this->actor);
+        self::assertSame(10000,$this->balance());
+        $this->service->delete($receipt['id'],$receipt['row_version'],$this->actor);
+        self::assertSame(-20000,$this->balance());
     }
 
     private function draft(array $line=[],array $header=[]): array
