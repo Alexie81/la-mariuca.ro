@@ -11,10 +11,11 @@ use PDO;
 final class NirService
 {
     private readonly NirRepository $repository;
+    private readonly \App\Modules\Catalog\CatalogSearchService $search;
     private readonly \App\Modules\Companies\ReceiptLocationService $locations;
     private const MONEY=['net_bani','tax_bani','total_bani','discount_bani','net_ron_bani','tax_ron_bani','total_ron_bani','inventory_bani'];
     private const COSTS=['unit_price','discount_percent','vat_percent','extra_cost_ron','net_override','tax_override','gross_override','unit_cost_ron','last_price','initial_value_bani','remaining_value_bani','value_bani','price_history'];
-    public function __construct(PDO $pdo) { $this->repository=new NirRepository($pdo); $this->locations=new \App\Modules\Companies\ReceiptLocationService(new \App\Modules\Companies\CompanyRepository($pdo)); }
+    public function __construct(PDO $pdo) { $this->repository=new NirRepository($pdo); $this->locations=new \App\Modules\Companies\ReceiptLocationService(new \App\Modules\Companies\CompanyRepository($pdo)); $this->search=new \App\Modules\Catalog\CatalogSearchService(new \App\Modules\Catalog\CatalogRepository($pdo)); }
 
     /** @param array<string,mixed> $actor @return array<string,bool> */
     public function permissions(array $actor): array
@@ -61,25 +62,55 @@ final class NirService
     /** @param array<string,mixed> $actor @return array<string,mixed> */
     public function document(int $id,array $actor): array
     {
-        $this->allow($actor,'view'); return $this->redact($this->load($id),$actor);
+        $this->allow($actor,'view'); $document=$this->redact($this->load($id),$actor);
+        foreach($document['lines'] as &$line) {
+            $product=$line['product_id']?$this->repository->one('products',['id'=>$line['product_id']]):null;
+            $line['product_slug']=($product['status'] ?? '')==='published' ? $product['slug'] : '';
+        } unset($line);
+        return $document;
     }
 
     /** @param array<string,mixed> $input @param array<string,mixed> $actor @return array<string,mixed> */
     public function save(?int $id,array $input,array $actor): array
     {
+        return $this->saveDraft($id,$input,$actor,true);
+    }
+
+    /** @param array<string,mixed> $input @param array<string,mixed> $actor @return array<string,mixed> */
+    private function saveDraft(?int $id,array $input,array $actor,bool $numberDraft): array
+    {
         $this->allow($actor,$id===null?'create':'edit');
-        return $this->repository->transaction(function()use($id,$input,$actor):array {
+        return $this->repository->transaction(function()use($id,$input,$actor,$numberDraft):array {
             $old=$id===null?null:$this->load($id);
             if($old!==null) { $this->version($old,(int)($input['row_version'] ?? 0)); if($old['status']!=='draft') { throw new NirConflictException('Documentul confirmat poate fi modificat numai prin corectare controlată.'); } }
             [$header,$lines]=$this->prepare($input,$old);
             $now=$this->repository->now(); $actorId=$this->actorId($actor);
             $header+=['updated_by'=>$actorId,'updated_at'=>$now,'row_version'=>$old===null?1:(int)$old['row_version']+1];
-            if($id===null) { $header+=['temp_number'=>'DRAFT-'.gmdate('Ymd').'-'.strtoupper(bin2hex(random_bytes(5))),'type'=>'supplier_receipt','status'=>'draft','created_by'=>$actorId,'created_at'=>$now,'reason'=>'']; $id=$this->repository->insert('nir_documents',$header); }
+            if($id===null) { $header+=['draft_sequence'=>$numberDraft?$this->repository->nextDraftNumber():null,'temp_number'=>'DRAFT-'.gmdate('Ymd').'-'.strtoupper(bin2hex(random_bytes(5))),'type'=>'supplier_receipt','status'=>'draft','created_by'=>$actorId,'created_at'=>$now,'reason'=>'']; $id=$this->repository->insert('nir_documents',$header); }
             else { $this->repository->update('nir_documents',$header,['id'=>$id]); $this->repository->delete('nir_lines',['nir_id'=>$id]); }
             $this->persistLines($id,$lines,$actor,(int)($header['supplier_id'] ?? 0));
             $this->appendAttachments($id,(array)($input['attachments'] ?? []),$actor);
             $this->audit($id,$old===null?'draft_created':'draft_updated',$actor,$old,$this->load($id));
             return $this->document($id,$actor);
+        });
+    }
+
+    /** @param array<string,mixed> $input @param array<string,mixed> $actor @return array<string,mixed> */
+    public function saveAndConfirm(?int $id,array $input,array $actor): array
+    {
+        $this->allow($actor,$id===null?'create':'edit');
+        $this->allow($actor,'confirm');
+        return $this->repository->transaction(function()use($id,$input,$actor):array {
+            $key=(string)($input['idempotency_key'] ?? '');
+            $payload=$input;
+            unset($payload['_csrf']);
+            $payload['attachments']=array_map(static fn(array $file):array=>array_intersect_key($file,array_flip(['sha256','original_name','size_bytes'])),(array)($input['attachments'] ?? []));
+            $hash=$this->requestHash('save_confirm',[$id,$payload,$this->actorId($actor)]);
+            if(($previous=$this->retry($key,'save_confirm',$hash))!==null) { return $this->document($previous,$actor); }
+            $draft=$this->saveDraft($id,$input,$actor,false);
+            $document=$this->confirm((int)$draft['id'],(int)$draft['row_version'],'confirm-'.hash('sha256',$key),!empty($input['accept_warnings']),$actor);
+            $this->remember($key,'save_confirm',$hash,(int)$document['id'],(int)$document['id']);
+            return $document;
         });
     }
 
@@ -240,17 +271,42 @@ final class NirService
     /** @param array<string,mixed> $actor @return list<array<string,mixed>> */
     public function lookupProducts(string $search,int $supplierId,array $actor): array
     {
-        $this->allow($actor,'view'); $catalog=$this->repository->catalog(); $q=NirRepository::normalize($search);
+        $this->allow($actor,'view'); $catalog=$this->repository->catalog(); $search=mb_substr(trim($search),0,190); $q=NirRepository::normalize($search);
         if($q==='') { return array_slice($catalog,0,50); }
-        $exact=array_values(array_filter($catalog,static fn(array $p):bool=>in_array($q,[NirRepository::normalize((string)$p['sku']),NirRepository::normalize((string)$p['primary_sku']),NirRepository::normalize((string)$p['product_name']),(string)$p['ean']],true)));
-        if($exact!==[]) { return array_slice($exact,0,50); }
-        $words=preg_split('/\s+/u',$q) ?: []; $matches=[];
+        $refs=$supplierId>0?$this->repository->all('nir_supplier_references',['supplier_id'=>$supplierId]):[];
+        $references=[];
+        foreach($refs as $ref) { $references[(int)$ref['product_id']][]=$ref; }
+        $nameKey=static function(string $value):string {
+            $value=mb_strtolower(strtr($value,['ă'=>'a','â'=>'a','î'=>'i','ș'=>'s','ş'=>'s','ț'=>'t','ţ'=>'t','Ă'=>'a','Â'=>'a','Î'=>'i','Ș'=>'s','Ş'=>'s','Ț'=>'t','Ţ'=>'t']));
+            return trim((string)preg_replace('/[^\p{L}\p{N}]+/u',' ',$value));
+        };
+        $exactCodes=[]; $exactNames=[]; $partialCodes=[]; $candidates=[];
         foreach($catalog as $product) {
-            $haystack=NirRepository::normalize(implode(' ',array_map(static fn(string $field):string=>(string)($product[$field] ?? ''),['product_name','sku','primary_sku','ean','brand','category_name','option_summary'])));
-            $score=0; foreach($words as $word) { if(str_contains($haystack,$word)) { $score++; } }
-            if($score>0) { $product['score']=$score; $matches[]=$product; }
+            $codes=['sku'=>[(string)$product['sku'],(string)$product['primary_sku']],'barcode'=>[(string)$product['ean']],'supplier_code'=>[]];
+            foreach($references[(int)$product['product_id']] ?? [] as $ref) {
+                if(!empty($ref['variant_id']) && (int)$ref['variant_id']!==(int)$product['variant_id']) { continue; }
+                $codes['supplier_code'][]=(string)$ref['supplier_code']; $codes['barcode'][]=(string)$ref['supplier_ean'];
+            }
+            $allCodes=[]; $exactField=null;
+            foreach($codes as $field=>$values) { foreach($values as $value) {
+                $value=NirRepository::normalize($value); if($value==='') { continue; }
+                $allCodes[]=$value; if($q===$value) { $exactField ??= $field; }
+            } }
+            if($exactField!==null) { $exactCodes[]=array_replace($product,['search_match'=>'exact','matched_field'=>$exactField]); }
+            if($nameKey($search)!=='' && $nameKey($search)===$nameKey((string)$product['product_name'])) { $exactNames[]=array_replace($product,['search_match'=>'exact','matched_field'=>'name']); }
+            if(array_filter($allCodes,static fn(string $code):bool=>str_contains($code,$q))!==[]) { $partialCodes[]=array_replace($product,['search_match'=>'code']); }
+            $candidates[]=array_replace($product,['name'=>$product['product_name'],'search_categories'=>$product['category_name'],'search_skus'=>implode(',',$allCodes),'short_description'=>$product['option_summary']]);
         }
-        usort($matches,static fn(array $a,array $b):int=>$b['score']<=>$a['score']); return array_slice($matches,0,50);
+        // Codes identify variants; a name identifies the product, retaining its size/color choices.
+        if($exactCodes!==[]) { return $exactCodes; }
+        if($exactNames!==[]) { return $exactNames; }
+        // Never silently correct a mistyped identifier into a different product's code.
+        if(preg_match('/^\S*\d\S*$/u',$search)===1) { return array_slice($partialCodes,0,50); }
+        $ranked=$this->search->rankCandidates($search,$candidates);
+        return array_slice(array_map(static function(array $product):array {
+            unset($product['name'],$product['search_categories'],$product['search_skus'],$product['short_description']);
+            $product['search_match']='semantic'; return $product;
+        },$ranked),0,50);
     }
 
     /** @param array<string,mixed> $line @param array<string,mixed> $actor @return array<string,mixed> */
@@ -720,7 +776,13 @@ final class NirService
         $row['can_reverse']=$row['status']==='confirmed' && $row['type']==='supplier_receipt' && NirDecimal::sum(array_column($lines,'available_units'))>0;
         $row['can_correct']=$row['status']==='confirmed' && $row['type']==='supplier_receipt' && $reversals===[];
         foreach($this->repository->all('nir_fifo_layers',['nir_id'=>$row['id']]) as $layer) { if((int)$layer['initial_units']!==(int)$layer['remaining_units'] || $this->repository->all('nir_fifo_consumptions',['layer_id'=>$layer['id']])!==[]) { $row['can_correct']=false; } }
-        $row['display_number']=$row['number'] ?: $row['temp_number']; $row['line_count']=count($lines);
+        $row['display_number']=$row['number'] ?: (!empty($row['draft_sequence'])?'Draft #'.(int)$row['draft_sequence']:'Draft'); $row['line_count']=count($lines);
+        $row['draft_incomplete']=false; $row['draft_issues']=[];
+        if($row['status']==='draft') {
+            try { $this->validate($row+['lines'=>$lines,'attachments'=>$this->repository->all('nir_attachments',['nir_id'=>$row['id']])],true); }
+            catch(NirValidationException $error) { $row['draft_issues']=array_keys($error->errors); $row['draft_incomplete']=$error->errors!==[]; }
+            catch(NirConflictException) { $row['draft_issues']=['references']; $row['draft_incomplete']=true; }
+        }
         if($details) {
             $row['lines']=$lines; $row['attachments']=$this->repository->all('nir_attachments',['nir_id'=>$row['id']]); $row['audit']=$this->repository->all('nir_audit',['nir_id'=>$row['id']],'id DESC'); $row['reversals']=$reversals;
             foreach($row['audit'] as &$event) { foreach(['before','after','context'] as $key) { $event[$key]=json_decode($event[$key.'_json'],true); } } unset($event);

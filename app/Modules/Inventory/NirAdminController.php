@@ -122,9 +122,11 @@ final class NirAdminController
             $input['attachments'] = $stored;
             $doc = str_contains($request->getUri()->getPath(), '/corectie/')
                 ? $this->nirs->correct($id ?? 0, (int) ($input['row_version'] ?? 0), $input, (string) ($input['idempotency_key'] ?? ''), !empty($input['accept_warnings']), $this->actor())
-                : $this->nirs->save($id, $input, $this->actor());
+                : (($input['intent'] ?? '') === 'save_confirm'
+                    ? $this->nirs->saveAndConfirm($id, $input, $this->actor())
+                    : $this->nirs->save($id, $input, $this->actor()));
             $this->removeUnusedUploads($stored,$doc);
-            return $this->success($request, 'Recepția a fost salvată.', $this->url($doc['id'].'/'), $doc);
+            return $this->success($request, ($input['intent'] ?? '') === 'save_confirm' ? 'Recepția a fost salvată și confirmată. Stocul contabil este actualizat.' : 'Recepția a fost salvată.', $this->url($doc['id'].'/'), $doc);
         } catch (\Throwable $e) {
             foreach ($stored as $file) { $this->storage->remove((string) $file['stored_name']); }
             if (!$this->jsonWanted($request) && $e instanceof NirValidationException) {

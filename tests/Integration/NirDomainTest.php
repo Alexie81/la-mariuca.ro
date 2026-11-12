@@ -47,7 +47,7 @@ final class NirDomainTest extends DatabaseTestCase
         $commercial=$this->pdo->query('SELECT * FROM inventory ORDER BY variant_id')->fetchAll();
         $draft=$this->draft(); self::assertSame(0,$this->countRows('nir_stock_balances')); self::assertSame(0,$this->countRows('nir_fifo_layers'));
         $confirmed=$this->service->confirm($draft['id'],$draft['row_version'],'confirm-atomic-001',true,$this->actor);
-        self::assertSame('confirmed',$confirmed['status']); self::assertMatchesRegularExpression('/^NIR-\d{4}-000001$/',$confirmed['number']);
+        self::assertSame('confirmed',$confirmed['status']); self::assertMatchesRegularExpression('/^LM-NIR-\d{4}-1$/',$confirmed['number']);
         self::assertSame(30000,$this->balance()); self::assertSame(1,$this->countRows('nir_fifo_layers')); self::assertSame(1,$this->countRows('nir_stock_movements'));
         $retry=$this->service->confirm($draft['id'],$draft['row_version'],'confirm-atomic-001',true,$this->actor);
         self::assertSame($confirmed['id'],$retry['id']); self::assertSame(30000,$this->balance());
@@ -273,7 +273,7 @@ final class NirDomainTest extends DatabaseTestCase
         $first=$this->service->confirm($first['id'],$first['row_version'],'year-local-first',true,$this->actor);
         $second=$this->draft([],['invoice_number'=>'NEXT-YEAR','nir_at'=>'2027-01-01T00:30']);
         $second=$this->service->confirm($second['id'],$second['row_version'],'year-local-second',true,$this->actor);
-        self::assertSame('2026-12-31T22:30:00Z',$second['nir_at']); self::assertSame('NIR-2026-000001',$first['number']); self::assertSame('NIR-2027-000001',$second['number']);
+        self::assertSame('2026-12-31T22:30:00Z',$second['nir_at']); self::assertSame('LM-NIR-2026-1',$first['number']); self::assertSame('LM-NIR-2027-1',$second['number']);
     }
 
     public function testCustomerReceiptReconcilesPendingInvoiceBeforeReportingAvailableStock(): void
@@ -445,6 +445,89 @@ final class NirDomainTest extends DatabaseTestCase
             try { $this->service->registry($filters,$this->actor); self::fail('Invalid period accepted'); }
             catch(NirValidationException $error) { self::assertNotEmpty($error->errors); }
         }
+    }
+
+    public function testSaveAndConfirmIsAtomicAndRetryDoesNotDoubleStock(): void
+    {
+        $draft=$this->draft(); $input=$draft; $input['idempotency_key']='save-confirm-atomic';
+        $input['invoice_number']='DIRECT-001'; $input['accept_warnings']='1';
+        $result=$this->service->saveAndConfirm(null,$input,$this->actor);
+        self::assertSame('confirmed',$result['status']); self::assertSame('LM-NIR-'.date('Y').'-1',$result['number']);
+        $retry=$this->service->saveAndConfirm(null,$input,$this->actor);
+        self::assertSame($result['id'],$retry['id']); self::assertSame(30000,$this->balance());
+        self::assertSame(1,$this->countRows('nir_fifo_layers'));
+        $input['invoice_number']='DIRECT-002'; $input['idempotency_key']='save-confirm-invalid';
+        $input['lines'][0]['accepted_quantity']='4';
+        try { $this->service->saveAndConfirm(null,$input,$this->actor); self::fail('Invalid receipt committed'); } catch(NirValidationException) {}
+        self::assertSame(2,$this->countRows('nir_documents')); self::assertSame(30000,$this->balance());
+        self::assertSame(1,$this->countRows('nir_fifo_layers'));
+    }
+
+    public function testSaveConfirmWarningsRollbackEditsUntilAcknowledged(): void
+    {
+        $draft=$this->draft(['supplier_code'=>'']); $input=$draft;
+        $input['notes']='Modificare ce trebuie păstrată doar la succes'; $input['idempotency_key']='warning-save-confirm';
+        try { $this->service->saveAndConfirm($draft['id'],$input,$this->actor); self::fail('Unacknowledged warning accepted'); }
+        catch(NirValidationException $error) { self::assertNotEmpty($error->warnings); }
+        $unchanged=$this->service->document($draft['id'],$this->actor);
+        self::assertSame($draft['row_version'],$unchanged['row_version']); self::assertSame($draft['notes'],$unchanged['notes']);
+        self::assertSame(0,$this->balance());
+        $input['accept_warnings']='1'; $confirmed=$this->service->saveAndConfirm($draft['id'],$input,$this->actor);
+        self::assertSame('confirmed',$confirmed['status']); self::assertSame($input['notes'],$confirmed['notes']);
+        self::assertSame(30000,$this->balance());
+    }
+
+    public function testIncompleteDraftStatusUsesConfirmationRulesAndClearsWhenFixed(): void
+    {
+        $draft=$this->service->save(null,$this->base,$this->actor);
+        self::assertTrue($draft['draft_incomplete']); self::assertSame('Draft #1',$draft['display_number']);
+        self::assertContains('supplier_id',$draft['draft_issues']);
+        self::assertTrue($this->service->registry([],$this->actor)['items'][0]['draft_incomplete']);
+        $complete=$this->draft(['supplier_code'=>'']);
+        self::assertFalse($complete['draft_incomplete'],'Optional supplier code only warns; it is not incomplete.');
+        $complete['lines'][0]['accepted_quantity']='2';
+        $incomplete=$this->service->save($complete['id'],$complete,$this->actor);
+        self::assertTrue($incomplete['draft_incomplete']); self::assertContains('lines.0.difference_reason',$incomplete['draft_issues']);
+        $incomplete['lines'][0]['difference_reason']='shortage';
+        $fixed=$this->service->save($incomplete['id'],$incomplete,$this->actor);
+        self::assertFalse($fixed['draft_incomplete']); self::assertSame(0,$this->balance());
+    }
+
+    public function testProductSearchExactIdentifiersNamesAndScopedSupplierCodes(): void
+    {
+        $id=(int)$this->variant['product_id']; $variant=(int)$this->variant['id'];
+        $this->pdo->prepare('UPDATE products SET name=:name WHERE id=:id')->execute(['name'=>'Cardigan „Norișor”','id'=>$id]);
+        $this->pdo->prepare('UPDATE product_variants SET ean=:ean WHERE id=:id')->execute(['ean'=>'0012345678901','id'=>$variant]);
+        $this->draft(['supplier_code'=>'FURN-EXACT-91','save_reference'=>'1']);
+        foreach ([$this->variant['sku'],'0012345678901','FURN-EXACT-91'] as $query) {
+            $found=$this->service->lookupProducts($query,$this->supplier,$this->actor);
+            self::assertNotEmpty($found,$query); self::assertCount(1,$found,$query);
+            self::assertSame($variant,(int)$found[0]['variant_id']); self::assertSame('exact',$found[0]['search_match']);
+        }
+        $found=$this->service->lookupProducts('cardigan norisor',$this->supplier,$this->actor);
+        self::assertNotEmpty($found); self::assertSame([$id],array_values(array_unique(array_map(static fn(array $row):int=>(int)$row['product_id'],$found))));
+        self::assertSame('exact',$found[0]['search_match']);
+        self::assertSame([],$this->service->lookupProducts('FURN-EXACT-91',0,$this->actor));
+        self::assertSame([],$this->service->lookupProducts('0012345678902',$this->supplier,$this->actor));
+        $semantic=$this->service->lookupProducts('pulover norisor',$this->supplier,$this->actor);
+        self::assertNotEmpty($semantic); self::assertSame($id,(int)$semantic[0]['product_id']);
+        self::assertSame([],$this->service->lookupProducts('cardigan extraterestru',$this->supplier,$this->actor));
+    }
+
+    public function testDraftAndConfirmedCountersAreIndependentAndDoNotReuseDeletedDrafts(): void
+    {
+        $year=(int)date('Y');
+        $this->pdo->prepare('INSERT INTO nir_sequences(year,next_number) VALUES (:year,101)')->execute(['year'=>$year]);
+        $first=$this->draft(); self::assertSame('Draft #1',$first['display_number']);
+        $direct=$first; $direct['idempotency_key']='independent-direct'; $direct['accept_warnings']='1'; $direct['invoice_number']='DIRECT-101';
+        $confirmed=$this->service->saveAndConfirm(null,$direct,$this->actor);
+        self::assertSame('LM-NIR-'.$year.'-101',$confirmed['number']);
+        $second=$this->draft([],['invoice_number'=>'DRAFT-SECOND']); self::assertSame('Draft #2',$second['display_number']);
+        self::assertSame('Draft #1',$this->service->document($first['id'],$this->actor)['display_number']);
+        $this->service->delete($second['id'],$second['row_version'],$this->actor);
+        self::assertSame('Draft #3',$this->draft([],['invoice_number'=>'DRAFT-THIRD'])['display_number']);
+        $confirmedFirst=$this->service->confirm($first['id'],$first['row_version'],'confirm-first-draft',true,$this->actor);
+        self::assertSame('LM-NIR-'.$year.'-102',$confirmedFirst['number']);
     }
 
     private function draft(array $line=[],array $header=[]): array

@@ -109,6 +109,18 @@ final class CatalogSearchService
             return ['products' => [$nameMatches[0]['product']], 'exact' => true];
         }
 
+        return ['products' => $this->rankCandidates($query, $products), 'exact' => false];
+    }
+
+    /** Rank supplied catalog rows without changing their availability or choosing a variant.
+     * @param list<array<string,mixed>> $products
+     * @return list<array<string,mixed>>
+     */
+    public function rankCandidates(string $query, array $products): array
+    {
+        $normalizedQuery = $this->normalize($query);
+        $queryTokens = $this->tokens($query);
+        if ($normalizedQuery === '' || $queryTokens === []) { return []; }
         $ranked = [];
         foreach ($products as $product) {
             $score = $this->productScore($queryTokens, $normalizedQuery, $product);
@@ -124,10 +136,7 @@ final class CatalogSearchService
                 : strnatcasecmp((string) $left['product']['name'], (string) $right['product']['name']);
         });
 
-        return [
-            'products' => array_values(array_map(static fn(array $item): array => $item['product'], $ranked)),
-            'exact' => false,
-        ];
+        return array_values(array_map(static fn(array $item): array => $item['product'], $ranked));
     }
 
     /** @return list<array<string, mixed>> */

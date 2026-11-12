@@ -115,7 +115,8 @@ final class NirRepository
         if ($search !== '') {
             $terms=explode(' ',$search);
             $rows=array_values(array_filter($rows,static function(array $row) use($terms): bool {
-                $haystack=self::normalize(implode(' ',array_map(static fn(string $key):string=>(string)($row[$key] ?? ''),['number','temp_number','invoice_series','invoice_number','external_id','supplier_alias','supplier_legal_name','supplier_snapshot'])));
+                $displayNumber=$row['number'] ?: (!empty($row['draft_sequence'])?'Draft #'.(int)$row['draft_sequence']:'Draft');
+                $haystack=self::normalize($displayNumber.' '.implode(' ',array_map(static fn(string $key):string=>(string)($row[$key] ?? ''),['number','temp_number','invoice_series','invoice_number','external_id','supplier_alias','supplier_legal_name','supplier_snapshot'])));
                 foreach ($terms as $term) { if (!str_contains($haystack,$term)) { return false; } } return true;
             }));
         }
@@ -139,7 +140,15 @@ final class NirRepository
         $year=(int)(new \DateTimeImmutable($date,new \DateTimeZone('UTC')))->setTimezone(new \DateTimeZone('Europe/Bucharest'))->format('Y'); $sequence=$this->one('nir_sequences',['year'=>$year]);
         $number=$sequence === null ? 1 : (int)$sequence['next_number'];
         if ($sequence === null) { $this->insert('nir_sequences',['year'=>$year,'next_number'=>2]); } else { $this->update('nir_sequences',['next_number'=>$number+1],['year'=>$year]); }
-        return sprintf('NIR-%d-%06d',$year,$number);
+        return sprintf('LM-NIR-%d-%d',$year,$number);
+    }
+
+    /** Called only under the shared NIR write lock, independently of confirmed numbering. */
+    public function nextDraftNumber(): int
+    {
+        $number=(int)$this->pdo->query('SELECT next_number FROM nir_draft_sequence WHERE id=1')->fetchColumn();
+        $this->pdo->exec('UPDATE nir_draft_sequence SET next_number=next_number+1 WHERE id=1');
+        return $number;
     }
 
     /** @return array{total:int,draft:int,confirmed:int} */
