@@ -10,7 +10,8 @@ use Brick\Math\RoundingMode;
 /** Read-only BNR quotes. A failed lookup never blocks a manually entered documented rate. */
 final class NirExchangeRateService
 {
-    public function __construct(private readonly string $root) {}
+    /** @param (\Closure(string): ?string)|null $fetchXml */
+    public function __construct(private readonly string $root, private readonly ?\Closure $fetchXml = null) {}
 
     /** @return array<string,mixed> */
     public function lookup(string $currency,string $date): array
@@ -18,13 +19,16 @@ final class NirExchangeRateService
         $currency=strtoupper(trim($currency));
         if (!preg_match('/^[A-Z]{3}$/D',$currency) || !preg_match('/^\d{4}-\d{2}-\d{2}$/D',$date)) { throw new \InvalidArgumentException('Alege moneda și data cursului.'); }
         $day=\DateTimeImmutable::createFromFormat('!Y-m-d',$date);
-        if (!$day || $day->format('Y-m-d')!==$date || (int) $day->format('Y')<2005 || $date>date('Y-m-d')) { throw new \InvalidArgumentException('Data cursului trebuie să fie validă și să nu fie în viitor.'); }
+        if (!$day || $day->format('Y-m-d')!==$date || (int) $day->format('Y')<2005 || $date>(new \DateTimeImmutable('now',new \DateTimeZone('Europe/Bucharest')))->format('Y-m-d')) { throw new \InvalidArgumentException('Data cursului trebuie să fie validă și să nu fie în viitor.'); }
         if ($currency==='RON') { return ['success'=>true,'currency'=>'RON','rate'=>'1.00000000','date'=>$date,'source'=>'RON']; }
         $year=(int) $day->format('Y');
         foreach ([$year,$year-1] as $archiveYear) {
             $path=$this->root.'/storage/cache/bnr-'.$archiveYear.'.xml';
             $fresh=is_file($path) && filemtime($path)>time()-21600;
-            $xml=$fresh?file_get_contents($path):$this->fetch('https://www.bnr.ro/files/xml/years/nbrfxrates'.$archiveYear.'.xml');
+            // BNR publishes XML on its dedicated currency subdomain. The public
+            // www host now redirects old XML paths to the HTML homepage.
+            $url='https://curs.bnr.ro/files/xml/years/nbrfxrates'.$archiveYear.'.xml';
+            $xml=$fresh?file_get_contents($path):($this->fetchXml!==null?($this->fetchXml)($url):$this->fetch($url));
             if (is_string($xml)) {
                 $quote=$this->parse($xml,$currency,$date);
                 if ($quote!==null) {
@@ -48,6 +52,7 @@ final class NirExchangeRateService
             foreach ($doc->xpath('//*[local-name()="Cube"]') ?: [] as $cube) {
                 $quoteDate=(string) $cube['date'];
                 if (!preg_match('/^\d{4}-\d{2}-\d{2}$/D',$quoteDate) || $quoteDate>$date || ($chosen!==null && $quoteDate<=$chosen['date'])) { continue; }
+                if (!checkdate((int) substr($quoteDate,5,2),(int) substr($quoteDate,8,2),(int) substr($quoteDate,0,4))) { continue; }
                 foreach ($cube->children() as $rate) {
                     if ((string) $rate['currency']!==$currency || !preg_match('/^\d+(\.\d+)?$/D',(string) $rate)) { continue; }
                     $multiplier=(string) $rate['multiplier'];

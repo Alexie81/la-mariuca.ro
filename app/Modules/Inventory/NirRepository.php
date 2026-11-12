@@ -95,14 +95,19 @@ final class NirRepository
         $status=(string)($filters['status'] ?? $filters['stare'] ?? '');
         if (in_array($status,['draft','confirmed'],true)) { $where[]='d.status=:status'; $params['status']=$status; }
         if (in_array($status,['supplier_return','reversed','storno'],true)) { $where[]="d.type='supplier_return'"; }
+        $dates=[];
         foreach (['from'=>'>=','to'=>'<'] as $field=>$operator) {
-            if (preg_match('/^\d{4}-\d{2}-\d{2}$/D',(string)($filters[$field] ?? ''))) {
-                $date=\DateTimeImmutable::createFromFormat('!Y-m-d',(string)$filters[$field],new \DateTimeZone('Europe/Bucharest'));
-                if($date===false||$date->format('Y-m-d')!==$filters[$field]) { throw new NirValidationException([$field=>'Perioada selectată nu este validă.']); }
+            $value=trim((string)($filters[$field] ?? ''));
+            if ($value!=='') {
+                if(!preg_match('/^\d{4}-\d{2}-\d{2}$/D',$value)) { throw new NirValidationException([$field=>'Perioada selectată nu este validă.']); }
+                $date=\DateTimeImmutable::createFromFormat('!Y-m-d',$value,new \DateTimeZone('Europe/Bucharest'));
+                if($date===false||$date->format('Y-m-d')!==$value) { throw new NirValidationException([$field=>'Perioada selectată nu este validă.']); }
+                $dates[$field]=$value;
                 if($field==='to') { $date=$date->modify('+1 day'); }
                 $where[]='d.nir_at'.$operator.':'.$field; $params[$field]=$date->setTimezone(new \DateTimeZone('UTC'))->format('Y-m-d\TH:i:s\Z');
             }
         }
+        if(isset($dates['from'],$dates['to'])&&$dates['from']>$dates['to']) { throw new NirValidationException(['to'=>'Data de sfârșit trebuie să fie după data de început sau în aceeași zi.']); }
         $query=$this->pdo->prepare('SELECT d.*,s.alias AS supplier_alias,s.company_name AS supplier_legal_name,(SELECT COUNT(*) FROM nir_lines l WHERE l.nir_id=d.id) AS line_count,(SELECT COUNT(*) FROM nir_attachments a WHERE a.nir_id=d.id) AS attachment_count FROM nir_documents d LEFT JOIN suppliers s ON s.id=d.supplier_id'.($where === [] ? '' : ' WHERE '.implode(' AND ',$where)).' ORDER BY d.created_at DESC,d.id DESC');
         $query->execute($params);
         $rows=$query->fetchAll();
@@ -131,7 +136,7 @@ final class NirRepository
 
     public function nextNumber(string $date): string
     {
-        $year=(int)substr($date,0,4); $sequence=$this->one('nir_sequences',['year'=>$year]);
+        $year=(int)(new \DateTimeImmutable($date,new \DateTimeZone('UTC')))->setTimezone(new \DateTimeZone('Europe/Bucharest'))->format('Y'); $sequence=$this->one('nir_sequences',['year'=>$year]);
         $number=$sequence === null ? 1 : (int)$sequence['next_number'];
         if ($sequence === null) { $this->insert('nir_sequences',['year'=>$year,'next_number'=>2]); } else { $this->update('nir_sequences',['next_number'=>$number+1],['year'=>$year]); }
         return sprintf('NIR-%d-%06d',$year,$number);

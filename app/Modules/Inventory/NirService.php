@@ -118,9 +118,9 @@ final class NirService
             $hash=$this->requestHash('correct',[$id,$version,$input,$acceptWarnings]);
             if(($previous=$this->retry($key,'correct',$hash))!==null) { return $this->document($previous,$actor); }
             $old=$this->load($id); $this->version($old,$version);
-            if(!$old['can_correct']) { throw new NirConflictException('Corectarea este permisă doar pentru recepții confirmate, fără consum FIFO și fără storno.'); }
+            if(!$old['can_correct']) { throw new NirConflictException('Corectarea este permisă doar pentru recepții confirmate, fără ieșiri din loturile de stoc și fără storno.'); }
             $correctionReason=trim((string)($input['correction_reason'] ?? ''));
-            if(mb_strlen($correctionReason)>1000) { throw new NirValidationException(['correction_reason'=>'Motivul corecției poate avea maximum 1.000 de caractere.']); }
+            if($correctionReason===''||mb_strlen($correctionReason)>1000) { throw new NirValidationException(['correction_reason'=>'Completează motivul corecției (maximum 1.000 de caractere).']); }
             foreach($old['lines'] as $line) {
                 if(!$line['tracked'] || $line['scope_type']===null) { continue; }
                 $this->changeBalance($old,$line,-(int)$line['stock_quantity_units']);
@@ -158,7 +158,8 @@ final class NirService
             foreach($old['lines'] as $line) {
                 $raw=$selected[$line['id']] ?? '0'; if(is_array($raw)) { $raw=$raw['quantity'] ?? '0'; }
                 $quantity=NirDecimal::number($raw,4,'quantities.'.$line['id']); if($quantity->isZero()) { continue; }
-                $units=NirDecimal::units($quantity->multipliedBy($line['conversion_factor']));
+                try { $units=NirDecimal::units($quantity->multipliedBy($line['conversion_factor'])); }
+                catch(\Brick\Math\Exception\MathException) { throw new NirValidationException(['quantities.'.$line['id']=>'Cantitatea returnată, după conversie, trebuie să aibă cel mult 4 zecimale și să se încadreze în limita numerică acceptată.']); }
                 $layers=$this->eligibleLayers((int)$line['id']);
                 $available=NirDecimal::sum(array_map(static fn(array $layer):int=>(int)$layer['remaining_units'],$layers));
                 if(!$line['tracked']) { $available=(int)$line['stock_quantity_units']-(int)$line['reversed_units']; }
@@ -280,7 +281,9 @@ final class NirService
             $reason=trim((string)($input['reason'] ?? '')); if($reason==='') { throw new NirValidationException(['reason'=>'Explică motivul reasocierii.']); }
             $product=$this->product((int)($input['product_id'] ?? 0),(int)($input['variant_id'] ?? 0));
             if($product===null) { throw new NirValidationException(['product_id'=>'Selectează produsul intern.']); }
-            $this->repository->update('nir_supplier_references',['product_id'=>$product['product_id'],'variant_id'=>$product['variant_id'],'updated_at'=>$this->repository->now()],['id'=>$referenceId]);
+            $values=['product_id'=>$product['product_id'],'variant_id'=>$product['variant_id'],'updated_at'=>$this->repository->now()];
+            if((int)$ref['product_id']!==(int)$product['product_id']||(int)$ref['variant_id']!==(int)$product['variant_id']) { $values+=['last_price'=>null,'last_currency'=>null,'last_received_at'=>null]; }
+            $this->repository->update('nir_supplier_references',$values,['id'=>$referenceId]);
             $next=$this->repository->one('nir_supplier_references',['id'=>$referenceId]) ?? [];
             $this->audit(null,'reference_reassigned',$actor,$ref,$next,['reason'=>$reason]); return $next;
         });
@@ -308,10 +311,13 @@ final class NirService
             $layerUnits=0; $value=0;
             foreach($layers as $layer) { if($layer['scope_type']===$balance['scope_type']&&(int)$layer['scope_id']===(int)$balance['scope_id']&&(int)$layer['warehouse_id']===(int)$balance['warehouse_id']) { $layerUnits+=(int)$layer['remaining_units']; $value+=(int)$layer['remaining_value_bani']; } }
             $balance['quantity']=NirDecimal::quantity((int)$balance['quantity_units']); $balance['value_bani']=$value;
-            $reconciliation[]=['warehouse_id'=>$balance['warehouse_id'],'sku'=>$balance['sku'],'balance_units'=>(int)$balance['quantity_units'],'fifo_units'=>$layerUnits,'difference_units'=>(int)$balance['quantity_units']-$layerUnits,'balanced'=>(int)$balance['quantity_units']===$layerUnits];
+            $reconciliation[]=['warehouse_id'=>$balance['warehouse_id'],'product_id'=>$balance['product_id'],'variant_id'=>$balance['variant_id'],'sku'=>$balance['sku'],'balance_units'=>(int)$balance['quantity_units'],'fifo_units'=>$layerUnits,'difference_units'=>(int)$balance['quantity_units']-$layerUnits,'balanced'=>(int)$balance['quantity_units']===$layerUnits];
         } unset($balance);
         foreach($layers as &$layer) {
             $line=$this->repository->one('nir_lines',['id'=>$layer['line_id']]) ?? []; $document=$this->repository->one('nir_documents',['id'=>$layer['nir_id']]) ?? [];
+            $supplier=json_decode((string)($document['supplier_snapshot'] ?? '{}'),true) ?: [];
+            $layer['supplier_alias']=trim((string)($supplier['alias'] ?? '')) ?: (trim((string)($supplier['company_name'] ?? '')) ?: match($document['type'] ?? '') {'opening_balance'=>'Sold inițial','customer_return'=>'Retur client',default=>'Furnizor indisponibil'});
+            $layer['operation_type']=$document['type'] ?? 'supplier_receipt';
             $layer+=['product_name'=>$line['product_name'] ?? '', 'sku'=>$line['sku'] ?? '', 'supplier_name'=>$line['supplier_name'] ?? '', 'supplier_code'=>$line['supplier_code'] ?? '', 'invoice_number'=>$document['invoice_number'] ?? '', 'number'=>$document['number'] ?? '', 'currency'=>$document['currency'] ?? 'RON', 'exchange_rate'=>$document['exchange_rate'] ?? '1'];
             $layer['initial_quantity']=NirDecimal::quantity((int)$layer['initial_units']); $layer['remaining_quantity']=NirDecimal::quantity((int)$layer['remaining_units']);
             $layer['consumptions']=$this->repository->all('nir_fifo_consumptions',['layer_id'=>$layer['id']]);
@@ -331,6 +337,7 @@ final class NirService
             $warehouse=$this->repository->one('company_warehouses',['id'=>(int)($input['warehouse_id'] ?? 0),'is_active'=>1]);
             if($warehouse===null) { throw new NirValidationException(['warehouse_id'=>'Selectează o gestiune activă.']); }
             $this->ensureLocations(); $location=$this->repository->all('nir_locations',['warehouse_id'=>$warehouse['id'],'is_active'=>1],'is_default DESC,id')[0] ?? null;
+            if($location===null) { throw new NirValidationException(['location_id'=>'Adaugă sau activează o locație în gestiune înainte de înregistrarea soldului inițial.']); }
             $date=$this->date((string)($input['date'] ?? gmdate('Y-m-d')),'date');
             $raw=['warehouse_id'=>$warehouse['id'],'location_id'=>$location['id'] ?? null,'currency'=>'RON','exchange_rate'=>'1','exchange_rate_date'=>$date,'invoice_date'=>$date,'invoice_number'=>'SOLD-'.substr(hash('sha256',$key),0,12),'nir_at'=>$date.'T12:00','received_at'=>$date.'T12:00','notes'=>$reason,'external_id'=>$key,'lines'=>[array_replace($this->emptyLine(),['product_id'=>$input['product_id'] ?? 0,'variant_id'=>$input['variant_id'] ?? 0,'supplier_name'=>'Sold inițial','invoice_quantity'=>(string)$quantity,'received_quantity'=>(string)$quantity,'accepted_quantity'=>(string)$quantity,'unit_price'=>(string)$cost,'vat_percent'=>'0'])]];
             [$header,$lines]=$this->prepare($raw,null); if($lines===[]||$lines[0]['scope_type']===null) { throw new NirValidationException(['product_id'=>'Selectează un produs urmărit contabil.']); }
@@ -406,12 +413,12 @@ final class NirService
                 $remaining=(int)$item['quantity']*10000; $cost=0; $parts=[]; $originalLine=null;
                 foreach($this->repository->all('nir_fifo_consumptions',['source_type'=>'order_item','source_id'=>$item['order_item_id']],'id') as $consumption) {
                     if($remaining<=0) { break; } $available=(int)$consumption['quantity_units']-(int)$consumption['returned_units']; $take=min($remaining,$available); if($take<=0) { continue; }
-                    $layer=$this->repository->one('nir_fifo_layers',['id'=>$consumption['layer_id']]); if($layer===null) { throw new NirConflictException('Lipsește lotul FIFO original.'); }
+                    $layer=$this->repository->one('nir_fifo_layers',['id'=>$consumption['layer_id']]); if($layer===null) { throw new NirConflictException('Lipsește lotul de stoc original.'); }
                     $originalLine ??= $this->repository->one('nir_lines',['id'=>$layer['line_id']]);
                     $value=$take===$available ? (int)$consumption['value_bani']-(int)$consumption['returned_value_bani'] : BigDecimal::of((int)$consumption['value_bani'])->multipliedBy($take)->dividedBy((int)$consumption['quantity_units'],0,RoundingMode::HalfUp)->toInt();
                     $parts[]=['consumption'=>$consumption,'layer'=>$layer,'units'=>$take,'value'=>$value]; $cost+=$value; $remaining-=$take;
                 }
-                if($remaining>0||$originalLine===null) { throw new NirValidationException(['return_id'=>'Costurile FIFO originale nu acoperă returul. Emite/reconciliază întâi factura de ieșire; nu se creează costuri fictive.']); }
+                if($remaining>0||$originalLine===null) { throw new NirValidationException(['return_id'=>'Costurile de intrare originale nu acoperă returul. Emite/reconciliază întâi factura de ieșire; nu se creează costuri fictive.']); }
                 $units=(int)$item['quantity']*10000; $quantity=NirDecimal::quantity($units); $line=$originalLine;
                 unset($line['id'],$line['nir_id']); $line['position']=count($lines)+1; $line['original_line_id']=null; $line['return_item_id']=$item['id']; $line['save_reference']=0;
                 $line['invoice_quantity']=$quantity; $line['received_quantity']=$quantity; $line['accepted_quantity']=$quantity; $line['rejected_quantity']='0.0000'; $line['conversion_factor']='1.0000'; $line['stock_quantity']=$quantity; $line['stock_quantity_units']=$units;
@@ -421,7 +428,8 @@ final class NirService
             }
             if($lines===[]) { throw new NirValidationException(['return_id'=>'Returul nu conține produse urmărite contabil. Nu este necesar un NIR gol.']); }
             $raw=array_replace($input,['warehouse_id'=>$warehouse['id'],'invoice_number'=>$invoice,'invoice_date'=>$invoiceDate,'currency'=>'RON','exchange_rate'=>'1','exchange_rate_date'=>$invoiceDate,'nir_at'=>$input['nir_at'] ?? $this->repository->now(),'received_at'=>$input['received_at'] ?? $this->repository->now(),'lines'=>[]]);
-            [$header]=$this->prepare($raw,null); if($header['location_id']===null) { throw new NirValidationException(['location_id'=>'Selectează locația recepției fizice.']); }
+            [$header]=$this->prepare($raw,null);
+            if($header['location_id']===null||$this->repository->one('nir_locations',['id'=>$header['location_id'],'warehouse_id'=>$warehouse['id'],'is_active'=>1])===null) { throw new NirValidationException(['location_id'=>'Selectează o locație activă pentru recepția fizică.']); }
             $now=$this->repository->now(); $header+=['temp_number'=>'DRAFT-RET-CLIENT-'.bin2hex(random_bytes(5)),'type'=>'customer_return','status'=>'confirmed','row_version'=>1,'reason'=>$return['reason'],'return_id'=>$returnId,'order_id'=>$return['order_id'],'created_by'=>$this->actorId($actor),'updated_by'=>$this->actorId($actor),'confirmed_by'=>$this->actorId($actor),'created_at'=>$now,'updated_at'=>$now,'confirmed_at'=>$now,'number'=>$this->repository->nextNumber($header['nir_at'])];
             $header['supplier_snapshot']=$this->json(['alias'=>trim((string)($order['first_name'] ?? '').' '.($order['last_name'] ?? '')),'company_name'=>'Retur client','email'=>$order['email'] ?? '']);
             foreach(self::MONEY as $field) { $header[$field]=NirDecimal::sum(array_column($lines,$field)); }
@@ -433,6 +441,7 @@ final class NirService
                     $this->repository->insert('nir_fifo_layers',['nir_id'=>$id,'line_id'=>$lineId,'warehouse_id'=>$warehouse['id'],'scope_type'=>$line['scope_type'],'scope_id'=>$line['scope_id'],'initial_units'=>$part['units'],'remaining_units'=>$part['units'],'initial_value_bani'=>$part['value'],'remaining_value_bani'=>$part['value'],'unit_cost_ron'=>$part['layer']['unit_cost_ron'],'received_at'=>$header['received_at'],'created_at'=>$now,'original_layer_id'=>$part['layer']['id']]);
                     $this->repository->update('nir_fifo_consumptions',['returned_units'=>(int)$part['consumption']['returned_units']+$part['units'],'returned_value_bani'=>(int)$part['consumption']['returned_value_bani']+$part['value']],['id'=>$part['consumption']['id']]);
                 }
+                $this->reconcilePending((int)$warehouse['id'],$line,$actor);
                 $this->recalculateCost((int)$warehouse['id'],$line);
             }
             $this->appendAttachments($id,(array)($input['attachments'] ?? []),$actor);

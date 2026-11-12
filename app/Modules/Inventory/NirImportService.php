@@ -91,7 +91,7 @@ final class NirImportService
                         throw new \InvalidArgumentException('Rândul ' . $row . ': formulele nu se importă. Copiază în XLSX valorile calculate, fără formule.');
                     }
                     $values[$field] = trim((string) $cell->getValue());
-                    if (in_array($field, ['vat_percent', 'discount_percent'], true) && str_contains($cell->getStyle()->getNumberFormat()->getFormatCode(), '%') && $values[$field] !== '') {
+                    if (in_array($field, ['vat_percent', 'discount_percent'], true) && $cell->getDataType() === \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_NUMERIC && self::hasPercentageFormat($cell->getStyle()->getNumberFormat()->getFormatCode()) && $values[$field] !== '') {
                         $values[$field] = (string) BigDecimal::of(self::decimal($values[$field]))->multipliedBy(100);
                     }
                     // Preserve formatted supplier codes and leading zeros without executing formulas.
@@ -178,12 +178,19 @@ final class NirImportService
             $line = $this->line($values);
             $net = $text('cbc:LineExtensionAmount', $node);
             $tax = $text('cac:TaxTotal/cbc:TaxAmount', $node);
-            if ($net !== '') {
-                $line['price_mode'] = $tax !== '' ? 'exact_vat' : 'line_net';
-                $line['net_override'] = self::decimal($net);
+            if ($net === '') {
+                throw new \InvalidArgumentException('O poziție UBL nu conține valoarea netă a liniei. Exportă factura completă pentru a păstra reducerile și taxele.');
+            }
+            $line['price_mode'] = $tax !== '' ? 'exact_vat' : 'line_net';
+            $line['net_override'] = self::decimal($net);
+            if (BigDecimal::of($line['net_override'])->isNegative()) {
+                throw new \InvalidArgumentException('Valoarea netă UBL trebuie să fie nenegativă. Documentele de storno se înregistrează prin retur furnizor.');
             }
             if ($tax !== '') {
                 $line['tax_override'] = self::decimal($tax);
+                if (BigDecimal::of($line['tax_override'])->isNegative()) {
+                    throw new \InvalidArgumentException('Valoarea TVA a poziției UBL trebuie să fie nenegativă.');
+                }
             }
             $lines[] = $line;
         }
@@ -217,7 +224,7 @@ final class NirImportService
             'supplier_ean' => mb_substr($values['supplier_ean'] ?? '', 0, 64),
             'invoice_quantity' => $quantity, 'received_quantity' => $quantity, 'accepted_quantity' => $quantity,
             'rejected_quantity' => '0', 'unit_price' => $price, 'vat_percent' => $vat, 'discount_percent' => $discount,
-            'purchase_unit' => $values['purchase_unit'] ?? 'buc', 'stock_unit' => $values['purchase_unit'] ?? 'buc',
+            'purchase_unit' => ($values['purchase_unit'] ?? '') ?: 'buc', 'stock_unit' => ($values['purchase_unit'] ?? '') ?: 'buc',
             'conversion_factor' => '1', 'extra_cost_ron' => '0', 'price_mode' => 'unit',
             'product_id' => null, 'variant_id' => null, 'tracked' => true,
         ];
@@ -228,6 +235,14 @@ final class NirImportService
         $value = mb_strtolower(trim($value));
         $value = strtr($value, ['ă' => 'a', 'â' => 'a', 'î' => 'i', 'ș' => 's', 'ş' => 's', 'ț' => 't', 'ţ' => 't']);
         return trim((string) preg_replace('/[\s.\/_-]+/u', ' ', $value));
+    }
+
+    private static function hasPercentageFormat(string $format): bool
+    {
+        // Quoted, escaped and padding characters are literal decorations in Excel,
+        // not the percentage operator which scales a numeric cell by 100.
+        $operators = preg_replace('/"(?:""|[^"])*"|\\\\.|[_*]./u', '', $format);
+        return str_contains($operators ?? '', '%');
     }
 
     private static function decimal(string $value): string

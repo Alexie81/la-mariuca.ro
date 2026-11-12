@@ -142,6 +142,7 @@ final class NirSecurityHttpTest extends DatabaseTestCase
         $document = $this->service()->confirm((int) $document['id'], (int) $document['row_version'], 'confirm-correction-warning', true, $this->actor());
         $values['row_version'] = $document['row_version'];
         $values['idempotency_key'] = 'correction-warning-http';
+        $values['correction_reason'] = 'Codul furnizorului este revizuit conform facturii.';
         $values['lines'][0]['supplier_code'] = '';
         $values['notes'] = 'Păstrează datele introduse';
         $response = $this->request('POST', '/admin/nir-uri/' . $document['id'] . '/corectie/', $values);

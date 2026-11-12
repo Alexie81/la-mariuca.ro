@@ -110,7 +110,11 @@ final class NirDocumentStorage
         $name = basename(str_replace('\\', '/', $name));
         $name = preg_replace('/[\x00-\x1f\x7f<>:"|?*]/u', '_', $name) ?? 'document';
         $name = trim($name, " .\t\n\r\0\x0B");
-        return $name === '' ? 'document' : mb_substr($name, 0, 220);
+        if ($name === '') { return 'document'; }
+        if (mb_strlen($name) <= 220) { return $name; }
+        $extension = pathinfo($name, PATHINFO_EXTENSION);
+        $suffix = $extension !== '' && mb_strlen($extension) <= 10 ? '.' . $extension : '';
+        return mb_substr($name, 0, 220 - mb_strlen($suffix)) . $suffix;
     }
 
     public static function validateXml(string $bytes): \DOMDocument
@@ -150,7 +154,8 @@ final class NirDocumentStorage
                     throw new \InvalidArgumentException('Registrul XLSX este deteriorat.');
                 }
                 $total += $entry['size'];
-                if ($total > 80 * 1024 * 1024 || $entry['size'] > 30 * 1024 * 1024 || str_contains(strtolower($entry['name']), 'vbaproject') || str_contains($entry['name'], '../')) {
+                $entryName = str_replace('\\', '/', $entry['name']);
+                if ($total > 80 * 1024 * 1024 || $entry['size'] > 30 * 1024 * 1024 || str_contains(strtolower($entryName), 'vbaproject') || preg_match('~(^/|^[A-Za-z]:|(^|/)\.\.(/|$))~D', $entryName)) {
                     throw new \InvalidArgumentException('Registrul XLSX conține date excesive sau conținut nepermis.');
                 }
             }

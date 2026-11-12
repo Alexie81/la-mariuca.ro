@@ -41,7 +41,7 @@ final class NirExportService
     ];
     private const REGISTRY_COLUMNS = ['Nr. crt.', 'Număr NIR', 'Tip document', 'Status', 'Data NIR', 'Ora NIR', 'Data recepției', 'Ora recepției', 'Furnizor', 'CUI furnizor', 'Serie factură', 'Număr factură', 'Data facturii', 'Gestiune', 'Monedă', 'Curs valutar', 'Data cursului', 'Poziții', 'Cantitate facturată', 'Cantitate recepționată', 'Cantitate acceptată', 'Cantitate respinsă', 'Diferență cantitativă', 'Subtotal în moneda documentului', 'TVA în moneda documentului', 'Total în moneda documentului', 'Subtotal RON', 'TVA RON', 'Total RON', 'Cost contabil RON', 'Diferență valoare RON', 'Documente atașate', 'NIR inițial', 'Observații/motiv', 'Confirmat la', 'Confirmat de', 'Creat la', 'Creat de'];
     private const DIFFERENCE_COLUMNS = ['Poziția NIR', 'Produs furnizor', 'Produs intern', 'SKU', 'Tip diferență', 'Cantitate document', 'Cantitate primită', 'Cantitate acceptată', 'Diferență primit − document', 'Diferență acceptat − document', 'Observații', 'Cauză probabilă', 'Măsură luată', 'Document asociat', 'Dovezi foto', 'Constatare de', 'Data constatării', 'Furnizor notificat', 'Data notificării'];
-    private const STORED_LINE_COLUMNS = [2,3,4,5,6,7,8,9,10,11,13,15,17,18,19,20,21,22,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,49,50,56,57,58,59,60,62,64,65,66,68,69,70,71,76,77,79,80,82,85,86,87,92,93,94,97,101,103,105,108,118,119,120,121,125,126,127,128,129,130,131,132,133,134,137,138,139];
+    private const STORED_LINE_COLUMNS = [2,4,5,6,7,8,9,10,11,13,15,17,18,19,20,21,22,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,49,50,56,57,58,59,60,62,64,65,66,68,69,70,71,76,77,79,80,82,85,86,87,92,93,94,97,101,103,105,108,118,119,120,121,125,126,127,128,129,130,131,132,133,134,137,138,139];
 
     public function __construct(private readonly string $root)
     {
@@ -114,30 +114,37 @@ final class NirExportService
         $options->setChroot([$this->root . '/public', $this->root . '/storage/private/nir-exports']);
         $options->setTempDir(dirname($path));
         $dompdf = new Dompdf($options);
-        $twig = new Environment(new FilesystemLoader($this->root . '/resources/views'), ['autoescape' => 'html']);
-        $lines = [];
-        foreach ($document['lines'] ?? [] as $line) {
-            $line['image_data'] = $this->imageData($line['image_path'] ?? null);
-            $line['difference'] = (string) BigDecimal::of($line['received_quantity'] ?? '0')->minus($line['invoice_quantity'] ?? '0');
-            $line['difference_label'] = self::differenceLabel($line['difference_reason'] ?? '');
-            $lines[] = $line;
-        }
-        $stamp = new \App\Modules\Companies\CompanyStampStorage($this->root);
-        $stampPath = $stamp->path($document['company']['stamp_path'] ?? null);
-        $dompdf->loadHtml($twig->render('admin/nir/pdf.twig', [
-            'nir' => $document, 'number' => self::number($document), 'type_label' => self::type($document),
-            'status_label' => self::status($document), 'lines' => $lines, 'view_costs' => $viewCosts,
-            'logo' => $this->imageData('/assets/images/logo-la-mariuca-transparent.png'),
-            'stamp' => $stampPath === null ? null : 'data:image/png;base64,' . base64_encode((string) file_get_contents($stampPath)),
-            'nir_date' => self::displayDate($document['nir_at'] ?? ''), 'received_date' => self::displayDate($document['received_at'] ?? ''),
-            'generated_at' => self::displayDate(gmdate('Y-m-d H:i:s')),
-        ]), 'UTF-8');
-        $dompdf->setPaper('A4', 'landscape');
-        $dompdf->render();
-        $font = $dompdf->getFontMetrics()->getFont('DejaVu Sans', 'normal');
-        $dompdf->getCanvas()->page_text(680, 578, 'Pagina {PAGE_NUM} / {PAGE_COUNT}', $font ?? 'DejaVu Sans', 7, [0.48, 0.43, 0.44]);
-        if (file_put_contents($path, $dompdf->output()) === false) {
-            throw new \RuntimeException('PDF-ul nu a putut fi generat.');
+        try {
+            $twig = new Environment(new FilesystemLoader($this->root . '/resources/views'), ['autoescape' => 'html']);
+            $lines = [];
+            foreach ($document['lines'] ?? [] as $line) {
+                $line['image_data'] = $this->imageData($line['image_path'] ?? null);
+                $line['difference'] = (string) BigDecimal::of($line['received_quantity'] ?? '0')->minus($line['invoice_quantity'] ?? '0');
+                $line['difference_label'] = self::differenceLabel($line['difference_reason'] ?? '');
+                $lines[] = $line;
+            }
+            $stamp = new \App\Modules\Companies\CompanyStampStorage($this->root);
+            $stampPath = $stamp->path($document['company']['stamp_path'] ?? null);
+            $dompdf->loadHtml($twig->render('admin/nir/pdf.twig', [
+                'nir' => $document, 'number' => self::number($document), 'type_label' => self::type($document),
+                'status_label' => self::status($document), 'lines' => $lines, 'view_costs' => $viewCosts,
+                'logo' => $this->imageData('/assets/images/logo-la-mariuca-transparent.png'),
+                'stamp' => $stampPath === null ? null : 'data:image/png;base64,' . base64_encode((string) file_get_contents($stampPath)),
+                'nir_date' => self::displayDate($document['nir_at'] ?? ''), 'received_date' => self::displayDate($document['received_at'] ?? ''),
+                'generated_at' => self::displayDate(gmdate('Y-m-d H:i:s')),
+            ]), 'UTF-8');
+            $dompdf->setPaper('A4', 'landscape');
+            $dompdf->render();
+            $font = $dompdf->getFontMetrics()->getFont('DejaVu Sans', 'normal');
+            $dompdf->getCanvas()->page_text(680, 578, 'Pagina {PAGE_NUM} / {PAGE_COUNT}', $font ?? 'DejaVu Sans', 7, [0.48, 0.43, 0.44]);
+            if (file_put_contents($path, $dompdf->output()) === false) {
+                throw new \RuntimeException('PDF-ul nu a putut fi generat.');
+            }
+        } finally {
+            // The PDF canvas holds circular references. Release its temporary alpha-mask
+            // images after each document, including failed ZIP exports and large batches.
+            unset($dompdf);
+            gc_collect_cycles();
         }
     }
 
@@ -189,7 +196,7 @@ final class NirExportService
         $supplier = $d['supplier'] ?? [];
         $set = static function (int $column, mixed $value) use (&$v): void { $v[$column - 1] = $value; };
         $fields = [
-            2=>$d['id'] ?? null, 3=>'NIR', 4=>self::number($d), 5=>self::excelDate($d['nir_at'] ?? ''), 6=>self::excelDate($d['received_at'] ?? ''), 7=>self::excelDate($d['received_at'] ?? ''), 8=>self::excelDate($d['created_at'] ?? ''), 9=>self::excelDate($d['confirmed_at'] ?? ''), 10=>self::status($d), 11=>$d['warehouse']['name'] ?? '', 13=>$d['location']['name'] ?? '', 15=>$d['received_by_name'] ?? $d['created_by'] ?? null, 17=>$d['confirmed_by_name'] ?? $d['confirmed_by'] ?? null, 18=>$d['notes'] ?? '', 19=>'Factură', 20=>$d['invoice_series'] ?? '', 21=>$d['invoice_number'] ?? '', 22=>self::excelDate($d['invoice_date'] ?? ''), 29=>$d['currency'] ?? 'RON', 30=>self::numeric($d['exchange_rate'] ?? null), 31=>self::excelDate($d['exchange_rate_date'] ?? ''), 32=>$d['external_id'] ?? '',
+            2=>$d['id'] ?? null, 3=>null, 4=>self::number($d), 5=>self::excelDate($d['nir_at'] ?? ''), 6=>self::excelDate($d['received_at'] ?? ''), 7=>self::excelDate($d['received_at'] ?? ''), 8=>self::excelDate($d['created_at'] ?? ''), 9=>self::excelDate($d['confirmed_at'] ?? ''), 10=>self::status($d), 11=>$d['warehouse']['name'] ?? '', 13=>$d['location']['name'] ?? '', 15=>$d['received_by_name'] ?? $d['created_by'] ?? null, 17=>$d['confirmed_by_name'] ?? $d['confirmed_by'] ?? null, 18=>$d['notes'] ?? '', 19=>($d['type'] ?? '') === 'opening_balance' ? 'Sold inițial' : 'Factură', 20=>$d['invoice_series'] ?? '', 21=>$d['invoice_number'] ?? '', 22=>self::excelDate($d['invoice_date'] ?? ''), 29=>$d['currency'] ?? 'RON', 30=>self::numeric($d['exchange_rate'] ?? null), 31=>self::excelDate($d['exchange_rate_date'] ?? ''), 32=>$d['external_id'] ?? '',
             33=>$d['supplier_id'] ?? null,34=>$supplier['company_name'] ?? $supplier['alias'] ?? '',35=>$supplier['tax_id'] ?? '',36=>$supplier['vat_number'] ?? '',37=>$supplier['trade_register'] ?? '',38=>$supplier['country'] ?? '',39=>$supplier['county'] ?? '',40=>$supplier['city'] ?? '',41=>$supplier['address'] ?? '',42=>$supplier['phone'] ?? '',43=>$supplier['email'] ?? '',
             44=>$index+1,45=>$l['id'] ?? null,46=>$l['supplier_name'] ?? '',47=>$l['supplier_code'] ?? '',49=>$l['supplier_ean'] ?? '',50=>$l['purchase_unit'] ?? '',56=>$l['product_id'] ?? null,57=>$l['product_name'] ?? '',58=>$l['sku'] ?? '',59=>$l['ean'] ?? '',60=>$l['category_name'] ?? '',62=>$l['brand'] ?? '',64=>$l['variant_name'] ?? '',65=>$l['stock_unit'] ?? '',66=>empty($l['product_id']) ? 'Neasociat' : 'Asociat',68=>self::numeric($l['invoice_quantity'] ?? null),69=>self::numeric($l['received_quantity'] ?? null),70=>self::numeric($l['accepted_quantity'] ?? null),71=>self::numeric($l['rejected_quantity'] ?? null),76=>self::numeric($l['conversion_factor'] ?? null),
             101=>$l['difference_reason'] ?? '',103=>$l['difference_notes'] ?? '',105=>($d['type'] ?? '') === 'supplier_return' ? 'Da' : 'Nu',108=>$l['difference_notes'] ?? '',126=>$this->quantity($d,'invoice_quantity'),127=>$this->quantity($d,'received_quantity'),128=>$this->quantity($d,'accepted_quantity'),129=>$d['created_by_name'] ?? $d['created_by'] ?? null,130=>self::excelDate($d['created_at'] ?? ''),131=>$d['updated_by_name'] ?? $d['updated_by'] ?? null,132=>self::excelDate($d['updated_at'] ?? ''),133=>$d['confirmed_by_name'] ?? $d['confirmed_by'] ?? null,134=>self::excelDate($d['confirmed_at'] ?? ''),137=>$d['reason'] ?? '',138=>$d['row_version'] ?? null,139=>implode('; ', array_map(static fn(array $a): string => '#' . ($a['id'] ?? '') . ' ' . ($a['original_name'] ?? ''), $d['attachments'] ?? [])),
@@ -199,6 +206,11 @@ final class NirExportService
             $quant = BigDecimal::of($l['accepted_quantity'] ?? '0');
             $unitValue=static function(string $key) use($l,$quant):?float{return $quant->isZero()||!isset($l[$key])?null:(float)(string)BigDecimal::of($l[$key])->dividedBy(100,2)->dividedBy($quant,6,RoundingMode::HalfUp);};
             foreach ([77=>self::numeric($l['unit_price'] ?? null),78=>$unitValue('discount_bani'),79=>self::numeric($l['discount_percent'] ?? null),80=>self::money($l,'discount_bani'),81=>$unitValue('net_bani'),82=>self::numeric($l['vat_percent'] ?? null),83=>$unitValue('tax_bani'),84=>$unitValue('total_bani'),85=>self::money($l,'net_bani'),86=>self::money($l,'tax_bani'),87=>self::money($l,'total_bani'),92=>self::numeric($l['extra_cost_ron'] ?? null),93=>self::numeric($l['unit_cost_ron'] ?? null),94=>self::money($l,'inventory_bani'),97=>'RON',118=>self::money($d,'net_bani'),119=>self::money($d,'tax_bani'),120=>self::money($d,'total_bani'),121=>self::money($d,'discount_bani'),125=>self::money($d,'inventory_bani')] as $column=>$value) { $set($column,$value); }
+        }
+        if (($l['price_mode'] ?? 'unit') !== 'unit') {
+            // Net/exact/gross entry stores the authoritative line value, not the
+            // supplier's original pre-discount price or discount breakdown.
+            foreach ([77,78,79,80] as $column) { $set($column, null); }
         }
         return $v;
     }
@@ -313,6 +325,7 @@ final class NirExportService
             if($sensitive&&!$costs){$available='Protejat';$source='NIR_VIEW_COSTS';$note='Valoare omisă deoarece operatorul nu are acces la costuri.';}
             if($column===93){$note='Cost contabil; poate include TVA nedeductibilă conform politicii firmei din instantaneu.';}
             if($column===71){$note='Cantitate respinsă; nu intră în stoc. Nu echivalează cu un lot de carantină disponibil.';}
+            if(in_array($column,[77,78,79,80],true)&&$costs){$note='Disponibil la calculul din preț unitar. Pentru net/TVA exact/total cu TVA, prețul inițial și discountul original nu sunt păstrate separat și celula rămâne goală.';}
             $this->putRow($sheet,$row++,['Poziții NIR',Coordinate::stringFromColumnIndex($column),$label,$source,$available,$note]);
         }
         foreach(self::DIFFERENCE_COLUMNS as $index=>$label){$this->putRow($sheet,$row++,['Diferențe',Coordinate::stringFromColumnIndex($index+1),$label,$index>=5&&$index<=9?'Referință Excel la Poziții NIR':'Instantaneu / necompletat dacă nu este înregistrat',$index>=11?'Nestocat':($index>=5&&$index<=9?'Derivat':'Disponibil'),'Formulele fac referire numai la această carte.']);}
@@ -476,7 +489,7 @@ final class NirExportService
     /** @param array<string,mixed> $document */
     private static function status(array $document): string { return match($document['status']??'draft'){'confirmed'=>'Confirmat','reversed'=>'Stornat',default=>'Ciornă'}; }
     /** @param array<string,mixed> $document */
-    private static function type(array $document): string { return match($document['type']??'supplier_receipt'){'supplier_return'=>'Retur furnizor / storno','customer_return'=>'Recepție retur client','opening_balance'=>'Sold inițial FIFO',default=>'Recepție furnizor'}; }
+    private static function type(array $document): string { return match($document['type']??'supplier_receipt'){'supplier_return'=>'Retur furnizor / storno','customer_return'=>'Recepție retur client','opening_balance'=>'Sold inițial',default=>'Recepție furnizor'}; }
     private static function differenceLabel(string $reason): string { return match($reason){'shortage','missing'=>'Lipsă','excess'=>'Plus','damaged'=>'Deteriorat','wrong_product'=>'Produs greșit','price_difference'=>'Diferență de preț','vat_difference'=>'Diferență TVA','other'=>'Alt motiv',default=>$reason}; }
     private static function mime(string $format): string { return match($format){'pdf'=>'application/pdf','xlsx'=>'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',default=>'application/zip'}; }
     private static function excelDate(mixed $value): ?float { if(!is_string($value)||$value===''){return null;}try{return Date::PHPToExcel((new \DateTimeImmutable($value,new \DateTimeZone('UTC')))->setTimezone(new \DateTimeZone('Europe/Bucharest')));}catch(\Exception){return null;} }
