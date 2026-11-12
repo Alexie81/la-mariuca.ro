@@ -88,11 +88,20 @@ final class NirDomainTest extends DatabaseTestCase
 
     public function testPartialSupplierReturnsNeverExceedRemainingAndFinalFragmentAbsorbsRounding(): void
     {
-        $confirmed=$this->confirmed(['unit_price'=>'0.333333','vat_percent'=>'0']); $line=$confirmed['lines'][0]; $sum=0;
+        $draft=$this->draft(['unit_price'=>'0.333333','vat_percent'=>'0'],['invoice_series'=>'INI','invoice_number'=>'000042','invoice_date'=>'2026-10-30']);
+        $confirmed=$this->service->confirm($draft['id'],$draft['row_version'],'original-invoice-reference',true,$this->actor); $line=$confirmed['lines'][0]; $sum=0;
+        self::assertArrayNotHasKey('original_invoice_number',$confirmed);
         for($index=1;$index<=3;$index++) {
             $current=$this->service->document($confirmed['id'],$this->actor);
             $input=['reason'=>'Retur către furnizor','invoice_number'=>'ST-'.$index,'invoice_date'=>gmdate('Y-m-d'),'quantities'=>[$line['id']=>'1']];
             $reverse=$this->service->reverse($confirmed['id'],$current['row_version'],$input,'reverse-fragment-'.$index,$this->actor); $sum+=(int)$reverse['net_bani'];
+            foreach ([$reverse,$this->service->document($reverse['id'],$this->actor)] as $returned) {
+                self::assertSame($confirmed['number'],$returned['original_number']);
+                self::assertSame('INI',$returned['original_invoice_series']);
+                self::assertSame('000042',$returned['original_invoice_number']);
+                self::assertSame('2026-10-30',$returned['original_invoice_date']);
+                self::assertSame('ST-'.$index,$returned['invoice_number'],'The credit invoice must stay distinct from the original invoice.');
+            }
             $again=$this->service->reverse($confirmed['id'],$current['row_version'],$input,'reverse-fragment-'.$index,$this->actor); self::assertSame($reverse['id'],$again['id']);
         }
         self::assertSame(-100,$sum); self::assertSame(0,$this->balance()); self::assertSame('full',$this->service->document($confirmed['id'],$this->actor)['reversal_status']);

@@ -248,16 +248,17 @@ final class NirIoAuditTest extends TestCase
         $line['difference_reason'] = 'shortage';
         $line['difference_notes'] = '+SUM(A1:A2)';
         $document['lines'][] = $line;
+        $document=array_replace($document,['net_bani'=>19800,'tax_bani'=>4158,'total_bani'=>23958,'inventory_bani'=>19800]);
         $book = $this->exportBook($document);
-        self::assertCount(5, $book->getAllSheets());
-        $positions = $book->getSheetByName('Poziții NIR');
-        self::assertSame('EK', $positions->getHighestColumn());
-        self::assertSame(DataType::TYPE_STRING, $positions->getCell('AT3')->getDataType());
-        self::assertEquals(-2, $positions->getCell('BV3')->getCalculatedValue());
-        self::assertEquals(49.5, $positions->getCell('CC3')->getValue());
-        self::assertEquals(99, $positions->getCell('CG3')->getValue());
-        self::assertSame("='Poziții NIR'!BV3", $book->getSheetByName('Diferențe')->getCell('I2')->getValue());
-        self::assertEquals(-2, $book->getSheetByName('Diferențe')->getCell('I2')->getCalculatedValue());
+        self::assertCount(1, $book->getAllSheets());
+        $positions = $book->getSheetByName('NIR');
+        self::assertSame('M', $positions->getHighestColumn());
+        self::assertSame(DataType::TYPE_STRING, $positions->getCell('D14')->getDataType());
+        self::assertSame($line['supplier_name'],$positions->getCell('D14')->getValue());
+        self::assertSame('=ROUND(G14-F14,4)',$positions->getCell('H14')->getValue());
+        self::assertEquals(-2, $positions->getCell('H14')->getCalculatedValue());
+        self::assertEquals(49.5, $positions->getCell('I14')->getValue());
+        self::assertEquals(99, $positions->getCell('J14')->getValue());
         foreach ($book->getAllSheets() as $sheet) {
             self::assertStringNotContainsString('FIFO', json_encode($sheet->toArray(), JSON_THROW_ON_ERROR));
         }
@@ -269,28 +270,31 @@ final class NirIoAuditTest extends TestCase
         $document = NirDocumentsTest::document();
         $document['audit'] = [['id'=>1, 'before_json'=>'SECRET-PRICE-BEFORE', 'after_json'=>'SECRET-PRICE-AFTER', 'context_json'=>'SECRET-PRICE-CONTEXT']];
         $book = $this->exportBook($document, false);
-        $sheet = $book->getSheetByName('Poziții NIR');
-        foreach (array_merge(range(77, 98), range(118, 125)) as $column) { self::assertNull($sheet->getCell([$column, 2])->getValue()); }
+        $sheet = $book->getSheetByName('NIR');
+        foreach (range('I','M') as $column) {
+            self::assertNull($sheet->getCell($column.'13')->getValue());
+            self::assertNull($sheet->getCell($column.'14')->getValue());
+        }
         foreach ($book->getAllSheets() as $sheet) {
             self::assertStringNotContainsString('SECRET-PRICE', json_encode($sheet->toArray(), JSON_THROW_ON_ERROR));
         }
         $book->disconnectWorksheets();
     }
 
-    public function testExportDoesNotInventPreDiscountPricesOrSeparateSeriesForAnExactLineValue(): void
+    public function testExportDerivesNetUnitPriceForAnExactLineWithoutReapplyingStaleDiscount(): void
     {
         $document = NirDocumentsTest::document();
         $document['type'] = 'opening_balance';
         $document['lines'][0]['price_mode'] = 'line_net';
         $document['lines'][0]['discount_percent'] = '15';
+        $document['lines'][0]['unit_price'] = '1.234567';
         $book = $this->exportBook($document);
-        $sheet = $book->getSheetByName('Poziții NIR');
-        self::assertNull($sheet->getCell('C2')->getValue());
-        self::assertSame('Nestocat', $book->getSheetByName('Dicționar câmpuri')->getCell('E4')->getValue());
-        self::assertSame('Sold inițial', $sheet->getCell('S2')->getValue());
-        foreach (range(77, 80) as $column) { self::assertNull($sheet->getCell([$column, 2])->getValue()); }
-        self::assertEquals(99, $sheet->getCell('CG2')->getValue());
-        self::assertEquals(20.79, $sheet->getCell('CH2')->getValue());
+        $sheet = $book->getSheetByName('NIR');
+        self::assertSame('Sold inițial',$sheet->getCell('J9')->getValue());
+        self::assertEquals(49.5,$sheet->getCell('I13')->getValue());
+        self::assertEquals(99, $sheet->getCell('J13')->getValue());
+        self::assertEquals(20.79, $sheet->getCell('L13')->getValue());
+        self::assertEquals(119.79,$sheet->getCell('M13')->getValue());
         $book->disconnectWorksheets();
     }
 
