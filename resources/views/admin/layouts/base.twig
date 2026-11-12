@@ -24,7 +24,7 @@
   {% if admin_section|default('') == 'orders' %}<link rel="stylesheet" href="{{ url('assets/css/order-notifications.css?v=20261108-v1') }}">{% endif %}
   {% if admin_section|default('') == 'orders' %}<link rel="stylesheet" href="{{ url('assets/css/order-contact-actions.css?v=20261108-1') }}">{% endif %}
   {% if admin_section|default('') == 'companies' %}<link rel="stylesheet" href="{{ url('assets/css/company-admin.css?v=20261112-locations') }}">{% endif %}
-  {% if admin_section|default('') == 'nir' %}<link rel="stylesheet" href="{{ url('assets/css/nir-admin.css?v=20261112-confirmation') }}"><link rel="stylesheet" href="{{ url('assets/css/nir-experience.css?v=20261112-guided-v1') }}"><link rel="stylesheet" href="{{ url('assets/css/nir-detail.css?v=20261112-workspace') }}"><link rel="stylesheet" href="{{ url('assets/css/nir-editor.css?v=20261112-catalog-v1') }}">{% endif %}
+  {% if admin_section|default('') == 'nir' %}<link rel="stylesheet" href="{{ url('assets/css/nir-admin.css?v=20261112-nir-uploads') }}"><link rel="stylesheet" href="{{ url('assets/css/nir-experience.css?v=20261112-guided-v1') }}"><link rel="stylesheet" href="{{ url('assets/css/nir-detail.css?v=20261112-workspace') }}"><link rel="stylesheet" href="{{ url('assets/css/nir-editor.css?v=20261112-catalog-v1') }}">{% endif %}
 </head>
 {% set operator = admin_user|default(current_user()) %}
 {% set first_name = operator.first_name|default('Administrator') %}
@@ -179,6 +179,6 @@
   {% if admin_section|default('') == 'orders' %}<script src="{{ url('assets/js/order-admin.js?v=20261108-cancellation-v10') }}" defer></script><script src="{{ url('assets/js/order-history.js?v=20261108-1') }}" defer></script>{% endif %}
   {% if admin_section|default('') == 'orders' %}<script src="{{ url('assets/js/order-notifications.js?v=20261108-v2') }}" defer></script>{% endif %}
   {% if admin_section|default('') == 'companies' %}<script src="{{ url('assets/js/company-admin.js?v=20261108-3') }}" defer></script>{% endif %}
-  {% if admin_section|default('') == 'nir' %}<script src="{{ url('assets/js/nir-calculations.js?v=20261112-3') }}" defer></script><script src="{{ url('assets/js/nir-flow.js?v=20261112-draft-confirm') }}" defer></script><script src="{{ url('assets/js/nir-disclosure.js?v=20261112-v1') }}" defer></script><script src="{{ url('assets/js/nir-media.js?v=20261112-v1') }}" defer></script><script src="{{ url('assets/js/nir-admin.js?v=20261112-catalog-v1') }}" defer></script>{% endif %}
+  {% if admin_section|default('') == 'nir' %}<script src="{{ url('assets/js/nir-calculations.js?v=20261112-3') }}" defer></script><script src="{{ url('assets/js/nir-flow.js?v=20261112-draft-confirm') }}" defer></script><script src="{{ url('assets/js/nir-disclosure.js?v=20261112-v1') }}" defer></script><script src="{{ url('assets/js/nir-media.js?v=20261112-v1') }}" defer></script><script src="{{ url('assets/js/nir-admin.js?v=20261112-nir-uploads') }}" defer></script>{% endif %}
 </body>
 </html>

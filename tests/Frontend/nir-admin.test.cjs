@@ -79,7 +79,7 @@ test('late location creation stays attached to its original warehouse',async()=>
 test('additional file selections retain earlier files and deduplicate the same source file',()=>{
   const api=harness(async()=>{throw new Error('No request expected');}),{f}=form(),input=new Element('input'),list=new Element();
   input.files=[];f.queries['[data-nir-files]']=[input];f.queries['[data-nir-file-list]']=[list];
-  const first={name:'invoice.pdf',size:100,lastModified:1},second={name:'detail.png',size:200,lastModified:2};
+  const first={name:'catalog.xlsx',size:32*1024*1024,lastModified:1},second={name:'detail.png',size:200,lastModified:2};
   api.acceptFiles(f,[first]);input.files=[second];api.acceptFiles(f,input.files);api.acceptFiles(f,[first]);
   assert.deepEqual(input.files,[first,second]);assert.equal(list.children.length,2);
 });

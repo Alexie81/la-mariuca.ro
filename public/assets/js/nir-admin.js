@@ -203,7 +203,7 @@
   function acceptFiles(form, files) {
     const input=$('[data-nir-files]',form);if(!input)return;
     const transfer=new DataTransfer();(selectedFiles.get(input) || []).forEach(file=>transfer.items.add(file));
-    for(const file of files){if(file.size>15*1024*1024){message(form,'Fișierul „'+file.name+'” depășește limita de 15 MB.');continue;}if(!/\.(pdf|jpe?g|png|webp|xlsx|xml)$/i.test(file.name)){message(form,'Format neacceptat: '+file.name);continue;}if(Array.from(transfer.files).some(existing=>existing.name===file.name&&existing.size===file.size&&existing.lastModified===file.lastModified))continue;if(transfer.files.length>=30){message(form,'Poți încărca cel mult 30 de fișiere odată.');break;}transfer.items.add(file);}
+    for(const file of files){if(!/\.(pdf|jpe?g|png|webp|xlsx|xml)$/i.test(file.name)){message(form,'Format neacceptat: '+file.name);continue;}if(Array.from(transfer.files).some(existing=>existing.name===file.name&&existing.size===file.size&&existing.lastModified===file.lastModified))continue;if(transfer.files.length>=30){message(form,'Poți încărca cel mult 30 de fișiere odată.');break;}transfer.items.add(file);}
     input.files=transfer.files;selectedFiles.set(input,Array.from(input.files));fileList(form);
   }
 
@@ -348,7 +348,6 @@
     form.setAttribute('aria-busy','true');if(body)body.inert=true;buttons.forEach(button=>button.disabled=true);
     status.hidden=false;status.textContent='Citim documentul. Verificăm denumirile și valorile…';input.disabled=true;
     try{
-      if(file.size>15*1024*1024)throw new Error('Fișierul depășește limita de 15 MB.');
       const attachments=selectedFiles.get($('[data-nir-files]',form)) || [];
       if(attachments.length>=30&&!attachments.some(existing=>existing.name===file.name&&existing.size===file.size&&existing.lastModified===file.lastModified))throw new Error('Elimină un atașament înainte de import: documentul sursă trebuie păstrat, iar limita este de 30 de fișiere.');
       const data=new FormData();data.set('_csrf',form.elements._csrf.value);data.set('file',file);data.set('supplier_id',form.elements.supplier_id.value);
@@ -387,6 +386,17 @@
   }
 
   function initialize(root) {
+    $$('[data-nir-registry-search]',root).forEach(form=>{
+      const input=$('input[type="search"]',form),clear=$('[data-nir-search-clear]',form);
+      if(!input||!clear||form.classList.contains('has-clear-control'))return;
+      form.classList.add('has-clear-control');
+      const sync=()=>{clear.hidden=input.value.length===0;};
+      const reset=()=>{input.value='';input.dispatchEvent(new Event('input',{bubbles:true}));input.focus();};
+      input.addEventListener('input',sync);
+      input.addEventListener('keydown',event=>{if(event.key==='Escape'&&input.value){event.preventDefault();event.stopPropagation();reset();}});
+      clear.addEventListener('click',reset);
+      sync();
+    });
     $$('[data-nir-form]',root).forEach(form=>{currencyChanged(form);locationsChanged(form);renumber(form);window.NirFlow?.init(form);});
     const exportForm=$('[data-nir-export-form]',root);if(exportForm)exportDates(exportForm);
     $$('[data-receipt-location-dialog]',root).forEach(dialog=>{
