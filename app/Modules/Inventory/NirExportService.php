@@ -152,6 +152,7 @@ final class NirExportService
     private function documentWorkbook(array $document, bool $viewCosts): Spreadsheet
     {
         $book = new Spreadsheet();
+        $book->getDefaultStyle()->getFont()->setName('Calibri')->setSize(11);
         $book->getProperties()->setCreator('La Măriuca Boutique')->setTitle('NIR ' . self::number($document))->setSubject('Recepție și trasabilitate stoc');
         $summary = $book->getActiveSheet()->setTitle('Rezumat NIR');
         $this->summary($summary, $document, $viewCosts);
@@ -174,7 +175,7 @@ final class NirExportService
                 $sheet->getStyle(Coordinate::stringFromColumnIndex($dateColumn) . $row)->getNumberFormat()->setFormatCode(in_array($dateColumn, [8,9,130,132,134], true) ? 'dd.mm.yyyy hh:mm' : 'dd.mm.yyyy');
             }
             $sheet->getStyle('G' . $row)->getNumberFormat()->setFormatCode('hh:mm');
-            $this->draw($sheet, $this->publicImage($line['image_path'] ?? null), 'A' . $row, 52);
+            $this->draw($sheet, $this->publicImage($line['image_path'] ?? null), 'A' . $row, 52, 70);
             $sheet->getRowDimension($row)->setRowHeight(48);
         }
         $this->table($sheet, count(self::LINE_COLUMNS), max(2, count($lines) + 1), 1);
@@ -185,6 +186,11 @@ final class NirExportService
         $this->differences($book->createSheet()->setTitle('Diferențe'), $document);
         $this->audit($book->createSheet()->setTitle('Documente & Audit'), $document, $viewCosts);
         $this->dictionary($book->createSheet()->setTitle('Dicționar câmpuri'), $viewCosts);
+        foreach ($book->getAllSheets() as $index => $tab) {
+            $tab->setShowGridlines(false)->setPrintGridlines(false);
+            $tab->getTabColor()->setRGB($index === 0 ? '855260' : ($index === 2 ? 'C49A54' : '6E9582'));
+            $tab->setSelectedCell('A1');
+        }
         $book->setActiveSheetIndex(0);
         return $book;
     }
@@ -218,56 +224,146 @@ final class NirExportService
     /** @param array<string,mixed> $d */
     private function summary(Worksheet $sheet, array $d, bool $costs): void
     {
-        $sheet->mergeCells('A1:F2');
-        $sheet->setCellValue('A1', 'NOTĂ DE RECEPȚIE · ' . self::number($d));
-        $sheet->getStyle('A1:F2')->getFont()->setSize(19)->setBold(true)->getColor()->setARGB('FF643C46');
-        $sheet->getRowDimension(1)->setRowHeight(28);
-        $this->draw($sheet, $this->publicImage('/assets/images/logo-la-mariuca-transparent.png'), 'G1', 58);
-        $pairs = [
-            ['Stare', self::status($d), 'Tip operațiune', self::type($d)],
-            ['Firmă', $d['company']['legal_name'] ?? '', 'CUI firmă', $d['company']['tax_id'] ?? ''],
-            ['Furnizor', $d['supplier']['company_name'] ?? $d['supplier']['alias'] ?? '', 'CUI furnizor', $d['supplier']['tax_id'] ?? ''],
-            ['Factură', trim(($d['invoice_series'] ?? '') . ' ' . ($d['invoice_number'] ?? '')), 'Data facturii', $d['invoice_date'] ?? ''],
-            ['Data NIR', self::displayDate($d['nir_at'] ?? ''), 'Recepție fizică', self::displayDate($d['received_at'] ?? '')],
-            ['Gestiune', $d['warehouse']['name'] ?? '', 'Locație', $d['location']['name'] ?? ''],
-            ['Adresă recepție', $d['location']['address'] ?? '', 'Monedă', $d['currency'] ?? 'RON'],
-            ['Curs RON', self::numeric($d['exchange_rate'] ?? 1), 'Data cursului', $d['exchange_rate_date'] ?? ''],
-            ['Poziții', count($d['lines'] ?? []), 'Atașamente', count($d['attachments'] ?? [])],
-            ['Poziții cu diferențe', count(array_filter($d['lines'] ?? [], fn(array $l): bool => $this->hasDifference($l))), 'Neasociate', count(array_filter($d['lines'] ?? [], static fn(array $l): bool => empty($l['product_id'])))],
+        $ink = 'FF45373D'; $muted = 'FF796B70'; $rose = 'FF855260';
+        $paper = 'FFFBF5F4'; $sage = 'FFECF5F0'; $currency = $d['currency'] ?? 'RON';
+        $lines = $d['lines'] ?? []; $company = $d['company'] ?? []; $supplier = $d['supplier'] ?? [];
+        $sheet->setShowGridlines(false)->setPrintGridlines(false);
+        $sheet->getSheetView()->setZoomScale(85);
+        foreach (range('A', 'L') as $column) { $sheet->getColumnDimension($column)->setWidth(10); }
+        $sheet->getColumnDimension('A')->setWidth(11);
+        $sheet->getColumnDimension('J')->setWidth(13);
+        $sheet->getColumnDimension('K')->setWidth(12);
+        $sheet->getColumnDimension('L')->setWidth(14);
+        $sheet->getDefaultRowDimension()->setRowHeight(21);
+        $block = function (string $range, mixed $value, int $size = 11, bool $bold = false, ?string $fill = null, string $color = 'FF45373D') use ($sheet): void {
+            $sheet->mergeCells($range);
+            $cell = explode(':', $range)[0];
+            [$column, $row] = Coordinate::coordinateFromString($cell);
+            $this->cell($sheet, Coordinate::columnIndexFromString($column), (int) $row, $value);
+            $style = $sheet->getStyle($range);
+            $style->getFont()->setName('Calibri')->setSize($size)->setBold($bold)->getColor()->setARGB($color);
+            $style->getAlignment()->setWrapText(true)->setVertical(Alignment::VERTICAL_CENTER)->setIndent(1);
+            if ($fill !== null) { $style->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB($fill); }
+        };
+        $join = static fn(array $parts): string => implode(' · ', array_filter($parts, static fn(mixed $v): bool => $v !== null && $v !== ''));
+        $block('A1:L1', '', 11, false, $rose); $sheet->getRowDimension(1)->setRowHeight(4);
+        $block('A2:D4', '');
+        $this->draw($sheet, $this->publicImage('/assets/images/logo-la-mariuca-transparent.png'), 'A2', 64);
+        $block('E2:L3', 'Notă de recepție', 25, false, null, $ink);
+        $block('E4:L4', self::number($d), 13, true, null, $rose);
+        $sheet->getRowDimension(5)->setRowHeight(8);
+        $block('A6:L6', !empty($d['preview']) ? 'PREVIZUALIZARE · Exemplu de prezentare, fără înregistrare în stoc' : self::status($d) . '  ·  ' . self::type($d), 11, true, $sage, 'FF346955');
+        $sheet->getRowDimension(6)->setRowHeight(27);
+        $sheet->getRowDimension(7)->setRowHeight(9);
+        $block('A8:F8', '01 / DATELE FIRMEI', 10, true, $paper, $rose);
+        $block('G8:L8', '02 / FURNIZOR', 10, true, $paper, $rose);
+        $companyRows = [
+            $company['legal_name'] ?? '',
+            $join([isset($company['tax_id']) ? 'CUI ' . $company['tax_id'] : '', $company['trade_register'] ?? '']),
+            $join([$company['registered_address'] ?? '', $company['city'] ?? '', $company['county'] ?? '', $company['postal_code'] ?? '', $company['country'] ?? '']),
+            $join([$company['email'] ?? '', $company['phone'] ?? '']),
+            $join([$company['bank_name'] ?? '', $company['iban'] ?? '']),
+            $join([$company['website'] ?? '', isset($company['share_capital_bani']) ? 'Capital social ' . number_format((int)$company['share_capital_bani']/100, 2, ',', '.') . ' RON' : '']),
         ];
-        $row = 4;
-        foreach ($pairs as $pair) {
-            foreach ([1=>$pair[0],2=>$pair[1],5=>$pair[2],6=>$pair[3]] as $col=>$value) { $this->cell($sheet,$col,$row,$value); }
-            $sheet->mergeCells('B'.$row.':D'.$row)->mergeCells('F'.$row.':H'.$row);
-            $sheet->getRowDimension($row)->setRowHeight(29);
+        $supplierRows = [
+            $supplier['company_name'] ?? $supplier['alias'] ?? '',
+            $join([isset($supplier['tax_id']) ? 'CUI ' . $supplier['tax_id'] : '', $supplier['trade_register'] ?? '']),
+            $join([$supplier['address'] ?? '', $supplier['city'] ?? '', $supplier['county'] ?? '', $supplier['country'] ?? '']),
+            $join([$supplier['email'] ?? '', $supplier['phone'] ?? '']),
+            $join([$supplier['bank_name'] ?? '', $supplier['iban'] ?? '']),
+            trim(($d['invoice_series'] ?? '') . ' ' . ($d['invoice_number'] ?? '')) !== '' ? 'Factură ' . trim(($d['invoice_series'] ?? '') . ' ' . ($d['invoice_number'] ?? '')) . '  ·  ' . ($d['invoice_date'] ?? '') : self::type($d),
+        ];
+        for ($index = 0; $index < 6; ++$index) {
+            $row = $index + 9;
+            $block('A'.$row.':F'.$row, $companyRows[$index], $index === 0 ? 13 : 10, $index === 0);
+            $block('G'.$row.':L'.$row, $supplierRows[$index], $index === 0 ? 13 : 10, $index === 0);
+            $length = max(mb_strlen($companyRows[$index]), mb_strlen($supplierRows[$index]));
+            $sheet->getRowDimension($row)->setRowHeight(max($index === 0 ? 29 : 20, ceil($length / 66) * 15));
+        }
+        $sheet->getRowDimension(15)->setRowHeight(8);
+        $block('A16:L16', '03 / DETALIILE RECEPȚIEI', 10, true, $paper, $rose);
+        foreach ([['A','D','DATA DOCUMENTULUI', self::displayDate($d['nir_at'] ?? '')], ['E','H','RECEPȚIE FIZICĂ', self::displayDate($d['received_at'] ?? '')], ['I','L','GESTIUNE', $d['warehouse']['name'] ?? '—']] as [$start,$end,$label,$value]) {
+            $block($start.'17:'.$end.'17', $label, 9, true, null, $muted);
+            $block($start.'18:'.$end.'18', $value, 11, true);
+        }
+        $sheet->getRowDimension(18)->setRowHeight(30);
+        $block('A19:H19', $join([$d['location']['name'] ?? '', $d['location']['address'] ?? '']), 10, false, null, $muted);
+        $block('I19:L19', $currency . ' · Curs ' . BigDecimal::of($d['exchange_rate'] ?? '1')->strippedOfTrailingZeros(), 10, false, null, $muted);
+        $sheet->getRowDimension(19)->setRowHeight(28);
+        $sheet->getRowDimension(20)->setRowHeight(8);
+        $block('A21:H21', '04 / PRODUSE RECEPȚIONATE', 10, true, $paper, $rose);
+        $block('I21:L21', count($lines) . ' poziții  ·  ' . self::status($d), 10, true, $paper, $rose);
+        $headers = ['A22:A22'=>'Imagine','B22:E22'=>'Produs / cod intern','F22:F22'=>'UM','G22:G22'=>'Facturat','H22:H22'=>'Primit','I22:I22'=>'Acceptat'];
+        $headers += $costs ? ['J22:J22'=>'Net '.$currency,'K22:K22'=>'TVA '.$currency,'L22:L22'=>'Total '.$currency] : ['J22:L22'=>'Observații recepție'];
+        foreach ($headers as $range => $label) { $block($range, $label, 10, true, $rose, 'FFFFFFFF'); }
+        $sheet->getRowDimension(22)->setRowHeight(30);
+        $row = 23;
+        foreach ($lines as $index => $line) {
+            $fill = $index % 2 === 0 ? 'FFFAF7F6' : 'FFFFFFFF';
+            $sheet->getStyle('A'.$row.':L'.$row)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB($fill);
+            $name = ($line['product_name'] ?? '') ?: ($line['supplier_name'] ?? '');
+            $detail = $join([$line['sku'] ?? $line['supplier_code'] ?? '', $line['variant_name'] ?? '']);
+            $block('B'.$row.':E'.$row, $name . ($detail !== '' ? "\n" . $detail : ''), 11, false);
+            $this->draw($sheet, $this->publicImage($line['image_path'] ?? null), 'A'.$row, 50, 65);
+            $block('F'.$row.':F'.$row, $line['purchase_unit'] ?? 'buc', 10);
+            foreach (['G'=>'invoice_quantity','H'=>'received_quantity','I'=>'accepted_quantity'] as $col=>$key) {
+                $block($col.$row.':'.$col.$row, self::numeric($line[$key] ?? null), 11, $col === 'I');
+                $sheet->getStyle($col.$row)->getNumberFormat()->setFormatCode(BigDecimal::of($line[$key] ?? '0')->strippedOfTrailingZeros()->getScale() === 0 ? '0' : '0.####');
+            }
+            if ($costs) {
+                foreach (['J'=>'net_bani','K'=>'tax_bani','L'=>'total_bani'] as $col=>$key) {
+                    $block($col.$row.':'.$col.$row, self::money($line,$key), 11, $col === 'L');
+                    $sheet->getStyle($col.$row)->getNumberFormat()->setFormatCode('#,##0.00;[Red](#,##0.00);"—"');
+                }
+            } else { $block('J'.$row.':L'.$row, self::differenceLabel($line['difference_reason'] ?? ''), 10); }
+            $sheet->getStyle('F'.$row.':L'.$row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+            $sheet->getRowDimension($row)->setRowHeight(max(46, 15 * (ceil(mb_strlen($name)/38) + 1)));
             ++$row;
         }
+        $sheet->getRowDimension($row++)->setRowHeight(9);
+        $detailsRow = $row;
+        $block('A'.$row.':F'.$row, 'CONTROLUL RECEPȚIEI', 10, true, null, $rose);
+        $block('A'.($row+1).':F'.($row+1), count(array_filter($lines, fn(array $l): bool => $this->hasDifference($l))) . ' poziții cu diferențe · ' . count(array_filter($lines, static fn(array $l): bool => empty($l['product_id']))) . ' neasociate', 10);
+        $block('A'.($row+2).':F'.($row+2), count($d['attachments'] ?? []) . ' documente atașate · Detalii în foile dedicate', 10, false, null, $muted);
         if ($costs) {
-            ++$row;
-            foreach (['net_bani'=>'Subtotal', 'tax_bani'=>'TVA', 'total_bani'=>'Total document', 'inventory_bani'=>'Valoare de intrare în stoc (RON)'] as $key=>$label) {
-                $this->cell($sheet,1,$row,$label); $sheet->mergeCells('A'.$row.':D'.$row);
-                $this->cell($sheet,6,$row,self::money($d,$key)); $sheet->mergeCells('F'.$row.':H'.$row);
-                $sheet->getStyle('F'.$row.':H'.$row)->getNumberFormat()->setFormatCode('#,##0.00');
-                $sheet->getStyle('A'.$row.':H'.$row)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFF9EEEE');
-                $sheet->getRowDimension($row++)->setRowHeight(30);
+            foreach (['net_bani'=>'Subtotal', 'tax_bani'=>'TVA', 'total_bani'=>'TOTAL DOCUMENT', 'inventory_bani'=>'Intrare în stoc · RON'] as $key=>$label) {
+                $total = $key === 'total_bani'; $fill = $total ? $rose : $paper; $color = $total ? 'FFFFFFFF' : $ink;
+                $block('G'.$row.':I'.$row, $label, $total ? 11 : 10, $total, $fill, $color);
+                $block('J'.$row.':L'.$row, self::money($d,$key), $total ? 20 : 12, $total, $fill, $color);
+                $sheet->getStyle('J'.$row.':L'.$row)->getNumberFormat()->setFormatCode('#,##0.00 "'.($key === 'inventory_bani' ? 'RON' : $currency).'";[Red](#,##0.00) "'.($key === 'inventory_bani' ? 'RON' : $currency).'";"—"');
+                $sheet->getStyle('J'.$row.':L'.$row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+                $sheet->getRowDimension($row++)->setRowHeight($total ? 35 : 24);
             }
             $vat = [];
-            foreach ($d['lines'] ?? [] as $line) {
-                $rate=(string)($line['vat_percent']??'0');
-                $vat[$rate]=($vat[$rate]??0)+(int)($line['tax_bani']??0);
-            }
+            foreach ($lines as $line) { $rate = (string)($line['vat_percent'] ?? '0'); $vat[$rate] = ($vat[$rate] ?? 0) + (int)($line['tax_bani'] ?? 0); }
             foreach ($vat as $rate=>$bani) {
-                $this->cell($sheet,1,++$row,'TVA ' . $rate . '%'); $this->cell($sheet,6,$row,$bani/100);
-                $sheet->getStyle('F'.$row)->getNumberFormat()->setFormatCode('#,##0.00');
+                $block('G'.$row.':I'.$row, 'TVA '.BigDecimal::of($rate)->strippedOfTrailingZeros().'%', 10, false, null, $muted);
+                $block('J'.$row.':L'.$row, $bani / 100, 10, false, null, $muted);
+                $sheet->getStyle('J'.$row.':L'.$row)->getNumberFormat()->setFormatCode('#,##0.00');
+                $sheet->getStyle('J'.$row.':L'.$row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT); ++$row;
             }
         }
-        foreach (['NIR original'=> $d['original_number'] ?? $d['original_id'] ?? '', 'Motiv'=> $d['reason'] ?? '', 'Observații'=> $d['notes'] ?? '', 'Creat de'=> $d['created_by_name'] ?? $d['created_by'] ?? '', 'Generat la'=>self::displayDate(gmdate('Y-m-d H:i:s')), 'Amprentă document'=> $d['fingerprint'] ?? '', 'Aplicație'=>'La Măriuca Boutique · Administrare stoc'] as $label=>$value) {
-            $row+=2; $this->cell($sheet,1,$row,$label); $sheet->mergeCells('B'.$row.':H'.$row); $this->cell($sheet,2,$row,$value); $sheet->getRowDimension($row)->setRowHeight(34);
+        $row = max($row, $detailsRow + 3) + 1;
+        foreach (['Observații'=>$d['notes'] ?? '', 'Motiv'=>$d['reason'] ?? '', 'NIR original'=>$d['original_number'] ?? $d['original_id'] ?? ''] as $label=>$value) {
+            if ($value === '') { continue; }
+            $block('A'.$row.':L'.$row, $label . '  /  ' . $value, 10, false, $paper, $muted);
+            $sheet->getRowDimension($row++)->setRowHeight(max(29, ceil(mb_strlen((string)$value) / 120) * 15));
         }
-        $sheet->getStyle('A1:H'.$row)->getAlignment()->setWrapText(true)->setVertical(Alignment::VERTICAL_CENTER);
-        foreach (range('A','H') as $col) { $sheet->getColumnDimension($col)->setWidth(17); }
-        $this->page($sheet,'A1:H'.$row);
+        ++$row;
+        $block('A'.$row.':F'.$row, 'ÎNTOCMIT DE', 9, true, null, $muted);
+        $block('G'.$row.':L'.$row, 'CONFIRMAT DE', 9, true, null, $muted); ++$row;
+        $block('A'.$row.':F'.$row, $d['created_by_name'] ?? $d['created_by'] ?? '—', 11, true);
+        $block('G'.$row.':L'.$row, $d['confirmed_by_name'] ?? $d['confirmed_by'] ?? '—', 11, true);
+        $row += 2;
+        $block('A'.$row.':L'.$row, 'La Măriuca Boutique · Administrare stoc   |   Generat la ' . self::displayDate(gmdate('Y-m-d H:i:s')), 9, false, null, $muted);
+        ++$row;
+        $block('A'.$row.':L'.$row, 'Poziții NIR · Diferențe · Documente & Audit · Dicționar câmpuri — informațiile complete în foile acestui registru.', 9, false, null, $muted);
+        $sheet->freezePane('A8');
+        $this->page($sheet, 'A1:L'.$row);
+        $sheet->getPageSetup()->setOrientation(PageSetup::ORIENTATION_PORTRAIT);
+        $sheet->setSelectedCell('A1');
     }
+
 
     /** @param array<string,mixed> $document */
     private function differences(Worksheet $sheet, array $document): void
@@ -436,11 +532,17 @@ final class NirExportService
         $sheet->setCellValueExplicit([$column,$row],is_int($value)||is_float($value)?$value:mb_substr((string)$value,0,32767),is_int($value)||is_float($value)?DataType::TYPE_NUMERIC:DataType::TYPE_STRING);
     }
 
-    private function draw(Worksheet $sheet,?string $path,string $coordinate,int $height): void
+    private function draw(Worksheet $sheet,?string $path,string $coordinate,int $height,?int $maxWidth=null): void
     {
         if($path===null){return;}
-        $bytes=$this->thumbnail($path);if($bytes===null){return;}$image=@imagecreatefromstring($bytes);if($image===false){return;}
+        $bytes=$this->thumbnail($path);if($bytes===null){return;}$source=@imagecreatefromstring($bytes);if($source===false){return;}
+        // The workbook uses white paper. Flatten transparency for spreadsheet viewers
+        // that otherwise render the transparent brand image against a black canvas.
+        $image=imagecreatetruecolor(imagesx($source),imagesy($source));
+        imagefill($image,0,0,imagecolorallocate($image,255,255,255));
+        imagecopy($image,$source,0,0,0,0,imagesx($source),imagesy($source));imagedestroy($source);
         $drawing=new MemoryDrawing();$drawing->setName('Imagine produs / identitate');$drawing->setImageResource($image);$drawing->setRenderingFunction(MemoryDrawing::RENDERING_PNG);$drawing->setMimeType(MemoryDrawing::MIMETYPE_PNG);$drawing->setCoordinates($coordinate)->setHeight($height)->setOffsetX(5)->setOffsetY(5)->setWorksheet($sheet);
+        if($maxWidth!==null && $drawing->getWidth()>$maxWidth){$drawing->setWidth($maxWidth);}
     }
 
     private function publicImage(?string $image): ?string
