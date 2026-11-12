@@ -24,7 +24,7 @@
   {% if admin_section|default('') == 'orders' %}<link rel="stylesheet" href="{{ url('assets/css/order-notifications.css?v=20261108-v1') }}">{% endif %}
   {% if admin_section|default('') == 'orders' %}<link rel="stylesheet" href="{{ url('assets/css/order-contact-actions.css?v=20261108-1') }}">{% endif %}
   {% if admin_section|default('') == 'companies' %}<link rel="stylesheet" href="{{ url('assets/css/company-admin.css?v=20261112-locations') }}">{% endif %}
-  {% if admin_section|default('') == 'nir' %}<link rel="stylesheet" href="{{ url('assets/css/nir-admin.css?v=20261112-locations') }}">{% endif %}
+  {% if admin_section|default('') == 'nir' %}<link rel="stylesheet" href="{{ url('assets/css/nir-admin.css?v=20261112-confirmation') }}">{% endif %}
 </head>
 {% set operator = admin_user|default(current_user()) %}
 {% set first_name = operator.first_name|default('Administrator') %}
