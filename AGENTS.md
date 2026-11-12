@@ -48,6 +48,10 @@
 - Update `docs/PROGRESS.md` with real checks and remaining external blockers.
 - Never claim Apache, MySQL concurrency, Stripe, SMTP or hosting verified unless actually run.
 
+## Approved admin design direction (2026-11-12)
+- The user explicitly approved the redesigned NIR workspace as the reference for future admin work. Reuse its visual language: plum/rose accents, white rounded surfaces, a dark plum summary for important totals, connected progress indicators, grouped actions and softly differentiated exports.
+- Keep the layout compact, readable and guided, with restrained sans-serif typography, subtle transitions, clear visual hierarchy and responsive phone/tablet/desktop layouts. Reference `public/assets/css/nir-detail.css` and the NIR detail template. Preserve this direction instead of returning to the sparse/vintage card layout.
+
 ## Agreed next implementation order (2026-11-08)
 - When work resumes, consult the ordered TODO in `docs/PROGRESS.md` under "Ordinea următoarelor module" before starting a new module.
 - The agreed order is: purchase invoices + NIR/stock entry as one stage; outgoing invoices; stock/product ledger; exports; returns/cancellations/fiscal rules; card payments; a dedicated fiscal-rules recheck after card implementation; product SEO and internal search; Google Merchant with automatic Merchant API synchronization; then the Stripe product catalog.
