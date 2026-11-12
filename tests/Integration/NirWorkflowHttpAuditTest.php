@@ -258,7 +258,8 @@ final class NirWorkflowHttpAuditTest extends DatabaseTestCase
         $saved=$this->json($this->request('POST','/admin/nir-uri/'.$draft['id'].'/documente/',['row_version'=>$draft['row_version']],true,['attachments'=>[new UploadedFile($path,'Dosar recepție.xml','application/xml',strlen($content))]]));
         $document=$saved['document']; $file=$document['attachments'][0];
         $detail=$this->request('GET','/admin/nir-uri/'.$document['id'].'/');
-        self::assertStringContainsString('Document justificativ adăugat',(string)$detail->getBody());
+        self::assertStringNotContainsString('Istoricul recepției',(string)$detail->getBody());
+        self::assertContains('attachment_added',array_column($this->service()->document((int)$document['id'],$this->actor())['audit'],'action'));
         $download=$this->request('GET','/admin/nir-uri/'.$document['id'].'/documente/'.$file['id'].'/');
         self::assertSame(200,$download->getStatusCode());
         self::assertSame($content,(string)$download->getBody());
@@ -273,7 +274,8 @@ final class NirWorkflowHttpAuditTest extends DatabaseTestCase
         self::assertFileExists($storedPath);
         $deleted=$this->json($this->request('POST','/admin/nir-uri/'.$document['id'].'/documente/'.$file['id'].'/sterge/',['row_version'=>$document['row_version']],true));
         self::assertSame([],$deleted['document']['attachments']);
-        self::assertStringContainsString('Document justificativ eliminat',(string)$this->request('GET','/admin/nir-uri/'.$document['id'].'/')->getBody());
+        self::assertStringNotContainsString('Istoricul recepției',(string)$this->request('GET','/admin/nir-uri/'.$document['id'].'/')->getBody());
+        self::assertContains('attachment_deleted',array_column($this->service()->document((int)$document['id'],$this->actor())['audit'],'action'));
         self::assertFileDoesNotExist($storedPath);
         self::assertSame(404,$this->request('GET','/admin/nir-uri/'.$document['id'].'/documente/'.$file['id'].'/',[],true)->getStatusCode());
     }
@@ -478,7 +480,8 @@ XML;
         $lineId=(int)$document['lines'][0]['id'];
         $input=['invoice_number'=>'RET-PARTIAL','invoice_date'=>$document['invoice_date'],'reason'=>'Ambalaj deteriorat','quantities'=>[$lineId=>'0.5']];
         $return=$this->service()->reverse((int)$document['id'],(int)$document['row_version'],$input,'first-partial-http',$this->actor());
-        self::assertStringContainsString('Retur către furnizor înregistrat',(string)$this->request('GET','/admin/nir-uri/'.$return['id'].'/')->getBody());
+        self::assertStringContainsString('Retur către furnizor',(string)$this->request('GET','/admin/nir-uri/'.$return['id'].'/')->getBody());
+        self::assertContains('supplier_return',array_column($this->service()->document((int)$return['id'],$this->actor())['audit'],'action'));
         $document=$this->service()->document((int)$document['id'],$this->actor());
         $input['reason']=''; $input['row_version']=$document['row_version']; $input['idempotency_key']='second-partial-http';
         $response=$this->request('POST','/admin/nir-uri/'.$document['id'].'/storno/',$input);
