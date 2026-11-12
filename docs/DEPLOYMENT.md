@@ -219,6 +219,18 @@ afișat în pagini, loguri sau redirecturi.
 
 ## Checklist înainte de producție
 
+### Recepții NIR și fișiere private
+
+- Aplică migrarea `047_nir_receipts.sql` pe o copie MySQL înaintea bazei live; verifică tranzacțiile, blocarea concurentă, `row_version`, idempotency și reconcilierea FIFO.
+- Verifică limitele PHP efective: `max_input_vars=60000`, `upload_max_filesize=15M`, `post_max_size=512M`, `max_file_uploads=30`. `public/.user.ini` se aplică PHP-FPM/CGI; pentru alte configurații folosește panoul hostingului/php.ini. Aliniază și limita de request a proxyului/webserverului. Testează efectiv un import mare și mai multe fișiere.
+- Păstrează `storage/private/nir-documents/` și exporturile temporare în afara webrootului, cu permisiuni private și spațiu suficient. Include originalele în backup; nu publica `storage/qa/`. Accesul HTTP la `.user.ini` trebuie refuzat.
+- Verifică extensiile necesare dependențelor PDF/XLSX/XML și rularea `composer check-platform-reqs`; testează PDF-ul multipagină și descărcarea ZIP-ului pe hosting.
+- Verifică accesul HTTPS către arhiva BNR. Dacă rețeaua nu permite preluarea, cursul și data rămân introducibile manual.
+- Verifică reamintirea zilnică din administrare/PWA pentru retururi fără NIR, amânarea pentru ziua curentă și dispariția după recepție. Acest modul nu autorizează expedierea de mesaje reale pentru test.
+- Nu transforma soldurile istorice în loturi cu costuri presupuse. Introdu soldul inițial numai pe baza documentelor reale și verifică legătura viitorului modul de facturi de ieșire cu consumurile FIFO.
+
+### Verificări generale
+
 - PHP/extensii, Apache rewrite și webroot verificate pe hosting;
 - instalare din DB goală și upgrade pe copie de DB reală;
 - administrator unic, TOTP activ, coduri de recuperare păstrate sigur;
