@@ -273,6 +273,10 @@ final class AdminNotificationService
         }
 
         if ($preferences['comenzi']) {
+            $invoiceReturns=$this->pdo->query("SELECT r.id,r.invoice_id,r.reason,r.created_at,i.series_code,i.number FROM invoice_return_requests r JOIN invoices i ON i.id=r.invoice_id WHERE r.state='pending' AND i.deleted_at IS NULL ORDER BY r.id DESC LIMIT 200")->fetchAll();
+            foreach($invoiceReturns as $request) {
+                $events[]=['key'=>'invoice-return:'.$request['id'],'type'=>'comenzi','tone'=>'attention','priority'=>3,'title'=>'Solicitare de retur · '.$request['series_code'].' '.$request['number'],'detail'=>$request['reason'],'meta'=>'Așteaptă analiza','occurred_at'=>$request['created_at'],'target_path'=>'admin/facturi/'.$request['invoice_id'].'/#solicitari-retur'];
+            }
             $requests = $this->pdo->query('SELECT cr.id,cr.order_id,cr.created_at,cr.status,o.order_number,o.first_name,o.last_name '
                 . 'FROM order_cancellation_requests cr JOIN orders o ON o.id=cr.order_id ORDER BY cr.created_at DESC,cr.id DESC LIMIT 200')->fetchAll();
             foreach ($requests as $cancellation) {
@@ -288,6 +292,11 @@ final class AdminNotificationService
 
         if ($preferences['stoc']) {
             $today=(new \DateTimeImmutable('now',new \DateTimeZone('Europe/Bucharest')))->format('Y-m-d');
+            $invoiceService=\App\Modules\Invoicing\InvoiceModule::service($this->pdo,dirname(__DIR__,3));
+            $adminQuery=$this->pdo->prepare('SELECT id,role FROM users WHERE id=:id'); $adminQuery->execute(['id'=>$adminUserId]); $invoiceActor=$adminQuery->fetch();
+            if($invoiceActor) { foreach($invoiceService->pendingReceipts($invoiceActor) as $document) {
+                $events[]=['key'=>'invoice-receipt:'.$document['id'].':'.$today,'type'=>'stoc','tone'=>'attention','priority'=>3,'title'=>'Produse de verificat · '.$document['series_code'].' '.$document['number'],'detail'=>'Factura de retur este emisă. Verifică separat ce produse au ajuns înapoi.','meta'=>'Primire de verificat','occurred_at'=>$document['issued_at'],'target_path'=>'admin/facturi/'.$document['id'].'/'];
+            } }
             $repository=new NirRepository($this->pdo);
             $actor=$repository->one('users',['id'=>$adminUserId]);
             if($actor!==null && in_array($actor['role'],['administrator','manager'],true)) {

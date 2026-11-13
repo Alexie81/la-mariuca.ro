@@ -8,6 +8,11 @@ final class InvoiceConfigurationRepository
 {
     public function __construct(private readonly PDO $pdo) {}
 
+    public function hasIssued(int $seriesId): bool
+    {
+        $q=$this->pdo->prepare('SELECT id FROM invoices WHERE series_id=:id LIMIT 1'); $q->execute(['id'=>$seriesId]); return $q->fetchColumn()!==false;
+    }
+
     /** @return array<string,mixed> */
     public function settings(): array
     {

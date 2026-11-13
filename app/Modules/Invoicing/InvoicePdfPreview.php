@@ -57,6 +57,14 @@ final class InvoicePdfPreview
 
     public function pdf(string $path, ?DateTimeImmutable $date = null): void
     {
+        $this->render($path, $this->data($date));
+    }
+
+    /** The same approved layout renders issued documents from their frozen snapshot.
+     * @param array<string,mixed> $data
+     */
+    public function render(string $path, array $data): void
+    {
         $directory = dirname($path);
         if (!is_dir($directory) && !mkdir($directory, 0770, true) && !is_dir($directory)) { throw new \RuntimeException('Nu se poate crea directorul PDF.'); }
         $cache = $this->root . '/storage/cache/invoice-pdf';
@@ -69,7 +77,7 @@ final class InvoicePdfPreview
         $options->setFontHeightRatio(0.8);
         $pdf = new Dompdf($options);
         $twig = new Environment(new FilesystemLoader($this->root . '/resources/views'), ['autoescape'=>'html','strict_variables'=>true]);
-        $pdf->loadHtml($twig->render('admin/invoices/pdf-preview.twig', $this->data($date)), 'UTF-8');
+        $pdf->loadHtml($twig->render('admin/invoices/pdf-preview.twig', $data), 'UTF-8');
         $pdf->setPaper('A4'); $pdf->render();
         $font = $pdf->getFontMetrics()->getFont('Nunito PDF', 'normal') ?? 'Helvetica';
         $pdf->getCanvas()->page_text(506, 816, 'Pagina {PAGE_NUM} / {PAGE_COUNT}', $font, 7, [0.5,0.44,0.49]);

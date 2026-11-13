@@ -118,12 +118,13 @@ final class CheckoutService
         $token = bin2hex(random_bytes(32));
         $address = [
             'address' => trim((string) $data['address']), 'city' => $officialLocation['locality'],
-            'county' => $officialLocation['county'], 'postal_code' => $postalCode,
+            'county' => $officialLocation['county'], 'postal_code' => $postalCode, 'country' => 'România',
         ];
         $now = gmdate('c');
 
         $this->pdo->beginTransaction();
         try {
+            $this->pdo->exec('UPDATE invoice_configuration SET revision=revision WHERE id=1');
             $cartLock = $this->pdo->prepare('SELECT status FROM carts WHERE id=:id' . ($this->pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql' ? ' FOR UPDATE' : ''));
             $cartLock->execute(['id' => $this->cart->cartId()]);
             if ($cartLock->fetchColumn() !== 'active') { throw new RuntimeException('Coșul nu mai poate fi trimis.'); }
@@ -316,6 +317,7 @@ final class CheckoutService
                 'recipient' => mb_strtolower(trim((string) $data['email'])), 'payload' => json_encode(['order_id' => $orderId], JSON_THROW_ON_ERROR), 'now' => $now,
             ]);
             $this->internalNotifications->queue($orderId);
+            \App\Modules\Invoicing\InvoiceModule::prepare($this->pdo, $orderId);
             $this->pdo->prepare("UPDATE carts SET status = 'converted', updated_at = :now WHERE id = :id AND status = 'active'")->execute(['now' => $now, 'id' => $this->cart->cartId()]);
             $this->push?->queueOrder($orderId);
             $this->push?->queueLowStockForOrder($orderId);
@@ -325,6 +327,7 @@ final class CheckoutService
             } catch (\Throwable) {
                 // Comanda rămâne validă chiar dacă serviciul push este temporar indisponibil.
             }
+            try { \App\Modules\Invoicing\InvoiceModule::process($this->pdo, dirname(__DIR__, 3), 5); } catch (\Throwable) { /* Retry through invoices:process; order remains valid. */ }
             unset($_SESSION['cart_token']);
             return ['order_number' => $orderNumber, 'token' => $token, 'id' => $orderId, 'payment_method' => $method, 'idempotency_key' => $idempotencyKey];
         } catch (\Throwable $exception) {

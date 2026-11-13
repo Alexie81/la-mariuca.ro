@@ -20,6 +20,10 @@ $command = $argv[1] ?? 'help';
 
 try {
     switch ($command) {
+        case 'invoices:process':
+            $result = \App\Modules\Invoicing\InvoiceModule::process($pdo, $root, (int) ($argv[2] ?? 20));
+            fwrite(STDOUT, json_encode($result, JSON_THROW_ON_ERROR) . "\n");
+            break;
         case 'migrate':
             $migrations = (new Migrator($pdo, $root))->migrate();
             fwrite(STDOUT, $migrations === [] ? "Baza este la zi.\n" : "Aplicat: " . implode(', ', $migrations) . "\n");
@@ -220,7 +224,7 @@ try {
             break;
         case 'help':
         default:
-            fwrite(STDOUT, "Comenzi: migrate, seed:demo, seed:catalog, seed:orders-demo [număr], seed:customer-orders-demo <email-client> [număr], seed:newsletter-demo [număr], review:demo [slug], review:demo-pack [slug], admin:create, outbox:process, outbox:work [interval-secunde], push:process [limită], reservations:expire, csv:export [fișier], csv:import <fișier> --dry-run\n");
+            fwrite(STDOUT, "Comenzi: migrate, seed:demo, seed:catalog, seed:orders-demo [număr], seed:customer-orders-demo <email-client> [număr], seed:newsletter-demo [număr], review:demo [slug], review:demo-pack [slug], admin:create, invoices:process [limită], outbox:process, outbox:work [interval-secunde], push:process [limită], reservations:expire, csv:export [fișier], csv:import <fișier> --dry-run\n");
     }
 } catch (Throwable $exception) {
     if ($pdo->inTransaction()) {

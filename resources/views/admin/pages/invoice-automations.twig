@@ -8,7 +8,7 @@
     <div class="ia-hero-copy"><span class="ia-eyebrow">Facturare · Mai puțini pași</span><h1>Automatizări</h1><p>Tu alegi regulile. Factura urmează plata și starea comenzii.</p></div>
     <div class="ia-hero-art" aria-hidden="true"><span class="ia-orbit"></span><span class="ia-bolt"><svg viewBox="0 0 24 24"><path d="m13 2-9 12h7l-1 8 10-13h-7l1-7Z"/></svg></span><span class="ia-mini">{{ ui.icon('document') }}</span></div>
   </header>
-  <aside class="ia-ready"><span class="ia-ready-icon">{{ ui.icon('document') }}</span><div><strong>Pregătim facturarea automată</strong><p>Poți salva regulile de acum. Emiterea și trimiterea vor funcționa după conectarea modulului de facturi de ieșire.</p></div><span class="ia-stage">În pregătire</span></aside>
+  <aside class="ia-ready"><span class="ia-ready-icon">{{ ui.icon('document') }}</span><div><strong>Factura se ocupă de următorul pas</strong><p>Regulile alese se aplică următoarelor comenzi eligibile. Facturile și emailurile se procesează pe server, chiar dacă această pagină este închisă.</p></div><span class="ia-stage">Conectat la comenzi</span></aside>
   <form action="{{ url('admin/automatizari/') }}" method="post" data-invoice-automations>
     <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="revision" value="{{ settings.revision }}">
     <div class="ia-error" role="alert" tabindex="-1" data-ia-error{% if not error %} hidden{% endif %}><span data-ia-error-text>{{ error }}</span><button type="button" data-ia-reload hidden>Reîncarcă setările</button></div>
@@ -37,7 +37,7 @@
       </section>
     {% endfor %}
     </div>
-    <aside class="ia-protection"><span>{{ ui.icon('shield') }}</span><div><strong>O singură factură pentru fiecare comandă</strong><p>Emiterea și emailul sunt pași separați. Dacă trimiterea eșuează, se reia doar emailul, fără o nouă factură. Această protecție va fi verificată și în fluxul final de facturare.</p></div></aside>
+    <aside class="ia-protection"><span>{{ ui.icon('shield') }}</span><div><strong>O singură factură pentru fiecare comandă</strong><p>Emiterea și emailul sunt pași separați. Dacă trimiterea eșuează, se reia doar emailul, fără o nouă factură. Activarea unei reguli nu emite facturi pentru comenzile mai vechi.</p></div></aside>
     <footer class="ia-save-note"><div><span class="ia-save-dot" aria-hidden="true"></span><div><strong data-ia-save-title>Setările se păstrează pe server</strong><p data-ia-save-copy>Alegeri separate pentru card și ramburs.</p></div></div><a href="{{ url('admin/configurator-factura/') }}">{{ ui.icon('document') }}<span>Configurator factură</span>{{ ui.icon('arrow') }}</a></footer>
     <button class="ia-fallback-save" type="submit" data-ia-manual-save>Salvează regulile</button>
     <noscript><p class="ia-noscript">Apasă „Salvează regulile” după modificări. Pentru a activa și emailul, salvează întâi emiterea automată.</p></noscript>

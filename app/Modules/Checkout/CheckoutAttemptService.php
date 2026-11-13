@@ -191,6 +191,7 @@ final class CheckoutAttemptService
         $this->pdo->prepare("INSERT INTO outbox_messages (message_type,recipient,payload_json,status,attempts,available_at,created_at) VALUES ('order_confirmation',:email,:payload,'pending',0,:available,:created)")
             ->execute(['email' => $snapshot['email'], 'payload' => json_encode(['order_id' => $orderId], JSON_THROW_ON_ERROR), 'available' => $now, 'created' => $now]);
         (new InternalOrderNotificationService($this->pdo))->queue($orderId);
+        \App\Modules\Invoicing\InvoiceModule::prepare($this->pdo, $orderId);
         $this->pdo->prepare("INSERT INTO audit_log (actor_user_id,action,entity_type,entity_id,context_json,created_at) VALUES (NULL,:action,'order',:id,:context,:now)")
             ->execute(['action' => $review ? 'order.manual_review' : 'order.confirm', 'id' => $orderId,
                 'context' => json_encode(['source' => 'stripe', 'checkout_attempt_id' => $attemptId, 'stock_review' => $review], JSON_THROW_ON_ERROR), 'now' => $now]);
@@ -228,6 +229,7 @@ final class CheckoutAttemptService
     {
         $this->pdo->beginTransaction();
         try {
+            $this->pdo->exec('UPDATE invoice_configuration SET revision=revision WHERE id=1');
             $this->pdo->prepare("UPDATE checkout_attempts SET last_error=:error,updated_at=:now WHERE id=:id AND status='pending'")
                 ->execute(['error' => 'Sesiunea de plată nu a putut fi încărcată. Poți reîncerca în siguranță.', 'now' => gmdate('c'), 'id' => $attemptId]);
             $this->pdo->commit();

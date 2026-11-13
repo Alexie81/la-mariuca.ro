@@ -1,0 +1,7 @@
+<section class="iv-form-step"><header><b>2</b><div><h3>Produse și livrare</h3><p>Prețurile finale agreate rămân păstrate. Cantitatea 0 elimină o poziție; un produs nou folosește prețul actual din catalog.</p></div></header>
+<input type="hidden" name="order_version" value="{{ edit_order.updated_at }}"><input type="hidden" name="order_id" value="{{ edit_order.id }}">
+<div data-iv-edit-items>{% for item in edit_order.items %}<div class="iv-edit-item"><input type="hidden" name="items[{{ loop.index0 }}][id]" value="{{ item.id }}"><div><strong>{{ item.product_name }}</strong><small>{{ item.sku }} · {{ item.variant_summary }}</small></div><label>Cantitate<input type="number" name="items[{{ loop.index0 }}][quantity]" min="0" max="999" step="1" required value="{{ item.quantity }}"></label></div>{% endfor %}</div>
+<button type="button" class="iv-btn" data-iv-add-item data-next-index="{{ edit_order.items|length }}">{{ n.icon('plus') }}Adaugă un produs</button>
+<template data-iv-item-template><div class="iv-edit-item"><div><label>SKU exact din catalog<input name="items[INDEX][sku]" required placeholder="De exemplu, LM-26-009"></label></div><label>Cantitate<input type="number" name="items[INDEX][quantity]" min="1" max="999" step="1" value="1" required></label><button type="button" class="iv-icon" data-iv-remove-item aria-label="Elimină produsul nou">{{ n.icon('trash') }}</button></div></template>
+<label>Livrare, Lei<input name="shipping" inputmode="decimal" value="{{ (edit_order.shipping_bani/100)|number_format(2,'.','') }}" required></label>
+</section>

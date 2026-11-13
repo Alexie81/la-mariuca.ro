@@ -269,6 +269,9 @@ final class OrderService
             && in_array($order['status'], ['new','confirmed','preparing','cancelled'], true);
         $order['can_return'] = in_array((string) $order['status'], ['shipped', 'delivered', 'returned'], true)
             && array_sum(array_column($order['items'], 'returnable_quantity')) > 0;
+        $invoiceQuery=$this->pdo->prepare('SELECT id,series_code,number,kind FROM invoices WHERE order_id=:id AND deleted_at IS NULL ORDER BY id');
+        $invoiceQuery->execute(['id'=>$orderId]); $order['issued_invoices']=$invoiceQuery->fetchAll();
+        if($order['issued_invoices']) { $order['can_return']=false; }
 
         return $order;
     }
@@ -358,6 +361,8 @@ final class OrderService
         $ownsTransaction = !$this->pdo->inTransaction();
         if ($ownsTransaction) { $this->pdo->beginTransaction(); }
         try {
+            $this->pdo->exec('UPDATE invoice_configuration SET revision=revision WHERE id=1');
+            $this->pdo->exec('UPDATE nir_write_lock SET revision=revision+1 WHERE id=1');
             $select = $this->pdo->prepare('SELECT * FROM orders WHERE id = :id' . ($this->pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql' ? ' FOR UPDATE' : ''));
             $select->execute(['id' => $orderId]);
             $order = $select->fetch();
@@ -386,6 +391,9 @@ final class OrderService
                     ]);
                 }
             } elseif ($action === 'cancel') {
+                $actorQuery=$this->pdo->prepare('SELECT id,role FROM users WHERE id=:id'); $actorQuery->execute(['id'=>$actorId]);
+                $invoiceActor=$actorQuery->fetch();
+                if (is_array($invoiceActor)) { \App\Modules\Invoicing\InvoiceModule::service($this->pdo,dirname(__DIR__,3))->cancelOrder($orderId,$reason,$invoiceActor); }
                 $reservations = $this->pdo->prepare("SELECT * FROM inventory_reservations WHERE order_id = :id AND status = 'active'");
                 $reservations->execute(['id' => $orderId]);
                 foreach ($reservations->fetchAll() as $reservation) {
@@ -453,6 +461,9 @@ final class OrderService
         int $actorId,
         bool $notifyCustomer = false,
     ): int {
+        $issued=$this->pdo->prepare('SELECT id FROM invoices WHERE order_id=:id AND deleted_at IS NULL LIMIT 1');
+        $issued->execute(['id'=>$orderId]);
+        if($issued->fetchColumn()!==false) { throw new RuntimeException('Comanda este facturată. Înregistrează returul din fișa facturii pentru a păstra documentele și stocul corelate.'); }
         $reason = trim($reason);
         if (mb_strlen($reason) < 3) {
             throw new RuntimeException('Spune pe scurt motivul returului.');

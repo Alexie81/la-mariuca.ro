@@ -102,7 +102,7 @@ final class OrderTrackingController
     public function invoice(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
     {
         $orderId = $this->authorizedOrder();
-        $document = $orderId === null ? null : $this->tracking->invoice($orderId, (int) $args['id']);
+        $document = $orderId === null ? null : $this->tracking->invoice($orderId, (int) $args['id'],str_contains($request->getUri()->getPath(),'/document/'));
         if ($document === null) {
             return $this->privateResponse(new Response(404));
         }

@@ -42,6 +42,7 @@ final class StripeWebhookController
         $now = gmdate('c');
         $this->pdo->beginTransaction();
         try {
+            $this->pdo->exec('UPDATE invoice_configuration SET revision=revision WHERE id=1');
             $this->pdo->prepare("INSERT INTO payment_events (provider,provider_event_id,event_type,payload_json,status,received_at) VALUES ('stripe',:id,:type,:payload,'received',:now)")->execute([
                 'id' => $event->id, 'type' => $event->type, 'payload' => $payload, 'now' => $now,
             ]);
@@ -141,6 +142,7 @@ final class StripeWebhookController
                         ->execute(['recipient' => $order['email'], 'payload' => $confirmationPayload, 'now' => $now]);
                 }
                 $this->internalNotifications->queue($orderId);
+                \App\Modules\Invoicing\InvoiceModule::prepare($this->pdo, $orderId);
                 if (in_array($order['status'], ['new', 'cancelled'], true)) {
                     $nextStatus = $order['status'] === 'new' ? 'confirmed' : 'manual_review';
                     $this->pdo->prepare("INSERT INTO audit_log (actor_user_id,action,entity_type,entity_id,context_json,created_at) VALUES (NULL,:action,'order',:id,:context,:now)")->execute([
@@ -228,6 +230,7 @@ final class StripeWebhookController
             return new Response(500);
         }
         if ($paymentNotificationOrderId !== null) {
+            try { \App\Modules\Invoicing\InvoiceModule::process($this->pdo, dirname(__DIR__, 3), 5); } catch (\Throwable) { /* Persistent invoice intent remains retryable. */ }
             try {
                 $this->push?->processPending(20);
             } catch (\Throwable) {
@@ -287,6 +290,7 @@ final class StripeWebhookController
         }
         $response = $this->finishEvent($eventId, $now);
         if ($success) {
+            try { \App\Modules\Invoicing\InvoiceModule::process($this->pdo, dirname(__DIR__, 3), 5); } catch (\Throwable) { /* Persistent invoice intent remains retryable. */ }
             try { $this->push?->processPending(20); } catch (\Throwable) { /* Payment persistence never depends on push delivery. */ }
         }
         return $response;

@@ -37,6 +37,9 @@ final class AccountingStockService
         }
 
         $this->transactional(function () use ($orderId, $invoiceNumber, $actorId, $occurredAt): void {
+            $issued=$this->pdo->prepare('SELECT id FROM invoices WHERE primary_order_id=:id AND deleted_at IS NULL');
+            $issued->execute(['id'=>$orderId]);
+            if($issued->fetchColumn()!==false) { return; }
             $order = $this->pdo->prepare('SELECT 1 FROM orders WHERE id=:order_id LIMIT 1');
             $order->execute(['order_id' => $orderId]);
             if ($order->fetchColumn() === false) {

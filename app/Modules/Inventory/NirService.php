@@ -514,6 +514,18 @@ final class NirService
         });
     }
 
+    /** Reconcile accounting reversals with later sales; invoked only inside invoice transactions.
+     * @param array<string,mixed> $target @param array<string,mixed> $actor
+     */
+    public function reconcileInvoiceStock(int $warehouseId,array $target,array $actor): void
+    {
+        $this->allow($actor,'confirm');
+        $this->repository->transaction(function()use($warehouseId,$target,$actor):void {
+            $this->reconcilePending($warehouseId,$target,$actor);
+            $this->recalculateCost($warehouseId,$target);
+        });
+    }
+
     /** @param array<string,mixed> $actor @return list<array<string,mixed>> */
     public function pendingReturnReceipts(array $actor): array
     {

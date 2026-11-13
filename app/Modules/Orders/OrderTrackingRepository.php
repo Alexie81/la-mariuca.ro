@@ -9,6 +9,13 @@ use PDO;
 final class OrderTrackingRepository
 {
     public function __construct(private readonly PDO $pdo) {}
+    public function pdo(): PDO { return $this->pdo; }
+    /** @return list<array<string,mixed>> */
+    public function issuedInvoices(int $orderId): array
+    {
+        $q=$this->pdo->prepare('SELECT id,series_code,number,kind FROM invoices WHERE order_id=:id AND deleted_at IS NULL ORDER BY id');
+        $q->execute(['id'=>$orderId]); return $q->fetchAll();
+    }
 
     /** @return array<string,mixed>|null */
     public function identity(int $id): ?array
@@ -71,6 +78,8 @@ final class OrderTrackingRepository
     {
         $this->pdo->beginTransaction();
         try {
+            $this->pdo->exec('UPDATE invoice_configuration SET revision=revision WHERE id=1');
+            $this->pdo->exec('UPDATE nir_write_lock SET revision=revision+1 WHERE id=1');
             $result = $operation();
             $this->pdo->commit();
             return $result;

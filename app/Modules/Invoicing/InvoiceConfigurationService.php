@@ -34,7 +34,7 @@ final class InvoiceConfigurationService
         if (!in_array($use, ['0','1',0,1], true)) { throw new InvoiceConfigurationException('Verifică opțiunea de folosire a seriei.'); }
         return $this->repository->transaction(function () use ($input, $id, $code, $label, $use, $actorId): int {
             $this->checkRevision($input);
-            if ($id !== null) { $this->series($id); }
+            if ($id !== null) { $existing=$this->series($id); if($existing['code']!==$code && $this->repository->hasIssued($id)) { throw new InvoiceConfigurationException('Seria are documente emise. Adaugă o serie nouă pentru facturile următoare; codul istoric rămâne păstrat.'); } }
             if ($this->repository->hasCode($code, $id)) { throw new InvoiceConfigurationException('Există deja o serie cu acest cod. Alege un cod diferit.'); }
             $savedId = $this->repository->saveSeries($id, $code, $label);
             // Editing never implicitly disables the current series.

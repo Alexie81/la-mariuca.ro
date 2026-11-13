@@ -1,0 +1,1 @@
+{% extends 'admin/layouts/base.twig' %}{% import 'admin/invoices/ui.twig' as iv %}{% block title %}Administrare factură{% endblock %}{% block content %}<div class="iv-workspace" data-iv-page><a class="iv-back" href="{{ back_url }}">Înapoi la facturi</a><div class="iv-form-page">{% include 'admin/invoices/form.twig' %}</div>{{ iv.shell() }}</div>{% endblock %}

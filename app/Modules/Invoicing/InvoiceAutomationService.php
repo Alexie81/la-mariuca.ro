@@ -50,11 +50,8 @@ final class InvoiceAutomationService
     }
 
     /**
-     * Future issuance hook; deliberately NOT called from checkout/webhooks yet.
-     * Call on the persisted new-COD / verified paid-card transition. This only
-     * records an idempotent intent: no invoice, number, stock movement or email.
-     * The future dispatcher must recheck order eligibility, issue once using
-     * issue_key, then enqueue a separate email using email_key after issuance.
+     * Persist the idempotent invoice intent with the eligible order transition.
+     * Dispatch only after the order transaction commits; email is independent.
      * @return array<string,mixed>|null
      */
     public function prepareForOrder(int $orderId): ?array

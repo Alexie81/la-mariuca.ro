@@ -1,0 +1,17 @@
+{% extends 'storefront/layouts/base.twig' %}
+{% block content %}
+<section class="container" style="max-width:800px;padding:32px 18px 64px">
+<a href="{{ url('urmarire-comanda/') }}">← Înapoi la comanda mea</a>
+<div style="background:white;border:1px solid #eadde5;border-radius:28px;padding:clamp(20px,4vw,40px);margin-top:22px">
+<p style="color:#ac4a6a;letter-spacing:.1em">COMANDA {{ invoice.snapshot.order_number }}</p><h1 style="font-size:clamp(26px,4vw,36px);margin:12px 0">Cum te putem ajuta cu returul?</h1>
+{% if success %}<div role="status" style="background:#edf8f2;border-radius:18px;padding:24px;margin-top:24px"><h2>Am primit solicitarea ta.</h2><p>Vom verifica produsele selectate și îți vom trimite răspunsul prin email. Restituirea banilor se face după soluționare, separat de această cerere.</p><a href="{{ url('urmarire-comanda/') }}">Înapoi la comandă →</a></div>
+{% elseif not eligibility.allowed %}<p>{{ eligibility.reason }}</p><a href="{{ url('pagina/contact/') }}">Contactează-ne</a>
+{% else %}<p>Alege produsele, cantitățile și spune-ne motivul. Vom analiza fiecare poziție înainte de a confirma returul.</p>
+{% if error %}<p role="alert" style="background:#fff0f2;color:#a3314f;padding:16px;border-radius:14px">{{ error }}</p>{% endif %}
+<form method="post" action="{{ url('urmarire-comanda/retur/'~invoice.id~'/') }}"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="request_key" value="{{ values.request_key|default(request_key) }}">
+{% for line in eligibility.lines %}<div style="display:grid;grid-template-columns:minmax(0,1fr) 110px;gap:18px;align-items:center;padding:20px 0;border-bottom:1px solid #eee4e9"><div><strong>{{ line.name }}</strong><p style="font-size:14px;margin:6px 0">{{ line.sku }} · {{ line.available_units/10000 }} buc. disponibile</p></div><label>Cantitate<input style="width:100%;margin-top:8px;border:1px solid #d9c7d1;border-radius:12px;padding:12px" type="number" name="quantities[{{ line.id }}]" min="0" max="{{ line.available_units/10000 }}" step="1" value="{{ values.quantities[line.id]|default(0) }}"></label></div>{% endfor %}
+<label style="display:block;margin-top:24px">Motivul returului<textarea style="display:block;width:100%;margin-top:8px;border:1px solid #d9c7d1;border-radius:14px;padding:14px" name="reason" rows="4" minlength="3" maxlength="2000" required>{{ values.reason|default('') }}</textarea></label>
+{% if invoice.payment_method == 'stripe' %}<p>Restituirea se va face către metoda de plată inițială.</p>{% else %}<input type="hidden" name="refund_method" value="bank"><label style="display:block;margin-top:20px">IBAN pentru restituire<input style="display:block;width:100%;margin-top:8px;padding:14px;border:1px solid #d9c7d1;border-radius:12px" name="iban" value="{{ values.iban|default('') }}" required autocomplete="off"></label><label style="display:block;margin-top:20px">Titularul contului<input style="display:block;width:100%;margin-top:8px;padding:14px;border:1px solid #d9c7d1;border-radius:12px" name="holder" value="{{ values.holder|default('') }}" required></label>{% endif %}
+<button type="submit" style="display:inline-flex;align-items:center;background:#ad4b6c;color:#fff;border:0;border-radius:15px;padding:16px 24px;margin-top:26px;font-weight:700">Trimite solicitarea →</button>
+</form>{% endif %}</div></section>
+{% endblock %}

@@ -122,6 +122,9 @@ final class OrderTrackingService
         $order['can_request_cancellation'] = $order['cancellation_request'] === null
             && OrderCancellationPolicy::allows((string) $order['status'], (string) $order['created_at']);
         $order['invoices'] = [];
+        foreach($this->repository->issuedInvoices($orderId) as $document) {
+            $order['invoices'][]=['id'=>$document['id'],'number'=>$document['series_code'].' '.$document['number'],'issued'=>true,'can_return'=>in_array($document['kind'],['sale','corrected_positive'],true)];
+        }
         foreach ($this->repository->documents($orderId) as $document) {
             if ($this->resolvePdf((string) $document['private_path']) !== null) {
                 $order['invoices'][] = ['id'=>$document['id'], 'number'=>$document['document_number']];
@@ -165,8 +168,18 @@ final class OrderTrackingService
     }
 
     /** @return array{path:string,name:string}|null */
-    public function invoice(int $orderId, int $documentId): ?array
+    public function invoice(int $orderId, int $documentId, bool $issued=false): ?array
     {
+        if($issued) {
+            foreach($this->repository->issuedInvoices($orderId) as $row) {
+                if((int)$row['id']!==$documentId) { continue; }
+                $service=\App\Modules\Invoicing\InvoiceModule::service($this->repository->pdo(),$this->root);
+                $document=$service->load($documentId);
+                $export=new \App\Modules\Invoicing\InvoiceExportService(new \App\Modules\Invoicing\InvoiceRepository($this->repository->pdo()),$this->root);
+                return ['path'=>$export->pdf($document),'name'=>$export->filename($document).'.pdf'];
+            }
+            return null;
+        }
         foreach ($this->repository->documents($orderId) as $document) {
             if ((int) $document['id'] === $documentId) {
                 $path = $this->resolvePdf((string) $document['private_path']);

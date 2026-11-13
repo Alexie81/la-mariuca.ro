@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ro"><head><meta charset="UTF-8"><title>Model factură · {{ company.trade_name }}</title>
+<html lang="ro"><head><meta charset="UTF-8"><title>{{ preview ? "Model factură" : document_title }} · {{ company.trade_name }}</title>
 <style>
 @font-face {font-family:'Nunito PDF';font-weight:400;src:url('{{ font_regular }}') format('truetype')}
 @font-face {font-family:'Nunito PDF';font-weight:700;src:url('{{ font_bold }}') format('truetype')}
@@ -41,16 +41,16 @@ table {width:100%;border-collapse:collapse;table-layout:fixed} td {vertical-alig
 .footer {position:fixed;bottom:-52pt;left:0;right:0;border-top:.6pt solid #ded1dc;padding-top:6pt}.legal {font-size:5.5pt;line-height:7.5pt;color:#8b7986;text-align:center}.footer-id {font-size:6.5pt;color:#826879;margin-top:7pt;font-weight:700;letter-spacing:.3pt}
 </style></head><body>
 <div class="footer">
-<p class="legal">Factura aferentă acestui document se transmite prin sistemul național RO e-Factura, în format XML. Exemplarul original al facturii electronice se consideră fișierul XML însoțit de sigiliul electronic al Ministerului Finanțelor, conform art. 4 alin. (6) din OUG nr. 120/2021. Factura ține loc de document justificativ pentru garanție. Solicitări: {{ company.email }}. Drepturile legale se acordă conform OUG nr. 140/2021.</p>
-<div class="footer-id">{{ number }} &nbsp; | &nbsp; MODEL · FĂRĂ VALOARE FISCALĂ</div></div>
+<p class="legal">{% if fiscal_accepted|default(false) %}Exemplarul electronic original este documentul XML validat prin sistemul fiscal. {% endif %}Factura ține loc de document justificativ pentru garanție. Solicitări: {{ company.email }}. Drepturile legale se acordă conform OUG nr. 140/2021.</p>
+<div class="footer-id">{{ number }} &nbsp; | &nbsp; {% if preview %}MODEL · FĂRĂ VALOARE FISCALĂ{% else %}{{ company.trade_name ?: company.legal_name }}{% endif %}</div></div>
 <div class="top-line"></div>
-<table class="brand"><tr><td><img class="logo" src="{{ logo }}" alt="La Măriuca Boutique"></td><td class="heading"><div class="eyebrow">MODEL DE FACTURĂ</div><h1>FACTURĂ</h1><div class="number">{{ number }}</div></td></tr></table>
+<table class="brand"><tr><td><img class="logo" src="{{ logo }}" alt="La Măriuca Boutique"></td><td class="heading"><div class="eyebrow">{{ preview ? "MODEL DE FACTURĂ" : "LA MĂRIUCA BOUTIQUE" }}</div><h1>{{ document_title|default("FACTURĂ") }}</h1><div class="number">{{ number }}</div></td></tr></table>
 <div class="status"><table class="status-grid"><tr>
-<td class="status-label"><div class="status-identity"><div class="status-symbol"><div class="status-clock"><div class="clock-hour"></div><div class="clock-minute"></div></div></div><div class="status-title">Neplătită</div><div class="status-copy">Ramburs, la primirea comenzii.</div></div></td>
+<td class="status-label"><div class="status-identity"><div class="status-symbol"><div class="status-clock"><div class="clock-hour"></div><div class="clock-minute"></div></div></div><div class="status-title">{{ payment_label|default("Neplătită") }}</div><div class="status-copy">{{ payment_copy|default("Ramburs, la primirea comenzii.") }}</div></div></td>
 <td class="date-cell"><div class="date-card"><div class="date-caption">Data emiterii</div><strong>{{ date }}</strong></div></td>
 <td class="date-cell"><div class="date-card due-date"><div class="date-caption">Scadență</div><strong>{{ due_date }}</strong></div></td>
 </tr></table></div>
-<div class="order-ref">Comandă LM-DEMO &nbsp; · &nbsp; Exemplu de prezentare</div>
+<div class="order-ref">Comandă {{ order_number|default("LM-DEMO") }}{% if preview %} &nbsp; · &nbsp; Exemplu de prezentare{% elseif original_reference|default("") %} &nbsp; · &nbsp; {{ original_reference }}{% endif %}</div>
 <div class="identities">
 <table class="parties-grid"><tr>
 <td class="seller-col"><div class="party-card">
@@ -61,7 +61,7 @@ table {width:100%;border-collapse:collapse;table-layout:fixed} td {vertical-alig
   </div>
 </div></td>
 <td class="buyer-col"><div class="party-card client">
-  <div class="party-head"><div class="party-caption">CLIENT</div><h2>{{ customer.name }}</h2><div class="party-subtitle">Persoană fizică · Date demonstrative</div></div>
+  <div class="party-head"><div class="party-caption">CLIENT</div><h2>{{ customer.name }}</h2><div class="party-subtitle">{{ customer.type_label|default("Persoană fizică · Date demonstrative") }}{% if customer.tax_id|default("") %} · CUI {{ customer.tax_id }}{% endif %}</div></div>
   <div class="party-body">
     <div class="party-address"><div class="address-label">Adresă de facturare</div>{% for part in customer.address|split(', ', 2) %}{{ part }}{% if not loop.last %}<br>{% endif %}{% endfor %}</div>
     <table class="party-contact"><tr><td class="contact-label">Telefon</td><td>{{ customer.phone }}</td></tr><tr><td class="contact-label">Email</td><td>{{ customer.email }}</td></tr></table>
@@ -75,11 +75,11 @@ table {width:100%;border-collapse:collapse;table-layout:fixed} td {vertical-alig
 </div>
 <table class="section-heading"><tr><td>DETALII FACTURĂ</td><td class="count">{{ lines|length }} poziții</td></tr></table>
 <div class="product-wrap"><table class="products"><thead><tr><th style="width:3%">#</th><th style="width:9%">Foto</th><th style="width:25%">Articol facturat</th><th style="width:6%">U.M.</th><th style="width:6%">Cant.</th><th style="width:13%">Preț unitar<br><small>fără TVA</small></th><th style="width:6%">TVA</th><th style="width:15%">Valoare<br><small>fără TVA</small></th><th style="width:17%">Total</th></tr></thead><tbody>
-{% for line in lines %}<tr><td class="idx">{{ loop.index }}</td><td class="center"><img class="photo" src="{{ line.image_data }}"></td><td><div class="name">{{ line.name }}</div><div class="sku">{{ line.sku }}</div></td><td class="center">buc.</td><td class="center">{{ line.quantity }}</td><td class="amount">{{ line.unit_net }}</td><td class="center"><span class="vat-pill">{{ vat }}%</span></td><td class="amount">{{ line.net }}</td><td class="amount last">{{ line.total }}</td></tr>{% endfor %}
+{% for line in lines %}<tr><td class="idx">{{ loop.index }}</td><td class="center">{% if line.image_data %}<img class="photo" src="{{ line.image_data }}">{% endif %}</td><td><div class="name">{{ line.name }}</div><div class="sku">{{ line.sku }}{% if line.discount_display|default("") %}<br>Reducere: {{ line.discount_display }}{% endif %}</div></td><td class="center">{{ line.unit|default("buc.") }}</td><td class="center">{{ line.quantity }}</td><td class="amount">{{ line.unit_net }}</td><td class="center"><span class="vat-pill">{{ line.vat|default(vat) }}%</span></td><td class="amount">{{ line.net }}</td><td class="amount last">{{ line.total }}</td></tr>{% endfor %}
 </tbody></table></div>
-<table class="lower"><tr><td class="instructions-col"><div class="payment"><div class="card-head">INSTRUCȚIUNI DE PLATĂ <span>RAMBURS LA CURIER</span></div><div class="payment-body"><table><tr><td class="key">Metodă</td><td>Ramburs la curier</td></tr><tr><td class="key">Referință</td><td class="ref">{{ number }}</td></tr><tr><td class="key">IBAN</td><td class="iban">{{ company.iban_display }}</td></tr><tr class="bank-row"><td class="key">Banca</td><td>{{ company.bank_name }}</td></tr></table></div></div>
-<div class="mentions"><div class="title">MENȚIUNI · INFORMAȚII UTILE</div><div class="mention-row"><strong>REGIM FISCAL</strong><br>{% if company.is_vat_payer %}Societate înregistrată în scopuri de TVA. Cotă aplicată în model: {{ vat }}%.{% else %}Societate neînregistrată în scopuri de TVA. TVA aplicată: 0%.{% endif %}</div>{% if notes %}<div class="mention-row"><strong>NOTE</strong><br>{{ notes|nl2br }}</div>{% endif %}</div></td>
-<td class="totals-col"><table class="vat-summary"><tr><th>Sumar TVA</th><th>Bază</th><th>TVA</th></tr><tr><td>TVA {{ vat }}%</td><td class="right-text">{{ net }}</td><td class="right-text">{{ tax }}</td></tr></table><table class="totals"><tr><td>Subtotal fără TVA</td><td class="right-text">{{ net }}</td></tr><tr><td>Total TVA</td><td class="right-text">{{ tax }}</td></tr><tr class="total"><td>Total factură</td><td class="right-text">{{ total }}</td></tr></table><div class="due"><table><tr><td class="due-label">DE PLATĂ</td><td class="due-value">{{ total }}</td></tr></table></div><div class="due-note">Sume exprimate în RON</div></td></tr></table>
+<table class="lower"><tr><td class="instructions-col"><div class="payment"><div class="card-head">INSTRUCȚIUNI DE PLATĂ <span>{{ payment_method_label|default("RAMBURS LA CURIER") }}</span></div><div class="payment-body"><table><tr><td class="key">Metodă</td><td>{{ payment_method_label|default("Ramburs la curier") }}</td></tr><tr><td class="key">Referință</td><td class="ref">{{ number }}</td></tr><tr><td class="key">IBAN</td><td class="iban">{{ company.iban_display }}</td></tr><tr class="bank-row"><td class="key">Banca</td><td>{{ company.bank_name }}</td></tr></table></div></div>
+<div class="mentions"><div class="title">MENȚIUNI · INFORMAȚII UTILE</div><div class="mention-row"><strong>REGIM FISCAL</strong><br>{% if company.is_vat_payer %}Societate înregistrată în scopuri de TVA. Cotă aplicată: {{ vat }}%.{% else %}Societate neînregistrată în scopuri de TVA. TVA aplicată: 0%.{% endif %}</div>{% if notes %}<div class="mention-row"><strong>NOTE</strong><br>{{ notes|nl2br }}</div>{% endif %}</div></td>
+<td class="totals-col"><table class="vat-summary"><tr><th>Sumar TVA</th><th>Bază</th><th>TVA</th></tr>{% for group in vat_groups|default([{rate:vat,net:net,tax:tax}]) %}<tr><td>TVA {{ group.rate }}%</td><td class="right-text">{{ group.net }}</td><td class="right-text">{{ group.tax }}</td></tr>{% endfor %}</table><table class="totals"><tr><td>Subtotal fără TVA</td><td class="right-text">{{ net }}</td></tr><tr><td>Total TVA</td><td class="right-text">{{ tax }}</td></tr><tr class="total"><td>Total factură</td><td class="right-text">{{ total }}</td></tr></table><div class="due"><table><tr><td class="due-label">{{ balance_label|default("DE PLATĂ") }}</td><td class="due-value">{{ balance_display|default(total) }}</td></tr></table></div><div class="due-note">Sume exprimate în RON</div></td></tr></table>
 <div class="thanks"><table><tr><td class="seal-cell"><img class="seal" src="{{ monogram }}"></td><td class="message"><strong>Mulțumim că ai ales La Măriuca.</strong><p>Cu grijă pentru fiecare mică bucurie.</p></td><td class="contact"><div class="label">ONLINE</div><a href="{{ company.website }}">{{ company.website_display }}</a><div class="label" style="margin-top:4pt">CONTACT</div><a href="mailto:{{ company.email }}">{{ company.email }}</a></td></tr></table></div>
 
 </body></html>

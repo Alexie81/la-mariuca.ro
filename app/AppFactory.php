@@ -178,6 +178,10 @@ final class AppFactory
         $paymentMethodSettingsController = new PaymentMethodSettingsController($paymentMethodSettings, new AdminNotificationService($pdo), $auth, $view, $config, new \App\Modules\Payments\PaymentFeeService($pdo));
         $companyAdminController = new CompanyAdminController(new CompanyAdminService(new CompanyRepository($pdo), new CompanyStampStorage($root)), new AdminNotificationService($pdo), $auth, $view, $config, new \App\Modules\Companies\ReceiptLocationService(new CompanyRepository($pdo)));
         $invoiceConfigurationController = new \App\Modules\Invoicing\InvoiceConfigurationController(new \App\Modules\Invoicing\InvoiceConfigurationService(new \App\Modules\Invoicing\InvoiceConfigurationRepository($pdo)), new AdminNotificationService($pdo), $auth, $view, $config);
+        $invoiceRepository = new \App\Modules\Invoicing\InvoiceRepository($pdo);
+        $invoiceService = new \App\Modules\Invoicing\InvoiceService($invoiceRepository, new \App\Modules\Invoicing\InvoiceSnapshot($pdo, $root), new \App\Modules\Inventory\InvoiceStockService($pdo));
+        $invoiceController = new \App\Modules\Invoicing\InvoiceController($invoiceService, $invoiceRepository, new \App\Modules\Invoicing\InvoiceExportService($invoiceRepository, $root), new AdminNotificationService($pdo), $auth, $view, $config);
+        $invoiceCustomer=new \App\Modules\Invoicing\InvoiceCustomerController($invoiceService,$view,$config,$rateLimiter);
         $invoiceAutomationController = new \App\Modules\Invoicing\InvoiceAutomationController(new \App\Modules\Invoicing\InvoiceAutomationService(new \App\Modules\Invoicing\InvoiceAutomationRepository($pdo)), new AdminNotificationService($pdo), $auth, $view, $config);
         $nirController = new \App\Modules\Inventory\NirAdminController(
             new \App\Modules\Inventory\NirService($pdo), new \App\Modules\Inventory\NirDocumentStorage($root),
@@ -213,6 +217,7 @@ final class AppFactory
         $app->get('/comanda/{token}/', [$checkoutController, 'confirmation']);
         $app->post('/plata/{token}/reincearca/', [$checkoutController, 'resumePayment']);
         $app->post('/plata/{token}/anuleaza/', [$checkoutController, 'cancelPayment']);
+        $app->get('/factura/{token:[a-f0-9]{64}}/', [$invoiceController, 'publicPdf']);
         $app->get('/urmarire-comanda/', [$tracking, 'show']);
         $app->post('/urmarire-comanda/', [$tracking, 'lookup']);
         $app->post('/urmarire-comanda/alta/', [$tracking, 'reset']);
@@ -220,6 +225,9 @@ final class AppFactory
         $app->post('/urmarire-comanda/solicitare-anulare/', [$tracking, 'requestCancellation']);
         $app->get('/urmarire-comanda/acces/{id:[0-9]+}/{signature}/', [$tracking, 'access']);
         $app->get('/urmarire-comanda/factura/{id:[0-9]+}/', [$tracking, 'invoice']);
+        $app->get('/urmarire-comanda/document/{id:[0-9]+}/', [$tracking, 'invoice']);
+        $app->get('/urmarire-comanda/retur/{id:[0-9]+}/', [$invoiceCustomer, 'form']);
+        $app->post('/urmarire-comanda/retur/{id:[0-9]+}/', [$invoiceCustomer, 'submit']);
         $app->post('/contact/whatsapp/', [$storefront, 'contactWhatsApp']);
         $app->post('/newsletter/abonare/', [$storefront, 'newsletterSubscribe']);
         $app->get('/pagina/{slug}/', [$storefront, 'page']);
@@ -249,7 +257,15 @@ final class AppFactory
         $app->post('/admin/', [$adminController, 'login']);
         $app->post('/admin/deconectare/', [$adminController, 'logout']);
 
-        $app->group('/admin', function (RouteCollectorProxy $group) use ($adminController, $adminPushController, $twoFactorController, $orderNotificationSettingsController, $paymentMethodSettingsController, $companyAdminController, $nirController, $invoiceConfigurationController, $invoiceAutomationController): void {
+        $app->group('/admin', function (RouteCollectorProxy $group) use ($adminController, $adminPushController, $twoFactorController, $orderNotificationSettingsController, $paymentMethodSettingsController, $companyAdminController, $nirController, $invoiceConfigurationController, $invoiceAutomationController, $invoiceController): void {
+            $group->get('/facturi/', [$invoiceController, 'index']);
+            $group->get('/facturi/emite/', [$invoiceController, 'form']);
+            $group->post('/facturi/emite/', [$invoiceController, 'action']);
+            $group->get('/facturi/export/{format:xlsx|zip}/', [$invoiceController, 'export']);
+            $group->get('/facturi/{id:[0-9]+}/', [$invoiceController, 'detail']);
+            $group->get('/facturi/{id:[0-9]+}/{format:pdf|xlsx|zip}/', [$invoiceController, 'export']);
+            $group->get('/facturi/{id:[0-9]+}/{action:edit|return|correct|receive|payment|delete|email|link|request|decide|policy|order-edit}/', [$invoiceController, 'form']);
+            $group->post('/facturi/{id:[0-9]+}/{action:edit|return|correct|receive|payment|delete|email|link|dismiss|request|decide|policy|order-edit}/', [$invoiceController, 'action']);
             $group->get('/automatizari/', [$invoiceAutomationController, 'index']);
             $group->post('/automatizari/', [$invoiceAutomationController, 'save']);
             $group->get('/configurator-factura/', [$invoiceConfigurationController, 'index']);

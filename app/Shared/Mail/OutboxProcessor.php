@@ -42,7 +42,7 @@ final class OutboxProcessor
         if (!ctype_digit($floor)) { throw new RuntimeException('MAIL_SEND_AFTER_ID trebuie să fie un ID pozitiv sau zero.'); }
         $types = array_values(array_filter(array_map('trim', explode(',', $this->config->get('MAIL_MESSAGE_TYPES')))));
         foreach ($types as $type) {
-            if (!in_array($type, ['order_confirmation', 'internal_order_notification', 'order_status_update', 'verify_email', ...OrderCancellationEmail::TYPES], true)) {
+            if (!in_array($type, ['invoice', 'invoice_return_notice', 'order_confirmation', 'internal_order_notification', 'order_status_update', 'verify_email', ...OrderCancellationEmail::TYPES], true)) {
                 throw new RuntimeException('MAIL_MESSAGE_TYPES conține un tip necunoscut.');
             }
         }
@@ -74,7 +74,19 @@ final class OutboxProcessor
         $cancellation = new OrderCancellationEmail($tracking, $this->config,
             new Environment(new FilesystemLoader($this->root . '/resources/views'), ['autoescape' => 'html']),
             new OrderEmailImages($this->config, $this->root));
+        $invoiceRepository = new \App\Modules\Invoicing\InvoiceRepository($this->pdo);
+        $invoiceEmail = new \App\Modules\Invoicing\InvoiceEmail($invoiceRepository, $this->config, $this->root);
         foreach ($messages as $message) {
+            if ($message['message_type'] === 'invoice') {
+                $invoicePayload = json_decode($message['payload_json'], true);
+                if (!empty($invoicePayload['automatic'])) {
+                    $confirmationStatus = $this->pdo->prepare("SELECT status,attempts FROM outbox_messages WHERE message_type='order_confirmation' AND payload_json=:payload ORDER BY id LIMIT 1");
+                    $confirmationStatus->execute(['payload'=>json_encode(['order_id'=>(int) ($invoicePayload['order_id'] ?? 0)], JSON_THROW_ON_ERROR)]);
+                    $confirmationMessage = $confirmationStatus->fetch();
+                    // Confirmation goes first. A definitive failure does not suppress the invoice.
+                    if ($confirmationMessage && $confirmationMessage['status'] !== 'sent' && (int) $confirmationMessage['attempts'] < 5) { continue; }
+                }
+            }
             // Repeat the full eligibility check: a stale worker must not bypass retries or activation scope.
             $claim = $this->pdo->prepare("UPDATE outbox_messages SET status='processing',attempts=attempts+1 WHERE id=:id AND " . $eligible);
             $claim->execute($params + ['id' => $message['id']]);
@@ -83,8 +95,12 @@ final class OutboxProcessor
             $smtpAccepted = false;
             try {
                 $payload = json_decode((string) $message['payload_json'], true, 512, JSON_THROW_ON_ERROR);
-                $html = null;
-                if ($message['message_type'] === 'order_confirmation') {
+                $html = null; $attachment = null; $attachmentName = null;
+                if (in_array($message['message_type'], ['invoice','invoice_return_notice'], true)) {
+                    $rendered = $invoiceEmail->render($payload, (string) $message['recipient']);
+                    $subject = $rendered['subject']; $body = $rendered['text']; $html = $rendered['html'];
+                    $attachment = $rendered['attachment']; $attachmentName = $rendered['attachment_name'];
+                } elseif ($message['message_type'] === 'order_confirmation') {
                     $rendered = $confirmation->render((int) ($payload['order_id'] ?? 0), (string) $message['recipient']);
                     $subject = $rendered['subject']; $body = $rendered['text']; $html = $rendered['html'];
                 } elseif ($message['message_type'] === 'internal_order_notification') {
@@ -111,6 +127,7 @@ final class OutboxProcessor
                     $email = (new Email())->from(new Address($this->config->get('MAIL_FROM_ADDRESS'), $this->config->get('MAIL_FROM_NAME', 'La Măriuca Boutique')))
                         ->replyTo($this->config->get('CONTACT_EMAIL', 'contact@la-mariuca.ro'))->to((string) $message['recipient'])->subject($subject)->text($body);
                     if ($html !== null) { $email->html($this->embedLocalImages($email, $html)); }
+                    if ($attachment !== null) { $email->attachFromPath($attachment, $attachmentName, 'application/pdf'); }
                     (new Mailer($transport))->send($email);
                     $smtpAccepted = true;
                     $result['sent']++;
@@ -119,11 +136,14 @@ final class OutboxProcessor
                     if (!is_dir($directory) && !mkdir($directory, 0770, true) && !is_dir($directory)) { throw new RuntimeException('Directorul preview nu este disponibil.'); }
                     if (file_put_contents($directory . '/' . (int) $message['id'] . '.txt', "To: " . $message['recipient'] . "\nSubject: {$subject}\n\n{$body}\n", LOCK_EX) === false) { throw new RuntimeException('Preview-ul nu a fost salvat.'); }
                     if ($html !== null && file_put_contents($directory . '/' . (int) $message['id'] . '.html', $html, LOCK_EX) === false) { throw new RuntimeException('Preview-ul HTML nu a fost salvat.'); }
+                    if ($attachment !== null && !copy($attachment, $directory . '/' . (int) $message['id'] . '.pdf')) { throw new RuntimeException('Preview PDF unavailable.'); }
                     $result['previewed']++;
                 }
                 // Preserve the existing schema's completed state; counters distinguish SMTP from previews.
                 $this->pdo->prepare("UPDATE outbox_messages SET status='sent',sent_at=:now,last_error=NULL WHERE id=:id")->execute(['now'=>gmdate('c'),'id'=>$message['id']]);
+                if ($message['message_type'] === 'invoice') { $invoiceRepository->update('invoices', ['email_state'=>$transport !== null ? 'sent' : 'previewed'], ['id'=>(int) $payload['invoice_id']]); }
             } catch (Throwable) {
+                if ($message['message_type'] === 'invoice' && isset($payload['invoice_id'])) { $invoiceRepository->update('invoices', ['email_state'=>'failed'], ['id'=>(int) $payload['invoice_id']]); }
                 if ($smtpAccepted) {
                     // SMTP already accepted this message. Never enqueue it again if persistence failed.
                     $this->pdo->prepare("UPDATE outbox_messages SET last_error=:error WHERE id=:id AND status='processing'")->execute([
@@ -143,6 +163,14 @@ final class OutboxProcessor
 
     private function embedLocalImages(Email $email, string $html): string
     {
+        $imageNumber = 0;
+        $html = preg_replace_callback('/(<img\b[^>]*\bsrc=")data:image\/png;base64,([A-Za-z0-9+\/=]+)(")/i', function (array $match) use ($email, &$imageNumber): string {
+            $bytes = base64_decode($match[2], true);
+            if ($bytes === false || strlen($bytes) > 1_000_000) { return $match[0]; }
+            $name = 'invoice-image-' . $imageNumber++;
+            $email->embed($bytes, $name, 'image/png');
+            return $match[1] . 'cid:' . $name . $match[3];
+        }, $html) ?? $html;
         $prefix = $this->config->rootUrl() . '/';
         $public = realpath($this->root . '/public');
         if ($public === false) { return $html; }
