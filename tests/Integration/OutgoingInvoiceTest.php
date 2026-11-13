@@ -108,7 +108,11 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         $updated=$this->service->edit($invoice['id'],['request_key'=>'edit-items-case','version'=>$invoice['row_version'],'reason'=>'Actualizare cantitate','items'=>[['id'=>$item['id'],'quantity'=>'3']]],$this->actor);
         self::assertSame($invoice['display_number'],$updated['display_number']); self::assertSame(-30000,$this->balance());
         self::assertSame(InvoiceCalculator::ratio($invoice['lines'][0]['gross_bani'],3,2),$updated['lines'][0]['gross_bani']);
+        self::assertSame('not_sent',$updated['email_state']);
+        $this->service->queueEmail($updated['id'],'email-before-another-edit',$this->actor);
+        $updated=$this->service->edit($invoice['id'],['request_key'=>'edit-after-email-queued','version'=>$updated['row_version'],'reason'=>'Corectare note','notes'=>'Date actualizate'],$this->actor);
         self::assertSame('needs_resend',$updated['email_state']);
+        self::assertSame(0,(int)$this->pdo->query("SELECT COUNT(*) FROM outbox_messages WHERE message_type='invoice' AND status='pending'")->fetchColumn());
     }
     public function testPartialCorrectionPreservesOriginalAndCreatesLinkedPair(): void
     {
@@ -150,6 +154,8 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
     {
         $invoice=$this->service->issue($this->order(2),['request_key'=>'issue-export-case'],$this->actor);
         $exports=new \App\Modules\Invoicing\InvoiceExportService(new InvoiceRepository($this->pdo),$this->root);
+        $data=$exports->pdfData($invoice); self::assertSame('156,1983 Lei',$data['lines'][0]['unit_net']);
+        self::assertSame('156.19834711',$invoice['lines'][0]['unit_net']);
         $pdf=$exports->pdf($invoice); self::assertSame('%PDF',substr((string)file_get_contents($pdf),0,4));
         $xlsx=$exports->xlsx($invoice); $book=\PhpOffice\PhpSpreadsheet\IOFactory::load($xlsx); $sheet=$book->getActiveSheet();
         self::assertEquals(2,$sheet->getCell('E14')->getValue()); self::assertSame('0',$sheet->getStyle('E14')->getNumberFormat()->getFormatCode());
@@ -283,6 +289,74 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         self::assertSame($net,$repo->orderCash($invoice['order_id'])['received']);
         self::assertSame(1,$repo->registry(['fiscal_state'=>'unconfigured'])['total']);
     }
+
+    public function testAllAdminFormsAndPrivateExportsHaveWorkingHttpResponses(): void
+    {
+        $invoice=$this->service->issue($this->order(2),['request_key'=>'http-forms-document'],$this->actor);
+        $unbilled=$this->order(1); $_SESSION['user_id']=$this->actor['id'];
+        $factory=new \Slim\Psr7\Factory\ServerRequestFactory();
+        $get=function(string $path,array $query=[])use($factory) {
+            $app=\App\AppFactory::create($this->root);
+            $request=$factory->createServerRequest('GET','http://localhost'.$path,['REMOTE_ADDR'=>'127.0.0.71'])->withQueryParams($query)->withHeader('X-Invoice-Modal','1');
+            $response=$app->handle($request); unset($app); gc_collect_cycles(); return $response;
+        };
+        foreach(['edit','return','correct','payment','delete','email','link','request'] as $action) {
+            $response=$get('/admin/facturi/'.$invoice['id'].'/'.$action.'/');
+            self::assertSame(200,$response->getStatusCode(),$action);
+            self::assertStringContainsString('name="_csrf"',(string)$response->getBody());
+            self::assertStringContainsString('data-iv-form',(string)$response->getBody());
+        }
+        foreach(['/admin/facturi/emite/','/admin/facturi/0/order-edit/','/admin/facturi/0/policy/'] as $path) {
+            $response=$get($path,['order'=>$unbilled]); self::assertSame(200,$response->getStatusCode(),$path);
+            self::assertStringContainsString('data-iv-form',(string)$response->getBody());
+        }
+        $credit=$this->service->credit($invoice['id'],['request_key'=>'http-forms-credit','version'=>1,'reason'=>'Retur test','quantities'=>[$invoice['lines'][0]['id']=>'1']],$this->actor);
+        self::assertSame(200,$get('/admin/facturi/'.$credit['id'].'/receive/')->getStatusCode());
+        foreach(['pdf'=>'%PDF','xlsx'=>'PK','zip'=>'PK'] as $format=>$magic) {
+            $response=$get('/admin/facturi/'.$invoice['id'].'/'.$format.'/');
+            self::assertSame(200,$response->getStatusCode()); self::assertStringStartsWith($magic,(string)$response->getBody());
+            self::assertStringStartsWith('attachment;',$response->getHeaderLine('Content-Disposition'));
+            self::assertStringContainsString('no-store',$response->getHeaderLine('Cache-Control'));
+        }
+        $inline=$get('/admin/facturi/'.$invoice['id'].'/pdf/',['view'=>'1']);
+        self::assertStringStartsWith('inline;',$inline->getHeaderLine('Content-Disposition'));
+        foreach(['xlsx','zip'] as $format) {
+            $response=$get('/admin/facturi/export/'.$format.'/');
+            self::assertSame(200,$response->getStatusCode()); self::assertStringStartsWith('PK',(string)$response->getBody());
+        }
+        unset($_SESSION['user_id']);
+        self::assertContains($get('/admin/facturi/'.$invoice['id'].'/pdf/')->getStatusCode(),[302,303,401,403]);
+        unset($get); gc_collect_cycles();
+    }
+    public function testStaleVersionAndNonLatestDeletionLeaveDocumentsAndStockUntouched(): void
+    {
+        $first=$this->service->issue($this->order(1),['request_key'=>'stale-first-document'],$this->actor);
+        $second=$this->service->issue($this->order(1),['request_key'=>'stale-second-document'],$this->actor);
+        $balance=$this->balance();
+        try { $this->service->delete($first['id'],['request_key'=>'not-last-deletion','version'=>1,'reason'=>'Test blocaj'],$this->actor); self::fail('Non-latest deleted'); }
+        catch(InvoiceException) { self::assertSame($balance,$this->balance()); }
+        $updated=$this->service->edit($second['id'],['request_key'=>'current-version-edit','version'=>1,'reason'=>'Test actualizare','notes'=>'Nota noua'],$this->actor);
+        try { $this->service->edit($second['id'],['request_key'=>'stale-version-edit','version'=>1,'reason'=>'Formular vechi','notes'=>'Nota veche'],$this->actor); self::fail('Stale edit accepted'); }
+        catch(InvoiceException $e) { self::assertSame(409,$e->getCode()); }
+        self::assertSame($updated['notes'],$this->service->load($second['id'])['notes']);
+        self::assertSame($balance,$this->balance());
+        self::assertSame(2,(int)$this->pdo->query('SELECT COUNT(*) FROM invoices WHERE deleted_at IS NULL')->fetchColumn());
+    }
+    public function testRejectedRequestAndInvalidPhysicalReceiptDoNotInventCreditsOrStock(): void
+    {
+        $invoice=$this->service->issue($this->order(2),['request_key'=>'reject-request-document'],$this->actor); $line=$invoice['lines'][0];
+        $request=$this->service->requestReturn($invoice['id'],['request_key'=>'reject-request-input','reason'=>'Cerere test','quantities'=>[$line['id']=>'1'],'iban'=>'RO49AAAA1B31007593840000','holder'=>'Ana Pop'],$this->actor);
+        $this->service->decideReturn($invoice['id'],['request_key'=>'reject-request-decision','return_request_id'=>$request['id'],'version'=>1,'reason'=>'Verificare cerere','decisions'=>[$line['id']=>['quantity'=>'0','reason'=>'Produs utilizat']]],$this->actor);
+        self::assertSame(1,(int)$this->pdo->query('SELECT COUNT(*) FROM invoices')->fetchColumn());
+        self::assertSame(-20000,$this->balance());
+        $invoice=$this->service->load($invoice['id']);
+        $credit=$this->service->credit($invoice['id'],['request_key'=>'receipt-invalid-credit','version'=>$invoice['row_version'],'reason'=>'Retur test','quantities'=>[$line['id']=>'1']],$this->actor);
+        $creditLine=$credit['lines'][0]['id'];
+        try { $this->service->receive($credit['id'],['request_key'=>'receipt-invalid-input','version'=>1,'reason'=>'Control test','received'=>[$creditLine=>'0'],'restock'=>[$creditLine=>'1']],$this->actor); self::fail('Unreceived stock restored'); }
+        catch(InvoiceException) { self::assertSame(-20000,$this->balance()); }
+        self::assertSame(0,(int)$this->pdo->query('SELECT COUNT(*) FROM invoice_receipts')->fetchColumn());
+    }
+
     private function order(int $quantity): int
     {
         $_SESSION['cart_token']=bin2hex(random_bytes(32)); $cart=new CartService($this->pdo); $cart->add($this->variant['id'],$quantity);

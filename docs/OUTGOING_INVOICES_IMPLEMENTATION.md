@@ -23,11 +23,18 @@ Referință: `OUTGOING_INVOICES_REFERENCE.md`, primită la 2026-11-13. Checklist
 - [x] Teste locale de integrare, acces, idempotentă, bani/stoc și verificare vizuală.
 
 ## Verificat la 2026-11-13
-- Suita integrală PHPUnit: 729 teste, 7214 aserțiuni. Modulul dedicat: 21 teste / 105 aserțiuni. Lint PHP, PHPStan și compilarea a 140 template-uri Twig fără erori.
+- Suita integrală PHPUnit: 732 teste, 7274 aserțiuni. După rafinarea PDF: facturare și model PDF, 26 teste / 186 aserțiuni. Lint PHP, PHPStan și compilarea a 140 template-uri Twig fără erori.
 - Bază SQLite izolată pentru toate emiterile de test. Browser: emitere din comandă, editarea notei, retur parțial, primire fizică și întoarcerea unei bucăți în stoc; modificări nesalvate, switch/cantitate, zoom, copiere, descărcări XLSX/ZIP.
 - Interfață inspectată la 320, 390, 768 px și desktop: fără overflow orizontal; modalul derulează numai conținutul, păstrând antetul și acțiunile. Antetul tabelului este ascuns integral când rândurile devin carduri.
 - PDF aprobat inspectat la o pagină și la trei pagini: antet de tabel repetat, totaluri și footer de garanție păstrate. Structura XLSX și arhivele ZIP verificate programatic; fără verificare vizuală într-o instalare Excel.
 - Migrațiile 052 și 053 aplicate local. În baza principală nu au fost create facturi demonstrative și nu au fost modificate regulile existente de automatizare.
+
+## Rafinare vizuală și verificare suplimentară
+- Registru adaptat pentru carduri mobile, stări și acțiuni aliniate, filtre grupate, stare fără rezultate. Fișă cu secțiuni accesibile rapid și sumar compact; modalele mici au lățime potrivită conținutului.
+- PDF deschis inline într-o filă nouă prin `?view=1`, fără a schimba autorizarea sau linkul de descărcare. Exemplul cu două poziții și note încape într-o singură pagină. Prețurile unitare din PDF folosesc maximum patru zecimale pentru lizibilitate, fără schimbarea valorilor salvate sau a totalurilor.
+- Teste HTTP pentru toate formularele și exporturile, blocarea accesului neautorizat, conflicte de versiune, ștergere nepermisă, cerere respinsă și primire fizică invalidă. Editarea unui document netrimis nu îl marchează „De retrimis”; editarea după programarea emailului invalidează mesajul vechi.
+- În browser au fost parcurse încasarea parțială, respingerea supraîncasării, cererea/acceptarea returului și primirea produsului; cele trei mesaje aferente au fost generate prin transportul preview, fără expediere reală. Registrul XLSX, ZIP-ul complet și ZIP-ul individual au fost descărcate și validate.
+- Factura demonstrativă și PDF-ul sunt deschise în instanța izolată 8093. Instanța principală 8080 păstrează datele reale; nu sunt amestecate cu facturile QA.
 
 ## Adaptări operaționale
 - Stocul online este actualizat de fluxul comenzii; factura operează evidența contabilă. Disponibilitatea din magazin nu este blocată de soldul contabil negativ.

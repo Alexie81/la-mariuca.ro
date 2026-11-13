@@ -177,7 +177,7 @@ final class InvoiceService
             $customer=array_replace($snapshot['customer'],(array)($input['billing'] ?? [])); InvoiceSnapshot::validateCustomer($customer); $snapshot['customer']=$customer;
             $notes=trim((string)($input['notes'] ?? $invoice['notes'])); if(mb_strlen($notes)>5000) { throw new InvoiceException('Notele sunt prea lungi.'); }
             $currentLines=$this->repository->all('invoice_lines',['invoice_id'=>$id]);
-            $this->touch($invoice,$financial+['snapshot_json'=>InvoiceSnapshot::json($snapshot),'notes'=>$notes,'email_state'=>'needs_resend','search_text'=>$this->search(array_replace($invoice,$financial),$snapshot,$currentLines)]);
+            $this->touch($invoice,$financial+['snapshot_json'=>InvoiceSnapshot::json($snapshot),'notes'=>$notes,'email_state'=>$invoice['email_state']==='not_sent'?'not_sent':'needs_resend','search_text'=>$this->search(array_replace($invoice,$financial),$snapshot,$currentLines)]);
             $this->cancelQueuedEmail($id);
             $updated=$this->load($id); $this->audit($id,'edited',$actor,$reason,$invoice,$updated); $this->remember($key,'edit',$hash,$id); return $this->decorate($updated);
         });
