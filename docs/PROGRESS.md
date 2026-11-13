@@ -2,6 +2,12 @@
 
 Actualizat: 2026-11-13
 
+### 2026-11-13 — Automatizări în grupul Facturare
+- Tab nou sub Configurator factură, inspirat funcțional din G-Trots și adaptat vizual La Măriuca: card online/ramburs, patru switch-uri, explicații, pași conectați și salvare automată fără refresh. Emailul necesită emiterea activă; oprirea emiterii dezactivează și emailul.
+- Setări persistente cu CSRF, autorizare admin, audit, revizii pentru protecția între file și cereri serializate. Fallback cu salvare explicită fără JavaScript. Punct de integrare pentru viitorul modul: o intenție per comandă eligibilă, opțiune email înghețată și chei separate de deduplicare. Nu este conectat încă la checkout/webhook; pagina spune „În pregătire”.
+- Verificări: 7 teste / 67 aserțiuni pentru automatizări și 8 teste / 81 aserțiuni pentru configurator; PHPStan dedicat fără erori. În browserul intern, pe 8080 cu Paula: persistență, dependența switch-urilor, Space, conflict între două file, design la 1440/768/390/320 px fără overflow sau erori JS. Opțiunile au fost readuse la starea inițială, toate oprite.
+- Emiterea reală, ordonarea emailurilor și reluările independente vor fi conectate și testate cap-coadă cu facturile de ieșire. Nu s-au emis facturi/trimis mesaje și nu s-a făcut deploy; MySQL concurent/Apache/live nu sunt verificate. Contractul și pașii rămași: `docs/INVOICE_AUTOMATIONS.md`. Roadmap-ul rămâne nebifat pentru facturare.
+
 ### 2026-11-13 — Model PDF de factură, cu datele firmei dinamice
 - Banda stării de plată are container rotunjit, pictogramă de așteptare desenată vectorial de CSS, titlu lizibil și casete distincte pentru emitere/scadență. Datele rămân dinamice, iar descrierea rambursului este păstrată. Verificat PDF-ul integral și detaliul benzii: o pagină A4, fără tăieri sau suprapuneri; 125 template-uri compilate.
 - Ajustare vizuală: procentul TVA are o capsulă cu lățime stabilă și aliniere optică centrală, în locul fundalului inline care cobora față de text în Dompdf. PDF-ul regenerat a fost verificat integral și cu detaliul mărit; rămâne pe o pagină A4.
