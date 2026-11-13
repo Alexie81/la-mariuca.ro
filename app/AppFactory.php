@@ -178,6 +178,7 @@ final class AppFactory
         $paymentMethodSettingsController = new PaymentMethodSettingsController($paymentMethodSettings, new AdminNotificationService($pdo), $auth, $view, $config, new \App\Modules\Payments\PaymentFeeService($pdo));
         $companyAdminController = new CompanyAdminController(new CompanyAdminService(new CompanyRepository($pdo), new CompanyStampStorage($root)), new AdminNotificationService($pdo), $auth, $view, $config, new \App\Modules\Companies\ReceiptLocationService(new CompanyRepository($pdo)));
         $invoiceConfigurationController = new \App\Modules\Invoicing\InvoiceConfigurationController(new \App\Modules\Invoicing\InvoiceConfigurationService(new \App\Modules\Invoicing\InvoiceConfigurationRepository($pdo)), new AdminNotificationService($pdo), $auth, $view, $config);
+        $invoiceAutomationController = new \App\Modules\Invoicing\InvoiceAutomationController(new \App\Modules\Invoicing\InvoiceAutomationService(new \App\Modules\Invoicing\InvoiceAutomationRepository($pdo)), new AdminNotificationService($pdo), $auth, $view, $config);
         $nirController = new \App\Modules\Inventory\NirAdminController(
             new \App\Modules\Inventory\NirService($pdo), new \App\Modules\Inventory\NirDocumentStorage($root),
             new \App\Modules\Inventory\NirImportService(), new \App\Modules\Inventory\NirExportService($root),
@@ -248,7 +249,9 @@ final class AppFactory
         $app->post('/admin/', [$adminController, 'login']);
         $app->post('/admin/deconectare/', [$adminController, 'logout']);
 
-        $app->group('/admin', function (RouteCollectorProxy $group) use ($adminController, $adminPushController, $twoFactorController, $orderNotificationSettingsController, $paymentMethodSettingsController, $companyAdminController, $nirController, $invoiceConfigurationController): void {
+        $app->group('/admin', function (RouteCollectorProxy $group) use ($adminController, $adminPushController, $twoFactorController, $orderNotificationSettingsController, $paymentMethodSettingsController, $companyAdminController, $nirController, $invoiceConfigurationController, $invoiceAutomationController): void {
+            $group->get('/automatizari/', [$invoiceAutomationController, 'index']);
+            $group->post('/automatizari/', [$invoiceAutomationController, 'save']);
             $group->get('/configurator-factura/', [$invoiceConfigurationController, 'index']);
             $group->post('/configurator-factura/{action:setari}/', [$invoiceConfigurationController, 'save']);
             $group->get('/configurator-factura/serii/nou/', [$invoiceConfigurationController, 'form']);

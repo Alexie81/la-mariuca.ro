@@ -26,6 +26,7 @@
   {% if admin_section|default('') == 'companies' %}<link rel="stylesheet" href="{{ url('assets/css/company-admin.css?v=20261112-locations') }}">{% endif %}
   {% if admin_section|default('') == 'nir' %}<link rel="stylesheet" href="{{ url('assets/css/nir-admin.css?v=20261112-nir-return') }}"><link rel="stylesheet" href="{{ url('assets/css/nir-experience.css?v=20261112-guided-v1') }}"><link rel="stylesheet" href="{{ url('assets/css/nir-detail.css?v=20261112-return') }}"><link rel="stylesheet" href="{{ url('assets/css/nir-editor.css?v=20261112-catalog-v1') }}"><link rel="stylesheet" href="{{ url('assets/css/nir-return.css?v=20261113-linked') }}"><link rel="stylesheet" href="{{ url('assets/css/nir-export.css?v=20261112-v2') }}">{% endif %}
   {% if admin_section|default('') == 'invoice_configuration' %}<link rel="stylesheet" href="{{ url('assets/css/invoice-configuration.css?v=20261113-1') }}">{% endif %}
+  {% if admin_section|default('') == 'invoice_automations' %}<link rel="stylesheet" href="{{ url('assets/css/invoice-automations.css?v=20261113-1') }}">{% endif %}
 </head>
 {% set operator = admin_user|default(current_user()) %}
 {% set first_name = operator.first_name|default('Administrator') %}
@@ -95,6 +96,10 @@
         <a class="admin-nav__item{{ active_admin_section == 'invoice_configuration' ? ' is-active' : '' }}" href="{{ url('admin/configurator-factura/') }}"{% if active_admin_section == 'invoice_configuration' %} aria-current="page"{% endif %}>
           <span class="admin-nav__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H5v18h14V8l-5-5ZM14 3v5h5M8 12h8M8 16h5"/><path d="M8 6h2"/></svg></span>
           <span><strong>Configurator factură</strong><small>Serii și setări de emitere</small></span>
+        </a>
+        <a class="admin-nav__item{{ active_admin_section == 'invoice_automations' ? ' is-active' : '' }}" href="{{ url('admin/automatizari/') }}"{% if active_admin_section == 'invoice_automations' %} aria-current="page"{% endif %}>
+          <span class="admin-nav__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m13 2-9 12h7l-1 8 10-13h-7l1-7Z"/></svg></span>
+          <span><strong>Automatizări</strong><small>Emiterea și trimiterea facturilor</small></span>
         </a>
         <span class="admin-nav__label admin-nav__label--section">Produse și clienți</span>
         <a class="admin-nav__item{{ active_admin_section == 'products' ? ' is-active' : '' }}" href="{{ url('admin/produse/') }}"{% if active_admin_section == 'products' %} aria-current="page"{% endif %}>
@@ -189,5 +194,6 @@
   {% if admin_section|default('') == 'companies' %}<script src="{{ url('assets/js/company-admin.js?v=20261108-3') }}" defer></script>{% endif %}
   {% if admin_section|default('') == 'nir' %}{% include 'admin/partials/nir-stock-help.twig' %}{% include 'admin/partials/nir-unsaved.twig' %}{% include 'admin/partials/nir-export-loader.twig' %}<script src="{{ url('assets/js/nir-export.js?v=20261112-v2') }}" defer></script><script src="{{ url('assets/js/nir-calculations.js?v=20261112-3') }}" defer></script><script src="{{ url('assets/js/nir-flow.js?v=20261112-draft-confirm') }}" defer></script><script src="{{ url('assets/js/nir-disclosure.js?v=20261112-v1') }}" defer></script><script src="{{ url('assets/js/nir-media.js?v=20261112-v1') }}" defer></script><script src="{{ url('assets/js/nir-upload.js?v=20261112-v2') }}" defer></script><script src="{{ url('assets/js/nir-unsaved.js?v=20261112-v1') }}" defer></script><script src="{{ url('assets/js/nir-admin.js?v=20261113-linked') }}" defer></script>{% endif %}
   {% if admin_section|default('') == 'invoice_configuration' %}<script src="{{ url('assets/js/invoice-configuration.js?v=20261113-1') }}" defer></script>{% endif %}
+  {% if admin_section|default('') == 'invoice_automations' %}<script src="{{ url('assets/js/invoice-automations.js?v=20261113-1') }}" defer></script>{% endif %}
 </body>
 </html>
