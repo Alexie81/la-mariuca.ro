@@ -27,7 +27,7 @@
   {% if admin_section|default('') == 'nir' %}<link rel="stylesheet" href="{{ url('assets/css/nir-admin.css?v=20261112-nir-return') }}"><link rel="stylesheet" href="{{ url('assets/css/nir-experience.css?v=20261112-guided-v1') }}"><link rel="stylesheet" href="{{ url('assets/css/nir-detail.css?v=20261112-return') }}"><link rel="stylesheet" href="{{ url('assets/css/nir-editor.css?v=20261112-catalog-v1') }}"><link rel="stylesheet" href="{{ url('assets/css/nir-return.css?v=20261113-linked') }}"><link rel="stylesheet" href="{{ url('assets/css/nir-export.css?v=20261112-v2') }}">{% endif %}
   {% if admin_section|default('') == 'invoice_configuration' %}<link rel="stylesheet" href="{{ url('assets/css/invoice-configuration.css?v=20261113-1') }}">{% endif %}
   {% if admin_section|default('') == 'invoice_automations' %}<link rel="stylesheet" href="{{ url('assets/css/invoice-automations.css?v=20261113-1') }}">{% endif %}
-  {% if admin_section|default('') == 'invoices' %}<link rel="stylesheet" href="{{ url('assets/css/invoices.css?v=20261113-1') }}">{% endif %}
+  {% if admin_section|default('') == 'invoices' %}<link rel="stylesheet" href="{{ url('assets/css/invoices.css?v=20261113-2') }}">{% endif %}
 </head>
 {% set operator = admin_user|default(current_user()) %}
 {% set first_name = operator.first_name|default('Administrator') %}
@@ -200,6 +200,6 @@
   {% if admin_section|default('') == 'nir' %}{% include 'admin/partials/nir-stock-help.twig' %}{% include 'admin/partials/nir-unsaved.twig' %}{% include 'admin/partials/nir-export-loader.twig' %}<script src="{{ url('assets/js/nir-export.js?v=20261112-v2') }}" defer></script><script src="{{ url('assets/js/nir-calculations.js?v=20261112-3') }}" defer></script><script src="{{ url('assets/js/nir-flow.js?v=20261112-draft-confirm') }}" defer></script><script src="{{ url('assets/js/nir-disclosure.js?v=20261112-v1') }}" defer></script><script src="{{ url('assets/js/nir-media.js?v=20261112-v1') }}" defer></script><script src="{{ url('assets/js/nir-upload.js?v=20261112-v2') }}" defer></script><script src="{{ url('assets/js/nir-unsaved.js?v=20261112-v1') }}" defer></script><script src="{{ url('assets/js/nir-admin.js?v=20261113-linked') }}" defer></script>{% endif %}
   {% if admin_section|default('') == 'invoice_configuration' %}<script src="{{ url('assets/js/invoice-configuration.js?v=20261113-1') }}" defer></script>{% endif %}
   {% if admin_section|default('') == 'invoice_automations' %}<script src="{{ url('assets/js/invoice-automations.js?v=20261113-1') }}" defer></script>{% endif %}
-{% if admin_section|default('') == 'invoices' %}<script src="{{ url('assets/js/invoices.js?v=20261113-1') }}" defer></script>{% endif %}
+{% if admin_section|default('') == 'invoices' %}<script src="{{ url('assets/js/invoices.js?v=20261113-2') }}" defer></script>{% endif %}
 </body>
 </html>

@@ -27,7 +27,7 @@ final class InvoiceExportService
         foreach($invoice['lines'] as $line) {
             $detail=json_decode($line['snapshot_json'],true,512,JSON_THROW_ON_ERROR); $rate=(int)$line['vat_basis_points'];
             $lines[]=['name'=>$line['name'],'sku'=>$line['sku'],'unit'=>$line['unit'],'quantity'=>InvoiceCalculator::quantity((int)$line['quantity_units']),
-                'unit_net'=>str_replace('.',',',rtrim(rtrim($line['unit_net'],'0'),'.')).' '.($currency==='RON'?'Lei':$currency),
+                'unit_net'=>str_replace('.',',',rtrim(rtrim((string)\Brick\Math\BigDecimal::of($line['unit_net'])->toScale(4,\Brick\Math\RoundingMode::HalfUp),'0'),'.')).' '.($currency==='RON'?'Lei':$currency),
                 'net'=>InvoiceCalculator::money((int)$line['net_bani'],$currency),'total'=>InvoiceCalculator::money((int)$line['gross_bani'],$currency),
                 'image_data'=>$detail['image_data'] ?? '', 'vat'=>$this->percent($rate), 'discount_display'=>(int)$line['discount_bani']!==0?InvoiceCalculator::money(abs((int)$line['discount_bani']),$currency):''];
             $groups[$rate] ??= ['net'=>0,'tax'=>0]; $groups[$rate]['net']+=(int)$line['net_bani']; $groups[$rate]['tax']+=(int)$line['tax_bani'];
@@ -140,7 +140,7 @@ final class InvoiceExportService
     {
         $dir=$this->directory().'/'.$invoice['id']; if(!is_dir($dir)) { mkdir($dir,0770,true); }
         $refunds=$this->repository->all('invoice_refunds',['invoice_id'=>$invoice['id']]);
-        $hash=substr(hash('sha256',InvoiceSnapshot::json([InvoiceService::documentHash($invoice),$invoice['paid_bani'],$invoice['payment_state'],$invoice['fiscal_state'],$refunds,'layout-20261113-v3'])),0,16);
+        $hash=substr(hash('sha256',InvoiceSnapshot::json([InvoiceService::documentHash($invoice),$invoice['paid_bani'],$invoice['payment_state'],$invoice['fiscal_state'],$refunds,'layout-20261113-v4'])),0,16);
         return $dir.'/'.$this->filename($invoice).'-'.$hash.'.'.$extension;
     }
     private function directory(): string { $dir=$this->root.'/storage/private/invoices'; if(!is_dir($dir) && !mkdir($dir,0770,true) && !is_dir($dir)) { throw new InvoiceException('Directorul privat de facturi nu este disponibil.'); } return $dir; }

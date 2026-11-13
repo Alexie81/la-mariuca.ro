@@ -14,6 +14,7 @@
   const init=scope=>{
     scope.querySelectorAll('[data-iv-select]').forEach(toggle=>{const row=toggle.closest('.iv-select-line'),quantity=row.querySelector('[data-iv-quantity]');quantity.disabled=!toggle.checked;});
     const type=scope.querySelector('[data-iv-customer-type]'),fields=scope.querySelector('[data-iv-company-fields]');if(type && fields)fields.hidden=type.value!=='company';
+    if(matchMedia('(max-width: 900px)').matches)scope.querySelectorAll('[data-iv-mobile-fold]').forEach(panel=>panel.open=false);
   };
   const open=async(url,trigger)=>{
     if(busy)return;
@@ -23,7 +24,7 @@
       if(!response.ok)throw new Error('Formularul nu poate fi deschis. Reîncarcă pagina și încearcă din nou.');
       const html=await response.text();const fragment=new DOMParser().parseFromString(html,'text/html'),form=fragment.querySelector('[data-iv-form]');
       if(!form)throw new Error('Sesiunea a expirat. Reîncarcă pagina pentru autentificare.');
-      content.replaceChildren(document.importNode(form,true));init(content);baseline=signature(content.querySelector('form'));
+      content.replaceChildren(document.importNode(form,true));dialog.dataset.kind=form.dataset.kind;dialog.setAttribute('aria-label',form.querySelector('h2')?.textContent||'Administrare factură');init(content);baseline=signature(content.querySelector('form'));
       endLoader();if(!dialog.open)dialog.showModal();dialog.querySelector('[data-iv-close]')?.focus();
     }catch(e){if(e.name!=='AbortError')toast(e.message||'Formularul nu poate fi deschis.');}finally{endLoader();}
   };
@@ -37,7 +38,7 @@
   root.addEventListener('change',e=>{
     const toggle=e.target.closest('[data-iv-select]');if(toggle){const row=toggle.closest('.iv-select-line'),q=row.querySelector('[data-iv-quantity]');q.disabled=!toggle.checked;row.classList.toggle('is-selected',toggle.checked);q.value=toggle.checked?q.dataset.default:'0';if(toggle.checked)q.focus();}
     if(e.target.matches('[data-iv-customer-type]')){const fields=e.target.form.querySelector('[data-iv-company-fields]');if(fields)fields.hidden=e.target.value!=='company';}
-    if(e.target.matches('[data-iv-order]') && e.target.value){const url=new URL(e.target.dataset.previewUrl,location.href);url.searchParams.set('order',e.target.value);if(dialog?.open)open(url.href);else location.href=url.href;}
+    if(e.target.matches('[data-iv-order]') && e.target.value){const url=new URL(e.target.dataset.previewUrl,location.href);url.searchParams.set('order',e.target.value);const warehouse=e.target.form.querySelector('[name="warehouse_id"]');if(warehouse?.value)url.searchParams.set('warehouse_id',warehouse.value);if(dialog?.open)open(url.href);else location.href=url.href;}
   });
   root.addEventListener('input',e=>{if(e.target.matches('input[type="search"]')){const clear=e.target.closest('.iv-search')?.querySelector('[data-iv-clear]');if(clear)clear.hidden=!e.target.value;}});
   root.addEventListener('click',async e=>{

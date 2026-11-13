@@ -42,7 +42,7 @@ final class InvoiceController
             $returnRequest=null;
             if($kind==='decide' && $invoice) { foreach($invoice['return_requests'] as $candidate) { if((int)$candidate['id']===(int)($request->getQueryParams()['request'] ?? 0)) { $returnRequest=$candidate; } } if(!$returnRequest) { throw new InvoiceException('Solicitarea nu există.',404); } }
             $data=['action'=>$kind,'invoice'=>$invoice,'preview'=>$preview,'order_id'=>$orderId,'orders'=>$kind==='issue'?$this->repository->eligibleOrders():[],
-                'warehouses'=>$this->repository->all('company_warehouses',['is_active'=>1]),'request_key'=>bin2hex(random_bytes(24)),
+                'warehouse_id'=>(int)($request->getQueryParams()['warehouse_id'] ?? 0),'warehouses'=>$this->repository->all('company_warehouses',['is_active'=>1]),'request_key'=>bin2hex(random_bytes(24)),
                 'form_action'=>$this->url($invoice?$invoice['id'].'/'.$kind.'/':($kind==='issue'?'emite/':'0/'.$kind.'/')),'back_url'=>$this->url($invoice?$invoice['id'].'/':''),'values'=>[],
                 'edit_order'=>$editOrder,'return_request'=>$returnRequest,'return_policy'=>$this->service->returnPolicy(),
                 'is_modal'=>$request->getHeaderLine('X-Invoice-Modal')==='1'];
@@ -91,7 +91,8 @@ final class InvoiceController
                 $path=match($format) {'pdf'=>$this->exports->pdf($invoice),'xlsx'=>$this->exports->xlsx($invoice),'zip'=>$this->exports->zip([$invoice],false),default=>throw new InvoiceException('Format necunoscut.',404)};
                 $name=$this->exports->filename($invoice).'.'.$format;
             }
-            $result=$this->file($path,$name,$format); if($registry || $format==='zip') { @unlink($path); } return $result;
+            $inline = !$registry && $format === 'pdf' && ($request->getQueryParams()['view'] ?? '') === '1';
+            $result=$this->file($path,$name,$format,$inline); if($registry || $format==='zip') { @unlink($path); } return $result;
         } catch(\Throwable $e) { return $this->failure($request,$e); }
     }
     /** @param array<string,string> $args */
@@ -102,12 +103,12 @@ final class InvoiceController
             $invoice=$this->service->publicDocument($args['token']); return $this->file($this->exports->pdf($invoice),$this->exports->filename($invoice).'.pdf','pdf'); }
         catch(\Throwable) { $response=new Response(404); $response->getBody()->write('Linkul facturii nu este disponibil. Contactează magazinul pentru o copie.'); return $response->withHeader('Content-Type','text/plain; charset=utf-8')->withHeader('Cache-Control','no-store'); }
     }
-    private function file(string $path,string $name,string $format): ResponseInterface
+    private function file(string $path,string $name,string $format,bool $inline=false): ResponseInterface
     {
         $source=fopen($path,'rb'); $buffer=tmpfile(); if(!$source || !$buffer) { throw new InvoiceException('Documentul nu a putut fi pregătit.'); }
         stream_copy_to_stream($source,$buffer); fclose($source); rewind($buffer);
         return (new Response())->withBody(new Stream($buffer))->withHeader('Content-Type',match($format){'pdf'=>'application/pdf','zip'=>'application/zip',default=>'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'})
-            ->withHeader('Content-Disposition','attachment; filename="'.$name.'"')->withHeader('Cache-Control','private, no-store')->withHeader('X-Content-Type-Options','nosniff')->withHeader('X-Robots-Tag','noindex, nofollow')->withHeader('Referrer-Policy','no-referrer');
+            ->withHeader('Content-Disposition',($inline ? 'inline' : 'attachment').'; filename="'.$name.'"')->withHeader('Cache-Control','private, no-store')->withHeader('X-Content-Type-Options','nosniff')->withHeader('X-Robots-Tag','noindex, nofollow')->withHeader('Referrer-Policy','no-referrer');
     }
     /** @return array<string,mixed> */
     private function actor(): array { return $this->auth->user() ?? throw new InvoiceException('Autentifică-te în administrare.',403); }
