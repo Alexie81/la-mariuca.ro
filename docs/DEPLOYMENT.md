@@ -229,7 +229,17 @@ afișat în pagini, loguri sau redirecturi.
 - Verifică reamintirea zilnică din administrare/PWA pentru retururi fără NIR, amânarea pentru ziua curentă și dispariția după recepție. Acest modul nu autorizează expedierea de mesaje reale pentru test.
 - Nu transforma soldurile istorice în loturi cu costuri presupuse. Introdu soldul inițial numai pe baza documentelor reale și verifică legătura viitorului modul de facturi de ieșire cu consumurile FIFO.
 
-### Verificări generale
+### Facturi de ieșire și automatizări
+
+- Aplică migrațiile `051_invoice_automations`, `052_outgoing_invoices` și `053_invoice_workflows` pe copia MySQL de staging înaintea bazei live. Probează două emiteri simultane pentru aceeași comandă, alocarea numerelor din file diferite, retururile concurente și recuperarea după rollback. SQLite local nu confirmă concurența MySQL.
+- Configurează cronul PHP `php /cale/proiect/bin/console.php invoices:process 20` și procesorul existent `outbox:process`; verifică reluarea intențiilor eșuate și erorile ajunse la limita de tentative. Activarea automatizării nu facturează retroactiv comenzile vechi.
+- Dacă emailurile sunt filtrate prin `MAIL_MESSAGE_TYPES`, include `invoice`, `invoice_return_notice` și `order_confirmation`. Testează autorizat expedierea cu PDF, ordonarea confirmare/factură, retry fără duplicate, cazul unui document editat după programarea emailului și recepția pe telefon/desktop.
+- Păstrează fișierele generate în `storage/private/`, în afara webrootului. Verifică drepturile, spațiul, extensiile PHP, PDF multipagină, imaginile, XLSX și ZIP pe hosting. Nu încărca baza/rutele/fișierele `storage/qa/`.
+- Verifică URL-urile publice și linkul revocabil al facturii pe HTTPS, inclusiv revocarea și răspunsurile fără cache pentru documentele private. Datele istorice nu se recitesc automat din profilurile schimbate după emitere.
+- Pentru retururi, verifică separat documentul valoric, înregistrarea restituirii efectuate și primirea fizică. Înregistrarea unei restituiri nu virează bani; integrarea restituirii Stripe este o etapă separată. Produsele nevandabile sunt evidențiate distinct, fără reintrare în stocul vandabil.
+- Integrarea fiscală actuală este numai `FiscalGateway`, fără furnizor/autoritate sau credențiale configurate. Înaintea conectării reale implementează adaptorul, recuperarea joburilor întrerupte și testele semnării/transmiterii/răspunsurilor. Nu declara fiscalizare efectuată pe baza gateway-ului fals din teste.
+
+### Verificări generale ale lansării
 
 - PHP/extensii, Apache rewrite și webroot verificate pe hosting;
 - instalare din DB goală și upgrade pe copie de DB reală;

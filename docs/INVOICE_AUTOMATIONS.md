@@ -1,42 +1,43 @@
 # Automatizări facturare
 
-## Ce este disponibil acum
-
+## Configurare
 `/admin/automatizari/`, în grupul **Facturare**, după Configurator factură.
 
-- Patru reguli independente pe metodă: emitere și email pentru card, respectiv ramburs.
-- Configurarea începe cu toate regulile oprite. Emailul necesită emitere; oprirea emiterii oprește și emailul. Reactivarea emiterii nu reactivează automat emailul.
-- Salvare imediată prin POST cu CSRF, numai pentru administratori/operatori autorizați; fără reîncărcare sau mesaj de succes. Fără JavaScript există buton de salvare.
-- Cererile din aceeași pagină sunt serializate și păstrează ultima alegere. Revizia împiedică suprascrierea unei modificări din altă filă. La eroare se recitește starea serverului; dacă nu poate fi verificată, controalele sunt blocate până la reîncărcarea setărilor.
-- Modificările se auditează. Repetarea aceleiași salvări nu creează o nouă revizie/un nou audit.
+- Patru reguli: emitere și email pentru card, respectiv ramburs. Configurarea inițială le păstrează oprite.
+- Emailul necesită emitere; oprirea emiterii oprește și emailul. Reactivarea emiterii nu reactivează automat emailul.
+- Salvare imediată cu CSRF și autorizare, fără reîncărcare sau mesaj de succes. Fallback cu buton de salvare fără JavaScript.
+- Cererile aceleiași pagini sunt serializate, iar revizia previne suprascrierea unei modificări din altă filă. Modificările sunt auditate; erorile nu pierd starea serverului.
+- Schimbarea regulilor se aplică numai evenimentelor viitoare, fără emitere retroactivă.
 
-Migrarea `051_invoice_automations.sql` este disponibilă pentru SQLite și MySQL. Pagina și salvarea folosesc PHP obișnuit, fără proces Node sau worker suplimentar.
+## Fluxul conectat la comenzi
+Migrațiile 051, 052 și 053 sunt necesare. Checkoutul ramburs și confirmarea Stripe semnată rezervă intenția de facturare în tranzacția comenzii. Procesarea facturii începe după commit.
 
-## Legătura pregătită pentru facturile de ieșire
+| Metodă | Momentul rezervării intenției |
+| --- | --- |
+| `stripe` | Comandă `confirmed`, plată `paid`, confirmate de procesator |
+| `cod` | Comandă `new`, plată `pending` sau `paid` |
 
-**Emiterea și expedierea nu sunt încă pornite.** Nu există apel către `prepareForOrder()` din checkout/webhook și nu se înregistrează automat intenții pentru comenzile actuale. Pagina afișează explicit „În pregătire”.
+`InvoiceAutomationService::prepareForOrder()` păstrează o singură intenție per comandă, cu setările de emitere/email înghețate. Nu consumă număr și nu transmite email. `InvoiceModule::process()` revalidează comanda și emite tranzacțional, protejat prin chei unice și blocare. Redirectul Stripe din browser nu emite factura; plățile eșuate/anulate nu generează comenzi noi facturabile.
 
-`InvoiceAutomationService::prepareForOrder($orderId)` este punctul de integrare pentru etapa următoare. Citește comanda din baza de date și acceptă:
+Factura păstrează seria, numărul, firma, clientul, pozițiile și valorile istorice. La reluarea aceleiași intenții se refolosește factura emisă. Eroarea de facturare nu anulează comanda sau plata deja confirmată.
 
-| Metodă | Stare comandă | Stare plată |
-| --- | --- | --- |
-| `stripe` | `confirmed` | `paid` |
-| `cod` | `new` | `pending` sau `paid` |
+## Emailul este separat
+Emailul facturii se pune în outbox cu PDF și cheie proprie de deduplicare. Procesorul încearcă mai întâi emailul de confirmare a comenzii; eșecul definitiv al acestuia nu suprimă factura. SMTP rulează în afara tranzacțiilor contabile. Un email reîncercat nu emite altă factură.
 
-O regulă oprită nu creează intenție. O regulă activă rezervă o singură intenție per comandă, cu opțiunea de email și revizia setărilor înghețate. Cheile distincte `order:{id}:invoice:issue` și `order:{id}:invoice:email` pregătesc reluarea independentă. Repetarea apelului întoarce aceeași intenție. Rezervarea nu emite factură, nu consumă număr/serie, nu modifică stocul și nu trimite email.
+Amprenta documentului împiedică expedierea unei versiuni schimbate între programare și trimitere. După editare se pregătește un email nou pentru varianta actuală. CTA-urile și imaginile folosesc configurația publică, conform checklistului de deployment.
 
-## De conectat și verificat odată cu facturarea
+## Apache/shared hosting
+Comenzile PHP se pot executa din cron, fără serviciu Node sau aplicație desktop deschisă:
 
-1. Apelarea rezervării la tranziția validată de comandă nouă ramburs, respectiv card plătit și confirmat de procesator. Fără declanșare din URL-ul revenirii în browser și fără facturare retroactivă la activarea switch-ului.
-2. În tranzacția de emitere: protecție unică pe comandă/cheia de emitere, numerotare, snapshot configurator/firmă/client/produse și mișcări contabile. Respectarea aceleiași ordini de blocare în toate fluxurile; test separat pentru concurență MySQL. Revalidarea comenzilor anulate/returnate înainte de emitere.
-3. Emailul facturii se programează separat, numai după emitere și după emailul de confirmare a comenzii, cu cheia de deduplicare dedicată. Eșecul SMTP nu anulează emiterea și retry-ul emailului nu emite încă o factură. Niciun apel SMTP în tranzacție.
-4. Stabilirea mecanismului server-side compatibil cu găzduirea Apache/PHP (outbox și cron PHP, dacă este necesar); niciun proces dependent de pagina admin deschisă. Abia după integrare, înlocuirea mesajului „În pregătire” cu starea reală.
-5. Probe cap-coadă pentru card reușit/eșuat/anulat, ramburs, webhook duplicat, concurență, retry, schimbarea regulilor între evenimente și erori independente de emitere/expediere.
+```sh
+php /cale/proiect/bin/console.php invoices:process 20
+php /cale/proiect/bin/console.php outbox:process
+```
 
-## Verificări efectuate la 2026-11-13
+Prima comandă reia intențiile în așteptare/eșuate (cel mult cinci tentative), a doua procesează emailurile. Configurarea și verificarea cronului pe hosting sunt pași separați înainte de producție. Dacă `MAIL_MESSAGE_TYPES` filtrează tipurile, trebuie incluse `invoice`, `invoice_return_notice` și `order_confirmation`.
 
-- PHPUnit: `InvoiceAutomationTest` — 7 teste, 67 aserțiuni; `InvoiceConfigurationTest` — 8 teste, 81 aserțiuni.
-- PHPStan pe modulul nou și AppFactory: fără erori. Template-uri Twig și sintaxa JS verificate.
-- Browser intern, contul Paula, server 8080: toate switch-urile, persistență după refresh, dezactivarea perechii, tastatura Space, conflict real între două file. Setările readuse la cele patru opțiuni oprite.
-- Design inspectat la 1440, 768, 390 și 320 px; fără overflow orizontal sau erori JS observate.
-- Nu au fost emise facturi și nu s-au trimis emailuri. MySQL concurent, Apache producție și serviciile live nu au fost testate. Etapa facturilor de ieșire rămâne nebifată.
+## Verificări
+- Setările: 7 teste / 67 aserțiuni; browserul principal 8080 cu Paula a verificat salvarea, dependențele, tastatura și conflictele între file.
+- Facturare: 21 teste / 105 aserțiuni; emitere, replay, refuzul cardului neplătit, erori/retry independente, snapshoturi, bani, stoc, corecții, retururi și acces. Suita completă locală: 729 teste / 7214 aserțiuni.
+- Probe vizuale și emiteri numai într-o bază QA separată. Nu au fost emise facturi în baza principală și nu s-au trimis emailuri reale.
+- MySQL concurent, Apache producție, livrarea SMTP/push și fiscalizarea externă rămân de verificat efectiv. Etapa din roadmap se bifează numai la confirmarea utilizatorului.

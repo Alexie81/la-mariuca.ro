@@ -112,7 +112,7 @@ final class InvoiceAutomationTest extends DatabaseTestCase
         $page = $this->request('GET');
         self::assertSame(200, $page->getStatusCode());
         self::assertStringContainsString('data-invoice-automations', (string) $page->getBody());
-        self::assertStringContainsString('În pregătire', (string) $page->getBody());
+        self::assertStringContainsString('Conectat la comenzi', (string) $page->getBody());
         self::assertSame('no-store', $page->getHeaderLine('Cache-Control'));
         $revision = $this->service->settings()['revision'];
         $response = $this->request('POST', ['revision'=>$revision,'_csrf'=>$_SESSION['_csrf'],'card_issue'=>'1','card_email'=>'1'],true);
