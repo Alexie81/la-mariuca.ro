@@ -3,6 +3,7 @@
 Actualizat: 2026-11-13
 
 ### 2026-11-13 — Model PDF de factură, cu datele firmei dinamice
+- Banda stării de plată are container rotunjit, pictogramă de așteptare desenată vectorial de CSS, titlu lizibil și casete distincte pentru emitere/scadență. Datele rămân dinamice, iar descrierea rambursului este păstrată. Verificat PDF-ul integral și detaliul benzii: o pagină A4, fără tăieri sau suprapuneri; 125 template-uri compilate.
 - Ajustare vizuală: procentul TVA are o capsulă cu lățime stabilă și aliniere optică centrală, în locul fundalului inline care cobora față de text în Dompdf. PDF-ul regenerat a fost verificat integral și cu detaliul mărit; rămâne pe o pagină A4.
 - În blocul furnizorului, numele comercial are prioritate vizuală, iar denumirea legală apare mai mic dedesubt; ambele rămân citite din datele firmei. Dacă numele comercial lipsește, se afișează denumirea legală drept titlu.
 - Redesign furnizor/client: două carduri rotunjite distincte, antete roz/prună, nume mai mari și contacte pe rânduri aliniate. Datele fiscale și bancare ale furnizorului sunt grupate separat sub carduri, fără grila de etichete foarte mici. Adresa firmei rămâne împărțită în stradă/localitate, fără repetarea județului deja prezent în localitate. PDF-ul final a fost inspectat integral și în detaliu: o pagină A4, toate datele păstrate, footerul de garanție și eticheta de model fără valoare fiscală vizibile; 125 template-uri Twig compilate.
