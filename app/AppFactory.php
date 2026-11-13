@@ -177,6 +177,7 @@ final class AppFactory
         $orderNotificationSettingsController = new OrderNotificationSettingsController(new OrderNotificationSettingsService($pdo), new AdminNotificationService($pdo), $auth, $view, $config);
         $paymentMethodSettingsController = new PaymentMethodSettingsController($paymentMethodSettings, new AdminNotificationService($pdo), $auth, $view, $config, new \App\Modules\Payments\PaymentFeeService($pdo));
         $companyAdminController = new CompanyAdminController(new CompanyAdminService(new CompanyRepository($pdo), new CompanyStampStorage($root)), new AdminNotificationService($pdo), $auth, $view, $config, new \App\Modules\Companies\ReceiptLocationService(new CompanyRepository($pdo)));
+        $invoiceConfigurationController = new \App\Modules\Invoicing\InvoiceConfigurationController(new \App\Modules\Invoicing\InvoiceConfigurationService(new \App\Modules\Invoicing\InvoiceConfigurationRepository($pdo)), new AdminNotificationService($pdo), $auth, $view, $config);
         $nirController = new \App\Modules\Inventory\NirAdminController(
             new \App\Modules\Inventory\NirService($pdo), new \App\Modules\Inventory\NirDocumentStorage($root),
             new \App\Modules\Inventory\NirImportService(), new \App\Modules\Inventory\NirExportService($root),
@@ -247,7 +248,13 @@ final class AppFactory
         $app->post('/admin/', [$adminController, 'login']);
         $app->post('/admin/deconectare/', [$adminController, 'logout']);
 
-        $app->group('/admin', function (RouteCollectorProxy $group) use ($adminController, $adminPushController, $twoFactorController, $orderNotificationSettingsController, $paymentMethodSettingsController, $companyAdminController, $nirController): void {
+        $app->group('/admin', function (RouteCollectorProxy $group) use ($adminController, $adminPushController, $twoFactorController, $orderNotificationSettingsController, $paymentMethodSettingsController, $companyAdminController, $nirController, $invoiceConfigurationController): void {
+            $group->get('/configurator-factura/', [$invoiceConfigurationController, 'index']);
+            $group->post('/configurator-factura/{action:setari}/', [$invoiceConfigurationController, 'save']);
+            $group->get('/configurator-factura/serii/nou/', [$invoiceConfigurationController, 'form']);
+            $group->post('/configurator-factura/serii/nou/', [$invoiceConfigurationController, 'save']);
+            $group->get('/configurator-factura/serii/{id:[0-9]+}/{action:editare|sterge|folosire}/', [$invoiceConfigurationController, 'form']);
+            $group->post('/configurator-factura/serii/{id:[0-9]+}/{action:editare|sterge|folosire}/', [$invoiceConfigurationController, 'save']);
             $group->get('/categorii/', [$adminController, 'categories']);
             $group->get('/categorii/verifica-nume/', [$adminController, 'categoryNameAvailability']);
             $group->get('/categorii/verifica-slug/', [$adminController, 'categorySlugAvailability']);

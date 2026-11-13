@@ -1,0 +1,25 @@
+{% import 'admin/partials/company-ui.twig' as ui %}
+{% set is_form = action in ['nou', 'editare'] %}
+{% set needs_replacement = is_active and action in ['sterge', 'folosire'] %}
+<form class="inv-modal-form" method="post" action="{{ form_action }}" data-inv-form>
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="revision" value="{{ form_revision }}">
+  <header class="inv-modal-head"><span class="inv-mark{{ action == 'sterge' ? ' is-danger' : '' }}">{{ ui.icon(action == 'sterge' ? 'trash' : 'document') }}</span><div><span class="inv-eyebrow">{{ is_form ? 'Serii de facturare' : 'Facturile noi' }}</span><h2 id="inv-dialog-title">{{ form_title }}</h2></div><a class="inv-icon-button" href="{{ back_url }}" data-inv-close aria-label="Închide">{{ ui.icon('close') }}</a></header>
+  <div class="inv-modal-body">
+    <div class="inv-error" role="alert" tabindex="-1" data-inv-error{% if not error %} hidden{% endif %}>{{ error }}</div>
+    {% if is_form %}
+      <div class="inv-field"><label for="inv-series-code">Seria facturii <em>*</em></label><input id="inv-series-code" name="code" value="{{ values.code }}" required maxlength="30" placeholder="De exemplu: LM" autocomplete="off" spellcheck="false" autocapitalize="characters" aria-describedby="inv-code-help"><small id="inv-code-help">Codul care apare înaintea numărului facturii. Litere, cifre, spații sau cratimă.</small></div>
+      <div class="inv-field"><label for="inv-series-label">Denumire internă <span>Opțional</span></label><input id="inv-series-label" name="label" value="{{ values.label }}" maxlength="100" placeholder="De exemplu: Facturi magazin online"><small>Te ajută să recunoști seria în configurator.</small></div>
+      {% if is_active %}<input type="hidden" name="in_use" value="1"><div class="inv-modal-info">{{ ui.icon('check') }}<span>Aceasta este seria în folosire. Modificările se aplică de la următoarea factură.</span></div>
+      {% else %}<label class="inv-choice"><input type="checkbox" role="switch" name="in_use" value="1"{% if values.in_use == '1' %} checked{% endif %}><span class="inv-switch" aria-hidden="true"><i>{{ ui.icon('check') }}</i></span><span><strong>Folosește pentru facturile noi</strong><small>Înlocuiește seria {{ settings.active_code }} de la următoarea factură emisă.</small></span></label>{% endif %}
+    {% else %}
+      <div class="inv-selected-series"><span class="inv-series-mark">{{ ui.icon('document') }}</span><div><strong>{{ item.code }}</strong><span>{{ item.label ?: 'Serie de facturare' }}</span></div></div>
+      {% if needs_replacement and series|length > 1 %}<div class="inv-field"><label for="inv-replacement">Ce serie folosim în continuare? <em>*</em></label><select id="inv-replacement" name="replacement_id" required><option value="">Alege o serie</option>{% for alternative in series %}{% if alternative.id != item.id %}<option value="{{ alternative.id }}"{% if values.replacement_id == alternative.id %} selected{% endif %}>{{ alternative.code }}{{ alternative.label ? ' · ' ~ alternative.label : '' }}</option>{% endif %}{% endfor %}</select><small>Devine seria în folosire pentru următoarea factură emisă.</small></div>
+      {% elseif needs_replacement %}<div class="inv-modal-info">{{ ui.icon('shield') }}<span>Este singura serie disponibilă. Adaugă mai întâi o altă serie, ca facturile noi să aibă întotdeauna una în folosire.</span></div>
+      {% else %}<p class="inv-modal-explanation">{{ action == 'sterge' ? 'Seria va dispărea din configurator. Facturile deja emise cu această serie rămân neschimbate.' : 'Seria înlocuiește alegerea actuală pentru facturile care vor fi emise de acum înainte.' }}</p>{% endif %}
+    {% endif %}
+    <div class="inv-history-note">{{ ui.icon('shield') }}<span>Seria și numărul facturilor emise rămân păstrate, chiar dacă regenerezi documentele.</span></div>
+  </div>
+  <footer class="inv-modal-foot"><a class="inv-button inv-button--quiet" href="{{ back_url }}" data-inv-close>{{ needs_replacement and series|length == 1 ? 'Am înțeles' : 'Renunță' }}</a>
+    {% if not (needs_replacement and series|length == 1) %}<button class="inv-button{{ action == 'sterge' ? ' inv-button--danger' : '' }}" type="submit">{{ ui.icon(action == 'sterge' ? 'trash' : 'check') }}<span>{{ action == 'sterge' ? 'Șterge seria' : (action == 'folosire' ? 'Schimbă seria' : 'Salvează seria') }}</span></button>{% endif %}
+  </footer>
+</form>

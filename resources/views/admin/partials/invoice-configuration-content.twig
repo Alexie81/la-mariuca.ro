@@ -1,0 +1,46 @@
+{% import 'admin/partials/company-ui.twig' as ui %}
+<header class="inv-hero">
+  <div class="inv-hero-copy"><span class="inv-eyebrow">Documente · Configurare</span><h1>Configurator factură</h1><p>Setezi o dată. Fiecare factură nouă pornește cu datele potrivite.</p></div>
+  <div class="inv-hero-mark" aria-hidden="true">{{ ui.icon('document') }}<i>{{ ui.icon('check') }}</i></div>
+</header>
+<div class="inv-future-note">{{ ui.icon('shield') }}<span>Setările se aplică începând cu <strong>următoarea factură emisă.</strong> Facturile existente își păstrează datele.</span></div>
+<div class="inv-layout">
+  <section class="inv-card inv-series-panel" aria-labelledby="inv-series-title">
+    <header class="inv-card-head"><div><span class="inv-step">01</span><div><h2 id="inv-series-title">Seriile facturilor</h2><p>O singură serie în folosire, oricând.</p></div></div><a class="inv-button inv-button--soft" href="{{ url('admin/configurator-factura/serii/nou/') }}" data-inv-open>{{ ui.icon('plus') }}<span>Adaugă serie</span></a></header>
+    <div class="inv-series-list">
+      {% for item in series %}
+      <article class="inv-series{{ item.in_use ? ' is-current' : '' }}" aria-label="Seria {{ item.code }}">
+        <div class="inv-series-main"><span class="inv-series-mark">{{ ui.icon('document') }}</span><div class="inv-series-copy"><div class="inv-series-title"><h3>{{ item.code }}</h3><span class="inv-status{{ item.in_use ? ' is-active' : '' }}">{% if item.in_use %}<i></i>{% endif %}{{ item.in_use ? 'În folosire' : 'Nefolosită' }}</span></div><p>{{ item.label ?: 'Serie de facturare' }}</p></div></div>
+        <div class="inv-series-actions">
+          {% if item.in_use %}
+            <a class="inv-use" href="{{ url('admin/configurator-factura/serii/' ~ item.id ~ '/folosire/') }}" data-inv-open aria-label="Schimbă seria în folosire {{ item.code }}"><span class="inv-switch is-on" aria-hidden="true"><i>{{ ui.icon('check') }}</i></span><span>În folosire</span></a>
+          {% else %}
+            <form action="{{ url('admin/configurator-factura/serii/' ~ item.id ~ '/folosire/') }}" method="post" data-inv-use><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="revision" value="{{ settings.revision }}"><button class="inv-use" type="submit" aria-label="Folosește seria {{ item.code }}"><span class="inv-switch" aria-hidden="true"><i></i></span><span>Folosește</span></button></form>
+          {% endif %}
+          <span class="inv-action-divider"></span>
+          <a class="inv-icon-button" href="{{ url('admin/configurator-factura/serii/' ~ item.id ~ '/editare/') }}" data-inv-open aria-label="Editează seria {{ item.code }}" title="Editează seria">{{ ui.icon('edit') }}</a>
+          <a class="inv-icon-button inv-icon-button--danger" href="{{ url('admin/configurator-factura/serii/' ~ item.id ~ '/sterge/') }}" data-inv-open aria-label="Șterge seria {{ item.code }}" title="Șterge seria">{{ ui.icon('trash') }}</a>
+        </div>
+        {% if item.in_use %}<div class="inv-current-note">{{ ui.icon('arrow') }}Următoarea factură va folosi seria <strong>{{ item.code }}</strong></div>{% endif %}
+      </article>
+      {% endfor %}
+    </div>
+    <div class="inv-series-help"><span>{{ ui.icon('shield') }}</span><div><strong>Facturile emise sunt protejate.</strong><p>Schimbi sau ștergi o serie? Facturile emise păstrează seria și numărul inițial, inclusiv la regenerarea documentului.</p></div></div>
+  </section>
+  <section class="inv-card inv-defaults-panel" aria-labelledby="inv-defaults-title">
+    <header class="inv-card-head"><div><span class="inv-step">02</span><div><h2 id="inv-defaults-title">Detalii implicite</h2><p>Un punct de plecare pentru facturile noi.</p></div></div></header>
+    <form action="{{ url('admin/configurator-factura/setari/') }}" method="post" data-inv-defaults>
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="revision" value="{{ settings.revision }}">
+      <div class="inv-defaults-fields">
+        <div class="inv-error" data-inv-error role="alert" tabindex="-1"{% if not error|default('') %} hidden{% endif %}>{{ error|default('') }}</div>
+        <div class="inv-field"><label for="inv-due-days">Zile scadență</label><div class="inv-days"><input id="inv-due-days" type="number" name="due_days" value="{{ settings.due_days }}" min="0" max="3650" step="1" required inputmode="numeric" aria-describedby="inv-due-help"><span>zile de la emitere</span></div><small id="inv-due-help">0 înseamnă scadență în ziua emiterii.</small></div>
+        <div class="inv-field"><label for="inv-default-notes">Note implicite <span>Opțional</span></label><textarea id="inv-default-notes" name="default_notes" rows="5" maxlength="3000" placeholder="De exemplu: Vă mulțumim pentru încredere!" aria-describedby="inv-notes-help">{{ settings.default_notes }}</textarea><small id="inv-notes-help">Textul apare automat pe facturile noi și poate include condiții de plată sau un mesaj pentru client.</small><span class="inv-counter" data-inv-counter>{{ settings.default_notes|length }} / 3000</span></div>
+      </div>
+      <footer class="inv-settings-foot"><span data-inv-dirty-note>Se aplică facturilor noi</span><button class="inv-button" type="submit">{{ ui.icon('check') }}<span>Salvează setările</span></button></footer>
+    </form>
+  </section>
+  <aside class="inv-preview" aria-label="Rezumatul setărilor salvate">
+    <div class="inv-preview-heading"><span class="inv-eyebrow">Pregătit pentru următoarea factură</span><span class="inv-status">{{ ui.icon('check') }}Setări salvate</span></div>
+    <div class="inv-preview-grid"><div><span>Seria în folosire</span><strong>{{ settings.active_code }}</strong></div><div><span>Scadența implicită</span><strong>{{ settings.due_days == 0 ? 'În ziua emiterii' : settings.due_days ~ (settings.due_days == 1 ? ' zi' : ' zile') }}</strong></div><div><span>Note pe factură</span><p>{{ settings.default_notes ?: 'Fără note implicite. Le poți adăuga oricând.' }}</p></div></div>
+  </aside>
+</div>

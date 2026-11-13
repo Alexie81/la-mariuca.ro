@@ -1,0 +1,13 @@
+{% extends 'admin/layouts/base.twig' %}
+{% block title %}Configurator factură{% endblock %}
+{% block content %}
+<div class="inv-page" data-invoice-config>
+  <div data-inv-content>{% include 'admin/partials/invoice-configuration-content.twig' %}</div>
+  <dialog class="inv-dialog" data-inv-dialog aria-labelledby="inv-dialog-title"><div data-inv-dialog-content></div></dialog>
+  <dialog class="inv-dialog inv-dialog--discard" data-inv-discard aria-labelledby="inv-discard-title">
+    <div class="inv-discard-body"><span class="inv-mark">{% import 'admin/partials/company-ui.twig' as ui %}{{ ui.icon('edit') }}</span><h2 id="inv-discard-title">Păstrezi modificările?</h2><p>Ai modificări nesalvate. Poți continua editarea sau poți renunța la ele.</p></div>
+    <div class="inv-modal-foot"><button class="inv-button inv-button--quiet" type="button" data-inv-discard-yes>Renunță la modificări</button><button class="inv-button" type="button" data-inv-discard-no>Continuă editarea</button></div>
+  </dialog>
+  <div class="inv-toast" data-inv-toast role="status" hidden>{{ ui.icon('check') }}<span></span></div>
+</div>
+{% endblock %}
