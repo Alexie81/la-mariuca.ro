@@ -2,6 +2,11 @@
 
 Actualizat: 2026-11-13
 
+### 2026-11-13 — Model PDF de factură, cu datele firmei dinamice
+- Model A4 inspirat din factura de referință G-Trots, cu aceeași structură principală, logo La Măriuca, accente prună/roz, fotografii de produs, sumar și total evidențiat. Font Nunito Sans Regular/Bold încorporat, cifre clare și diacritice românești; textul mic despre documentul justificativ pentru garanție a fost păstrat, cu emailul firmei.
+- Comanda privată CLI `bin/preview-invoice.php` citește la fiecare generare datele firmei și configuratorul din baza de date. Clientul și produsele sunt demonstrative, iar PDF-ul este marcat explicit ca model fără valoare fiscală. Nu emite facturi, nu consumă numere și nu modifică comenzile/stocul. Detalii în `docs/INVOICE_PDF_PREVIEW.md`; etapa facturilor de ieșire rămâne nebifată.
+- Verificat vizual PDF-ul final de o pagină, fonturile încorporate, diacriticele, imaginile și subsolul. PHPUnit: 2 teste / 19 aserțiuni pentru recitirea datelor după modificarea firmei/configurării, TVA, scadență, lipsa firmei și generarea fără scrieri în baza de date. PHPStan dedicat fără erori; 125 template-uri Twig compilate. Modelul se generează prin PHP/Dompdf; găzduirea Apache și producția nu au fost testate și nu s-a făcut deploy.
+
 ### 2026-11-03 — Pagini pentru rezultatul comenzii și al plății
 - Pagina privată a comenzii are prezentări distincte pentru ramburs, plată cu cardul anulată, eșuată, în așteptare și confirmată. Stările existente de verificare, retur/rambursare și ramburs deja încasat păstrează mesaje corecte. Un parametru din URL nu poate marca plata ca reușită sau modifica o comandă; revenirea din Stripe cu anulare este doar un indiciu de afișare pentru plata încă neconfirmată.
 - Designul include antet cu stare, număr, dată și sumă, produse cu fotografii și variante, reduceri, costul livrării, total, adresă și contact. Cardul de ajutor folosește inima standard a magazinului și două acțiuni clare pentru mesaj și telefon. Linkurile funcționează fără JavaScript; verificarea stării nu inițiază plăți sau comenzi noi.
