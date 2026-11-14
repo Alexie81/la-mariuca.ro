@@ -9,7 +9,7 @@ use App\Modules\Orders\InternalOrderEmail;
 use App\Modules\Orders\OrderCancellationEmail;
 use App\Modules\Orders\OrderEmailImages;
 use App\Modules\Orders\OrderService;
-use App\Modules\Orders\OrderTrackingEmail;
+use App\Modules\Orders\OrderStatusEmail;
 use App\Modules\Orders\OrderTrackingRepository;
 use App\Modules\Orders\OrderTrackingService;
 use App\Shared\Config\Config;
@@ -75,6 +75,8 @@ final class OutboxProcessor
             new Environment(new FilesystemLoader($this->root . '/resources/views'), ['autoescape' => 'html']),
             new OrderEmailImages($this->config, $this->root));
         $invoiceRepository = new \App\Modules\Invoicing\InvoiceRepository($this->pdo);
+        $statusEmail = new OrderStatusEmail($tracking, $this->config,
+            new Environment(new FilesystemLoader($this->root . '/resources/views'), ['autoescape'=>'html']));
         $invoiceEmail = new \App\Modules\Invoicing\InvoiceEmail($invoiceRepository, $this->config, $this->root);
         foreach ($messages as $message) {
             if ($message['message_type'] === 'invoice') {
@@ -110,15 +112,8 @@ final class OutboxProcessor
                     $rendered = $cancellation->render((int) ($payload['order_id'] ?? 0), (int) ($payload['request_id'] ?? 0), (string) $message['recipient'], (string) $message['message_type']);
                     $subject = $rendered['subject']; $body = $rendered['text']; $html = $rendered['html'];
                 } elseif ($message['message_type'] === 'order_status_update') {
-                    $labels = ['new'=>'nouă','confirmed'=>'confirmată','preparing'=>'în pregătire','shipped'=>'expediată','delivered'=>'livrată','cancelled'=>'anulată','returned'=>'returnată','manual_review'=>'în verificare'];
-                    $number = (string) ($payload['order_number'] ?? ('#' . (int) ($payload['order_id'] ?? 0)));
-                    $status = $labels[(string) ($payload['status'] ?? '')] ?? (string) ($payload['status'] ?? 'actualizată');
-                    $subject = 'Actualizare pentru comanda ' . $number;
-                    $body = 'Bună, ' . (string) ($payload['customer_name'] ?? '') . "!\n\nComanda " . $number . ' este acum ' . $status . '.';
-                    if (trim((string) ($payload['message'] ?? '')) !== '') { $body .= "\n\n" . trim((string) $payload['message']); }
-                    $body .= "\n\nÎți mulțumim,\nEchipa La Măriuca Boutique";
-                    $rendered = (new OrderTrackingEmail($tracking))->withTracking($body, (int) ($payload['order_id'] ?? 0), (string) $message['recipient']);
-                    $body = $rendered['text']; $html = $rendered['html'];
+                    $rendered = $statusEmail->render($payload, (string) $message['recipient']);
+                    $subject = $rendered['subject']; $body = $rendered['text']; $html = $rendered['html'];
                 } elseif ($message['message_type'] === 'verify_email') {
                     $subject = 'Verifică adresa de email';
                     $body = 'Folosește tokenul de verificare transmis securizat de aplicație.';

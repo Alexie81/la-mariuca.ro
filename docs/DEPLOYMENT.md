@@ -114,6 +114,14 @@ nu se transferă automat pe domeniul public. Păstrează cheile VAPID ale magazi
 activează cronul `push:process` pentru reîncercări. Testează deschiderea unei comenzi din push
 și din email într-o sesiune admin neautentificată, cu revenire după login/TOTP.
 
+Pentru mesajele din „Trimite un e-mail” și notificările de schimbare a statusului,
+lista explicită `MAIL_MESSAGE_TYPES` trebuie să includă `order_status_update`.
+„Pus în coadă” confirmă înregistrarea mesajului, nu livrarea: cronul/procesorul
+outbox trebuie să ruleze, iar trimiterea se verifică prin `sent_at` și eventualele
+erori. Repornește procesorul persistent după schimbarea configurației sau a codului
+emailurilor; pentru dezvoltare există `bin/start-mail-worker.ps1`. Nu reseta pragul
+de trimitere și nu goli coada pentru a remedia un procesor oprit.
+
 Pentru o listă explicită `MAIL_MESSAGE_TYPES`, notificările cererilor de anulare folosesc
 `order_cancellation_received` (confirmarea clientului), `internal_order_cancellation`
 (adresele interne salvate în Comenzi) și `order_cancellation_decision` (acceptare/respingere

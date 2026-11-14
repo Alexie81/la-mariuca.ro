@@ -112,6 +112,53 @@ final class OutboxProcessorTest extends DatabaseTestCase
         self::assertCount(1, $transport->messages);
     }
 
+    public function testPersonalMessageUsesCustomerBrandingAndQueuedStatusWithoutDuplicatingDelivery(): void
+    {
+        $_ENV['MAIL_MESSAGE_TYPES'] = 'order_status_update';
+        $id = $this->queue('order_status_update');
+        $payload = ['order_id'=>$this->orderId, 'status'=>'preparing', 'message'=>"test <script>unsafe</script>\nA doua linie"];
+        $this->pdo->prepare('UPDATE outbox_messages SET payload_json=:payload WHERE id=:id')
+            ->execute(['payload'=>json_encode($payload, JSON_THROW_ON_ERROR), 'id'=>$id]);
+        $this->pdo->prepare("UPDATE orders SET status='shipped' WHERE id=:id")->execute(['id'=>$this->orderId]);
+        $transport = new RecordingOutboxTransport($this->pdo);
+        $processor = $this->processor($transport);
+        self::assertSame(1, $processor->process()['sent']);
+        $message = $transport->messages[0]->getOriginalMessage();
+        self::assertInstanceOf(Email::class, $message);
+        self::assertStringStartsWith('Mesaj de la magazin — comanda ', (string) $message->getSubject());
+        $html = (string) $message->getHtmlBody();
+        self::assertStringContainsString('Comanda ta este în pregătire.', $html);
+        self::assertStringNotContainsString('Comanda ta este expediată.', $html);
+        self::assertStringContainsString('Mesaj de la magazin', $html);
+        self::assertStringContainsString('test &lt;script&gt;unsafe&lt;/script&gt;<br', $html);
+        self::assertStringNotContainsString('<script>', $html);
+        self::assertLessThan(strpos($html, 'test &lt;script&gt;'), strpos($html, 'Mesaj de la magazin</p>'));
+        foreach (['La Măriuca Boutique', 'Cu tine, și după comandă.', 'Partener tehnic', 'Protecția consumatorilor',
+            'Urmărește comanda', 'https://shop.example.test/boutique/urmarire-comanda/acces/', 'src="cid:'] as $expected) {
+            self::assertStringContainsString($expected, $html);
+        }
+        self::assertStringNotContainsString('Rezumatul comenzii', $html);
+        self::assertStringContainsString("Mesaj de la magazin\ntest <script>unsafe</script>\nA doua linie", (string) $message->getTextBody());
+        self::assertSame('sent', $this->message($id)['status']);
+        self::assertSame(0, $processor->process()['processed']);
+        self::assertCount(1, $transport->messages);
+    }
+
+    public function testStatusOnlyEmailOmitsEmptyPersonalMessageAndRejectsWrongRecipient(): void
+    {
+        $_ENV['MAIL_MESSAGE_TYPES'] = 'order_status_update';
+        $valid = $this->queue('order_status_update');
+        $invalid = $this->queue('order_status_update', 'someone-else@example.test');
+        $transport = new RecordingOutboxTransport($this->pdo);
+        self::assertSame(['processed'=>2, 'sent'=>1, 'previewed'=>0, 'failed'=>1], $this->processor($transport)->process());
+        $email = $transport->messages[0]->getOriginalMessage();
+        self::assertInstanceOf(Email::class, $email);
+        self::assertStringStartsWith('Actualizare pentru comanda ', (string) $email->getSubject());
+        self::assertStringNotContainsString('Mesaj de la magazin</p>', (string) $email->getHtmlBody());
+        self::assertSame('sent', $this->message($valid)['status']);
+        self::assertSame('failed', $this->message($invalid)['status']);
+    }
+
     public function testTransportFailureIsRedactedAndRetryKeepsTheActivationFloor(): void
     {
         $_ENV['MAIL_SEND_AFTER_ID'] = (string) $this->originalMessageId;

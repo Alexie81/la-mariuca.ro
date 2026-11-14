@@ -1,0 +1,32 @@
+{% autoescape false %}
+La Măriuca Boutique
+
+Bună{% if first_name %}, {{ first_name }}{% endif %}!
+
+Comanda {{ number }} este {{ status_label }}.
+Plasată la {{ date }}.
+
+{% if custom_message %}
+Mesaj de la magazin
+{{ custom_message }}
+
+Cu drag, echipa La Măriuca
+{% else %}
+Te ținem la curent cu fiecare pas. Vezi detaliile și parcursul comenzii tale mai jos.
+{% endif %}
+
+Urmărește comanda:
+{{ tracking_url }}
+
+Ai nevoie de ajutor? {{ contact_email }}
+Contact și asistență: {{ contact_url }}
+Livrare și retur: {{ delivery_url }}
+Termeni și condiții: {{ terms_url }}
+Confidențialitate: {{ privacy_url }}
+Partener tehnic: CAB IT — https://cab-it.ro/
+Protecția consumatorilor: https://anpc.ro/sal/
+
+Mesaj trimis de echipa La Măriuca pentru comanda {{ number }}, la {{ email }}.
+Linkul de urmărire este personal. Păstrează-l privat.
+© {{ year }} La Măriuca Boutique. Toate drepturile rezervate.
+{% endautoescape %}
