@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Modules\Invoicing;
 
 use App\Modules\Companies\CompanyRepository;
+use App\Modules\Companies\CompanyStampStorage;
 use DateTimeImmutable;
 use DateTimeZone;
 use Dompdf\Dompdf;
@@ -14,7 +15,7 @@ use Twig\Loader\FilesystemLoader;
 /** Design model only: no numbering, order, invoice or inventory writes. */
 final class DispatchNotePdfPreview
 {
-    public function __construct(private readonly CompanyRepository $companies, private readonly string $root) {}
+    public function __construct(private readonly CompanyRepository $companies, private readonly string $root, private readonly CompanyStampStorage $stamps) {}
 
     /** @return array<string,mixed> */
     public function data(?DateTimeImmutable $date = null, int $lineCount = 3): array
@@ -38,6 +39,8 @@ final class DispatchNotePdfPreview
         $county = str_contains((string) $company['city'], (string) $company['county']) ? '' : $company['county'];
         $company['address_display'] = implode(', ', array_filter([$company['registered_address'], $company['postal_code'], $company['city'], $county, $company['country']], static fn($v): bool => trim((string) $v) !== ''));
         $company['website_display'] = preg_replace('~^https?://~i', '', rtrim((string) $company['website'], '/'));
+        $stampPath = $this->stamps->path(is_string($company['stamp_path'] ?? null) ? $company['stamp_path'] : null);
+        $stamp = $stampPath === null ? '' : file_get_contents($stampPath);
         $lineGroups = $lineCount > 20 ? [array_slice($lines, 0, 11), ...array_chunk(array_slice($lines, 11), 20)] : [$lines];
         return [
             'company'=>$company, 'lines'=>$lines, 'line_groups'=>$lineGroups, 'series'=>'LM-AVZ', 'number'=>'1', 'reference'=>'LM-AVZ 1',
@@ -47,6 +50,7 @@ final class DispatchNotePdfPreview
             'dispatch'=>['delegate'=>'', 'identity'=>'', 'vehicle'=>'', 'time'=>'', 'loading_place'=>$company['physical_address'] ?: $company['address_display']],
             'logo'=>$this->image('assets/images/logo-la-mariuca-transparent.png'),
             'monogram'=>$this->image('assets/images/apple-touch-icon-lm.png'),
+            'stamp_data'=>$stamp ? 'data:image/png;base64,' . base64_encode($stamp) : '',
             'font_regular'=>'file://' . str_replace('\\', '/', $this->root . '/public/assets/fonts/nunito-sans-pdf-regular.ttf'),
             'font_bold'=>'file://' . str_replace('\\', '/', $this->root . '/public/assets/fonts/nunito-sans-pdf-bold.ttf'),
         ];

@@ -7,7 +7,7 @@ $root = dirname(__DIR__);
 require $root . '/vendor/autoload.php';
 $config = \App\Shared\Config\Config::load($root);
 $pdo = \App\Shared\Database\ConnectionFactory::create($config, $root);
-$preview = new \App\Modules\Invoicing\DispatchNotePdfPreview(new \App\Modules\Companies\CompanyRepository($pdo), $root);
+$preview = new \App\Modules\Invoicing\DispatchNotePdfPreview(new \App\Modules\Companies\CompanyRepository($pdo), $root, new \App\Modules\Companies\CompanyStampStorage($root));
 foreach (['Aviz-La-Mariuca-model.pdf'=>2, 'Aviz-La-Mariuca-model-multipagina.pdf'=>42] as $name=>$count) {
     $path = $root . '/output/pdf/' . $name;
     $preview->pdf($path, null, $count);
