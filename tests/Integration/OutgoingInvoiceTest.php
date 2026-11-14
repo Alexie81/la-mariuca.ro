@@ -91,7 +91,7 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         try { $this->service->issue($order,['request_key'=>'unpaid-stripe-test'],$this->actor); self::fail('Unpaid card invoiced'); } catch(InvoiceException) {}
         self::assertSame(0,(int)$this->pdo->query('SELECT COUNT(*) FROM invoices')->fetchColumn()); self::assertSame(0,$this->balance());
         $this->pdo->exec("UPDATE orders SET payment_status='paid',status='confirmed' WHERE id=".$order);
-        $invoice=$this->service->issue($order,['request_key'=>'paid-stripe-test'],$this->actor); self::assertSame(1,$invoice['number']); self::assertSame('paid',$invoice['payment_state']);
+        $invoice=$this->service->issue($order,['request_key'=>'paid-stripe-test'],$this->actor); self::assertSame(1,$invoice['number']); self::assertSame('paid',$invoice['payment_state']); self::assertTrue((new \App\Modules\Invoicing\InvoiceExportService(new InvoiceRepository($this->pdo),$this->root))->pdfData($invoice)['payment_paid']);
     }
     public function testExactDecimalRoundingAndOptionalDecimals(): void
     {
@@ -154,7 +154,7 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
     {
         $invoice=$this->service->issue($this->order(2),['request_key'=>'issue-export-case'],$this->actor);
         $exports=new \App\Modules\Invoicing\InvoiceExportService(new InvoiceRepository($this->pdo),$this->root);
-        $data=$exports->pdfData($invoice); self::assertSame('156,1983 Lei',$data['lines'][0]['unit_net']);
+        $data=$exports->pdfData($invoice); self::assertFalse($data['payment_paid']); self::assertSame('156,1983 Lei',$data['lines'][0]['unit_net']);
         self::assertSame('156.19834711',$invoice['lines'][0]['unit_net']);
         $pdf=$exports->pdf($invoice); self::assertSame('%PDF',substr((string)file_get_contents($pdf),0,4));
         $xlsx=$exports->xlsx($invoice); $book=\PhpOffice\PhpSpreadsheet\IOFactory::load($xlsx); $sheet=$book->getActiveSheet();

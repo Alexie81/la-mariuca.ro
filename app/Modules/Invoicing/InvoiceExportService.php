@@ -39,6 +39,7 @@ final class InvoiceExportService
             'document_title'=>['sale'=>'FACTURĂ','return'=>'FACTURĂ RETUR','correction_negative'=>'FACTURĂ STORNO','corrected_positive'=>'FACTURĂ CORECTATĂ'][$invoice['kind']],
             'date'=>(new DateTimeImmutable($invoice['issued_at']))->setTimezone(new DateTimeZone('Europe/Bucharest'))->format('d.m.Y'),'due_date'=>(new DateTimeImmutable($invoice['due_date']))->format('d.m.Y'),
             'order_number'=>$snapshot['order_number'],'original_reference'=>isset($snapshot['original_number'])?'Document original '.$snapshot['original_number']:'',
+            'payment_paid'=>$paid && !$negative,
             'payment_label'=>$negative?'Retur / corecție':($paid?'Achitată':((int)$invoice['paid_bani']>0?'Achitată parțial':'Neachitată')),
             'payment_copy'=>$negative?'Document valoric. Restituirea banilor se urmărește separat.':($paid?'Plată înregistrată.':($invoice['payment_method']==='cod'?'Ramburs, la primirea comenzii.':'Plată online cu cardul.')),
             'payment_method_label'=>$invoice['payment_method']==='cod'?'Ramburs la curier':'Card online','fiscal_accepted'=>$invoice['fiscal_state']==='accepted',
@@ -140,7 +141,7 @@ final class InvoiceExportService
     {
         $dir=$this->directory().'/'.$invoice['id']; if(!is_dir($dir)) { mkdir($dir,0770,true); }
         $refunds=$this->repository->all('invoice_refunds',['invoice_id'=>$invoice['id']]);
-        $hash=substr(hash('sha256',InvoiceSnapshot::json([InvoiceService::documentHash($invoice),$invoice['paid_bani'],$invoice['payment_state'],$invoice['fiscal_state'],$refunds,'layout-20261113-v4'])),0,16);
+        $hash=substr(hash('sha256',InvoiceSnapshot::json([InvoiceService::documentHash($invoice),$invoice['paid_bani'],$invoice['payment_state'],$invoice['fiscal_state'],$refunds,'layout-20261114-paid-v5'])),0,16);
         return $dir.'/'.$this->filename($invoice).'-'.$hash.'.'.$extension;
     }
     private function directory(): string { $dir=$this->root.'/storage/private/invoices'; if(!is_dir($dir) && !mkdir($dir,0770,true) && !is_dir($dir)) { throw new InvoiceException('Directorul privat de facturi nu este disponibil.'); } return $dir; }

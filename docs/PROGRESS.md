@@ -2,6 +2,13 @@
 
 Actualizat: 2026-11-14
 
+### 2026-11-14 — Corectare facturi: produse vizuale și marcaj PDF pentru plată
+- În editarea comenzii/facturii și în „Corectează prin documente noi”, produsele sunt grupate în carduri compacte cu fotografie, SKU, variantă și cantitate. Pozițiile selectate pentru corecție au și fotografia istorică. Livrarea are o zonă distinctă.
+- Iconița de eliminare este prezentă și pe rândurile noi; template-ul importă explicit macro-ul SVG, iar JavaScript clonează conținutul DOM. SKU-ul exact afișează automat produsul și fotografia disponibilă, cu mesaje pentru cod inexistent și indisponibilitate temporară. Răspunsurile întârziate sunt ignorate, iar previzualizarea precedentă dispare când se schimbă codul.
+- Endpoint GET de previzualizare protejat prin autentificare și rol, interogare parametrizată, numai variante active ale produselor publicate cu preț valid. Nu modifică date și nu înlocuiește validarea prețurilor/cantităților la salvare.
+- PDF: numai factura integral achitată primește banda verde pastel și bifa. Documentele neachitate, parțiale sau negative păstrează prezentarea lor. Versiunea cache-ului de export este actualizată; datele istorice și numerotarea rămân din snapshot.
+- Verificări: 28 teste / 202 aserțiuni (previzualizare produs, facturare, PDF), PHPStan fără erori, sintaxă JS validă și 143 template-uri Twig compilate. Browser intern pe 8080 la 320/390/768/1440 px: fotografii încărcate, SKU valid/invalid, eliminare/re-adăugare, switch și cantitate, protecție la închidere cu modificări nesalvate; fără depășire orizontală sau erori JS. PDF-ul facturii existente LM 1 randat și inspectat vizual. Nu s-au emis corecții și nu s-au modificat datele facturii principale. Fără deploy sau teste pe dispozitive fizice.
+
 ### 2026-11-14 — SPV / RO e-Factura: interfață demonstrativă
 - Tab „SPV · RO e-Factura” în grupul Facturare, imediat sub Configurator factură. Pagină în stilul NIR aprobat: antet prună, suprafețe albe rotunjite, accente roz pentru retururi, selecții clare și switch pentru alerte. Sigla ANAF și scutul din referință sunt servite local; scutul din meniu este centrat optic, fără spațiul alb de la baza imaginii-sursă. Imaginile ANAF au fost reutilizate, fără modificare, din activele existente `cubisshop.ro/assets/images/anaf-{ro,shield}.png`.
 - Sunt păstrate informațiile din model: conexiune, date tokenuri, Test ANAF/Producție, facturi emise/retur, Manual/La emitere/Programat, 1–5 zile, alerte și acțiunile conexiunii/cozii. Stările, datele și termenul din referință sunt explicit demonstrative; termenul va necesita validare la integrarea fiscală.
