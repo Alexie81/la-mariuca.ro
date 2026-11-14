@@ -2,6 +2,13 @@
 
 Actualizat: 2026-11-14
 
+### 2026-11-14 — Previzualizare PDF în fișa NIR-ului confirmat
+- Butonul „Vezi document” deschide PDF-ul într-un modal, inclusiv pentru retururile confirmate către furnizor. Antetul și acțiunile rămân fixe; documentul are zoom, potrivire la lățime, navigare între pagini, descărcare și deschidere separată. Pe telefon, modalul se dimensionează după document, în limita ecranului.
+- PDF.js este inclus local, cu licență și versiune fixată, și se încarcă numai la deschiderea previzualizării. Fișierele nu sunt transmise către un serviciu extern. Închiderea oprește încărcarea/randarea și readuce focusul pe buton. Fără JavaScript, legătura deschide PDF-ul separat.
+- Exportul PDF individual acceptă `view=1` pentru afișare inline; descărcările PDF/Excel/ZIP și verificarea permisiunilor rămân active. Antete private/no-store/no-referrer/noindex; previzualizarea nu modifică documentele, numerele sau mișcările de stoc.
+- Verificări: 20 teste HTTP NIR / 203 aserțiuni, PHPStan pe controller, sintaxă PHP/JS, 141 template-uri Twig compilate. Test nou pentru vizibilitate numai pe documente confirmate, acces admin/operator/anonim, export inline vs descărcare și lipsa schimbărilor de stoc/versiune.
+- Browser intern, administrarea principală de pe 8080: PDF de recepție și de retur afișate, zoom, revenire la lățime, închidere/redeschidere și descărcare PDF reușită. Verificări la 320/390/768/1440 px, fără erori JS. Datele principale nu au fost modificate; fără deploy sau verificări Apache/telefon fizic.
+
 ### 2026-11-13 — Verificare completă și rafinare vizuală a facturilor
 - Registru mai compact, filtre grupate și carduri clare pe telefon, cu numărul documentului primul, stări și acțiuni aliniate. Fișă cu navigare între secțiuni, sumar prună și administrare pliabilă pe mobil. Modale dimensionate după operațiune, antet și acțiuni fixe, text lizibil, selecții și spațiere îmbunătățite.
 - „Vezi PDF” deschide documentul într-o filă nouă, păstrând autorizarea și antetele private. Modelul aprobat păstrează logo-ul, datele istorice și nota de garanție; spațierea evită pagina suplimentară pentru exemplul cu două poziții și note. Prețul unitar este afișat cu maximum patru zecimale în PDF; precizia internă și totalurile în bani nu se modifică.

@@ -1,0 +1,17 @@
+{% import 'admin/partials/nir-ui.twig' as ui %}
+<dialog class="nir-pdf" data-nir-pdf aria-labelledby="nir-pdf-title" data-library-url="{{ url('assets/vendor/pdfjs/pdf.min.js') }}" data-worker-url="{{ url('assets/vendor/pdfjs/pdf.worker.min.js') }}">
+ <header class="nir-pdf__header">
+  <span class="nir-pdf__mark">{{ ui.icon('document') }}</span>
+  <div class="nir-pdf__identity"><span>Previzualizare PDF</span><h2 id="nir-pdf-title" data-pdf-title>Document NIR</h2></div>
+  <button type="button" class="nir-pdf__icon" data-pdf-close aria-label="Închide previzualizarea">{{ ui.icon('close') }}</button>
+ </header>
+ <div class="nir-pdf__toolbar" aria-label="Controale document">
+  <div class="nir-pdf__pages"><button type="button" class="nir-pdf__icon" data-pdf-previous aria-label="Pagina anterioară" disabled>{{ ui.icon('back') }}</button><span data-pdf-page aria-live="polite">— / —</span><button type="button" class="nir-pdf__icon" data-pdf-next aria-label="Pagina următoare" disabled>{{ ui.icon('arrow') }}</button></div>
+  <div class="nir-pdf__zoom"><button type="button" class="nir-pdf__icon" data-pdf-zoom-out aria-label="Micșorează documentul" disabled>−</button><button type="button" class="nir-pdf__fit" data-pdf-fit title="Potrivește documentul la lățime" disabled>La lățime</button><button type="button" class="nir-pdf__icon" data-pdf-zoom-in aria-label="Mărește documentul" disabled>+</button></div>
+ </div>
+ <div class="nir-pdf__body" data-pdf-body tabindex="0" aria-label="Pagina PDF; folosește controalele pentru mărire sau schimbarea paginii">
+  <div class="nir-pdf__status" data-pdf-status role="status"><span class="nir-pdf__spinner" aria-hidden="true"></span><strong data-pdf-message>Pregătim documentul…</strong><button type="button" class="nir-pdf__retry" data-pdf-retry hidden>Încearcă din nou</button></div>
+  <div class="nir-pdf__paper" data-pdf-paper hidden><canvas data-pdf-canvas role="img" aria-label="Previzualizarea paginii PDF"></canvas></div>
+ </div>
+ <footer class="nir-pdf__footer"><a class="nir-pdf__open" data-pdf-open target="_blank" rel="noopener">{{ ui.icon('external') }}<span>Deschide separat</span></a><a class="nir-pdf__download" data-pdf-download>{{ ui.icon('download') }}<span>Descarcă PDF</span></a></footer>
+</dialog>

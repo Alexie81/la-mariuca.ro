@@ -434,7 +434,8 @@ final class NirAdminController
             $result = isset($args['id'])
                 ? $this->exports->individual($this->nirs->document((int) $args['id'],$this->actor()), $args['format'], $costs)
                 : $this->exports->registry($this->nirs->registryForExport($filters,$this->actor()),$args['format'],$filters,$costs);
-            return $this->file($result['path'],$result['filename'],$result['mime']);
+            $inline = isset($args['id']) && $args['format'] === 'pdf' && ($request->getQueryParams()['view'] ?? '') === '1';
+            return $this->file($result['path'],$result['filename'],$result['mime'],$inline);
         } catch (\Throwable $e) { return $this->failure($request,$e); }
         finally { if ($result !== null) { $this->exports->cleanup($result['path']); } }
     }
@@ -647,7 +648,7 @@ final class NirAdminController
         if ($this->jsonWanted($request)) { return $this->json(['success'=>false,'message'=>$message,'errors'=>$errors,'warnings'=>$warnings],$status); }
         return $this->render('admin/pages/nir-error.twig',['error_message'=>$message,'errors'=>$errors,'back_url'=>$this->url()],$status);
     }
-    private function file(string $path,string $name,string $mime): ResponseInterface
+    private function file(string $path,string $name,string $mime,bool $inline=false): ResponseInterface
     {
         $source=fopen($path,'rb');
         if ($source===false) { throw new NirNotFoundException('Fișierul nu mai este disponibil.'); }
@@ -656,6 +657,6 @@ final class NirAdminController
         stream_copy_to_stream($source,$buffer); fclose($source); rewind($buffer);
         $response=(new Response())->withBody(new \Slim\Psr7\Stream($buffer));
         $safe=preg_replace('/[^A-Za-z0-9._-]/','_', $name) ?: 'document';
-        return $response->withHeader('Content-Type',$mime)->withHeader('Content-Disposition','attachment; filename="'.$safe.'"; filename*=UTF-8\'\''.rawurlencode($name))->withHeader('Cache-Control','private, no-store')->withHeader('X-Content-Type-Options','nosniff');
+        return $response->withHeader('Content-Type',$mime)->withHeader('Content-Disposition',($inline?'inline':'attachment').'; filename="'.$safe.'"; filename*=UTF-8\'\''.rawurlencode($name))->withHeader('Cache-Control','private, no-store')->withHeader('X-Content-Type-Options','nosniff')->withHeader('X-Robots-Tag','noindex, nofollow')->withHeader('Referrer-Policy','no-referrer');
     }
 }

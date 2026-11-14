@@ -316,6 +316,40 @@ final class NirSecurityHttpTest extends DatabaseTestCase
         self::assertSame(1,$this->html((string)$page->getBody())->query($root.'//article')->length);
     }
 
+    public function testConfirmedDocumentPdfPreviewIsPrivateAndKeepsDownloadsAndStockUnchanged(): void
+    {
+        [$draft] = $this->draft('PDF-PREVIEW');
+        $base = '/admin/nir-uri/' . $draft['id'] . '/';
+        self::assertSame(0, $this->html((string) $this->request('GET', $base)->getBody())->query('//a[@data-nir-pdf-open]')->length);
+        $document = $this->service()->confirm((int) $draft['id'], (int) $draft['row_version'], 'pdf-preview-confirm', true, $this->actor());
+        $before = $this->pdo->query('SELECT * FROM nir_stock_movements')->fetchAll();
+        $page = $this->html((string) $this->request('GET', $base)->getBody());
+        $trigger = $page->query('//a[@data-nir-pdf-open]')->item(0);
+        self::assertInstanceOf(\DOMElement::class, $trigger);
+        self::assertSame($base . 'export/pdf/?view=1', $trigger->getAttribute('href'));
+        self::assertSame($document['number'], $trigger->getAttribute('data-document-number'));
+        self::assertSame('dialog', $trigger->getAttribute('aria-haspopup'));
+
+        $preview = $this->request('GET', $base . 'export/pdf/?view=1');
+        self::assertSame(200, $preview->getStatusCode());
+        self::assertSame('application/pdf', $preview->getHeaderLine('Content-Type'));
+        self::assertStringStartsWith('inline;', $preview->getHeaderLine('Content-Disposition'));
+        self::assertStringStartsWith('%PDF-', (string) $preview->getBody());
+        self::assertSame('private, no-store', $preview->getHeaderLine('Cache-Control'));
+        self::assertSame('no-referrer', $preview->getHeaderLine('Referrer-Policy'));
+        self::assertSame('noindex, nofollow', $preview->getHeaderLine('X-Robots-Tag'));
+        self::assertStringStartsWith('attachment;', $this->request('GET', $base . 'export/pdf/')->getHeaderLine('Content-Disposition'));
+        self::assertStringStartsWith('attachment;', $this->request('GET', $base . 'export/xlsx/?view=1')->getHeaderLine('Content-Disposition'));
+        self::assertSame($before, $this->pdo->query('SELECT * FROM nir_stock_movements')->fetchAll());
+        self::assertSame($document['row_version'], $this->service()->document((int) $draft['id'], $this->actor())['row_version']);
+
+        $_SESSION['user_id'] = $this->operatorId;
+        self::assertSame(0, $this->html((string) $this->request('GET', $base)->getBody())->query('//a[@data-nir-pdf-open]')->length);
+        self::assertSame(403, $this->request('GET', $base . 'export/pdf/?view=1', [], true)->getStatusCode());
+        unset($_SESSION['user_id']);
+        self::assertSame(303, $this->request('GET', $base . 'export/pdf/?view=1')->getStatusCode());
+    }
+
     /** @return array{0:array<string,mixed>,1:array<string,mixed>} */
     private function draft(string $invoice): array
     {

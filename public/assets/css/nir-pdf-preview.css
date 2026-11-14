@@ -1,0 +1,41 @@
+.nir-pdf{box-sizing:border-box;width:min(1200px,calc(100vw - 48px));height:min(94dvh,var(--nir-pdf-height,740px));max-width:none;max-height:none;margin:auto;padding:0;border:1px solid #efdee8;border-radius:26px;background:#fff;color:#49394c;overflow:hidden;box-shadow:0 26px 100px #38243838;font:400 14px/1.5 "Nunito Sans",Arial,sans-serif}
+.nir-pdf[open]{display:flex;flex-direction:column;animation:nir-pdf-in .24s cubic-bezier(.2,.8,.3,1) both}
+.nir-pdf::backdrop{background:#30233550;backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px)}
+.nir-pdf [hidden]{display:none!important}
+.nir-pdf *{box-sizing:border-box}
+.nir-pdf svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;flex:none}
+.nir-pdf :is(button,a){font:650 14px/1.3 "Nunito Sans",Arial,sans-serif;display:inline-flex;align-items:center;justify-content:center;gap:9px;cursor:pointer;text-decoration:none;transition:background .18s,box-shadow .18s;white-space:nowrap}
+.nir-pdf :is(button,a):focus-visible{outline:3px solid #bd668980;outline-offset:2px}
+.nir-pdf__header{flex:none;display:flex;align-items:center;gap:14px;padding:19px 24px;background:radial-gradient(ellipse at 100% 0,#f7e3ec,transparent 70%),#fffcfd;border-bottom:1px solid #efe2e9}
+.nir-pdf__mark{display:grid;place-items:center;width:46px;height:50px;flex:none;border:1px solid #ead1df;border-radius:15px;background:#fff;color:#a44a6b;box-shadow:0 4px 12px #69364b08}
+.nir-pdf__mark svg{width:24px;height:24px}
+.nir-pdf__identity{flex:1;min-width:0}
+.nir-pdf__identity>span{display:block;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#9b6179;font-weight:700}
+.nir-pdf__identity h2{font:700 22px/1.3 "Nunito Sans",Arial,sans-serif;letter-spacing:-.025em;color:#49394c;margin:3px 0 0;overflow-wrap:anywhere}
+.nir-pdf .nir-pdf__icon{width:40px;height:40px;flex:none;padding:0;border:1px solid #e9dfe8;border-radius:12px;background:#fff;color:#72546d;font-size:25px;font-weight:400}
+.nir-pdf .nir-pdf__icon:hover:not(:disabled){background:#faedf4;border-color:#dbbacb}
+.nir-pdf .nir-pdf__icon:disabled,.nir-pdf .nir-pdf__fit:disabled{opacity:.35;cursor:default}
+.nir-pdf__toolbar{flex:none;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 24px;border-bottom:1px solid #e8e0e8;background:#fff}
+.nir-pdf__pages,.nir-pdf__zoom{display:flex;align-items:center;gap:8px}
+.nir-pdf__pages>span{min-width:56px;text-align:center;font-variant-numeric:tabular-nums;color:#6d5b70;font-weight:650}
+.nir-pdf .nir-pdf__fit{min-width:83px;min-height:40px;padding:8px;border:0;border-radius:10px;background:#f7f2f6;color:#76536d}
+.nir-pdf__body{position:relative;flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;background:#eeeaf0;padding:24px;scrollbar-width:thin;scrollbar-color:#c4a7ba transparent;scrollbar-gutter:stable}
+.nir-pdf__paper{width:max-content;margin:0 auto;background:#fff;box-shadow:0 5px 24px #39283f18}
+.nir-pdf__paper canvas{display:block;max-width:none!important;touch-action:pan-x pan-y pinch-zoom}
+.nir-pdf__status{min-height:220px;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;text-align:center;padding:20px;color:#755d76}
+.nir-pdf__status strong{font-weight:600;font-size:15px;max-width:340px}
+.nir-pdf__spinner{width:42px;height:42px;border:3px solid #e1d2de;border-top-color:#b04b74;border-radius:50%;animation:nir-pdf-spin .85s linear infinite}
+.nir-pdf__status.has-error .nir-pdf__spinner{display:none}
+.nir-pdf__retry{padding:12px 18px;border:1px solid #dac4d4;border-radius:12px;background:#fff;color:#894763}
+.nir-pdf__footer{flex:none;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 24px;background:#fff;border-top:1px solid #e8dce5}
+.nir-pdf .nir-pdf__open{min-height:44px;color:#7b6077;padding:8px 0}
+.nir-pdf .nir-pdf__download{min-height:44px;padding:12px 18px;border-radius:12px;background:linear-gradient(110deg,#79516e,#a64e72);color:#fff;box-shadow:0 4px 12px #8e456822}
+.nir-pdf .nir-pdf__download:hover{background:#77425f;box-shadow:0 6px 16px #8e456833}
+.nir-pdf.is-closing{animation:nir-pdf-out .17s ease-in both;pointer-events:none}
+html.has-nir-pdf,html.has-nir-pdf body{overflow:hidden}
+.nir-workspace .nir-commandbar .nir-preview-button{background:#f7edf4;border-color:#e7ccdd;color:#804466}
+@keyframes nir-pdf-in{from{opacity:0;transform:translateY(15px) scale(.98)}to{opacity:1;transform:none}}
+@keyframes nir-pdf-out{to{opacity:0;transform:translateY(10px) scale(.985)}}
+@keyframes nir-pdf-spin{to{transform:rotate(360deg)}}
+@media(max-width:600px){.nir-pdf{width:calc(100vw - 12px);height:min(calc(100dvh - 16px),var(--nir-pdf-height,640px));border-radius:20px}.nir-pdf__header{padding:14px;gap:10px}.nir-pdf__mark{width:38px;height:42px;border-radius:12px}.nir-pdf__identity h2{font-size:17px}.nir-pdf__identity>span{font-size:10px;letter-spacing:.055em}.nir-pdf__toolbar{padding:7px 10px;gap:6px}.nir-pdf__pages,.nir-pdf__zoom{gap:4px}.nir-pdf .nir-pdf__icon{width:36px;height:40px}.nir-pdf__pages>span{min-width:40px;font-size:13px}.nir-pdf .nir-pdf__fit{min-width:72px;font-size:12px}.nir-pdf__body{padding:12px;scrollbar-gutter:auto}.nir-pdf__footer{padding:10px 12px max(10px,env(safe-area-inset-bottom));gap:8px}.nir-pdf .nir-pdf__open{font-size:12px;gap:6px}.nir-pdf .nir-pdf__download{font-size:13px;padding:11px 12px;gap:7px}}
+@media(prefers-reduced-motion:reduce){.nir-pdf[open],.nir-pdf.is-closing,.nir-pdf__spinner{animation:none}.nir-pdf :is(button,a){transition:none}}
