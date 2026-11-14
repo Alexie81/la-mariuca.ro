@@ -1,6 +1,6 @@
 # Progres
 
-Actualizat: 2026-11-13
+Actualizat: 2026-11-14
 
 ### 2026-11-13 — Verificare completă și rafinare vizuală a facturilor
 - Registru mai compact, filtre grupate și carduri clare pe telefon, cu numărul documentului primul, stări și acțiuni aliniate. Fișă cu navigare între secțiuni, sumar prună și administrare pliabilă pe mobil. Modale dimensionate după operațiune, antet și acțiuni fixe, text lizibil, selecții și spațiere îmbunătățite.
@@ -1296,9 +1296,9 @@ atribute și filtre fără schimbarea contractelor existente.
 Priorități cerute de utilizator pentru reluarea lucrului, actualizate cu clarificările despre NIR-uri, reverificarea fiscală, SEO și cataloage. Lista nu pornește implementarea automat; următoarea etapă este **emiterea facturilor de ieșire și finalizarea traseului unic achiziție–vânzare**. Un punct se bifează numai după confirmarea explicită a utilizatorului că este gata, nu doar pentru că implementarea sau verificările au fost încheiate.
 
 1. [x] **Facturi de achiziție + NIR-uri (note de intrare-recepție) + întregul sistem de intrare în stoc**, într-o singură etapă, asociată gestiunilor. Finalizarea și bifarea au fost confirmate explicit de utilizator la **2026-11-13**. Integrarea completă a traseului achiziție–vânzare rămâne la punctul 2.
-2. [ ] **Facturi de ieșire / emitere facturi și finalizarea traseului complet, precis și unic achiziție–vânzare pentru produs**: legare automată a fiecărei cantități vândute de intrarea/lotul identificat unic, furnizorul și factura/NIR-ul de achiziție, costul istoric exact, factura de ieșire și prețul efectiv de vânzare. Include vânzările înregistrate înaintea NIR-ului și reconcilierea lor ulterioară fără consum dublu; stocul contabil rămâne independent de disponibilitatea online. Verificăm cap-coadă checklistul de trasabilitate de mai jos.
-3. [ ] **Stoc și fișa produsului**, cu traseul furnizor → factură de achiziție / NIR → intrare în stoc → factură de ieșire / vânzare.
-4. [ ] **Exporturi pentru toate modulele de mai sus.** Se pregătesc în fiecare etapă și se verifică împreună înainte de a continua.
+2. [ ] **Facturi de ieșire / emitere facturi și finalizarea traseului complet, precis și unic achiziție–vânzare pentru produs**: legare automată a fiecărei cantități vândute de intrarea/lotul identificat unic, furnizorul și factura/NIR-ul de achiziție, costul istoric exact, factura de ieșire și prețul efectiv de vânzare. Include vânzările înregistrate înaintea NIR-ului și reconcilierea lor ulterioară fără consum dublu; stocul contabil rămâne independent de disponibilitatea online. Verificăm cap-coadă checklistul intern de trasabilitate de mai jos. Conform clarificării din 2026-11-14, nu sunt necesare ecrane sau exporturi dedicate traseului complet.
+3. [ ] **Stoc și fișa produsului**, cu solduri și mișcări; traseul furnizor → NIR → factură de ieșire rămâne evidență internă, fără o afișare dedicată a traseului complet.
+4. [ ] **Exporturi pentru toate modulele de mai sus.** Se pregătesc în fiecare etapă și se verifică împreună înainte de a continua. Exporturile dedicate traseelor complete achiziție–vânzare nu mai sunt cerute (clarificare 2026-11-14).
 5. [ ] **Retururi, anulări și regulile fiscale aferente**, după finalizarea documentelor și a evidenței stocului.
 6. [x] **Implementarea plății cu cardul — Stripe TEST**, realizată mai devreme la cererea explicită a utilizatorului. Bifare autorizată de utilizator la 2026-11-08 după încheierea verificărilor automate, a plății sandbox și a verificării vizuale. Activarea live rămâne la punctul 11.
 7. [ ] **Reverificarea dedicată a regulilor fiscale**, după implementarea plății cu cardul și înaintea etapelor SEO și cataloage.
@@ -1316,11 +1316,11 @@ Checklist de trasabilitate cerut explicit la 2026-11-12, de încheiat odată cu 
 - [ ] Legarea automată, tranzacțională și idempotentă a facturii de ieșire emise la mecanismul existent `AccountingStockService::recordInvoice()` / consumul intrărilor NIR. Comanda sau confirmarea plății, singure, nu țin locul documentului contabil de ieșire.
 - [ ] Pentru fiecare cantitate vândută se poate identifica furnizorul, factura de achiziție, NIR-ul, data intrării, gestiunea și costul exact de achiziție. Același produs cumpărat la alte date, prețuri sau de la alți furnizori păstrează intrări distincte.
 - [ ] O vânzare poate consuma mai multe intrări: exemplu de verificat cap-coadă, 5 bucăți cumpărate cu 40 lei și 5 cu 45 lei → vânzarea a 6 bucăți identifică 5 din prima intrare și 1 din a doua. Ordinea de consum rămâne regulă internă, fără eticheta FIFO în interfață.
-- [ ] Fișa produsului și documentul de ieșire arată prețul efectiv de vânzare și reducerile, alături de costul de achiziție aferent; valorile istorice nu sunt înlocuite de prețul curent din catalog.
+- [ ] Evidența internă păstrează prețul efectiv de vânzare și reducerile, alături de costul de achiziție aferent; valorile istorice nu sunt înlocuite de prețul curent din catalog. Nu este necesară afișarea separată a traseului complet.
 - [ ] Verificarea integrată acoperă reîncercări fără consum dublu, lipsă de stoc / reconciliere și retururi/anulări documentate. Clarificare ulterioară a utilizatorului: returul furnizor poate utiliza, după avertizare și confirmare, alte intrări ale aceluiași produs/variante, de la același furnizor, la același preț de achiziție și în aceeași gestiune. Alocarea reală rămâne internă, fără modificarea NIR-urilor originale și fără mențiuni despre substituire în PDF, Excel sau rapoartele exportate; stocul total și cantitățile disponibile pe intrări rămân reconciliate.
-- [ ] Exporturile și fișa produsului păstrează legăturile între documente și permit urmărirea în ambele sensuri, de la achiziție la vânzare și invers.
+- Cerință retrasă explicit la 2026-11-14: afișări și exporturi dedicate traseului complet în ambele sensuri. Legăturile între documente și alocările pe lot rămân păstrate intern; acest lucru nu elimină fișa produsului sau exporturile obișnuite ale modulelor.
 
-Stare la notare: intrările și alocările de consum sunt implementate în serviciile NIR; apelul automat din viitorul modul de facturare și prezentarea completă a traseului rămân de realizat. Această notă nu bifează etapele și nu autorizează începerea automată a unui modul nou.
+Stare verificată la 2026-11-14: emiterea facturii este conectată la alocarea internă a intrărilor NIR, inclusiv reconcilierea achizițiilor ulterioare fără consum dublu. Ieșirea contabilă aferentă vânzării se produce la emiterea facturii; plasarea comenzii sau plata, singure, nu o produc. Automatizarea poate emite factura după aceste evenimente, iar ieșirea se face atunci prin factură. Stocul online rămâne separat. Cele patru teste relevante au trecut (25 aserțiuni). Această verificare și retragerea cerinței de afișare/export nu bifează automat etapa 2.
 
 Criterii de verificat la etapele produselor, fără a le considera deja implementate sau validate:
 - Se păstrează metatitlul și metadescrierea stabilite manual ori generate automat la adăugare/editare.

@@ -36,6 +36,11 @@ Referință: `OUTGOING_INVOICES_REFERENCE.md`, primită la 2026-11-13. Checklist
 - În browser au fost parcurse încasarea parțială, respingerea supraîncasării, cererea/acceptarea returului și primirea produsului; cele trei mesaje aferente au fost generate prin transportul preview, fără expediere reală. Registrul XLSX, ZIP-ul complet și ZIP-ul individual au fost descărcate și validate.
 - Factura demonstrativă și PDF-ul sunt deschise în instanța izolată 8093. Instanța principală 8080 păstrează datele reale; nu sunt amestecate cu facturile QA.
 
+## Clarificare utilizator — 2026-11-14
+- Nu se mai cer afișări sau exporturi dedicate traseului complet achiziție–vânzare. Alocările și datele istorice rămân interne; fișa produsului și exporturile obișnuite sunt etape distincte.
+- Ieșirea contabilă pentru o vânzare are loc prin emiterea facturii, inclusiv atunci când factura este emisă de o automatizare. Comanda/plata fără emitere nu scad singure stocul contabil; rezervările/disponibilitatea online sunt separate.
+- Reconfirmate local cele patru teste pentru emitere idempotentă, reconciliere ulterioară, retur fizic și protecția împotriva postării duble: 4 teste / 25 aserțiuni. Nu reprezintă confirmarea utilizatorului pentru bifarea roadmapului.
+
 ## Adaptări operaționale
 - Stocul online este actualizat de fluxul comenzii; factura operează evidența contabilă. Disponibilitatea din magazin nu este blocată de soldul contabil negativ.
 - Legătura achiziție–vânzare folosește alocări interne persistente și deficit explicit. Reconcilierea completează costul real din NIR; nu inventează un cost pentru stocul neacoperit.
