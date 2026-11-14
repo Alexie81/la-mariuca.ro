@@ -2,6 +2,12 @@
 
 Actualizat: 2026-11-14
 
+### 2026-11-14 — Retur cu cantitate obligatorie și anulare după expediere
+- În modalul de retur al comenzii, înregistrarea este dezactivată când toate cantitățile sunt zero; se activează la alegerea unei cantități pozitive și se blochează din nou la golirea selecției. Footerul explică ce trebuie ales, iar validarea formularului acoperă și trimiterea de la tastatură. Serverul păstrează validarea independentă și răspunde explicit că este necesară o cantitate mai mare decât zero.
+- Administrarea permite anularea din „Expediată”, atât direct, cât și prin acceptarea unei cereri existente. Regula publică pentru solicitarea clientului rămâne maximum „În pregătire” și mai puțin de cinci zile. Plățile nu sunt rambursate automat și marfa deja expediată nu este reintrodusă automat în inventarul online; documentele fiscale folosesc fluxul existent.
+- Verificări: 50 teste / 603 aserțiuni (comenzi, anulări, politică publică și facturare), PHPStan fără erori, sintaxă JavaScript validă. Testele noi verifică răspunsul 422 și lipsa modificărilor la retur gol/lipsă/ID străin, anularea după expediere, notificarea unică, respingerea reluării și acceptarea unei cereri existente după expediere. Retururile parțiale și integrale pozitive rămân verificate.
+- Browser intern pe 8080: opțiunea de anulare prezentă la o comandă expediată; pe telefon, cantitate 0 → buton blocat, 1 → activ, revenire la 0 → blocat, selectare totală și golire cu aceeași regulă. Nicio comandă reală modificată, niciun retur emis și niciun email trimis în timpul verificărilor. Fără deploy sau verificare pe MySQL/Apache.
+
 ### 2026-11-14 — Emailul de status înaintea notei interne
 - Switch-ul „Trimite e-mail clientului” apare imediat după alegerea statusului, înaintea pasului 2. Rămâne activ implicit și păstrează aceeași salvare.
 - Verificat în browserul intern pe 8080, cu Paula, la 1280 și 390 px: opțiunea este vizibilă înaintea notei, în zona de conținut a modalului. Fără schimbarea statusului unei comenzi sau trimiterea de emailuri reale.

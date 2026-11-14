@@ -259,8 +259,12 @@
     const updateReturnSummary = () => {
       const summary = returnForm?.querySelector('[data-return-summary]');
       if (!summary) return;
-      const quantity = [...returnForm.querySelectorAll('[data-return-quantity]')].reduce((sum, select) => sum + Number(select.value), 0);
-      summary.textContent = quantity ? `${quantity} ${quantity === 1 ? 'bucată selectată' : 'bucăți selectate'}` : 'Niciun produs selectat';
+      const fields = [...returnForm.querySelectorAll('[data-return-quantity]')];
+      const quantity = fields.reduce((sum, select) => sum + Math.max(0, Number(select.value) || 0), 0);
+      summary.textContent = quantity ? `${quantity} ${quantity === 1 ? 'bucată selectată' : 'bucăți selectate'}` : 'Alege cel puțin o bucată pentru retur.';
+      const submit = returnForm.querySelector('[type="submit"]');
+      if (submit) submit.disabled = quantity === 0;
+      fields[0]?.setCustomValidity(quantity > 0 ? '' : 'Alege o cantitate mai mare decât 0 pentru cel puțin un produs.');
     };
     const syncRefundAmount = () => {
       const mode = returnForm?.querySelector('[data-refund-mode]:checked')?.value;
@@ -359,6 +363,7 @@
     const form = event.target.closest('[data-order-async-form]');
     if (!form || !window.fetch) return;
     event.preventDefault();
+    if (!form.reportValidity()) return;
     const submit = form.querySelector('[type="submit"]');
     const feedback = form.querySelector('[data-order-form-feedback]');
     if (submit) submit.disabled = true;
@@ -385,7 +390,7 @@
         feedback.hidden = false;
         feedback.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
       }
-      if (submit) submit.disabled = false;
+      if (submit) submit.disabled = form.matches('[data-order-return-form]') && ![...form.querySelectorAll('[data-return-quantity]')].some((field) => Number(field.value) > 0);
     }
   });
 })();

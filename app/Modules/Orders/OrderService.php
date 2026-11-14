@@ -266,7 +266,7 @@ final class OrderService
         $cancellation->execute(['id'=>$orderId]);
         $order['cancellation_request'] = $cancellation->fetch() ?: null;
         $order['can_accept_cancellation'] = is_array($order['cancellation_request']) && $order['cancellation_request']['status'] === 'pending'
-            && in_array($order['status'], ['new','confirmed','preparing','cancelled'], true);
+            && in_array($order['status'], ['new','confirmed','preparing','shipped','cancelled'], true);
         $order['can_return'] = in_array((string) $order['status'], ['shipped', 'delivered', 'returned'], true)
             && array_sum(array_column($order['items'], 'returnable_quantity')) > 0;
         $invoiceQuery=$this->pdo->prepare('SELECT id,series_code,number,kind FROM invoices WHERE order_id=:id AND deleted_at IS NULL ORDER BY id');
@@ -353,7 +353,7 @@ final class OrderService
             'prepare' => ['from' => ['confirmed'], 'to' => 'preparing'],
             'ship' => ['from' => ['confirmed', 'preparing'], 'to' => 'shipped'],
             'deliver' => ['from' => ['shipped'], 'to' => 'delivered'],
-            'cancel' => ['from' => ['new', 'confirmed', 'preparing'], 'to' => 'cancelled'],
+            'cancel' => ['from' => ['new', 'confirmed', 'preparing', 'shipped'], 'to' => 'cancelled'],
         ];
         if (!isset($allowed[$action])) {
             throw new RuntimeException('Acțiune de comandă invalidă.');
@@ -507,7 +507,7 @@ final class OrderService
                 }
             }
             if ($selected === []) {
-                throw new RuntimeException('Selectează cel puțin un produs și o cantitate.');
+                throw new RuntimeException('Alege o cantitate mai mare decât 0 pentru cel puțin un produs.');
             }
 
             $isFull = $selectedTotal === $remainingTotal;
@@ -670,7 +670,7 @@ final class OrderService
             'new' => [['action' => 'confirm', 'status' => 'confirmed'], ['action' => 'cancel', 'status' => 'cancelled']],
             'confirmed' => [['action' => 'prepare', 'status' => 'preparing'], ['action' => 'ship', 'status' => 'shipped'], ['action' => 'cancel', 'status' => 'cancelled']],
             'preparing' => [['action' => 'ship', 'status' => 'shipped'], ['action' => 'cancel', 'status' => 'cancelled']],
-            'shipped' => [['action' => 'deliver', 'status' => 'delivered']],
+            'shipped' => [['action' => 'deliver', 'status' => 'delivered'], ['action' => 'cancel', 'status' => 'cancelled']],
         ];
 
         return $actions[$status] ?? [];

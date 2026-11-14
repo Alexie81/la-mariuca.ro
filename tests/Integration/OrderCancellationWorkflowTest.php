@@ -178,10 +178,27 @@ final class OrderCancellationWorkflowTest extends DatabaseTestCase
         self::assertSame(1, $this->mailCount('order_cancellation_decision'));
     }
 
+    public function testAdminCanAcceptExistingRequestAfterShippingWithoutRestockingDispatchedGoods(): void
+    {
+        $this->tracking->requestCancellation($this->orderId, 'Doresc anularea comenzii.');
+        $orders = new OrderService($this->pdo);
+        $orders->transition($this->orderId, 'confirm', null, $this->adminId);
+        $orders->transition($this->orderId, 'ship', null, $this->adminId);
+        $stock = $this->pdo->query('SELECT * FROM inventory ORDER BY variant_id')->fetchAll();
+        $payments = $this->pdo->query('SELECT * FROM payments ORDER BY id')->fetchAll();
+        self::assertTrue($orders->findForAdmin($this->orderId)['can_accept_cancellation']);
+        $accepted = $this->decisions->decide($this->orderId, 'accepted', 'Anulare după expediere.', $this->adminId);
+        self::assertSame('accepted', $accepted['status']);
+        self::assertSame('cancelled', $this->orderStatus());
+        self::assertSame($stock, $this->pdo->query('SELECT * FROM inventory ORDER BY variant_id')->fetchAll());
+        self::assertSame($payments, $this->pdo->query('SELECT * FROM payments ORDER BY id')->fetchAll());
+        self::assertSame(1, $this->mailCount('order_cancellation_decision'));
+    }
+
     public function testLateStatusesReasonValidationAndUnauthorizedActorsCannotResolve(): void
     {
         $this->tracking->requestCancellation($this->orderId, 'Vreau anularea.');
-        foreach (['shipped','delivered','returned','manual_review'] as $status) {
+        foreach (['delivered','returned','manual_review'] as $status) {
             $this->pdo->prepare('UPDATE orders SET status=? WHERE id=?')->execute([$status, $this->orderId]);
             $this->assertFailure(fn()=>$this->decisions->decide($this->orderId, 'accepted', '', $this->adminId), 'starea actuală');
             self::assertFalse((new OrderService($this->pdo))->findForAdmin($this->orderId)['can_accept_cancellation']);

@@ -34,7 +34,7 @@ final class OrderCancellationService
                 if ($request['status'] === $decision) { return $request; }
                 throw new DomainException('Solicitarea a fost deja soluționată. Reîncarcă pagina pentru a vedea decizia.');
             }
-            if ($decision === 'accepted' && !in_array($order['status'], ['new','confirmed','preparing','cancelled'], true)) {
+            if ($decision === 'accepted' && !in_array($order['status'], ['new','confirmed','preparing','shipped','cancelled'], true)) {
                 throw new DomainException('Comanda nu mai poate fi anulată din starea actuală. Poți respinge solicitarea și explica motivul clientului.');
             }
             // The request was timely when submitted; processing it does not have a second five-day limit.

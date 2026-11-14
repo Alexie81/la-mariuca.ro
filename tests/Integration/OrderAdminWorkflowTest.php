@@ -245,6 +245,52 @@ final class OrderAdminWorkflowTest extends DatabaseTestCase
         self::assertStringContainsString('Sistem', substr($text, $failurePosition));
     }
 
+    public function testAdminCanCancelShippedOrderAndNotifyOnlyOnce(): void
+    {
+        $id = $this->newOrderId;
+        $this->pdo->prepare("UPDATE orders SET status='shipped',shipped_at=? WHERE id=?")->execute([gmdate('c'), $id]);
+        $modal = (string) $this->get('/admin/comenzi/' . $id . '/status/modal/', ['X-Requested-With'=>'XMLHttpRequest'])->getBody();
+        self::assertStringContainsString('value="cancel"', $modal);
+        $stock = $this->pdo->query('SELECT * FROM inventory ORDER BY variant_id')->fetchAll();
+        $payments = $this->pdo->query('SELECT * FROM payments ORDER BY id')->fetchAll();
+        $data = ['_csrf'=>$_SESSION['_csrf'], 'action'=>'cancel', 'reason'=>'Solicitare după expediere', 'notify_customer'=>'1'];
+        $result = $this->post('/admin/comenzi/' . $id . '/actiune/', $data, ['Accept'=>'application/json']);
+        self::assertSame(200, $result->getStatusCode(), (string) $result->getBody());
+        self::assertSame('cancelled', $this->pdo->query('SELECT status FROM orders WHERE id=' . $id)->fetchColumn());
+        self::assertNotEmpty($this->pdo->query('SELECT cancelled_at FROM orders WHERE id=' . $id)->fetchColumn());
+        self::assertSame($stock, $this->pdo->query('SELECT * FROM inventory ORDER BY variant_id')->fetchAll());
+        self::assertSame($payments, $this->pdo->query('SELECT * FROM payments ORDER BY id')->fetchAll());
+        self::assertSame(422, $this->post('/admin/comenzi/' . $id . '/actiune/', $data, ['Accept'=>'application/json'])->getStatusCode());
+        self::assertSame(1, (int) $this->pdo->query("SELECT COUNT(*) FROM audit_log WHERE action='order.cancel' AND entity_id=" . $id)->fetchColumn());
+        self::assertSame(1, (int) $this->pdo->query("SELECT COUNT(*) FROM outbox_messages WHERE message_type='order_status_update'")->fetchColumn());
+    }
+
+    public function testEmptyReturnsAreRejectedWithoutChangingOrderStockPaymentsOrNotifications(): void
+    {
+        $itemId = (int) $this->pdo->query('SELECT id FROM order_items WHERE order_id=' . $this->deliveredOrderId)->fetchColumn();
+        $snapshot = function (): array {
+            $state = [];
+            foreach (['orders', 'order_returns', 'order_return_items', 'inventory', 'inventory_movements', 'payments', 'outbox_messages', 'audit_log'] as $table) {
+                $key = $table === 'inventory' ? 'variant_id' : 'id';
+                $state[$table] = $this->pdo->query('SELECT * FROM ' . $table . ' ORDER BY ' . $key)->fetchAll();
+            }
+            return $state;
+        };
+        $before = $snapshot();
+        foreach ([[], [$itemId => '0'], [$itemId => '0', 999999 => '2']] as $quantities) {
+            $response = $this->post('/admin/comenzi/' . $this->deliveredOrderId . '/retur/', [
+                '_csrf' => $_SESSION['_csrf'], 'quantities' => $quantities,
+                'reason' => 'Mărime nepotrivită', 'refund_mode' => 'full',
+                'restock' => '1', 'notify_customer' => '1',
+            ], ['Accept' => 'application/json']);
+            self::assertSame(422, $response->getStatusCode());
+            $payload = json_decode((string) $response->getBody(), true, 512, JSON_THROW_ON_ERROR);
+            self::assertFalse($payload['ok']);
+            self::assertSame('Alege o cantitate mai mare decât 0 pentru cel puțin un produs.', $payload['message']);
+            self::assertSame($before, $snapshot());
+        }
+    }
+
     public function testPartialAndFullReturnRespectQuantitiesRestoreStockAndRecordRefund(): void
     {
         $itemId = (int) $this->pdo->query('SELECT id FROM order_items WHERE order_id=' . $this->deliveredOrderId)->fetchColumn();
