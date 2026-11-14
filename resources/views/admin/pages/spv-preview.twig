@@ -1,0 +1,44 @@
+{% extends 'admin/layouts/base.twig' %}
+{% import 'admin/partials/spv-icons.twig' as ui %}
+{% block title %}SPV · RO e-Factura{% endblock %}
+{% block content %}
+<div class="spv-page" data-spv-preview>
+  <div class="spv-preview-note">{{ ui.icon('eye') }}<p><strong>Previzualizare interfață</strong><span>Date demonstrative. Poți explora opțiunile; conectarea, salvarea și transmiterea vor fi disponibile ulterior.</span></p><span class="spv-demo-tag">Design</span></div>
+
+  <header class="spv-hero">
+    <div class="spv-hero-top"><div class="spv-logo"><img src="{{ url('assets/images/anaf-ro.png') }}" width="285" height="77" alt="ANAF — Agenția Națională de Administrare Fiscală"></div><span class="spv-connection-badge"><i></i>Conectat securizat<span>Demo</span></span></div>
+    <div class="spv-hero-content"><div><span class="spv-eyebrow">Configurare ANAF</span><h1>SPV · RO e-Factura</h1><p>Tokenurile sunt păstrate criptat pe server. Aceeași conexiune funcționează pe desktop, telefon și orice dispozitiv autentificat.</p></div><div class="spv-hero-seal" aria-hidden="true">{{ ui.icon('shield') }}<span>{{ ui.icon('check') }}</span></div></div>
+    <div class="spv-hero-foot"><span>{{ ui.icon('shield') }} O conexiune pentru toate dispozitivele</span><span>La Măriuca <i>×</i> ANAF</span></div>
+  </header>
+
+  <section class="spv-connection" aria-labelledby="spv-connection-title">
+    <div class="spv-connection-top"><span class="spv-icon spv-icon--mint">{{ ui.icon('shield') }}</span><div class="spv-connection-copy"><h2 id="spv-connection-title">Conexiune server activă <span class="spv-small-demo">Demo</span></h2><p>Certificat verificat de ANAF <span>· testat 13 sept. 2026, 20:52</span></p></div><div class="spv-connection-actions"><button class="spv-button spv-button--soft" type="button" data-spv-demo-action="test" disabled>{{ ui.icon('refresh') }}<span>Testează conexiunea</span></button><button class="spv-button spv-button--outline" type="button" data-spv-demo-action="disconnect" disabled>{{ ui.icon('power') }}<span>Deconectează</span></button></div></div>
+    <div class="spv-tokens"><div class="spv-token"><span class="spv-token-icon">{{ ui.icon('refresh') }}</span><div><span class="spv-eyebrow">Access token</span><strong>Reînnoire automată</strong><p>Expiră <time datetime="2026-12-04T13:45:00+02:00">4 dec. 2026, 13:45</time></p></div><span class="spv-token-state">{{ ui.icon('check') }}</span></div><div class="spv-token"><span class="spv-token-icon">{{ ui.icon('key') }}</span><div><span class="spv-eyebrow">Refresh token</span><strong>Valabil până la</strong><p><time datetime="2027-09-05T14:45:00+03:00">5 sept. 2027, 14:45</time></p></div><span class="spv-token-state">{{ ui.icon('check') }}</span></div></div>
+  </section>
+
+  <section class="spv-environment" aria-labelledby="spv-env-title">
+    <div class="spv-section-head"><div class="spv-section-title"><span class="spv-section-number">01</span><div><span class="spv-eyebrow">Mediu de transmitere</span><h2 id="spv-env-title">Unde trimitem documentele</h2></div></div><span class="spv-deadline">{{ ui.icon('clock') }}Termen legal: 5 zile lucrătoare<span>Demo</span></span></div>
+    <fieldset class="spv-environments"><legend class="spv-sr-only">Mediu de transmitere — previzualizare</legend><label><input type="radio" name="spv-environment" value="test"><span>{{ ui.icon('flask') }}<span><strong>Test ANAF</strong><small>Verifici înainte de transmitere</small></span><i>{{ ui.icon('check') }}</i></span></label><label><input type="radio" name="spv-environment" value="production" checked><span>{{ ui.icon('globe') }}<span><strong>Producție</strong><small>Transmitere oficială în RO e-Factura</small></span><i>{{ ui.icon('check') }}</i></span></label></fieldset>
+    <p class="spv-environment-caption" data-spv-env-caption aria-live="polite">{{ ui.icon('shield') }}<span><strong>Mod Producție:</strong> documentele acceptate sunt transmise oficial în RO e-Factura. <em>Exemplu vizual, fără transmitere.</em></span></p>
+  </section>
+
+  <section aria-labelledby="spv-rules-title">
+    <div class="spv-section-head"><div class="spv-section-title"><span class="spv-section-number">02</span><div><span class="spv-eyebrow">Reguli automate</span><h2 id="spv-rules-title">Momentul transmiterii</h2></div></div><span class="spv-section-hint">O regulă pentru fiecare tip de factură</span></div>
+    <div class="spv-rule-grid">
+    {% for type, rule in {'issued': {'title':'Facturi emise', 'description':'Facturile pozitive din vânzări', 'icon':'upload'}, 'returned': {'title':'Facturi de retur', 'description':'Facturi de corecție · cod 381', 'icon':'return'}} %}
+      <section class="spv-rule spv-rule--{{ type }}" data-spv-rule aria-labelledby="spv-rule-{{ type }}">
+        <header class="spv-rule-head"><span class="spv-icon">{{ ui.icon(rule.icon) }}</span><div><h3 id="spv-rule-{{ type }}">{{ rule.title }}</h3><p>{{ rule.description }}</p></div></header>
+        <fieldset class="spv-modes"><legend class="spv-sr-only">Când se transmit {{ rule.title|lower }}</legend>{% for value, option in {'manual':{'title':'Manual','text':'Trimiți din factura aleasă'},'instant':{'title':'La emitere','text':'Intră imediat în coadă'},'scheduled':{'title':'Programat','text':'După 1–5 zile lucrătoare'}} %}<label><input type="radio" name="spv-{{ type }}-mode" value="{{ value }}"{% if value == 'scheduled' %} checked{% endif %}><span><i class="spv-radio">{{ ui.icon('check') }}</i><strong>{{ option.title }}</strong><small>{{ option.text }}</small></span></label>{% endfor %}</fieldset>
+        <div class="spv-schedule" data-spv-schedule><div class="spv-schedule-heading"><span class="spv-eyebrow">Trimite după</span><span>{{ ui.icon('clock') }}<span data-spv-days-summary>4 zile lucrătoare</span></span></div><fieldset class="spv-days"><legend class="spv-sr-only">Zile lucrătoare de la emitere pentru {{ rule.title|lower }}</legend>{% for day in 1..5 %}<label><input type="radio" name="spv-{{ type }}-day" value="{{ day }}" aria-label="{{ day }} {{ day == 1 ? 'zi lucrătoare' : 'zile lucrătoare' }}"{% if day == 4 %} checked{% endif %}><span>{{ day }}</span></label>{% endfor %}</fieldset><p>zile lucrătoare de la emitere</p></div>
+        <div class="spv-mode-description" data-spv-mode-description hidden>{{ ui.icon('clock') }}<p></p></div>
+      </section>
+    {% endfor %}
+    </div>
+  </section>
+
+  <label class="spv-alert"><span class="spv-icon">{{ ui.icon('bell') }}</span><span class="spv-alert-copy"><strong>Alerte termen legal</strong><span>Notifică atunci când mai sunt cel mult <b>2 zile lucrătoare</b> din termenul legal.</span></span><input type="checkbox" role="switch" name="spv-alerts" aria-label="Alerte termen legal" checked><span class="spv-switch" aria-hidden="true"><i>{{ ui.icon('check') }}</i></span></label>
+  <footer class="spv-footer"><p>{{ ui.icon('eye') }}<span><strong>Explorează interfața</strong><span>Alegerile sunt doar pentru previzualizare și nu se salvează.</span></span></p><button class="spv-button spv-button--primary" type="button" data-spv-demo-action="save" disabled>{{ ui.icon('save') }}<span>Salvează și recalculează coada</span>{{ ui.icon('arrow') }}</button></footer>
+  <noscript><p class="spv-noscript">Aceasta este o previzualizare. Acțiunile de conectare, salvare și transmitere nu sunt disponibile încă.</p></noscript>
+  <dialog class="spv-dialog" aria-labelledby="spv-dialog-title" aria-describedby="spv-dialog-copy" data-spv-dialog><button class="spv-dialog-close" type="button" aria-label="Închide previzualizarea" data-spv-close>{{ ui.icon('close') }}</button><span class="spv-dialog-icon">{{ ui.icon('eye') }}</span><span class="spv-eyebrow">Previzualizare interfață</span><h2 id="spv-dialog-title">Deocamdată, doar designul</h2><p id="spv-dialog-copy"></p><button class="spv-button spv-button--primary" type="button" data-spv-close>Am înțeles {{ ui.icon('check') }}</button></dialog>
+</div>
+{% endblock %}

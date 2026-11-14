@@ -2,6 +2,12 @@
 
 Actualizat: 2026-11-14
 
+### 2026-11-14 — SPV / RO e-Factura: interfață demonstrativă
+- Tab „SPV · RO e-Factura” în grupul Facturare, imediat sub Configurator factură. Pagină în stilul NIR aprobat: antet prună, suprafețe albe rotunjite, accente roz pentru retururi, selecții clare și switch pentru alerte. Sigla ANAF și scutul din referință sunt servite local; scutul din meniu este centrat optic, fără spațiul alb de la baza imaginii-sursă. Imaginile ANAF au fost reutilizate, fără modificare, din activele existente `cubisshop.ro/assets/images/anaf-{ro,shield}.png`.
+- Sunt păstrate informațiile din model: conexiune, date tokenuri, Test ANAF/Producție, facturi emise/retur, Manual/La emitere/Programat, 1–5 zile, alerte și acțiunile conexiunii/cozii. Stările, datele și termenul din referință sunt explicit demonstrative; termenul va necesita validare la integrarea fiscală.
+- Numai GET autorizat pentru administrare, fără credențiale ANAF, integrare externă, salvări, migrare, operațiuni de emitere sau transmitere. Selecțiile sunt locale paginii; butoanele explică etapa de previzualizare într-un modal și nu raportează succese simulate. Reîncărcarea resetează opțiunile.
+- Verificări: 1 test HTTP / 14 aserțiuni pentru acces anonim/client/admin/operator și refuzul POST; 143 template-uri Twig compilate, PHPStan pe controller și AppFactory, sintaxă JS. În browserul intern, administrarea Paulei de pe 8080: verificat la 320/390/768/1440 px, opțiuni, alerte și cele trei acțiuni demonstrative. Fără depășire orizontală; integrarea ANAF rămâne pentru etapa următoare, conform cererii.
+
 ### 2026-11-14 — Previzualizare PDF în fișa NIR-ului confirmat
 - Butonul „Vezi document” deschide PDF-ul într-un modal, inclusiv pentru retururile confirmate către furnizor. Antetul și acțiunile rămân fixe; documentul are zoom, potrivire la lățime, navigare între pagini, descărcare și deschidere separată. Pe telefon, modalul se dimensionează după document, în limita ecranului.
 - PDF.js este inclus local, cu licență și versiune fixată, și se încarcă numai la deschiderea previzualizării. Fișierele nu sunt transmise către un serviciu extern. Închiderea oprește încărcarea/randarea și readuce focusul pe buton. Fără JavaScript, legătura deschide PDF-ul separat.
