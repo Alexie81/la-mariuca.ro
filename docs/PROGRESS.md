@@ -2,6 +2,10 @@
 
 Actualizat: 2026-11-14
 
+### 2026-11-14 — Emailul de status înaintea notei interne
+- Switch-ul „Trimite e-mail clientului” apare imediat după alegerea statusului, înaintea pasului 2. Rămâne activ implicit și păstrează aceeași salvare.
+- Verificat în browserul intern pe 8080, cu Paula, la 1280 și 390 px: opțiunea este vizibilă înaintea notei, în zona de conținut a modalului. Fără schimbarea statusului unei comenzi sau trimiterea de emailuri reale.
+
 ### 2026-11-14 — Facturarea evidențiată sub timeline-ul comenzii
 - Panou dedicat prună/roz, cu pictogramă de document, stare și acțiune principală „Emite factura” contrastantă. Pregătirea datelor rămâne o acțiune secundară distinctă; facturile deja emise au legături individuale, iar comenzile neeligibile afișează o explicație.
 - Secțiunea apare o singură dată, imediat după timeline și înaintea rezumatului, inclusiv în ordinea HTML și fără JavaScript. Pe telefon acțiunile ocupă lățimea panoului; pe desktop panoul rămâne vizibil deasupra conținutului comenzii. Pop-upurile și revenirea în comandă sunt păstrate.
