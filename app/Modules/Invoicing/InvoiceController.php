@@ -68,6 +68,7 @@ final class InvoiceController
             $invoice=(int)($args['id'] ?? 0)>0?$this->service->document((int)$args['id'],$this->actor()):null;
             $orderId=(int)($request->getQueryParams()['order'] ?? $request->getQueryParams()['order_id'] ?? 0);
             $preview=in_array($kind,['issue','order-edit'],true) && $orderId>0?$this->service->preview($orderId,$this->actor()):null;
+            $returnToOrder=$kind==='issue' && $preview && ($request->getQueryParams()['return_to'] ?? '')==='order';
             $editOrder=(in_array($kind,['edit','correct'],true) && $invoice)||$kind==='order-edit'?(new \App\Modules\Orders\OrderService($this->repository->pdo()))->findForAdmin($invoice['order_id'] ?? $orderId):null;
             $returnRequest=null;
             if($kind==='decide' && $invoice) { foreach($invoice['return_requests'] as $candidate) { if((int)$candidate['id']===(int)($request->getQueryParams()['request'] ?? 0)) { $returnRequest=$candidate; } } if(!$returnRequest) { throw new InvoiceException('Solicitarea nu există.',404); } }
@@ -75,9 +76,10 @@ final class InvoiceController
                 'warehouse_id'=>(int)($request->getQueryParams()['warehouse_id'] ?? 0),'warehouses'=>$this->repository->all('company_warehouses',['is_active'=>1]),'request_key'=>bin2hex(random_bytes(24)),
                 'form_action'=>$this->url($invoice?$invoice['id'].'/'.$kind.'/':($kind==='issue'?'emite/':'0/'.$kind.'/')),'back_url'=>$this->url($invoice?$invoice['id'].'/':''),'values'=>[],
                 'edit_order'=>$editOrder,'return_request'=>$returnRequest,'return_policy'=>$this->service->returnPolicy(),
-                'is_modal'=>$request->getHeaderLine('X-Invoice-Modal')==='1'];
+                'is_modal'=>$request->getHeaderLine('X-Invoice-Modal')==='1','return_to_order'=>$returnToOrder];
             $data['product_options']=$editOrder && !$data['is_modal']?$this->repository->productChoices(null,0,0):[];
             if($kind==='order-edit' && $editOrder) { $data['back_url']=$this->config->path('admin/comenzi/'.$editOrder['id'].'/'); }
+            if($returnToOrder) { $data['back_url']=$this->config->path('admin/comenzi/'.$orderId.'/'); }
             return $this->render($data['is_modal']?'admin/invoices/form.twig':'admin/pages/invoice-form.twig',$data);
         } catch(\Throwable $e) { return $this->failure($request,$e); }
     }
@@ -106,6 +108,7 @@ final class InvoiceController
             }
             $message=match($kind) { 'issue'=>'Factura a fost emisă.','return'=>'Factura de retur a fost emisă.','receive'=>'Primirea produselor a fost înregistrată.','email'=>'Emailul cu factura a fost pus în coada de trimitere.','delete'=>'Factura a fost eliminată, iar stocul a fost recalculat.','payment'=>'Înregistrarea a fost salvată.','correct'=>'Documentele de corecție au fost emise.',default=>'Modificările au fost salvate.' };
             $redirect=$kind==='order-edit'?$this->config->path('admin/comenzi/'.(int)$input['order_id'].'/'):$this->url($id>0?$id.'/':'');
+            if($kind==='issue' && ($input['return_to'] ?? '')==='order' && $result) { $redirect=$this->config->path('admin/comenzi/'.(int)$result['order_id'].'/'); }
             if($this->jsonWanted($request)) { return $this->json(['ok'=>true,'message'=>$message,'redirect'=>$redirect]); }
             Flash::set('success',$message); return $this->view->redirect($redirect);
         } catch(\Throwable $e) { return $this->failure($request,$e); }

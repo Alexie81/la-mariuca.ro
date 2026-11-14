@@ -242,6 +242,8 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         self::assertSame(419,$send('POST','/admin/facturi/emite/',['order_id'=>$order,'request_key'=>'http-issue-test'])->getStatusCode());
         $response=$send('POST','/admin/facturi/emite/',['_csrf'=>$_SESSION['_csrf'],'order_id'=>$order,'request_key'=>'http-issue-test']);
         self::assertSame(200,$response->getStatusCode(),(string)$response->getBody());
+        $result=json_decode((string)$response->getBody(),true);
+        self::assertSame('/admin/facturi/'.$this->pdo->query('SELECT id FROM invoices')->fetchColumn().'/',$result['redirect']);
         self::assertSame(1,(int)$this->pdo->query('SELECT COUNT(*) FROM invoices')->fetchColumn());
     }
     public function testFiscalAdapterLocksAtFirstAttemptAndRetriesSameDocumentIdentity(): void
@@ -404,6 +406,32 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         self::assertSame((int)$extra['price_bani'],(int)$added['unit_price_bani']);
         self::assertSame((int)$item['line_total_bani']*2+(int)$extra['price_bani']+(int)$order['shipping_bani'],(int)$repo->one('orders',['id'=>$orderId])['total_bani']);
         self::assertSame(0,(int)$this->pdo->query('SELECT COUNT(*) FROM invoices')->fetchColumn());
+        unset($app);gc_collect_cycles();
+    }
+    public function testIssuingFromAnOrderKeepsTheOrderContextAndDoesNotDuplicateOnRetry(): void
+    {
+        $orderId=$this->order(1);$_SESSION['user_id']=$this->actor['id'];
+        $factory=new \Slim\Psr7\Factory\ServerRequestFactory();$app=\App\AppFactory::create($this->root);
+        $page=$app->handle($factory->createServerRequest('GET','http://localhost/admin/comenzi/'.$orderId.'/'));
+        self::assertStringContainsString('emite/?order='.$orderId.'&amp;return_to=order" data-iv-modal',(string)$page->getBody());
+        $get=$factory->createServerRequest('GET','http://localhost/admin/facturi/emite/')->withQueryParams(['order'=>$orderId,'return_to'=>'order']);
+        $form=$app->handle($get->withHeader('X-Invoice-Modal','1'));$html=(string)$form->getBody();
+        self::assertSame(200,$form->getStatusCode());
+        self::assertStringContainsString('href="/admin/comenzi/'.$orderId.'/" data-iv-close',$html);
+        self::assertStringContainsString('name="return_to" value="order"',$html);
+        self::assertStringContainsString('name="order_id" value="'.$orderId.'"',$html);
+        self::assertStringNotContainsString('data-iv-order',$html);
+        $standalone=$app->handle($get);self::assertSame(200,$standalone->getStatusCode());
+        self::assertStringContainsString('Înapoi la comandă',(string)$standalone->getBody());
+        self::assertSame(0,(int)$this->pdo->query('SELECT COUNT(*) FROM invoices')->fetchColumn());
+        $input=['_csrf'=>$_SESSION['_csrf'],'order_id'=>$orderId,'request_key'=>'issue-from-order','return_to'=>'order'];
+        $post=$factory->createServerRequest('POST','http://localhost/admin/facturi/emite/',['REMOTE_ADDR'=>'127.0.0.78'])->withParsedBody($input);
+        $response=$app->handle($post->withHeader('Accept','application/json'));
+        self::assertSame(200,$response->getStatusCode(),(string)$response->getBody());
+        self::assertSame('/admin/comenzi/'.$orderId.'/',json_decode((string)$response->getBody(),true)['redirect']);
+        $again=$app->handle($post);self::assertSame('/admin/comenzi/'.$orderId.'/',$again->getHeaderLine('Location'));
+        self::assertSame(1,(int)$this->pdo->query('SELECT COUNT(*) FROM invoices')->fetchColumn());
+        self::assertSame(-10000,$this->balance());
         unset($app);gc_collect_cycles();
     }
     private function order(int $quantity): int

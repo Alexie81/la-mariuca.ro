@@ -2,6 +2,11 @@
 
 Actualizat: 2026-11-14
 
+### 2026-11-14 — Emiterea facturii în modal, din comandă
+- „Emite factura” deschide formularul peste pagina comenzii, cu identificarea comenzii deschise. Renunțarea închide modalul; emiterea reîncarcă aceeași comandă, unde apare documentul emis. Contextul de revenire este limitat la o rută internă construită din comanda facturii, fără URL arbitrar.
+- Emiterea din registrul facturilor păstrează selecția comenzilor și revenirea la factura emisă. Fallbackul fără JavaScript revine tot la comandă când formularul a fost deschis de acolo. Se reutilizează designul, antetul/acțiunile fixe și protecția modificărilor nesalvate.
+- Verificări: 27 teste de facturare / 209 aserțiuni și PHPStan fără erori. Test nou pentru deschiderea fără emitere, revenire JSON/POST clasic, păstrarea comenzii și reluare fără factură sau scădere de stoc duplicată. Browser intern pe 8080 la 1280 și 390 px: deschidere popup și renunțare fără schimbarea paginii, fără overflow mobil sau erori JS. Emiterea efectivă a fost verificată numai în baza izolată a testelor; fără factură emisă pe comanda principală, emailuri reale sau deploy.
+
 ### 2026-11-14 — Selector produse și pregătirea facturării direct în comandă
 - „Pregătește datele pentru facturare” deschide formularul într-un modal pe pagina comenzii. Renunțarea închide modalul, cu protecție pentru modificări nesalvate; salvarea revine la aceeași comandă. Fără JavaScript, formularul separat păstrează legăturile de revenire și salvare către comandă.
 - În pregătirea comenzii, editarea facturii și corecția prin documente noi, „Adaugă un produs” deschide un selector cu fotografii, variante, prețuri și căutare după nume/SKU. SKU-ul exact restrânge rezultatul la varianta respectivă; sunt acceptate și coduri parțiale. Catalogul se încarcă în pagini de 24, produsele deja incluse sunt marcate, iar un produs nou poate fi schimbat sau eliminat. Antetul, căutarea și acțiunile rămân fixe; doar lista derulează.
