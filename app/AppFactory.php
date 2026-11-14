@@ -260,6 +260,7 @@ final class AppFactory
 
         $app->group('/admin', function (RouteCollectorProxy $group) use ($adminController, $adminPushController, $twoFactorController, $orderNotificationSettingsController, $paymentMethodSettingsController, $companyAdminController, $nirController, $invoiceConfigurationController, $invoiceAutomationController, $invoiceController, $spvPreviewController): void {
             $group->get('/facturi/', [$invoiceController, 'index']);
+            $group->get('/facturi/produs/', [$invoiceController, 'productPreview']);
             $group->get('/facturi/emite/', [$invoiceController, 'form']);
             $group->post('/facturi/emite/', [$invoiceController, 'action']);
             $group->get('/facturi/export/{format:xlsx|zip}/', [$invoiceController, 'export']);

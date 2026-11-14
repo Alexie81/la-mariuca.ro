@@ -10,6 +10,22 @@ final class InvoiceRepository
     public function __construct(private readonly PDO $pdo) {}
     public function pdo(): PDO { return $this->pdo; }
     public function now(): string { return gmdate('Y-m-d\TH:i:s\Z'); }
+    /** Read-only presentation data; the editor validates availability and price again on save.
+     * @return array<string,mixed>|null
+     */
+    public function productPreview(string $sku): ?array
+    {
+        $query=$this->pdo->prepare("SELECT v.sku,v.option_summary,p.name,
+            COALESCE(vm.public_path,
+                (SELECT m.public_path FROM product_images pi JOIN media m ON m.id=pi.media_id WHERE pi.product_id=p.id AND m.public_path IS NOT NULL ORDER BY pi.position,pi.media_id LIMIT 1),
+                (SELECT m.public_path FROM product_categories pc JOIN categories c ON c.id=pc.category_id JOIN media m ON m.id=c.image_media_id WHERE pc.product_id=p.id AND m.public_path IS NOT NULL ORDER BY CASE WHEN c.parent_id IS NULL THEN 0 ELSE 1 END,c.position,c.id LIMIT 1)
+            ) AS image_path
+            FROM product_variants v JOIN products p ON p.id=v.product_id LEFT JOIN media vm ON vm.id=v.image_media_id
+            WHERE v.sku=:sku AND v.status='active' AND p.status='published' AND v.price_bani>0 LIMIT 1");
+        $query->execute(['sku'=>$sku]);
+        $product=$query->fetch();
+        return is_array($product)?$product:null;
+    }
     /**
      * @template T
      * @param callable():T $work

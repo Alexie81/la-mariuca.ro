@@ -16,6 +16,29 @@
     const type=scope.querySelector('[data-iv-customer-type]'),fields=scope.querySelector('[data-iv-company-fields]');if(type && fields)fields.hidden=type.value!=='company';
     if(matchMedia('(max-width: 900px)').matches)scope.querySelectorAll('[data-iv-mobile-fold]').forEach(panel=>panel.open=false);
   };
+  const productLookups=new WeakMap();
+  const previewProduct=input=>{
+    const row=input.closest('.iv-edit-item'), previous=productLookups.get(input);
+    if(previous){clearTimeout(previous.timer);previous.controller.abort();}
+    const state={controller:new AbortController(),timer:null};productLookups.set(input,state);
+    const photo=row.querySelector('[data-iv-preview-photo]'),img=photo.querySelector('img'),icon=photo.querySelector('svg');
+    const preview=row.querySelector('[data-iv-product-preview]'),name=preview.querySelector('strong'),hint=preview.querySelector('small'),sku=input.value.trim();
+    img.hidden=true;img.removeAttribute('src');icon.removeAttribute('hidden');name.hidden=true;name.textContent='';row.classList.remove('is-resolved','is-not-found');
+    hint.textContent=sku?'Se caută produsul…':'Introdu SKU-ul pentru a vedea produsul.';
+    if(!sku)return;
+    state.timer=setTimeout(async()=>{
+      try{
+        const url=new URL(input.closest('[data-iv-product-url]').dataset.ivProductUrl,location.href);url.searchParams.set('sku',sku);
+        const response=await fetch(url,{credentials:'same-origin',headers:{Accept:'application/json'},signal:state.controller.signal});
+        if(!response.ok)throw new Error();
+        const result=await response.json();
+        if(!row.isConnected||state.controller.signal.aborted||input.value.trim()!==sku)return;
+        if(!result.product){hint.textContent='Nu am găsit un produs activ. Verifică SKU-ul exact al variantei.';row.classList.add('is-not-found');return;}
+        const product=result.product;name.textContent=product.name;name.hidden=false;hint.textContent=[product.sku,product.option_summary].filter(Boolean).join(' · ');row.classList.add('is-resolved');
+        if(product.image_url){img.alt=product.name;img.onload=()=>{if(!state.controller.signal.aborted&&input.value.trim()===sku){img.hidden=false;icon.setAttribute('hidden','');}};img.onerror=()=>{img.hidden=true;icon.removeAttribute('hidden');};img.src=product.image_url;}
+      }catch(err){if(err.name!=='AbortError'&&row.isConnected)hint.textContent='Previzualizarea nu este disponibilă. Verifică SKU-ul înainte de salvare.';}
+    },250);
+  };
   const open=async(url,trigger)=>{
     if(busy)return;
     loadingController?.abort();loadingController=new AbortController();opener=trigger||opener;startLoader();
@@ -40,10 +63,10 @@
     if(e.target.matches('[data-iv-customer-type]')){const fields=e.target.form.querySelector('[data-iv-company-fields]');if(fields)fields.hidden=e.target.value!=='company';}
     if(e.target.matches('[data-iv-order]') && e.target.value){const url=new URL(e.target.dataset.previewUrl,location.href);url.searchParams.set('order',e.target.value);const warehouse=e.target.form.querySelector('[name="warehouse_id"]');if(warehouse?.value)url.searchParams.set('warehouse_id',warehouse.value);if(dialog?.open)open(url.href);else location.href=url.href;}
   });
-  root.addEventListener('input',e=>{if(e.target.matches('input[type="search"]')){const clear=e.target.closest('.iv-search')?.querySelector('[data-iv-clear]');if(clear)clear.hidden=!e.target.value;}});
+  root.addEventListener('input',e=>{if(e.target.matches('[data-iv-sku]'))previewProduct(e.target);if(e.target.matches('input[type="search"]')){const clear=e.target.closest('.iv-search')?.querySelector('[data-iv-clear]');if(clear)clear.hidden=!e.target.value;}});
   root.addEventListener('click',async e=>{
-    const addItem=e.target.closest('[data-iv-add-item]');if(addItem){const form=addItem.closest('form'),index=Number(addItem.dataset.nextIndex||0);const markup=form.querySelector('[data-iv-item-template]').innerHTML.replaceAll('INDEX',String(index));form.querySelector('[data-iv-edit-items]').insertAdjacentHTML('beforeend',markup);addItem.dataset.nextIndex=String(index+1);form.querySelector('[data-iv-edit-items]').lastElementChild.querySelector('input').focus();return;}
-    const removeItem=e.target.closest('[data-iv-remove-item]');if(removeItem){removeItem.closest('.iv-edit-item').remove();return;}
+    const addItem=e.target.closest('[data-iv-add-item]');if(addItem){const form=addItem.closest('form'),index=Number(addItem.dataset.nextIndex||0),fragment=form.querySelector('[data-iv-item-template]').content.cloneNode(true);fragment.querySelectorAll('[name],[id],[aria-describedby]').forEach(el=>{for(const attr of ['name','id','aria-describedby'])if(el.hasAttribute(attr))el.setAttribute(attr,el.getAttribute(attr).replaceAll('INDEX',String(index)));});form.querySelector('[data-iv-edit-items]').append(fragment);addItem.dataset.nextIndex=String(index+1);form.querySelector('[data-iv-edit-items]').lastElementChild.querySelector('[data-iv-sku]').focus();return;}
+    const removeItem=e.target.closest('[data-iv-remove-item]');if(removeItem){const row=removeItem.closest('.iv-edit-item'),state=productLookups.get(row.querySelector('[data-iv-sku]'));if(state){clearTimeout(state.timer);state.controller.abort();}row.remove();root.querySelector('[data-iv-add-item]')?.focus();return;}
     const trigger=e.target.closest('[data-iv-modal]');if(trigger){e.preventDefault();open(trigger.href,trigger);return;}
     const closeButton=e.target.closest('[data-iv-close]');if(closeButton && dialog?.open){e.preventDefault();close();return;}
     const copyButton=e.target.closest('[data-iv-copy]');if(copyButton){copy(copyButton.dataset.ivCopy);return;}

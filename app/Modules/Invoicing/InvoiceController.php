@@ -30,6 +30,16 @@ final class InvoiceController
         try { return $this->render('admin/pages/invoice-detail.twig',['invoice'=>$this->service->document((int)$args['id'],$this->actor())]); }
         catch(\Throwable $e) { return $this->failure($request,$e); }
     }
+    public function productPreview(ServerRequestInterface $request): ResponseInterface
+    {
+        try {
+            $this->service->allow($this->actor());
+            $sku=trim((string)($request->getQueryParams()['sku'] ?? ''));
+            $product=$sku!=='' && mb_strlen($sku)<=190?$this->repository->productPreview($sku):null;
+            if($product) { $product['image_url']=!empty($product['image_path'])?$this->config->path(ltrim($product['image_path'],'/')):''; unset($product['image_path']); }
+            return $this->json(['ok'=>true,'product'=>$product])->withHeader('Cache-Control','private, no-store');
+        } catch(\Throwable $e) { return $this->failure($request,$e); }
+    }
     /** @param array<string,string> $args */
     public function form(ServerRequestInterface $request,ResponseInterface $response,array $args): ResponseInterface
     {
