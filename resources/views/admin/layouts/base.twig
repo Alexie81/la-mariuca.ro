@@ -28,7 +28,7 @@
   {% if admin_section|default('') == 'invoice_configuration' %}<link rel="stylesheet" href="{{ url('assets/css/invoice-configuration.css?v=20261113-1') }}">{% endif %}
   {% if admin_section|default('') == 'invoice_automations' %}<link rel="stylesheet" href="{{ url('assets/css/invoice-automations.css?v=20261113-1') }}">{% endif %}
   {% if admin_section|default('') == 'spv_preview' %}<link rel="stylesheet" href="{{ url('assets/css/spv-preview.css?v=20261114-1') }}">{% endif %}
-  {% if admin_section|default('') == 'invoices' %}<link rel="stylesheet" href="{{ url('assets/css/invoices.css?v=20261114-3') }}">{% endif %}
+  {% if admin_section|default('') == 'invoices' or (admin_section|default('') == 'orders' and order is defined) %}<link rel="stylesheet" href="{{ url('assets/css/invoices.css?v=20261114-4') }}">{% endif %}
 </head>
 {% set operator = admin_user|default(current_user()) %}
 {% set first_name = operator.first_name|default('Administrator') %}
@@ -206,6 +206,6 @@
   {% if admin_section|default('') == 'invoice_configuration' %}<script src="{{ url('assets/js/invoice-configuration.js?v=20261113-1') }}" defer></script>{% endif %}
   {% if admin_section|default('') == 'invoice_automations' %}<script src="{{ url('assets/js/invoice-automations.js?v=20261113-1') }}" defer></script>{% endif %}
   {% if admin_section|default('') == 'spv_preview' %}<script src="{{ url('assets/js/spv-preview.js?v=20261114-1') }}" defer></script>{% endif %}
-{% if admin_section|default('') == 'invoices' %}<script src="{{ url('assets/js/invoices.js?v=20261114-3') }}" defer></script>{% endif %}
+{% if admin_section|default('') == 'invoices' or (admin_section|default('') == 'orders' and order is defined) %}<script src="{{ url('assets/js/invoices.js?v=20261114-4') }}" defer></script>{% endif %}
 </body>
 </html>

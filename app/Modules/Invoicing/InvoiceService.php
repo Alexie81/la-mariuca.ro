@@ -49,8 +49,7 @@ final class InvoiceService
             (new InvoiceOrderEditor($this->repository->pdo()))->apply($orderId,$input,$actor);
             if(isset($input['billing'])) {
                 $preview=$this->snapshots->fromOrder($orderId,(array)$input['billing']); $customer=$preview['snapshot']['customer'];
-                $names=explode(' ',$customer['name'],2);
-                $this->repository->update('orders',['first_name'=>$names[0],'last_name'=>$names[1] ?? '','email'=>$customer['email'],'phone'=>$customer['phone'],'customer_type'=>$customer['type'],'company_json'=>InvoiceSnapshot::json($customer['company']),'billing_address_json'=>InvoiceSnapshot::json($customer['address'])],['id'=>$orderId]);
+                $this->syncOrderCustomer($orderId,$customer,$actor);
             }
         });
     }
@@ -143,6 +142,7 @@ final class InvoiceService
             if(array_sum($unaffected)>0) { throw new InvoiceException('Selectează pentru corecție și pozițiile eliminate din comandă.'); }
             if($lines===[]) { throw new InvoiceException('Corecția are nevoie de poziții înlocuitoare. Pentru o eliminare fără înlocuire folosește returul.'); }
             $result=$this->create('corrected_positive',(int)$original['order_id'],$replacement['snapshot'],$lines,$actor,$key.':positive',$id,(int)$credit['id'],$reason,null);
+            $this->syncOrderCustomer((int)$original['order_id'],$replacement['snapshot']['customer'],$actor);
             $this->queueEmail((int)$credit['id'],$key.':email-negative',$actor);
             $this->queueEmail((int)$result['id'],$key.':email-positive',$actor);
             $this->remember($key,'correct',$hash,(int)$result['id']); return $this->decorate($result);
@@ -175,12 +175,27 @@ final class InvoiceService
                 $financial['payment_state']=(int)$invoice['paid_bani']>=$financial['gross_bani']?'paid':((int)$invoice['paid_bani']>0?'partial':'unpaid');
             }
             $customer=array_replace($snapshot['customer'],(array)($input['billing'] ?? [])); InvoiceSnapshot::validateCustomer($customer); $snapshot['customer']=$customer;
+            if(isset($input['billing'])) { $this->syncOrderCustomer((int)$invoice['order_id'],$customer,$actor); }
             $notes=trim((string)($input['notes'] ?? $invoice['notes'])); if(mb_strlen($notes)>5000) { throw new InvoiceException('Notele sunt prea lungi.'); }
             $currentLines=$this->repository->all('invoice_lines',['invoice_id'=>$id]);
             $this->touch($invoice,$financial+['snapshot_json'=>InvoiceSnapshot::json($snapshot),'notes'=>$notes,'email_state'=>$invoice['email_state']==='not_sent'?'not_sent':'needs_resend','search_text'=>$this->search(array_replace($invoice,$financial),$snapshot,$currentLines)]);
             $this->cancelQueuedEmail($id);
             $updated=$this->load($id); $this->audit($id,'edited',$actor,$reason,$invoice,$updated); $this->remember($key,'edit',$hash,$id); return $this->decorate($updated);
         });
+    }
+    /** Keep the order contact/billing data in the same transaction as the document.
+     * Shipping can intentionally differ; never replace the delivery address here.
+     * @param array<string,mixed> $customer @param array<string,mixed> $actor
+     */
+    private function syncOrderCustomer(int $orderId,array $customer,array $actor): void
+    {
+        InvoiceSnapshot::validateCustomer($customer);
+        $before=$this->repository->one('orders',['id'=>$orderId]) ?? throw new InvoiceException('Comanda nu există.',404);
+        $names=explode(' ',trim($customer['name']),2);
+        $changes=['first_name'=>$names[0],'last_name'=>$names[1] ?? '','email'=>$customer['email'],'phone'=>$customer['phone'],'customer_type'=>$customer['type'],'company_json'=>InvoiceSnapshot::json($customer['company']),'billing_address_json'=>InvoiceSnapshot::json($customer['address'])];
+        if(array_intersect_key($before,$changes)==$changes) { return; }
+        $this->repository->update('orders',$changes+['updated_at'=>$this->repository->now()],['id'=>$orderId]);
+        $this->repository->insert('audit_log',['actor_user_id'=>$actor['id'],'action'=>'order.invoice_billing_edit','entity_type'=>'order','entity_id'=>$orderId,'context_json'=>InvoiceSnapshot::json(['before'=>array_intersect_key($before,$changes),'after'=>$changes]),'created_at'=>$this->repository->now()]);
     }
     /** @param array<string,mixed> $input @param array<string,mixed> $actor @return array<string,mixed> */
     public function receive(int $id,array $input,array $actor): array

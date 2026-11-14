@@ -1,10 +1,10 @@
 {% import 'admin/partials/nir-ui.twig' as n %}
-<section class="iv-form-step iv-product-editor" data-iv-product-url="{{ url('admin/facturi/produs/') }}">
-  <header><b>2</b><div><h3>Produse și livrare</h3><p>Ajustează cantitățile sau adaugă un produs folosind SKU-ul exact.</p></div></header>
+<section class="iv-form-step iv-product-editor" data-iv-product-url="{{ url('admin/facturi/produse/') }}">
+  <header><b>2</b><div><h3>Produse și livrare</h3><p>Caută după nume sau SKU, alege varianta și ajustează cantitatea.</p></div></header>
   <input type="hidden" name="order_version" value="{{ edit_order.updated_at }}"><input type="hidden" name="order_id" value="{{ edit_order.id }}">
   <div class="iv-edit-items" data-iv-edit-items>
     {% for item in edit_order.items %}
-      <article class="iv-edit-item">
+      <article class="iv-edit-item" data-iv-chosen-sku="{{ item.sku }}">
         <input type="hidden" name="items[{{ loop.index0 }}][id]" value="{{ item.id }}">
         <span class="iv-edit-photo">{% if item.image_path|default('') %}<img src="{{ url(item.image_path|trim('/')) }}" alt="{{ item.product_name }}">{% else %}{{ n.icon('image') }}{% endif %}</span>
         <div class="iv-edit-identity"><span class="iv-item-tag">În comandă</span><strong>{{ item.product_name }}</strong><small>{{ item.sku }}{% if item.variant_summary %} · {{ item.variant_summary }}{% endif %}</small></div>
@@ -13,14 +13,16 @@
     {% endfor %}
   </div>
   <button type="button" class="iv-btn iv-add-product" data-iv-add-item data-next-index="{{ edit_order.items|length }}">{{ n.icon('plus') }}Adaugă un produs</button>
+  <noscript><div class="iv-fields"><label>Adaugă un produs din catalog<select name="items[{{ edit_order.items|length }}][sku]"><option value="">Alege produsul</option>{% for product in product_options %}<option value="{{ product.sku }}">{{ product.name }} · {{ product.option_summary }} · {{ product.sku }}</option>{% endfor %}</select></label><label>Cantitate pentru produsul nou<input name="items[{{ edit_order.items|length }}][quantity]" type="number" min="0" max="999" value="0"></label></div></noscript>
   <p class="iv-editor-note">Prețurile produselor existente se păstrează. Cantitatea 0 elimină o poziție; produsele noi folosesc prețul actual din catalog.</p>
   <template data-iv-item-template>
     <article class="iv-edit-item iv-edit-item--new">
       <span class="iv-edit-photo" data-iv-preview-photo>{{ n.icon('image') }}<img hidden alt=""></span>
       <div class="iv-edit-identity">
         <span class="iv-item-tag">Produs nou</span>
-        <label>SKU exact din catalog<input name="items[INDEX][sku]" required maxlength="190" placeholder="De exemplu, LM-26-009" autocomplete="off" spellcheck="false" data-iv-sku aria-describedby="iv-product-preview-INDEX"></label>
-        <div class="iv-product-preview" id="iv-product-preview-INDEX" data-iv-product-preview role="status" aria-live="polite"><strong hidden></strong><small>Introdu SKU-ul pentru a vedea produsul.</small></div>
+        <input type="hidden" name="items[INDEX][sku]" data-iv-sku>
+        <strong data-iv-product-name></strong><small data-iv-product-meta></small>
+        <button type="button" class="iv-change-product" data-iv-change-product>{{ n.icon('search') }}Schimbă produsul</button>
       </div>
       <label class="iv-edit-quantity">Cantitate<input type="number" name="items[INDEX][quantity]" min="1" max="999" step="1" value="1" required></label>
       <button type="button" class="iv-icon iv-remove-product" data-iv-remove-item aria-label="Elimină produsul nou" title="Elimină produsul nou">{{ n.icon('trash') }}</button>

@@ -1,7 +1,8 @@
 {% extends 'admin/layouts/base.twig' %}
 {% block title %}Comanda {{ order.order_number ?: '#' ~ order.id }}{% endblock %}
 {% block content %}
-  <div class="order-workspace" data-admin-order-workspace>
+{% import 'admin/invoices/ui.twig' as iv %}
+  <div class="order-workspace" data-admin-order-workspace data-iv-page>
     {% set unit_count = 0 %}{% for item in order.items %}{% set unit_count = unit_count + item.quantity %}{% endfor %}
     <header class="order-hero">
       <div class="order-hero__main">
@@ -98,6 +99,7 @@
         {% if order.internal_notes %}<section class="order-card order-note"><span class="order-kicker">Notă internă</span><p>{{ order.internal_notes }}</p></section>{% endif %}
       </aside>
     </div>
+    <div class="iv-workspace iv-order-dialogs">{{ iv.shell() }}</div>
     <dialog class="order-dialog" data-order-dialog aria-labelledby="order-dialog-title"><div class="order-dialog__shell"><button class="order-dialog__close" type="button" aria-label="Închide" data-order-dialog-close><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"/></svg></button><div class="order-dialog__content" data-order-dialog-content><div class="order-dialog__loading"><span></span><strong>Pregătim opțiunile…</strong><small>Totul va apărea imediat.</small></div></div></div></dialog>
     <dialog class="order-lightbox" data-order-lightbox aria-label="Imagine produs"><figure><div class="order-lightbox__frame"><img src="" alt="" data-order-lightbox-image><figcaption data-order-lightbox-caption></figcaption><button class="order-lightbox__close" type="button" aria-label="Închide imaginea" data-order-lightbox-close><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"/></svg></button></div></figure></dialog>
   </div>

@@ -15,16 +15,45 @@ final class InvoiceRepository
      */
     public function productPreview(string $sku): ?array
     {
-        $query=$this->pdo->prepare("SELECT v.sku,v.option_summary,p.name,
+        $query=$this->pdo->prepare($this->productSelect()." WHERE LOWER(v.sku)=:sku AND v.status='active' AND p.status='published' AND v.price_bani>0 LIMIT 1");
+        $query->execute(['sku'=>mb_strtolower($sku)]);
+        $product=$query->fetch();
+        return is_array($product)?$product:null;
+    }
+    private function productSelect(): string
+    {
+        return "SELECT v.id AS variant_id,v.product_id,v.sku,v.option_summary,v.price_bani,p.name,
             COALESCE(vm.public_path,
                 (SELECT m.public_path FROM product_images pi JOIN media m ON m.id=pi.media_id WHERE pi.product_id=p.id AND m.public_path IS NOT NULL ORDER BY pi.position,pi.media_id LIMIT 1),
                 (SELECT m.public_path FROM product_categories pc JOIN categories c ON c.id=pc.category_id JOIN media m ON m.id=c.image_media_id WHERE pc.product_id=p.id AND m.public_path IS NOT NULL ORDER BY CASE WHEN c.parent_id IS NULL THEN 0 ELSE 1 END,c.position,c.id LIMIT 1)
             ) AS image_path
-            FROM product_variants v JOIN products p ON p.id=v.product_id LEFT JOIN media vm ON vm.id=v.image_media_id
-            WHERE v.sku=:sku AND v.status='active' AND p.status='published' AND v.price_bani>0 LIMIT 1");
-        $query->execute(['sku'=>$sku]);
-        $product=$query->fetch();
-        return is_array($product)?$product:null;
+            FROM product_variants v JOIN products p ON p.id=v.product_id LEFT JOIN media vm ON vm.id=v.image_media_id";
+    }
+    /** @return list<int> */
+    public function productIdsForSku(string $query): array
+    {
+        $statement=$this->pdo->prepare("SELECT DISTINCT p.id FROM product_variants v JOIN products p ON p.id=v.product_id WHERE v.status='active' AND p.status='published' AND v.price_bani>0 AND LOWER(v.sku) LIKE ? ESCAPE '!' ORDER BY p.id");
+        $statement->execute(['%'.strtr(mb_strtolower($query),['!'=>'!!','%'=>'!%','_'=>'!_']).'%']);
+        return array_map('intval',$statement->fetchAll(PDO::FETCH_COLUMN));
+    }
+    /** @param list<int>|null $productIds Ranked product matches, or null for browsing.
+     * @return list<array<string,mixed>>
+     */
+    public function productChoices(?array $productIds=null,int $offset=0,int $limit=25): array
+    {
+        if($productIds===[]) { return []; }
+        $where=" WHERE v.status='active' AND p.status='published' AND v.price_bani>0";
+        $params=[]; $order='p.name,v.option_summary,v.id';
+        if($productIds!==null) {
+            $productIds=array_values(array_unique(array_map('intval',$productIds)));
+            $where.=' AND p.id IN ('.implode(',',array_fill(0,count($productIds),'?')).')';
+            $params=$productIds; $rank=[];
+            foreach($productIds as $index=>$id) { $rank[]='WHEN '.$id.' THEN '.$index; }
+            $order='CASE p.id '.implode(' ',$rank).' END,v.option_summary,v.id';
+        }
+        $sql=$this->productSelect().$where.' ORDER BY '.$order;
+        if($limit>0) { $sql.=' LIMIT '.min(100,$limit).' OFFSET '.max(0,$offset); }
+        $query=$this->pdo->prepare($sql); $query->execute($params); return $query->fetchAll();
     }
     /**
      * @template T

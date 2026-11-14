@@ -180,7 +180,7 @@ final class AppFactory
         $invoiceConfigurationController = new \App\Modules\Invoicing\InvoiceConfigurationController(new \App\Modules\Invoicing\InvoiceConfigurationService(new \App\Modules\Invoicing\InvoiceConfigurationRepository($pdo)), new AdminNotificationService($pdo), $auth, $view, $config);
         $invoiceRepository = new \App\Modules\Invoicing\InvoiceRepository($pdo);
         $invoiceService = new \App\Modules\Invoicing\InvoiceService($invoiceRepository, new \App\Modules\Invoicing\InvoiceSnapshot($pdo, $root), new \App\Modules\Inventory\InvoiceStockService($pdo));
-        $invoiceController = new \App\Modules\Invoicing\InvoiceController($invoiceService, $invoiceRepository, new \App\Modules\Invoicing\InvoiceExportService($invoiceRepository, $root), new AdminNotificationService($pdo), $auth, $view, $config);
+        $invoiceController = new \App\Modules\Invoicing\InvoiceController($invoiceService, $invoiceRepository, new \App\Modules\Invoicing\InvoiceExportService($invoiceRepository, $root), new AdminNotificationService($pdo), $auth, $view, $config, $catalogSearch);
         $invoiceCustomer=new \App\Modules\Invoicing\InvoiceCustomerController($invoiceService,$view,$config,$rateLimiter);
         $invoiceAutomationController = new \App\Modules\Invoicing\InvoiceAutomationController(new \App\Modules\Invoicing\InvoiceAutomationService(new \App\Modules\Invoicing\InvoiceAutomationRepository($pdo)), new AdminNotificationService($pdo), $auth, $view, $config);
         $spvPreviewController = new \App\Modules\Invoicing\SpvPreviewController(new AdminNotificationService($pdo), $auth, $view);
@@ -261,6 +261,7 @@ final class AppFactory
         $app->group('/admin', function (RouteCollectorProxy $group) use ($adminController, $adminPushController, $twoFactorController, $orderNotificationSettingsController, $paymentMethodSettingsController, $companyAdminController, $nirController, $invoiceConfigurationController, $invoiceAutomationController, $invoiceController, $spvPreviewController): void {
             $group->get('/facturi/', [$invoiceController, 'index']);
             $group->get('/facturi/produs/', [$invoiceController, 'productPreview']);
+            $group->get('/facturi/produse/', [$invoiceController, 'products']);
             $group->get('/facturi/emite/', [$invoiceController, 'form']);
             $group->post('/facturi/emite/', [$invoiceController, 'action']);
             $group->get('/facturi/export/{format:xlsx|zip}/', [$invoiceController, 'export']);

@@ -14,7 +14,7 @@ use Slim\Psr7\Stream;
 
 final class InvoiceController
 {
-    public function __construct(private readonly InvoiceService $service,private readonly InvoiceRepository $repository,private readonly InvoiceExportService $exports,private readonly AdminNotificationService $notifications,private readonly Auth $auth,private readonly View $view,private readonly Config $config) {}
+    public function __construct(private readonly InvoiceService $service,private readonly InvoiceRepository $repository,private readonly InvoiceExportService $exports,private readonly AdminNotificationService $notifications,private readonly Auth $auth,private readonly View $view,private readonly Config $config,private readonly \App\Modules\Catalog\CatalogSearchService $catalogSearch) {}
     public function index(ServerRequestInterface $request): ResponseInterface
     {
         try {
@@ -40,6 +40,26 @@ final class InvoiceController
             return $this->json(['ok'=>true,'product'=>$product])->withHeader('Cache-Control','private, no-store');
         } catch(\Throwable $e) { return $this->failure($request,$e); }
     }
+    public function products(ServerRequestInterface $request): ResponseInterface
+    {
+        try {
+            $this->service->allow($this->actor());
+            $query=trim((string)($request->getQueryParams()['q'] ?? ''));
+            if(mb_strlen($query)>190) { throw new InvoiceException('Caută după un nume sau SKU mai scurt.'); }
+            $page=max(1,min(10000,(int)($request->getQueryParams()['page'] ?? 1)));
+            $exact=$query!==''?$this->repository->productPreview($query):null;
+            $ids=null;
+            if($query!=='' && !$exact) {
+                $named=array_map(static fn(array $row):int=>(int)$row['id'],$this->catalogSearch->products($query)['products']);
+                $ids=array_values(array_unique(array_merge($this->repository->productIdsForSku($query),$named)));
+            }
+            $products=$exact?($page===1?[$exact]:[]):$this->repository->productChoices($ids,($page-1)*24);
+            $more=count($products)>24; $products=array_slice($products,0,24);
+            foreach($products as &$product) { $product['image_url']=!empty($product['image_path'])?$this->config->path(ltrim($product['image_path'],'/')):''; unset($product['image_path']); }
+            unset($product);
+            return $this->json(['ok'=>true,'products'=>$products,'more'=>$more,'page'=>$page])->withHeader('Cache-Control','private, no-store');
+        } catch(\Throwable $e) { return $this->failure($request,$e); }
+    }
     /** @param array<string,string> $args */
     public function form(ServerRequestInterface $request,ResponseInterface $response,array $args): ResponseInterface
     {
@@ -56,6 +76,8 @@ final class InvoiceController
                 'form_action'=>$this->url($invoice?$invoice['id'].'/'.$kind.'/':($kind==='issue'?'emite/':'0/'.$kind.'/')),'back_url'=>$this->url($invoice?$invoice['id'].'/':''),'values'=>[],
                 'edit_order'=>$editOrder,'return_request'=>$returnRequest,'return_policy'=>$this->service->returnPolicy(),
                 'is_modal'=>$request->getHeaderLine('X-Invoice-Modal')==='1'];
+            $data['product_options']=$editOrder && !$data['is_modal']?$this->repository->productChoices(null,0,0):[];
+            if($kind==='order-edit' && $editOrder) { $data['back_url']=$this->config->path('admin/comenzi/'.$editOrder['id'].'/'); }
             return $this->render($data['is_modal']?'admin/invoices/form.twig':'admin/pages/invoice-form.twig',$data);
         } catch(\Throwable $e) { return $this->failure($request,$e); }
     }

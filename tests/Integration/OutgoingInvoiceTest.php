@@ -109,6 +109,9 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         self::assertSame($invoice['display_number'],$updated['display_number']); self::assertSame(-30000,$this->balance());
         self::assertSame(InvoiceCalculator::ratio($invoice['lines'][0]['gross_bani'],3,2),$updated['lines'][0]['gross_bani']);
         self::assertSame('not_sent',$updated['email_state']);
+        $order=(new InvoiceRepository($this->pdo))->one('orders',['id'=>$invoice['order_id']]);
+        self::assertSame((int)$updated['gross_bani'],(int)$order['total_bani']);
+        self::assertSame(3,(int)$this->pdo->query('SELECT quantity FROM order_items WHERE id='.(int)$item['id'])->fetchColumn());
         $this->service->queueEmail($updated['id'],'email-before-another-edit',$this->actor);
         $updated=$this->service->edit($invoice['id'],['request_key'=>'edit-after-email-queued','version'=>$updated['row_version'],'reason'=>'Corectare note','notes'=>'Date actualizate'],$this->actor);
         self::assertSame('needs_resend',$updated['email_state']);
@@ -357,6 +360,52 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         self::assertSame(0,(int)$this->pdo->query('SELECT COUNT(*) FROM invoice_receipts')->fetchColumn());
     }
 
+    public function testInvoiceBillingEditsAndCorrectionsSynchronizeOrderButPreserveShippingAndOriginal(): void
+    {
+        $repo=new InvoiceRepository($this->pdo);
+        $invoice=$this->service->issue($this->order(2),['request_key'=>'sync-billing-issue'],$this->actor);
+        $before=$repo->one('orders',['id'=>$invoice['order_id']]);
+        $billing=['name'=>'Ioana Client Test','email'=>'ioana@example.test','phone'=>'0712345678','address'=>['address'=>'Strada Nouă 10','city'=>'Cluj-Napoca','county'=>'Cluj','country'=>'România','postal_code'=>'400001']];
+        $updated=$this->service->edit($invoice['id'],['request_key'=>'sync-billing-edit','version'=>1,'reason'=>'Date corecte','billing'=>$billing],$this->actor);
+        $order=$repo->one('orders',['id'=>$invoice['order_id']]);
+        self::assertSame($billing['name'],$order['first_name'].' '.$order['last_name']);
+        self::assertSame($billing['email'],$order['email']);self::assertSame($billing['phone'],$order['phone']);
+        self::assertSame($billing['address'],json_decode($order['billing_address_json'],true));
+        self::assertSame($before['shipping_address_json'],$order['shipping_address_json']);
+        self::assertSame($billing['name'],$updated['snapshot']['customer']['name']);
+        // Failure after the sync must roll back the order as well as the invoice.
+        try { $this->service->edit($invoice['id'],['request_key'=>'sync-billing-rollback','version'=>$updated['row_version'],'reason'=>'Test validare','billing'=>['name'=>'Nu se salvează'],'notes'=>str_repeat('x',5001)],$this->actor); self::fail('Invalid notes accepted'); }
+        catch(InvoiceException) { self::assertSame($order,$repo->one('orders',['id'=>$invoice['order_id']])); }
+        $corrected=$this->service->correct($invoice['id'],['request_key'=>'sync-billing-correct','version'=>$updated['row_version'],'reason'=>'Corectare client','billing'=>['name'=>'Maria Client','email'=>'maria@example.test']],$this->actor);
+        $order=$repo->one('orders',['id'=>$invoice['order_id']]);
+        self::assertSame('Maria Client',$order['first_name'].' '.$order['last_name']);self::assertSame('maria@example.test',$order['email']);
+        self::assertSame($before['shipping_address_json'],$order['shipping_address_json']);
+        self::assertSame('Maria Client',$corrected['snapshot']['customer']['name']);
+        self::assertSame($updated['snapshot_json'],$this->service->load($invoice['id'])['snapshot_json']);
+        self::assertSame(2,(int)$this->pdo->query("SELECT COUNT(*) FROM audit_log WHERE action='order.invoice_billing_edit'")->fetchColumn());
+    }
+    public function testOrderPreparationModalReturnsToTheOrderAfterCancelOrSave(): void
+    {
+        $orderId=$this->order(1);$repo=new InvoiceRepository($this->pdo);$order=$repo->one('orders',['id'=>$orderId]);$item=$repo->all('order_items',['order_id'=>$orderId])[0];
+        $_SESSION['user_id']=$this->actor['id'];$factory=new \Slim\Psr7\Factory\ServerRequestFactory();
+        $app=\App\AppFactory::create($this->root);
+        $form=$app->handle($factory->createServerRequest('GET','http://localhost/admin/facturi/0/order-edit/')->withQueryParams(['order'=>$orderId])->withHeader('X-Invoice-Modal','1'));
+        self::assertSame(200,$form->getStatusCode());$html=(string)$form->getBody();
+        self::assertStringContainsString('href="/admin/comenzi/'.$orderId.'/" data-iv-close',$html);
+        self::assertStringContainsString('data-iv-add-item',$html);
+        $extra=$this->pdo->query("SELECT v.* FROM product_variants v JOIN products p ON p.id=v.product_id JOIN inventory i ON i.variant_id=v.id WHERE v.status='active' AND p.status='published' AND v.price_bani>0 AND i.physical_quantity-i.reserved_quantity>=1 AND v.id<>".(int)$item['variant_id']." ORDER BY v.id LIMIT 1")->fetch();
+        $input=['_csrf'=>$_SESSION['_csrf'],'request_key'=>'http-order-preparation','order_id'=>$orderId,'order_version'=>$order['updated_at'],'reason'=>'Actualizare comandă','items'=>[['id'=>$item['id'],'quantity'=>'2'],['sku'=>$extra['sku'],'quantity'=>'1','price_bani'=>1]],'billing'=>['name'=>'Client Corectat']];
+        $request=$factory->createServerRequest('POST','http://localhost/admin/facturi/0/order-edit/',['REMOTE_ADDR'=>'127.0.0.77'])->withParsedBody($input)->withHeader('Accept','application/json');
+        $response=$app->handle($request);$result=json_decode((string)$response->getBody(),true);
+        self::assertSame(200,$response->getStatusCode(),json_encode($result));self::assertSame('/admin/comenzi/'.$orderId.'/',$result['redirect']);
+        self::assertSame(2,(int)$repo->all('order_items',['order_id'=>$orderId])[0]['quantity']);
+        self::assertSame('Client',$repo->one('orders',['id'=>$orderId])['first_name']);
+        $added=$repo->one('order_items',['order_id'=>$orderId,'variant_id'=>$extra['id']]);
+        self::assertSame((int)$extra['price_bani'],(int)$added['unit_price_bani']);
+        self::assertSame((int)$item['line_total_bani']*2+(int)$extra['price_bani']+(int)$order['shipping_bani'],(int)$repo->one('orders',['id'=>$orderId])['total_bani']);
+        self::assertSame(0,(int)$this->pdo->query('SELECT COUNT(*) FROM invoices')->fetchColumn());
+        unset($app);gc_collect_cycles();
+    }
     private function order(int $quantity): int
     {
         $_SESSION['cart_token']=bin2hex(random_bytes(32)); $cart=new CartService($this->pdo); $cart->add($this->variant['id'],$quantity);
