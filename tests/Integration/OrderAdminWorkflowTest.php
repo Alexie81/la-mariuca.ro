@@ -46,6 +46,42 @@ final class OrderAdminWorkflowTest extends DatabaseTestCase
         self::assertSame(303, $login->getStatusCode());
     }
 
+    public function testInternalNoteSavesWithoutChangingOrderOrSendingNotifications(): void
+    {
+        $url = '/admin/comenzi/' . $this->newOrderId . '/nota/';
+        $initial = (string) $this->pdo->query('SELECT internal_notes FROM orders WHERE id=' . $this->newOrderId)->fetchColumn();
+        $before = (int) $this->pdo->query('SELECT COUNT(*) FROM outbox_messages')->fetchColumn();
+        $note = "Detalii pentru echipă.\n<script>alert(1)</script>";
+        $data = ['_csrf'=>$_SESSION['_csrf'], 'note'=>$note, 'version'=>hash('sha256', $initial)];
+        $headers = ['Accept'=>'application/json'];
+        $saved = $this->post($url, $data, $headers);
+        self::assertSame(200, $saved->getStatusCode());
+        $payload = json_decode((string) $saved->getBody(), true, 512, JSON_THROW_ON_ERROR);
+        self::assertSame($note, $payload['note']);
+        self::assertSame(hash('sha256', $note), $payload['version']);
+        self::assertSame($note, $this->pdo->query('SELECT internal_notes FROM orders WHERE id=' . $this->newOrderId)->fetchColumn());
+        self::assertSame('new', $this->pdo->query('SELECT status FROM orders WHERE id=' . $this->newOrderId)->fetchColumn());
+        self::assertSame($before, (int) $this->pdo->query('SELECT COUNT(*) FROM outbox_messages')->fetchColumn());
+        $page = (string) $this->get('/admin/comenzi/' . $this->newOrderId . '/')->getBody();
+        self::assertStringContainsString('&lt;script&gt;alert(1)&lt;/script&gt;', $page);
+        self::assertStringNotContainsString('<script>alert(1)</script>', $page);
+        self::assertSame(409, $this->post($url, $data, $headers)->getStatusCode());
+        $data['version'] = $payload['version'];
+        $data['note'] = str_repeat('ă', 5001);
+        self::assertSame(422, $this->post($url, $data, $headers)->getStatusCode());
+        $data['note'] = '';
+        $cleared = $this->post($url, $data);
+        self::assertSame(303, $cleared->getStatusCode());
+        self::assertStringEndsWith('/admin/comenzi/' . $this->newOrderId . '/#nota-interna', $cleared->getHeaderLine('Location'));
+        self::assertSame('', $this->pdo->query('SELECT internal_notes FROM orders WHERE id=' . $this->newOrderId)->fetchColumn());
+        self::assertSame(419, $this->post($url, ['note'=>'invalid','version'=>hash('sha256', '')], $headers)->getStatusCode());
+        self::assertSame(404, $this->post('/admin/comenzi/999999/nota/', ['_csrf'=>$_SESSION['_csrf'],'note'=>'x','version'=>hash('sha256', '')], $headers)->getStatusCode());
+        $this->post('/admin/deconectare/', ['_csrf'=>$_SESSION['_csrf']]);
+        unset($_SESSION['user_id']);
+        self::assertNotSame(200, $this->post($url, ['_csrf'=>$_SESSION['_csrf'],'note'=>'unauthorized','version'=>hash('sha256', '')], $headers)->getStatusCode());
+        self::assertSame('', $this->pdo->query('SELECT internal_notes FROM orders WHERE id=' . $this->newOrderId)->fetchColumn());
+    }
+
     public function testOrderWorkspaceRendersProductsContactActionsAndResponsiveAssets(): void
     {
         $productId = (int) $this->pdo->query('SELECT product_id FROM order_items WHERE order_id=' . $this->deliveredOrderId . ' LIMIT 1')->fetchColumn();

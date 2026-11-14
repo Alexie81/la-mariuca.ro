@@ -172,7 +172,7 @@ final class AppFactory
         $checkoutController = new CheckoutController(new CheckoutService($pdo, $cart, $config, $romanianLocations, $push, $shippingMethods, new CategoryPaymentPolicy($pdo, $config, $paymentMethodSettings), $internalOrderNotifications), $cart, $orders, new StripeCheckoutService($pdo, $config, $paymentMethodSettings), $auth, $customerAccount, $rateLimiter, $view, $config, $shippingMethods, new OrderResultPresenter($config), new \App\Modules\Checkout\CheckoutAttemptService($pdo, $config, $push));
         $authController = new AuthController($pdo, $auth, new GoogleOAuthService($pdo, $config), $customerAccount, $rateLimiter, $view, $config);
         $twoFactorController = new TwoFactorController($pdo, $auth, new TotpService($config), $adminRememberMe, $rateLimiter, $view, $config);
-        $adminController = new AdminController($pdo, new AdminDashboardService($pdo), new AdminNotificationService($pdo), $push, $catalog, new CatalogAdminService($pdo, $productDescriptions), new CustomerAdminService($pdo), new NewsletterAdminService($pdo), $promotions, $shippingMethods, new SupplierAdminService($pdo), $orders, $reviews, new MediaService($pdo, $root), new ContentAdminService($pdo), $auth, $adminRememberMe, $rateLimiter, $view, $config, new \App\Modules\Orders\OrderCancellationService(new \App\Modules\Orders\OrderTrackingRepository($pdo), $orders));
+        $adminController = new AdminController($pdo, new AdminDashboardService($pdo), new AdminNotificationService($pdo), $push, $catalog, new CatalogAdminService($pdo, $productDescriptions), new CustomerAdminService($pdo), new NewsletterAdminService($pdo), $promotions, $shippingMethods, new SupplierAdminService($pdo), $orders, $reviews, new MediaService($pdo, $root), new ContentAdminService($pdo), $auth, $adminRememberMe, $rateLimiter, $view, $config, new \App\Modules\Orders\OrderCancellationService(new \App\Modules\Orders\OrderTrackingRepository($pdo), $orders), new \App\Modules\Orders\OrderNoteService(new \App\Modules\Orders\OrderNoteRepository($pdo)));
         $adminPushController = new AdminPushController($push, $auth, $view, $config);
         $orderNotificationSettingsController = new OrderNotificationSettingsController(new OrderNotificationSettingsService($pdo), new AdminNotificationService($pdo), $auth, $view, $config);
         $paymentMethodSettingsController = new PaymentMethodSettingsController($paymentMethodSettings, new AdminNotificationService($pdo), $auth, $view, $config, new \App\Modules\Payments\PaymentFeeService($pdo));
@@ -421,6 +421,7 @@ final class AppFactory
             $group->get('/comenzi/notificari/modal/', [$orderNotificationSettingsController, 'form']);
             $group->post('/comenzi/notificari/', [$orderNotificationSettingsController, 'save']);
             $group->get('/comenzi/{id:[0-9]+}/', [$adminController, 'orderDetail']);
+            $group->post('/comenzi/{id:[0-9]+}/nota/', [$adminController, 'saveOrderNote']);
             $group->get('/comenzi/{id:[0-9]+}/status/modal/', [$adminController, 'orderStatusModal']);
             $group->get('/comenzi/{id:[0-9]+}/retur/modal/', [$adminController, 'orderReturnModal']);
             $group->get('/comenzi/{id:[0-9]+}/email/modal/', [$adminController, 'orderEmailModal']);

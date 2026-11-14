@@ -4,6 +4,95 @@
   const workspace = document.querySelector('[data-admin-order-workspace], .order-action-page');
   if (!workspace) return;
 
+  const note = workspace.querySelector('[data-order-note]');
+  if (note && window.fetch) {
+    const form = note.querySelector('[data-order-note-form]');
+    const input = note.querySelector('[data-note-input]');
+    const editor = note.querySelector('[data-note-editor]');
+    const display = note.querySelector('[data-note-text]');
+    const action = note.querySelector('[data-note-action]');
+    const cancel = note.querySelector('[data-note-cancel]');
+    const feedback = note.querySelector('[data-note-feedback]');
+    const count = note.querySelector('[data-note-count]');
+    let saved = display.classList.contains('is-empty') ? '' : display.textContent;
+    let editing = !feedback.hidden;
+    let saving = false;
+    let feedbackTimer;
+    const sync = () => {
+      note.classList.toggle('is-editing', editing);
+      editor.hidden = !editing;
+      display.hidden = editing;
+      action.type = editing ? 'submit' : 'button';
+      action.title = action.ariaLabel = editing ? 'Salvează nota' : 'Editează nota internă';
+      count.textContent = `${[...input.value].length.toLocaleString('ro-RO')} / 5.000`;
+    };
+    note.classList.add('is-enhanced');
+    cancel.hidden = false;
+    sync();
+    action.addEventListener('click', (event) => {
+      if (editing) return;
+      event.preventDefault();
+      clearTimeout(feedbackTimer);
+      feedback.hidden = true;
+      editing = true;
+      input.value = saved;
+      sync();
+      input.focus({preventScroll:true});
+      input.setSelectionRange(input.value.length, input.value.length);
+    });
+    cancel.addEventListener('click', () => {
+      if (saving) return;
+      input.value = saved;
+      editing = false;
+      feedback.hidden = true;
+      sync();
+      action.focus({preventScroll:true});
+    });
+    input.addEventListener('input', sync);
+    input.addEventListener('keydown', (event) => {
+      if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+        event.preventDefault();
+        if (!saving) form.requestSubmit();
+      }
+    });
+    window.addEventListener('beforeunload', (event) => {
+      if (editing && input.value !== saved) { event.preventDefault(); event.returnValue = ''; }
+    });
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (saving || !editing || !form.reportValidity()) return;
+      const body = new FormData(form);
+      saving = true;
+      note.setAttribute('aria-busy', 'true');
+      action.disabled = cancel.disabled = input.disabled = true;
+      feedback.hidden = true;
+      try {
+        const response = await fetch(form.action, {method:'POST', body, headers:{Accept:'application/json','X-Requested-With':'XMLHttpRequest'}});
+        const payload = await response.json().catch(() => null);
+        if (!response.ok || !payload?.ok) throw new Error(payload?.message || 'Salvarea nu a reușit. Verifică conexiunea și autentificarea, apoi încearcă din nou.');
+        saved = payload.note;
+        form.elements.version.value = payload.version;
+        input.value = saved;
+        display.textContent = saved || 'Adaugă o notă utilă pentru echipă.';
+        display.classList.toggle('is-empty', !saved);
+        editing = false;
+        sync();
+        feedback.textContent = 'Notă salvată';
+        feedback.classList.remove('is-error');
+        feedbackTimer = setTimeout(() => { feedback.hidden = true; }, 2000);
+      } catch (error) {
+        feedback.textContent = error.message;
+        feedback.classList.add('is-error');
+      } finally {
+        saving = false;
+        note.removeAttribute('aria-busy');
+        action.disabled = cancel.disabled = input.disabled = false;
+        feedback.hidden = false;
+        if (!editing) action.focus({preventScroll:true});
+      }
+    });
+  }
+
   workspace.querySelectorAll('[data-order-copy]').forEach((button) => { button.hidden = false; });
 
   const dialog = workspace.querySelector('[data-order-dialog]');

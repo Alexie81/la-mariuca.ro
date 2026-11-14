@@ -30,7 +30,7 @@ use Psr\Http\Message\ServerRequestInterface;
 
 final class AdminController
 {
-    public function __construct(private readonly PDO $pdo, private readonly AdminDashboardService $dashboardService, private readonly AdminNotificationService $notificationService, private readonly AdminPushService $push, private readonly CatalogRepository $catalog, private readonly CatalogAdminService $catalogAdmin, private readonly CustomerAdminService $customers, private readonly NewsletterAdminService $newsletter, private readonly PromotionAdminService $promotions, private readonly ShippingMethodService $shippingMethods, private readonly SupplierAdminService $suppliers, private readonly OrderService $orders, private readonly ProductReviewService $reviews, private readonly MediaService $media, private readonly ContentAdminService $contentAdmin, private readonly Auth $auth, private readonly AdminRememberMe $rememberMe, private readonly RateLimiter $limiter, private readonly View $view, private readonly Config $config, private readonly OrderCancellationService $cancellations)
+    public function __construct(private readonly PDO $pdo, private readonly AdminDashboardService $dashboardService, private readonly AdminNotificationService $notificationService, private readonly AdminPushService $push, private readonly CatalogRepository $catalog, private readonly CatalogAdminService $catalogAdmin, private readonly CustomerAdminService $customers, private readonly NewsletterAdminService $newsletter, private readonly PromotionAdminService $promotions, private readonly ShippingMethodService $shippingMethods, private readonly SupplierAdminService $suppliers, private readonly OrderService $orders, private readonly ProductReviewService $reviews, private readonly MediaService $media, private readonly ContentAdminService $contentAdmin, private readonly Auth $auth, private readonly AdminRememberMe $rememberMe, private readonly RateLimiter $limiter, private readonly View $view, private readonly Config $config, private readonly OrderCancellationService $cancellations, private readonly \App\Modules\Orders\OrderNoteService $orderNotes)
     {
     }
 
@@ -1018,10 +1018,45 @@ final class AdminController
 
         return $this->view->render('admin/pages/order-detail.twig', [
             'order' => $order,
+            'order_note_version' => hash('sha256', (string) $order['internal_notes']),
+            'order_note_draft' => $request->getAttribute('order_note_draft', (string) $order['internal_notes']),
+            'order_note_error' => $request->getAttribute('order_note_error', ''),
             'admin_section' => 'orders',
             'admin_context' => 'Comenzi',
             'admin_unread_count' => $this->notificationService->unreadCount((int) ($this->auth->user()['id'] ?? 0)),
         ]);
+    }
+
+    public function saveOrderNote(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $body = (array) ($request->getParsedBody() ?? []);
+        $orderId = (int) $args['id'];
+        $status = 200;
+        try {
+            if (!is_string($body['note'] ?? null) || !is_string($body['version'] ?? null)) {
+                throw new \DomainException('Nota trebuie să conțină text.');
+            }
+            $note = $this->orderNotes->save($orderId, $body['note'], $body['version']);
+            $payload = ['ok'=>true, 'note'=>$note, 'version'=>hash('sha256', $note), 'message'=>'Notă salvată'];
+        } catch (\Throwable $error) {
+            $status = match (true) {
+                $error instanceof \OutOfBoundsException => 404,
+                $error instanceof \UnexpectedValueException => 409,
+                $error instanceof \DomainException => 422,
+                default => 500,
+            };
+            $payload = ['ok'=>false, 'message'=>$status === 500 ? 'Nota nu a putut fi salvată. Încearcă din nou.' : $error->getMessage()];
+        }
+        if (str_contains(strtolower($request->getHeaderLine('Accept')), 'application/json')) {
+            $response->getBody()->write((string) json_encode($payload, JSON_UNESCAPED_UNICODE));
+            return $response->withStatus($status)->withHeader('Content-Type', 'application/json; charset=utf-8')->withHeader('Cache-Control', 'no-store');
+        }
+        if (!$payload['ok']) {
+            return $this->orderDetail($request->withAttribute('order_note_error', $payload['message'])
+                ->withAttribute('order_note_draft', is_string($body['note'] ?? null) ? $body['note'] : ''), $response, $args)->withStatus($status);
+        }
+        Flash::set('success', 'Nota internă a fost salvată.');
+        return $this->view->redirect($this->config->path('admin/comenzi/' . $orderId . '/#nota-interna'));
     }
 
     public function orderStatusModal(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface

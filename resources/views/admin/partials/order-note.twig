@@ -1,0 +1,20 @@
+<section class="order-card order-note" id="nota-interna" aria-labelledby="order-note-title" data-order-note>
+  <form action="{{ url('admin/comenzi/' ~ order.id ~ '/nota/') }}" method="post" data-order-note-form>
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <input type="hidden" name="version" value="{{ order_note_version }}">
+    <header class="order-note__header">
+      <div><span class="order-kicker" id="order-note-title">Notă internă</span><span class="order-note__privacy">Doar pentru echipă</span></div>
+      <button class="order-note__action" type="submit" title="Salvează nota" aria-label="Salvează nota" data-note-action>
+        <svg class="order-note__pencil" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5 4 4M4 20l4-1L20 7a2.8 2.8 0 0 0-4-4L4 15l-1 6Z"/></svg>
+        <svg class="order-note__save" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>
+      </button>
+    </header>
+    <p class="order-note__text{{ not order.internal_notes ? ' is-empty' : '' }}" data-note-text>{{ order.internal_notes ?: 'Adaugă o notă utilă pentru echipă.' }}</p>
+    <div class="order-note__editor" data-note-editor>
+      <label class="sr-only" for="order-note-input">Nota internă a comenzii</label>
+      <textarea id="order-note-input" name="note" rows="4" maxlength="5000" placeholder="Scrie detaliile utile pentru această comandă…" aria-describedby="order-note-feedback" data-note-input>{{ order_note_draft|default(order.internal_notes) }}</textarea>
+      <div class="order-note__editor-footer"><button class="order-note__cancel" type="button" data-note-cancel hidden>Renunță</button><span data-note-count></span></div>
+    </div>
+    <p class="order-note__feedback" id="order-note-feedback" role="status" aria-live="polite" data-note-feedback{% if not order_note_error|default('') %} hidden{% endif %}>{{ order_note_error|default('') }}</p>
+  </form>
+</section>

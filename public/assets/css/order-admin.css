@@ -206,8 +206,32 @@
 .order-returns article strong {font-size:14px}
 .order-returns article small,.order-returns article>span {color:var(--order-muted);font-size:12px}
 .order-returns article>em {grid-column:2;color:var(--order-sage);font-size:13px;font-style:normal;font-weight:700}
-.order-note {padding:20px;background:#faf7f1}
-.order-note p {margin:9px 0 0;color:var(--order-muted);font-size:13px;line-height:1.65}
+.order-note {padding:20px;background:linear-gradient(140deg,#fffafc,#f8f3f8);border-color:#e6d6e2;transition:border-color .2s,box-shadow .2s}
+.order-note.is-editing {border-color:#bb829f;box-shadow:0 8px 28px #64405f12}
+.order-note__header {display:flex;align-items:center;justify-content:space-between;gap:12px}
+.order-note__privacy {display:block;margin-top:5px;font-size:12px;color:#8b7386}
+.order-note .order-note__action {display:inline-flex;align-items:center;justify-content:center;flex:0 0 40px;width:40px;height:40px;min-height:40px;padding:0;border:1px solid #e6cdda;border-radius:13px;background:#fff;color:#95617d;cursor:pointer;transition:background .2s,transform .2s,box-shadow .2s}
+.order-note .order-note__action:hover {background:#f7e9f0;transform:translateY(-1px);box-shadow:0 4px 12px #71415812}
+.order-note .order-note__action svg {width:18px;height:18px;display:block;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.order-note .order-note__action .order-note__pencil {display:none}
+.order-note.is-enhanced:not(.is-editing) .order-note__pencil {display:block}
+.order-note.is-enhanced:not(.is-editing) .order-note__save {display:none}
+.order-note.is-editing .order-note__action {background:#73516d;border-color:#73516d;color:#fff}
+.order-note .order-note__text {margin:14px 0 0;color:#65545e;font-size:14px;line-height:1.65;white-space:pre-wrap;overflow-wrap:anywhere}
+.order-note .order-note__text.is-empty {color:#947e8c}
+.order-note__editor {margin-top:15px;animation:orderNoteReveal .18s ease-out}
+.order-note__editor textarea {display:block;box-sizing:border-box;width:100%;min-height:120px;max-height:380px;resize:vertical;padding:12px 13px;background:#fff;border:1px solid #d9c3d3;border-radius:13px;font:400 14px/1.6 var(--font-sans, sans-serif);color:#493a48;outline:none;transition:border-color .2s,box-shadow .2s}
+.order-note__editor textarea:focus {border-color:#ac6e92;box-shadow:0 0 0 3px #b5779a18}
+.order-note__editor-footer {display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:10px;color:#967f8f;font-size:11px}
+.order-note .order-note__cancel {border:0;background:none;color:#78596f;font:inherit;font-size:13px;padding:5px 0;cursor:pointer}
+.order-note .order-note__feedback {margin:12px 0 0;color:#2b7b64;font-size:12px;line-height:1.5}
+.order-note .order-note__feedback.is-error {color:#a34255}
+.order-note [hidden] {display:none!important}
+.order-note [disabled] {opacity:.6;cursor:wait}
+.order-note .order-note__action:focus-visible,.order-note .order-note__cancel:focus-visible {outline:3px solid #ca99b6;outline-offset:3px}
+@keyframes orderNoteReveal {from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+@media(max-width:767px){.order-note__editor textarea {font-size:16px}.order-note .order-note__action {width:44px;height:44px;flex-basis:44px}}
+@media(prefers-reduced-motion:reduce){.order-note,.order-note *{animation:none!important;transition:none!important}}
 
 /* Dialog shell: only .order-modal-body owns a scrollbar. */
 html:has(.order-dialog[open],.order-lightbox[open]) {overflow:hidden}
