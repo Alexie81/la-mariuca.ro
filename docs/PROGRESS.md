@@ -2,6 +2,11 @@
 
 Actualizat: 2026-11-14
 
+### 2026-11-14 — Facturarea evidențiată sub timeline-ul comenzii
+- Panou dedicat prună/roz, cu pictogramă de document, stare și acțiune principală „Emite factura” contrastantă. Pregătirea datelor rămâne o acțiune secundară distinctă; facturile deja emise au legături individuale, iar comenzile neeligibile afișează o explicație.
+- Secțiunea apare o singură dată, imediat după timeline și înaintea rezumatului, inclusiv în ordinea HTML și fără JavaScript. Pe telefon acțiunile ocupă lățimea panoului; pe desktop panoul rămâne vizibil deasupra conținutului comenzii. Pop-upurile și revenirea în comandă sunt păstrate.
+- Verificări: 144 template-uri Twig compilate, 27 teste de facturare / 209 aserțiuni. În browserul intern pe 8080, cu Paula, la 320/390/768/1440 px: poziția sub timeline, o singură secțiune, fără overflow lateral; deschidere și renunțare în ambele modale pe telefon, fără schimbarea URL-ului sau erori JS observate. Nu s-au emis facturi și nu s-au modificat comenzi în baza principală. Fără deploy sau verificare pe dispozitive fizice.
+
 ### 2026-11-14 — Emiterea facturii în modal, din comandă
 - „Emite factura” deschide formularul peste pagina comenzii, cu identificarea comenzii deschise. Renunțarea închide modalul; emiterea reîncarcă aceeași comandă, unde apare documentul emis. Contextul de revenire este limitat la o rută internă construită din comanda facturii, fără URL arbitrar.
 - Emiterea din registrul facturilor păstrează selecția comenzilor și revenirea la factura emisă. Fallbackul fără JavaScript revine tot la comandă când formularul a fost deschis de acolo. Se reutilizează designul, antetul/acțiunile fixe și protecția modificărilor nesalvate.
