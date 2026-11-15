@@ -711,3 +711,55 @@ body:has(.iv-dialog[open]),body:has(.iv-lightbox[open]){overflow:hidden}
 .iv-register-tools .iv-search>.iv-icon{flex:none}
 .iv-register-tools .iv-search>svg{display:none}
 }
+
+/* Guided accounting export: format, period and server-verified selection. */
+.iv-btn--export{background:#eef7f4;border-color:#d2e6df;color:#397b6a!important;box-shadow:none;font-size:12px}
+.iv-dialog[data-kind="export"]{width:min(980px,calc(100vw - 32px))}
+.iv-export-form .iv-form-head>.iv-mark{background:linear-gradient(135deg,#edf6f5,#f2eaf4);border-color:#d4e3e1;color:#668184;width:58px;height:60px}
+.iv-export-form .iv-form-head h2{font-size:26px}
+.iv-export-form .iv-form-head .iv-eyebrow{color:#6a8d83}
+.iv-export-form .iv-form-body{padding:24px 28px;gap:25px;background:linear-gradient(150deg,#fcfafc,#f8f5fa)}
+.iv-export-form .iv-export-step{border:0;padding:0;margin:0;min-width:0}
+.iv-export-step legend{display:flex;align-items:center;gap:13px;float:none;width:100%;margin-bottom:15px;padding:0;font-size:15px;font-weight:750;color:#45364b}
+.iv-export-step legend>span:last-child{display:grid;gap:4px;min-width:0}
+.iv-export-step legend small{display:block;font-size:12px;font-weight:400;color:#8b8091}
+.iv-export-step-number{display:grid;place-items:center;width:36px;height:38px;border-radius:12px;background:#ece4f1;color:#8b6995;font-size:12px;flex:none;letter-spacing:-.03em}
+.iv-export-formats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}
+.iv-export-form .iv-export-format{position:relative;display:flex;align-items:center;gap:15px;min-height:108px;margin:0;padding:19px;border:1px solid #e3dbe5;border-radius:20px;background:#fff;cursor:pointer;transition:border-color .18s,background .18s,box-shadow .18s}
+.iv-export-format>span:nth-of-type(2){display:grid;gap:6px;min-width:0;flex:1}
+.iv-export-format strong{font-size:14px;line-height:1.4;color:#54435b}
+.iv-export-format small{font-size:12px;line-height:1.5;color:#8b8091}
+.iv-export-choice-icon{display:grid;place-items:center;width:49px;height:54px;border-radius:16px;background:#f5f0f7;color:#98859f;flex:none}
+.iv-export-format>i{width:15px;height:15px;border-radius:50%;border:2px solid #d2c4d8;flex:none}
+.iv-export-format:has(input:checked){background:linear-gradient(130deg,#eff8f4,#fcfffd);border-color:#89b8aa;box-shadow:0 0 0 3px #5a9c8210}
+.iv-export-format:has(input:checked) strong{color:#397968}
+.iv-export-format:has(input:checked) .iv-export-choice-icon{background:#dfefe7;color:#568c7b}
+.iv-export-format:has(input:checked)>i{border:4px solid #559e86;background:white}
+.iv-export-form :is(.iv-export-format,.iv-export-period)>input{position:absolute!important;inset:0;opacity:0;margin:0!important;width:100%!important;height:100%!important;min-height:0!important;cursor:pointer;z-index:1}
+.iv-export-form :is(.iv-export-format,.iv-export-period):has(input:focus-visible){outline:3px solid #b294bd;outline-offset:3px}
+.iv-export-periods{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.iv-export-form .iv-export-period{position:relative;display:flex;align-items:center;gap:11px;margin:0;padding:16px 13px;border:1px solid #e5dde8;border-radius:17px;min-height:95px;cursor:pointer;background:#fff;transition:background .18s,border-color .18s}
+.iv-export-period>span:nth-of-type(2){display:grid;gap:5px;min-width:0}
+.iv-export-period strong{font-size:12px;line-height:1.35;color:#5c4964}
+.iv-export-period small{font-size:11px;line-height:1.45;color:#8c8192}
+.iv-export-period-icon{display:grid;place-items:center;width:33px;height:36px;border:1px solid #e5dae9;background:#faf7fc;border-radius:11px;color:#9b7aa3;flex:none}
+.iv-export-period-icon svg{width:17px;height:17px}
+.iv-export-period>i{position:absolute;right:11px;top:10px;width:6px;height:6px;border-radius:50%;background:transparent}
+.iv-export-period:has(input:checked){border-color:#c29ab7;background:linear-gradient(130deg,#faeef5,#fcf7fb);box-shadow:0 0 0 2px #c4a2bd0a}
+.iv-export-period:has(input:checked) strong{color:#8c537a}
+.iv-export-period:has(input:checked)>i{background:#bd7c9f;box-shadow:0 0 0 4px #eacedd70}
+.iv-export-period:has(input:checked) .iv-export-period-icon{color:#a4658e;background:#f5e4ef;border-color:#e5c7db}
+.iv-export-custom{margin-top:16px;padding:16px 18px;border:1px solid #e3d2e4;border-radius:16px;background:#fff}
+.iv-export-custom .iv-fields{gap:16px}.iv-export-custom>small{display:block;margin-top:10px;color:#8b8091;font-size:11px}
+.iv-export-form .iv-export-scope{display:flex!important;align-items:center;gap:13px;margin:0;padding:14px 17px!important;border-radius:15px!important;background:#fff}
+.iv-export-scope>span:last-child{display:grid;gap:4px}.iv-export-scope strong{font-size:12px;font-weight:650}.iv-export-scope small{font-size:11px;color:#8b8091}
+.iv-export-summary{display:flex;align-items:center;gap:16px;padding:20px;border:1px solid #cde4d9;border-radius:18px;background:linear-gradient(100deg,#eef8f3,#f7fcfa)}
+.iv-export-summary-icon{display:grid;place-items:center;width:42px;height:45px;flex:none;border-radius:14px;background:#dbefe3;color:#4e9274}
+.iv-export-summary>div{min-width:0}.iv-export-summary .iv-eyebrow{font-size:10px;color:#4a8d73}
+.iv-export-summary h3{font-size:14px;color:#426c5d;margin:5px 0}
+.iv-export-summary p{font-size:12px;color:#758d81;margin:0}.iv-export-summary small{display:block;margin-top:5px;font-size:11px;color:#758d81}
+.iv-export-summary.is-empty{border-color:#e6d9bf;background:#fffcf4}.iv-export-summary .iv-export-success{color:#3a7d62;font-weight:700;margin-top:9px}
+.iv-export-form .iv-form-footer{padding:17px 26px}.iv-export-form .iv-form-footer>span{display:flex;align-items:center;gap:7px;font-size:11px}.iv-export-form .iv-form-footer>span svg{width:15px;height:15px}
+.iv-export-form .iv-form-footer .iv-btn--primary{background:#5c8e7c;border-color:#5c8e7c;box-shadow:0 5px 14px #5c8e7c20}.iv-export-form .iv-form-footer .iv-btn--primary:disabled{opacity:.5;cursor:not-allowed}
+@media(max-width:820px){.iv-export-periods{grid-template-columns:repeat(3,minmax(0,1fr))}.iv-export-form .iv-form-body{padding:22px}.iv-export-format .iv-export-choice-icon{width:40px;height:44px}.iv-export-form .iv-export-format{padding:16px;gap:11px}}
+@media(max-width:540px){.iv-dialog[data-kind="export"]{width:calc(100vw - 18px);max-height:calc(100dvh - 20px);border-radius:22px}.iv-export-form .iv-form-head{padding:18px 16px;gap:11px}.iv-export-form .iv-form-head>.iv-mark{width:42px;height:46px}.iv-export-form .iv-form-head h2{font-size:20px}.iv-export-form .iv-form-head p{font-size:11px}.iv-export-form .iv-form-body{padding:18px 16px;gap:23px}.iv-export-formats{grid-template-columns:1fr;gap:10px}.iv-export-form .iv-export-format{min-height:84px;padding:14px}.iv-export-format strong{font-size:13px}.iv-export-format small{font-size:11px}.iv-export-step legend{font-size:14px;gap:11px}.iv-export-step legend small{font-size:11px}.iv-export-periods{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.iv-export-form .iv-export-period{padding:14px 10px;gap:8px;min-height:88px}.iv-export-period strong{font-size:11px}.iv-export-period small{font-size:10px}.iv-export-period-icon{width:28px;height:32px}.iv-export-custom{padding:14px}.iv-export-custom .iv-fields{grid-template-columns:minmax(0,1fr);gap:12px}.iv-export-custom input{min-width:0;width:100%}.iv-export-summary{padding:16px;gap:12px}.iv-export-summary h3{font-size:13px}.iv-export-summary-icon{width:34px;height:38px}.iv-export-form .iv-form-footer{padding:13px 16px;gap:9px}.iv-export-form .iv-form-footer>span{display:none}.iv-export-form .iv-form-footer>.iv-btn{font-size:12px}.iv-export-form .iv-form-footer>.iv-btn:last-child{flex:1;justify-content:center}}

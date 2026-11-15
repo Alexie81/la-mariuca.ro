@@ -1,0 +1,3 @@
+{% extends 'admin/layouts/base.twig' %}{% import 'admin/invoices/ui.twig' as iv %}
+{% block title %}Exportă facturile emise{% endblock %}
+{% block content %}<div class="iv-workspace" data-iv-page><div class="iv-form-page">{% include 'admin/invoices/export.twig' %}</div>{{ iv.shell() }}</div>{% endblock %}

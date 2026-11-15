@@ -763,6 +763,53 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         unset($_SESSION['user_id']);
     }
 
+    public function testGuidedExportFilesRespectRomanianDatesAndPreserveAllBusinessState(): void
+    {
+        $repo=new InvoiceRepository($this->pdo);
+        $old=$this->service->issue($this->order(1),['request_key'=>'export-old'],$this->actor);
+        $sale=$this->service->issue($this->order(1),['request_key'=>'export-sale'],$this->actor);
+        $credit=$this->service->credit($sale['id'],['request_key'=>'export-credit','version'=>1,'reason'=>'Retur','quantities'=>[$sale['lines'][0]['id']=>'1'],'notify_customer'=>'0'],$this->actor);
+        $next=$this->service->issue($this->order(1),['request_key'=>'export-next'],$this->actor);
+        $repo->update('invoices',['issued_at'=>'2026-10-31T21:59:59Z'],['id'=>$old['id']]);
+        $repo->update('invoices',['issued_at'=>'2026-10-31T22:00:00Z','fiscal_state'=>'accepted','fiscal_reference'=>'=1+1','notes'=>'=HYPERLINK("test")'],['id'=>$sale['id']]);
+        $repo->update('invoices',['issued_at'=>'2026-11-30T21:59:59Z'],['id'=>$credit['id']]);
+        $repo->update('invoices',['issued_at'=>'2026-11-30T22:00:00Z'],['id'=>$next['id']]);
+        $before=['invoices'=>$repo->all('invoices'),'jobs'=>$repo->all('invoice_fiscal_jobs'),'outbox'=>$repo->all('outbox_messages'),'balance'=>$this->balance()];
+        $_SESSION['user_id']=$this->actor['id']; $factory=new \Slim\Psr7\Factory\ServerRequestFactory(); $app=\App\AppFactory::create($this->root);
+        $get=static fn(string $path,array $query=[],array $headers=[])=>$app->handle(array_reduce(array_keys($headers),static fn($request,$key)=>$request->withHeader($key,$headers[$key]),$factory->createServerRequest('GET','http://localhost'.$path)->withQueryParams($query)));
+        $form=$get('/admin/facturi/export/',[],['X-Invoice-Modal'=>'1']); self::assertSame(200,$form->getStatusCode());
+        self::assertStringContainsString('data-iv-export',(string)$form->getBody()); self::assertStringContainsString('Interval personalizat',(string)$form->getBody());
+        $standalone=$get('/admin/facturi/export/'); self::assertSame(200,$standalone->getStatusCode()); self::assertStringContainsString('<!doctype html>',strtolower((string)$standalone->getBody()));
+        $toOnly=$get('/admin/facturi/export/',['from'=>'','to'=>'2026-11-30'],['X-Invoice-Modal'=>'1']); self::assertSame(200,$toOnly->getStatusCode());
+        self::assertStringContainsString('name="from" value="2026-10-31"',(string)$toOnly->getBody());
+        self::assertSame(200,$get('/admin/facturi/export/',['from'=>'2026-11-01','to'=>''],['X-Invoice-Modal'=>'1'])->getStatusCode());
+        $query=['period'=>'custom','format'=>'xlsx','from'=>'2026-11-01','to'=>'2026-11-30','page'=>'2','per_page'=>'1'];
+        $preview=$get('/admin/facturi/export/rezumat/',$query,['Accept'=>'application/json']); self::assertSame(2,json_decode((string)$preview->getBody(),true)['count']);
+        $filtered=$get('/admin/facturi/export/rezumat/',$query+['keep_filters'=>'1','filters'=>['kind'=>'return']],['Accept'=>'application/json']); self::assertSame(1,json_decode((string)$filtered->getBody(),true)['count']);
+        $bad=$get('/admin/facturi/export/descarca/',array_replace($query,['from'=>'2026-12-01']),['Accept'=>'application/json']); self::assertSame(422,$bad->getStatusCode());
+        $empty=$get('/admin/facturi/export/descarca/',array_replace($query,['from'=>'1900-01-01','to'=>'1900-01-02']),['Accept'=>'application/json']); self::assertSame(422,$empty->getStatusCode());
+        $file=tempnam(sys_get_temp_dir(),'invoice-export-'); $zipFile=tempnam(sys_get_temp_dir(),'invoice-export-');
+        try {
+            $response=$get('/admin/facturi/export/descarca/',$query); self::assertSame(200,$response->getStatusCode()); self::assertStringContainsString('attachment;',$response->getHeaderLine('Content-Disposition')); file_put_contents($file,(string)$response->getBody());
+            $book=\PhpOffice\PhpSpreadsheet\IOFactory::load($file); $sheet=$book->getActiveSheet();
+            self::assertSame('Stare SPV',$sheet->getCell('B5')->getValue()); self::assertSame('Acceptată de ANAF',$sheet->getCell('B7')->getValue());
+            self::assertSame($credit['display_number'],$sheet->getCell('A6')->getValue()); self::assertSame($sale['display_number'],$sheet->getCell('A7')->getValue()); self::assertSame(7,$sheet->getHighestDataRow());
+            self::assertSame('n',$sheet->getCell('P6')->getDataType()); self::assertEquals($credit['gross_bani']/100,$sheet->getCell('P6')->getValue());
+            self::assertSame('s',$sheet->getCell('W7')->getDataType()); self::assertSame('=1+1',$sheet->getCell('W7')->getValue()); self::assertSame('s',$sheet->getCell('Z7')->getDataType());
+            self::assertSame('NIR lipsă',$sheet->getCell('AL6')->getValue()); $book->disconnectWorksheets();
+            $response=$get('/admin/facturi/export/descarca/',array_replace($query,['format'=>'zip'])); self::assertSame(200,$response->getStatusCode()); file_put_contents($zipFile,(string)$response->getBody());
+            $archive=new \ZipArchive(); self::assertTrue($archive->open($zipFile)); self::assertSame(7,$archive->numFiles); self::assertNotFalse($archive->locateName('Registru-facturi.xlsx'));
+            foreach([$sale,$credit] as $document) {
+                $base='LM-'.$document['number'].'/Factura-LM-'.$document['number'];
+                self::assertStringStartsWith('%PDF',(string)$archive->getFromName($base.'.pdf')); self::assertStringStartsWith('PK',(string)$archive->getFromName($base.'.xlsx'));
+                self::assertStringContainsString('<cbc:ID>LM '.$document['number'].'</cbc:ID>',(string)$archive->getFromName($base.'.xml'));
+            }
+            $archive->close();
+        } finally { @unlink($file); @unlink($zipFile); }
+        self::assertSame($before,['invoices'=>$repo->all('invoices'),'jobs'=>$repo->all('invoice_fiscal_jobs'),'outbox'=>$repo->all('outbox_messages'),'balance'=>$this->balance()]);
+        unset($_SESSION['user_id']); self::assertContains($get('/admin/facturi/export/')->getStatusCode(),[302,303,401,403]);
+    }
+
     public function testAllAdminFormsAndPrivateExportsHaveWorkingHttpResponses(): void
     {
         $invoice=$this->service->issue($this->order(2),['request_key'=>'http-forms-document'],$this->actor);

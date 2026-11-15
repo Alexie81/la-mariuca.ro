@@ -5,12 +5,47 @@
   const discard=root.querySelector('[data-iv-discard]'), loader=root.querySelector('[data-iv-loader]');
   let opener=null, baseline='', busy=false, timer=null, toastTimer=null, loadingController=null;
   const signature=form=>JSON.stringify([...new FormData(form).entries()].filter(([key])=>!['_csrf','request_key','version'].includes(key)));
-  const dirty=()=>{const form=content?.querySelector('form');return form && signature(form)!==baseline;};
+  const dirty=()=>{const form=content?.querySelector('form:not([data-iv-export])');return form && signature(form)!==baseline;};
   const toast=text=>{const box=root.querySelector('[data-iv-toast]');if(!box)return;box.querySelector('span').textContent=text;box.hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>box.hidden=true,1700);};
   const error=(form,text)=>{const box=form?.querySelector('[data-iv-errors]');if(box){box.textContent=text;box.hidden=false;box.focus();}else toast(text);};
   const startLoader=()=>{clearTimeout(timer);timer=setTimeout(()=>{if(loader && !loader.open)loader.showModal();},300);};
   const endLoader=()=>{clearTimeout(timer);if(loader?.open)loader.close();};
   const copy=async text=>{try{await navigator.clipboard.writeText(text);toast('Copiat cu succes');}catch{toast('Copierea nu este disponibilă. Selectează textul pentru copiere.');}};
+  const downloadFile=async(url,trigger,form=null)=>{
+    if(busy)return false;busy=true;trigger.setAttribute('aria-busy','true');if(trigger.tagName==='BUTTON')trigger.disabled=true;startLoader();
+    try{
+      const response=await fetch(url,{credentials:'same-origin',headers:{Accept:'application/json, application/pdf, application/zip, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}});
+      if(!response.ok||response.headers.get('Content-Type')?.includes('json')){let payload={};try{payload=await response.json();}catch{}throw new Error(payload.message||'Documentul nu a putut fi pregătit. Încearcă din nou.');}
+      if(!response.headers.get('Content-Disposition'))throw new Error('Sesiunea a expirat. Reîncarcă pagina.');
+      const blob=await response.blob(),objectUrl=URL.createObjectURL(blob),anchor=document.createElement('a');anchor.href=objectUrl;anchor.download=response.headers.get('Content-Disposition')?.match(/filename="([^"]+)"/)?.[1]||'document';anchor.hidden=true;document.body.append(anchor);anchor.click();
+      setTimeout(()=>{URL.revokeObjectURL(objectUrl);anchor.remove();},60000);return true;
+    }catch(err){if(form)error(form,err.message);else toast(err.message);return false;}
+    finally{endLoader();busy=false;trigger.removeAttribute('aria-busy');if(trigger.tagName==='BUTTON')trigger.disabled=false;}
+  };
+  const exportRequests=new WeakMap(),exportTimers=new WeakMap();
+  const exportUrl=(form,base)=>{const url=new URL(base,location.href);new FormData(form).forEach((value,key)=>url.searchParams.append(key,value));return url.href;};
+  const updateExport=async form=>{
+    exportRequests.get(form)?.abort();const controller=new AbortController();exportRequests.set(form,controller);
+    const period=form.querySelector('[name="period"]:checked'),format=form.querySelector('[name="format"]:checked').value,custom=period.value==='custom';
+    form.querySelector('[data-iv-export-custom]').hidden=!custom;
+    form.querySelectorAll('[type="date"]').forEach(input=>input.required=custom);
+    const from=custom?form.querySelector('[name="from"]').value:period.dataset.from,to=custom?form.querySelector('[name="to"]').value:period.dataset.to;
+    const formatDate=value=>value?value.split('-').reverse().join('.'):'';
+    form.querySelector('[data-iv-export-title]').textContent=(format==='zip'?'Centralizator + toate facturile':'Centralizator Excel')+' · '+period.dataset.label.toLocaleLowerCase('ro-RO');
+    const dates=form.querySelector('[data-iv-export-dates]'),count=form.querySelector('[data-iv-export-count]'),submit=form.querySelector('button[type="submit"]');
+    dates.textContent=period.value==='all'?'Toată perioada':from&&to?formatDate(from)+' — '+formatDate(to):'Completează intervalul dorit.';
+    form.querySelector('[data-iv-export-success]').hidden=true;form.querySelector('[data-iv-errors]').hidden=true;submit.disabled=true;
+    if(custom&&(!from||!to)){count.textContent='Alege data de început și data de sfârșit.';return;}
+    count.textContent='Verificăm documentele din interval…';
+    try{
+      const response=await fetch(exportUrl(form,form.dataset.previewUrl),{credentials:'same-origin',headers:{Accept:'application/json'},signal:controller.signal});
+      const result=await response.json();if(!response.ok||!result.ok)throw new Error(result.message||'Nu am putut verifica documentele.');
+      if(controller.signal.aborted||!form.isConnected)return;
+      dates.textContent=result.selection.from?formatDate(result.selection.from)+' — '+formatDate(result.selection.to):'Toată perioada';
+      count.textContent=result.count?result.count+' '+(result.count===1?'document':'documente')+' · Toate rezultatele, indiferent de paginare.':'Nicio factură în perioada și filtrele alese.';
+      form.querySelector('.iv-export-summary').classList.toggle('is-empty',result.count===0);submit.disabled=result.count===0;
+    }catch(err){if(err.name!=='AbortError'&&form.isConnected){count.textContent='Modifică selecția pentru a verifica din nou.';error(form,err.message||'Verificarea nu a reușit.');}}
+  };
   const disclosures=new WeakMap();
   const initialValues=new WeakMap();
   const saveDialog=root.querySelector('[data-iv-save-dialog]');
@@ -77,6 +112,7 @@
     finally{submit.disabled=false;busy=false;}
   };
   const init=scope=>{
+    scope.querySelectorAll('[data-iv-export]').forEach(form=>updateExport(form));
     scope.querySelectorAll('.iv-page-size-apply').forEach(button=>button.hidden=true);
     scope.querySelectorAll('[data-iv-received-now]').forEach(button=>{
       button.hidden=false;
@@ -171,12 +207,13 @@
   discard?.querySelector('[data-iv-abandon]')?.addEventListener('click',()=>{discard.close();finishClose();});
   loader?.addEventListener('cancel',e=>e.preventDefault());
   root.addEventListener('change',e=>{
+    const exportForm=e.target.closest('[data-iv-export]');if(exportForm){clearTimeout(exportTimers.get(exportForm));updateExport(exportForm);return;}
     if(e.target.matches('[data-iv-page-size]')){e.target.form.requestSubmit();return;}
     const toggle=e.target.closest('[data-iv-select]');if(toggle){const row=toggle.closest('.iv-select-line'),q=row.querySelector('[data-iv-quantity]');q.disabled=!toggle.checked;row.classList.toggle('is-selected',toggle.checked);q.value=toggle.checked?q.dataset.default:'0';if(toggle.checked)q.focus();}
     if(e.target.matches('[data-iv-customer-type]')){const fields=e.target.form.querySelector('[data-iv-company-fields]');if(fields)fields.hidden=e.target.value!=='company';}
     if(e.target.matches('[data-iv-order]') && e.target.value){const url=new URL(e.target.dataset.previewUrl,location.href);url.searchParams.set('order',e.target.value);const warehouse=e.target.form.querySelector('[name="warehouse_id"]');if(warehouse?.value)url.searchParams.set('warehouse_id',warehouse.value);if(dialog?.open)open(url.href);else location.href=url.href;}
   });
-  root.addEventListener('input',e=>{if(e.target.matches('input[type="search"]')){const clear=e.target.closest('.iv-search')?.querySelector('[data-iv-clear]');if(clear)clear.hidden=!e.target.value;}});
+  root.addEventListener('input',e=>{const exportForm=e.target.closest('[data-iv-export]');if(exportForm&&e.target.type==='date'){exportRequests.get(exportForm)?.abort();clearTimeout(exportTimers.get(exportForm));exportTimers.set(exportForm,setTimeout(()=>updateExport(exportForm),250));return;}if(e.target.matches('input[type="search"]')){const clear=e.target.closest('.iv-search')?.querySelector('[data-iv-clear]');if(clear)clear.hidden=!e.target.value;}});
   root.addEventListener('click',async e=>{
     const disclosure=e.target.closest('[data-iv-disclosure]>summary');if(disclosure){e.preventDefault();toggleDisclosure(disclosure.parentElement);return;}
     const addItem=e.target.closest('[data-iv-add-item]');if(addItem){openPicker(addItem);return;}
@@ -190,13 +227,7 @@
     const clear=e.target.closest('[data-iv-clear]');if(clear){const input=clear.closest('.iv-search').querySelector('input');input.value='';clear.hidden=true;input.focus();return;}
     const image=e.target.closest('[data-iv-image]');if(image){const lightbox=root.querySelector('[data-iv-lightbox]');lightbox.querySelector('img').src=image.dataset.ivImage;lightbox.querySelector('img').alt=image.dataset.title;lightbox.querySelector('span').textContent=image.dataset.title;lightbox.showModal();return;}
     if(e.target.closest('[data-iv-lightbox-close]')){root.querySelector('[data-iv-lightbox]').close();return;}
-    const download=e.target.closest('[data-iv-download]');if(download){e.preventDefault();if(busy)return;busy=true;download.setAttribute('aria-busy','true');startLoader();
-      try{const response=await fetch(download.href,{credentials:'same-origin',headers:{'Accept':'application/json, application/pdf, application/zip, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}});
-        if(!response.ok||response.headers.get('Content-Type')?.includes('json')){let payload={};try{payload=await response.json();}catch{}throw new Error(payload.message||'Documentul nu a putut fi pregătit. Încearcă din nou.');}
-        if(!response.headers.get('Content-Disposition'))throw new Error('Sesiunea a expirat. Reîncarcă pagina.');
-        const blob=await response.blob(),url=URL.createObjectURL(blob),anchor=document.createElement('a');anchor.href=url;anchor.download=response.headers.get('Content-Disposition')?.match(/filename="([^"]+)"/)?.[1]||'document';anchor.hidden=true;document.body.append(anchor);anchor.click();setTimeout(()=>{URL.revokeObjectURL(url);anchor.remove();},60000);
-      }catch(err){toast(err.message);}finally{endLoader();busy=false;download.removeAttribute('aria-busy');}return;
-    }
+    const download=e.target.closest('[data-iv-download]');if(download){e.preventDefault();await downloadFile(download.href,download);return;}
   });
   const navigateAfterSave=(redirect)=>{
     const target=new URL(redirect||location.href,location.href);
@@ -205,6 +236,7 @@
     }else location.assign(target.href);
   };
   root.addEventListener('submit',async e=>{
+    if(e.target.matches('[data-iv-export]')){e.preventDefault();const form=e.target;if(busy||!form.reportValidity())return;const success=await downloadFile(exportUrl(form,form.action),form.querySelector('button[type="submit"]'),form);if(success){const message=form.querySelector('[data-iv-export-success]');message.textContent='Fișierul este pregătit. Descărcarea a pornit.';message.hidden=false;}return;}
     if(e.target.matches('[data-dispatch-issue]')){
       e.preventDefault();if(busy)return;busy=true;const form=e.target,button=form.querySelector('button');button.disabled=true;startLoader();
       try{const response=await fetch(form.action,{method:'POST',body:new FormData(form),credentials:'same-origin',headers:{Accept:'application/json'}});const result=await response.json();if(!response.ok||!result.ok)throw new Error(result.message||'Avizul nu a putut fi generat.');sessionStorage.setItem('iv-feedback',result.message);navigateAfterSave(result.redirect);}

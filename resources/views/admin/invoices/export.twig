@@ -1,0 +1,20 @@
+{% import 'admin/partials/nir-ui.twig' as n %}
+<form class="iv-form iv-export-form" data-iv-form data-kind="export" data-iv-export data-preview-url="{{ preview_url }}" method="get" action="{{ form_action }}">
+<header class="iv-form-head"><span class="iv-mark">{{ n.icon('download') }}</span><div><span class="iv-eyebrow">Export contabil</span><h2>Exportă facturile emise</h2><p>Alege perioada și conținutul dosarului pentru contabilitate.</p></div><a class="iv-icon" href="{{ back_url }}" data-iv-close aria-label="Închide exportul">{{ n.icon('close') }}</a></header>
+<div class="iv-form-body iv-export-body">
+  <div class="iv-error" data-iv-errors role="alert" tabindex="-1" hidden></div>
+  <fieldset class="iv-export-step"><legend><span class="iv-export-step-number">01</span><span>Ce vrei să descarci?<small>Centralizator Excel detaliat, cu starea SPV în coloana a doua.</small></span></legend>
+    <div class="iv-export-formats">
+      <label class="iv-export-format"><input type="radio" name="format" value="xlsx"{{ selection.format == 'xlsx' ? ' checked' : '' }}><span class="iv-export-choice-icon">{{ n.icon('document') }}</span><span><strong>Doar centralizatorul</strong><small>Un singur fișier Excel cu toate datele.</small></span><i></i></label>
+      <label class="iv-export-format"><input type="radio" name="format" value="zip"{{ selection.format == 'zip' ? ' checked' : '' }}><span class="iv-export-choice-icon">{{ n.icon('layers') }}</span><span><strong>Centralizator + toate facturile</strong><small>ZIP · dosar Serie–Număr cu PDF, Excel și XML.</small></span><i></i></label>
+    </div>
+  </fieldset>
+  <fieldset class="iv-export-step"><legend><span class="iv-export-step-number">02</span><span>Pentru ce perioadă?<small>Alege o perioadă rapidă sau introdu exact intervalul dorit.</small></span></legend>
+    <div class="iv-export-periods">{% for key,period in periods %}<label class="iv-export-period"><input type="radio" name="period" value="{{ key }}" data-from="{{ period.from }}" data-to="{{ period.to }}" data-label="{{ period.label }}"{{ selection.period == key ? ' checked' : '' }}><span class="iv-export-period-icon">{{ n.icon(period.icon) }}</span><span><strong>{{ period.label }}</strong><small>{{ period.description }}</small></span><i></i></label>{% endfor %}</div>
+    <div class="iv-export-custom" data-iv-export-custom><div class="iv-fields"><label>De la<input type="date" name="from" value="{{ selection.from ?: periods.month.from }}"></label><label>Până la<input type="date" name="to" value="{{ selection.to ?: periods.month.to }}"></label></div><small>Intervalul include ambele zile și folosește data emiterii, ora României.</small></div>
+  </fieldset>
+  {% if export_filters %}<label class="iv-export-scope"><span class="iv-switch"><input type="checkbox" name="keep_filters" value="1" checked role="switch"><span></span></span><span><strong>Păstrează filtrele active din registru</strong><small>Se aplică în plus perioadei alese. Debifează pentru toate facturile din interval.</small></span></label>{% for key,value in export_filters %}<input type="hidden" name="filters[{{ key }}]" value="{{ value }}">{% endfor %}{% endif %}
+  <section class="iv-export-summary" aria-live="polite"><span class="iv-export-summary-icon">{{ n.icon('check') }}</span><div><span class="iv-eyebrow">Se va genera</span><h3 data-iv-export-title>Centralizator Excel · {{ selection.label|lower }}</h3><p data-iv-export-dates>{{ selection.from ? selection.from|date('d.m.Y')~' — '~selection.to|date('d.m.Y') : 'Toată perioada' }}</p><small data-iv-export-count>{{ export_count }} {{ export_count == 1 ? 'document' : 'documente' }} · Toate rezultatele, indiferent de paginare.</small><small class="iv-export-success" data-iv-export-success hidden></small></div></section>
+</div>
+<footer class="iv-form-footer"><span>{{ n.icon('shield') }}Documentele originale rămân păstrate.</span><a class="iv-btn" href="{{ back_url }}" data-iv-close>Renunță</a><button class="iv-btn iv-btn--primary" type="submit">{{ n.icon('download') }}Descarcă acum</button></footer>
+</form>

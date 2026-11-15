@@ -151,7 +151,9 @@ final class OrderEditWorkspaceTest extends DatabaseTestCase
     {
         $id=$this->order();$_SESSION['user_id']=$this->actor['id'];$app=AppFactory::create($this->root);$factory=new ServerRequestFactory();
         $html=(string)$app->handle($factory->createServerRequest('GET','http://localhost/admin/comenzi/'.$id.'/'))->getBody();
-        foreach(['Facturare și aviz','Editează produsele','Editează detaliile','Salvăm modificările?','data-dispatch-issue'] as $fragment){self::assertStringContainsString($fragment,$html);}
+        foreach(['Facturare și aviz','Editează produsele','Editează detaliile','Salvăm modificările?','href="/admin/comenzi/'.$id.'/aviz/" data-iv-modal'] as $fragment){self::assertStringContainsString($fragment,$html);}
+        $dispatchForm=$app->handle($factory->createServerRequest('GET','http://localhost/admin/comenzi/'.$id.'/aviz/')->withHeader('X-Invoice-Modal','1'));
+        self::assertSame(200,$dispatchForm->getStatusCode());self::assertStringContainsString('data-kind="dispatch-issue"',(string)$dispatchForm->getBody());
         self::assertStringNotContainsString('Corectează prin documente noi',$html);
         $form=$app->handle($factory->createServerRequest('GET','http://localhost/admin/facturi/0/order-edit/')->withQueryParams(['order'=>$id,'focus'=>'items'])->withHeader('X-Invoice-Modal','1'));
         self::assertSame(200,$form->getStatusCode());self::assertStringContainsString('name="items[0][unit_price]"',(string)$form->getBody());self::assertStringContainsString($this->repo->editVersion($id),(string)$form->getBody());

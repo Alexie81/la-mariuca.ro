@@ -137,6 +137,11 @@ final class InvoiceRepository
         return max($number,(int)$q->fetchColumn())+1;
     }
     public function latestId(): int { return (int)$this->pdo->query('SELECT MAX(id) FROM invoices WHERE deleted_at IS NULL')->fetchColumn(); }
+    public function firstIssueDate(): ?string
+    {
+        $value=$this->pdo->query('SELECT MIN(issued_at) FROM invoices WHERE deleted_at IS NULL')->fetchColumn();
+        return is_string($value) && $value!==''?(new \DateTimeImmutable($value))->setTimezone(new \DateTimeZone('Europe/Bucharest'))->format('Y-m-d'):null;
+    }
     public function latestInSeries(string $code): int
     {
         $query=$this->pdo->prepare('SELECT id FROM invoices WHERE series_code=:code AND deleted_at IS NULL ORDER BY active_number DESC,id DESC LIMIT 1');

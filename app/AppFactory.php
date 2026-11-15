@@ -279,6 +279,9 @@ final class AppFactory
             $group->get('/facturi/produse/', [$invoiceController, 'products']);
             $group->get('/facturi/emite/', [$invoiceController, 'form']);
             $group->post('/facturi/emite/', [$invoiceController, 'action']);
+            $group->get('/facturi/export/', [$invoiceController, 'exportForm']);
+            $group->get('/facturi/export/rezumat/', [$invoiceController, 'exportPreview']);
+            $group->get('/facturi/export/descarca/', [$invoiceController, 'exportSelection']);
             $group->get('/facturi/export/{format:xlsx|zip}/', [$invoiceController, 'export']);
             $group->get('/facturi/{id:[0-9]+}/', [$invoiceController, 'detail']);
             $group->get('/facturi/{id:[0-9]+}/{format:pdf|xlsx|xml|zip}/', [$invoiceController, 'export']);

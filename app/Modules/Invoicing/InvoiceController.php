@@ -205,6 +205,43 @@ final class InvoiceController
             Flash::set('success',$message); return $this->view->redirect($redirect);
         } catch(\Throwable $e) { return $this->failure($request,$e); }
     }
+    public function exportForm(ServerRequestInterface $request): ResponseInterface
+    {
+        try {
+            $this->service->allow($this->actor()); $query=$request->getQueryParams();
+            $periods=InvoiceExportSelection::periods(); $filters=InvoiceExportSelection::filters($query);
+            $custom=!empty($query['from']) || !empty($query['to']);
+            $from=$query['from'] ?? ''; $to=$query['to'] ?? '';
+            foreach([$from,$to] as $date) { if($date!=='') { InvoiceExportSelection::resolve(['period'=>'custom','from'=>$date,'to'=>$date]); } }
+            if($custom) {
+                if($to==='') { $to=max($from,$periods['month']['to']); }
+                if($from==='') { $from=min($this->repository->firstIssueDate() ?? $to,$to); }
+            }
+            $input=['format'=>'xlsx','period'=>$custom?'custom':'month','from'=>$from,'to'=>$to,'filters'=>$filters,'keep_filters'=>'1'];
+            $selection=InvoiceExportSelection::resolve($input);
+            $count=$this->repository->registry($selection['filters'])['total'];
+            $modal=$request->getHeaderLine('X-Invoice-Modal')==='1';
+            return $this->render($modal?'admin/invoices/export.twig':'admin/pages/invoice-export.twig',[
+                'periods'=>$periods,'selection'=>$selection,'export_filters'=>$filters,'export_count'=>$count,
+                'form_action'=>$this->url('export/descarca/'),'preview_url'=>$this->url('export/rezumat/'),'back_url'=>$this->url(),
+            ]);
+        } catch(\Throwable $e) { return $this->failure($request,$e); }
+    }
+    public function exportPreview(ServerRequestInterface $request): ResponseInterface
+    {
+        try {
+            $this->service->allow($this->actor()); $selection=InvoiceExportSelection::resolve($request->getQueryParams());
+            return $this->json(['ok'=>true,'count'=>$this->repository->registry($selection['filters'])['total'],'selection'=>$selection]);
+        } catch(\Throwable $e) { return $this->failure($request,$e); }
+    }
+    public function exportSelection(ServerRequestInterface $request): ResponseInterface
+    {
+        try {
+            $this->service->allow($this->actor()); $selection=InvoiceExportSelection::resolve($request->getQueryParams());
+            if($this->repository->registry($selection['filters'])['total']===0) { throw new InvoiceException('Nu există facturi pentru perioada și filtrele alese.'); }
+            return $this->export($request->withQueryParams($selection['filters']),new Response(),['format'=>$selection['format']]);
+        } catch(\Throwable $e) { return $this->failure($request,$e); }
+    }
     /** @param array<string,string> $args */
     public function export(ServerRequestInterface $request,ResponseInterface $response,array $args): ResponseInterface
     {
@@ -212,7 +249,7 @@ final class InvoiceController
             $this->service->allow($this->actor()); $format=$args['format']; $registry=!isset($args['id']);
             if($registry) {
                 $rows=$this->repository->registry($request->getQueryParams(),true)['items']; $invoices=array_map(fn(array $row):array=>$this->service->load((int)$row['id']),$rows);
-                $path=match($format) {'xlsx'=>$this->exports->registry($invoices),'zip'=>$this->exports->zip($invoices),default=>throw new InvoiceException('Format necunoscut.',404)}; $name='Registru-facturi-'.date('Y-m-d').'.'.$format;
+                $path=match($format) {'xlsx'=>$this->exports->registry($invoices),'zip'=>$this->exports->zip($invoices),default=>throw new InvoiceException('Format necunoscut.',404)}; $name='Registru-facturi-'.(new \DateTimeImmutable('now',new \DateTimeZone('Europe/Bucharest')))->format('Y-m-d').'.'.$format;
             } else {
                 $invoice=$this->service->document((int)$args['id'],$this->actor());
                 $path=match($format) {'pdf'=>$this->exports->pdf($invoice),'xlsx'=>$this->exports->xlsx($invoice),'xml'=>$this->exports->xml($invoice),'zip'=>$this->exports->zip([$invoice],false),default=>throw new InvoiceException('Format necunoscut.',404)};
