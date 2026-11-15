@@ -1,5 +1,12 @@
 # Progres
 
+### 2026-11-15 — Diagnosticarea și supravegherea procesorului email
+- Cauza locală observată: procesorul persistent nu rulează, iar lista explicită `MAIL_MESSAGE_TYPES` exclude `invoice`, `invoice_return_notice` și `order_details_changed`. Două mesaje declanșate de utilizator sunt pending cu zero încercări; pragul istoric `MAIL_SEND_AFTER_ID=1` este păstrat. Nu s-a modificat configurația privată și nu s-a procesat coada reală; aprobarea pentru extinderea filtrului și repornire este în așteptare.
+- Procesorul scrie un heartbeat privat și supraviețuiește erorilor tranzitorii ale unui ciclu, fără a loga excepții care pot conține acreditări. `MailQueueHealth` identifică tipurile excluse, modul preview, lipsa activității și eșecurile raportate; integrarea în comandă este în etapa următoare.
+- Verificări: testul dedicat pentru filtrare/preview/heartbeat a trecut în grupul de **60 teste / 591 aserțiuni**; PHPStan și lint fără erori. Factura reală aflată în coadă a fost randată fără SMTP: PDF valid generat (370.816 octeți), CTA privat și branding prezente. Acest control nu confirmă livrarea în inbox.
+- Fără deploy, schimbare de credențiale sau instalare de serviciu Windows. SMTP/hosting și Gmail/Outlook nu au fost verificate în această intervenție.
+
+
 Actualizat: 2026-11-15
 
 ### 2026-11-15 — Status operațional liber și export XML

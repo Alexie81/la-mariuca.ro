@@ -105,7 +105,16 @@ try {
             }
             try {
                 do {
-                    $result = $processor->process();
+                      try {
+                          $result = $processor->process();
+                          file_put_contents($directory.'/mail-worker-heartbeat.json',json_encode(['at'=>time(),'ok'=>$result['failed']===0],JSON_THROW_ON_ERROR),LOCK_EX);
+                      } catch (Throwable $error) {
+                          file_put_contents($directory.'/mail-worker-heartbeat.json',json_encode(['at'=>time(),'ok'=>false],JSON_THROW_ON_ERROR),LOCK_EX);
+                          if($command !== 'outbox:work') { throw $error; }
+                          fwrite(STDERR,"Procesarea emailurilor a eșuat. Verifică configurația; se reîncearcă automat.\n");
+                          sleep($interval);
+                          continue;
+                      }
                     if ($command === 'outbox:process' || $result['processed'] > 0) {
                         fwrite(STDOUT, sprintf("Email: %d procesate, %d acceptate SMTP, %d preview-uri, %d eșuate.\n", $result['processed'], $result['sent'], $result['previewed'], $result['failed']));
                     }
