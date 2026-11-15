@@ -102,7 +102,7 @@ final class CheckoutService
             throw new RuntimeException('Coșul este gol.');
         }
         foreach ($cart['items'] as $item) {
-            if ($item['product_status'] !== 'published' || (int) $item['quantity'] > (int) $item['available_quantity']) {
+            if (!$this->isCartItemOrderable($item)) {
                 throw new RuntimeException('Un produs nu mai este disponibil în cantitatea solicitată.');
             }
         }
@@ -138,7 +138,7 @@ final class CheckoutService
             $cart = $this->cart->summary();
             if ($cart['items'] === []) { throw new RuntimeException('Coșul este gol.'); }
             foreach ($cart['items'] as $item) {
-                if ($item['product_status'] !== 'published' || (int) $item['quantity'] > (int) $item['available_quantity']) {
+                if (!$this->isCartItemOrderable($item)) {
                     throw new RuntimeException('Un produs nu mai este disponibil în cantitatea solicitată.');
                 }
             }
@@ -387,6 +387,15 @@ final class CheckoutService
         if (!is_array($promotion) || (($promotion['scope'] === 'shipping') !== $shipping)) {
             throw new RuntimeException('Promoția nu mai este disponibilă. Reîncarcă pagina și încearcă din nou.');
         }
+    }
+
+    /** @param array<string, mixed> $item */
+    private function isCartItemOrderable(array $item): bool
+    {
+        return $item['product_status'] === 'published'
+            && $item['variant_status'] === 'active'
+            && !in_array((string) $item['public_availability'], ['on_request', 'unavailable'], true)
+            && (int) $item['quantity'] <= (int) $item['available_quantity'];
     }
 
     /** @return array{scope_type:'product'|'variant',scope_id:int,sku:string}|null */

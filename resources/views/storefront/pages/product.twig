@@ -4,9 +4,12 @@
 {% block content %}
 {% set gallery_count = product.images|length %}
 {% set default_variant = product.variants|first %}
+{% set direct_order_allowed = product.public_availability|default('automatic') not in ['on_request', 'unavailable'] %}
+{% set visually_available = product.public_availability|default('automatic') in ['preorder', 'on_request'] or (direct_order_allowed and default_variant and default_variant.available_quantity > 0) %}
+{% set public_availability_label = product.public_availability|default('automatic') == 'preorder' ? 'Disponibil pentru precomandă' : (product.public_availability|default('automatic') == 'on_request' ? 'Disponibil la cerere' : (product.public_availability|default('automatic') == 'unavailable' ? 'Indisponibil' : (default_variant and default_variant.available_quantity > 0 ? 'În stoc' : 'Stoc epuizat'))) %}
 {% set default_variant_is_in_cart = default_variant ? is_variant_in_cart(default_variant.id) : false %}
 {% set product_is_favorite = is_favorite(product.id) %}
-<main class="product-page">
+<main class="product-page" data-product-view-url="{{ url('produs/' ~ product.slug ~ '/vizualizare/') }}" data-product-view-csrf="{{ csrf_token() }}">
   <div class="container product-page-shell">
     <nav class="breadcrumbs product-breadcrumbs" aria-label="Navigare ierarhică">
       <a href="{{ url('') }}">Acasă</a>
@@ -63,8 +66,8 @@
               </button>
 
               {% if default_variant %}
-                <span class="product-gallery-stock{{ default_variant.available_quantity > 0 ? ' is-available' : ' is-unavailable' }}" data-product-stock>
-                  <i aria-hidden="true"></i><span>{{ default_variant.available_quantity > 0 ? 'În stoc' : 'Stoc epuizat' }}</span>
+                <span class="product-gallery-stock{{ visually_available ? ' is-available' : ' is-unavailable' }}" data-product-stock>
+                  <i aria-hidden="true"></i><span>{{ public_availability_label }}</span>
                 </span>
               {% endif %}
 
@@ -140,10 +143,10 @@
           </div>
         {% endif %}
 
-        {% if product.variants %}
+        {% if product.variants and direct_order_allowed %}
           {% set product_requires_selection = product.required_personalization_count|default(0) > 0 %}
           {% set product_initially_in_cart = product.variants|length == 1 and default_variant_is_in_cart %}
-          <form class="product-buy-form{{ product_initially_in_cart ? ' is-added' : '' }}" action="{{ url('cos/adauga/') }}" method="post" data-cart-form data-storefront-cart data-cart-toggle data-cart-state="{{ product_initially_in_cart ? 'added' : 'removed' }}" data-product-name="{{ product.name }}" data-product-url="{{ url('produs/' ~ product.slug ~ '/') }}"{% if product.image_path %} data-product-image="{{ url(product.image_path) }}"{% endif %} data-cart-url="{{ url('cos/') }}" data-cart-ready="{{ product_requires_selection or default_variant.available_quantity <= 0 ? 'false' : 'true' }}">
+          <form class="product-buy-form{{ product_initially_in_cart ? ' is-added' : '' }}" action="{{ url('cos/adauga/') }}" method="post" data-cart-form data-storefront-cart data-cart-toggle data-cart-state="{{ product_initially_in_cart ? 'added' : 'removed' }}" data-public-availability="{{ product.public_availability|default('automatic') }}" data-product-name="{{ product.name }}" data-product-url="{{ url('produs/' ~ product.slug ~ '/') }}"{% if product.image_path %} data-product-image="{{ url(product.image_path) }}"{% endif %} data-cart-url="{{ url('cos/') }}" data-cart-ready="{{ product_requires_selection or default_variant.available_quantity <= 0 ? 'false' : 'true' }}">
             <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
             <input type="hidden" name="toggle_cart" value="1">
             {% if product.variants|length > 1 %}
@@ -217,6 +220,11 @@
               </button>
             </div>
           </form>
+        {% elseif product.variants %}
+          <div class="product-buy-form product-direct-order-unavailable">
+            <p>{{ product.public_availability == 'on_request' ? 'Produsul se comandă la cerere. Scrie-ne și verificăm împreună termenul și disponibilitatea.' : 'Produsul nu poate fi comandat momentan.' }}</p>
+            {% if product.public_availability == 'on_request' %}<a class="product-add-button" href="{{ url('pagina/contact/') }}">Întreabă despre produs</a>{% endif %}
+          </div>
         {% endif %}
 
         <ul class="product-reassurance" aria-label="Avantaje">
@@ -232,6 +240,7 @@
         <nav class="product-editorial-nav" aria-label="Secțiunile produsului">
           <a class="is-active" href="#descriere-produs" data-editorial-link="descriere-produs" aria-current="location">Descriere</a>
           <a href="#informatii-produs" data-editorial-link="informatii-produs">Informații produs</a>
+          {% if product.faqs %}<a href="#intrebari-produs" data-editorial-link="intrebari-produs">Întrebări</a>{% endif %}
           <a href="#recenzii-produs" data-editorial-link="recenzii-produs">Recenzii</a>
         </nav>
       </div>
@@ -261,12 +270,40 @@
           </header>
           <dl class="product-specifications">
             {% if default_variant %}<div><dt>Cod produs</dt><dd data-product-spec-sku>{{ default_variant.sku }}</dd></div>{% endif %}
+            {% if default_variant and default_variant.ean %}<div><dt>EAN / GTIN</dt><dd>{{ default_variant.ean }}</dd></div>{% endif %}
             {% if product.category_name %}<div><dt>Categorie</dt><dd>{{ product.category_name }}</dd></div>{% endif %}
+            {% if product.brand %}<div><dt>Producător</dt><dd>{{ product.brand }}</dd></div>{% endif %}
+            {% if product.model %}<div><dt>Model</dt><dd>{{ product.model }}</dd></div>{% endif %}
             {% for group in product.variant_groups|default([]) %}<div><dt>{{ group.name }}</dt><dd>{{ group.values|join(' · ') }}</dd></div>{% endfor %}
             {% if product.composition %}<div><dt>Compoziție</dt><dd>{{ product.composition }}</dd></div>{% endif %}
             {% if product.size_guide %}<div><dt>Dimensiuni</dt><dd>{{ product.size_guide|nl2br }}</dd></div>{% endif %}
+            {% if product.care_instructions %}<div><dt>Îngrijire</dt><dd>{{ product.care_instructions|nl2br }}</dd></div>{% endif %}
+            {% for specification in product.specifications %}<div><dt>{{ specification.group_name ? specification.group_name ~ ' · ' : '' }}{{ specification.name }}</dt><dd>{{ specification.value|nl2br }}</dd></div>{% endfor %}
+            {% if product.warranty_legal %}<div><dt>Garanție legală</dt><dd>{{ product.warranty_legal }}</dd></div>{% endif %}
+            {% if product.warranty_commercial %}<div><dt>Garanție comercială</dt><dd>{{ product.warranty_commercial }}</dd></div>{% endif %}
+            {% if product.ce_marking %}<div><dt>Conformitate</dt><dd>Marcaj CE declarat</dd></div>{% endif %}
           </dl>
+          {% if product.safety_warnings or product.manufacturer_address or product.manufacturer_email or product.eu_responsible_person or product.conformity_documents or product.manuals %}
+            <div class="product-compliance">
+              <h3>Siguranță și conformitate</h3>
+              {% if product.safety_warnings %}<p><strong>Avertismente:</strong> {{ product.safety_warnings|nl2br }}</p>{% endif %}
+              {% if product.manufacturer_address %}<p><strong>Adresa producătorului:</strong> {{ product.manufacturer_address }}</p>{% endif %}
+              {% if product.manufacturer_email %}<p><strong>Contact producător:</strong> <a href="mailto:{{ product.manufacturer_email }}">{{ product.manufacturer_email }}</a></p>{% endif %}
+              {% if product.eu_responsible_person %}<p><strong>Responsabil UE:</strong> {{ product.eu_responsible_person }}</p>{% endif %}
+              {% if product.conformity_documents %}<p><strong>Documente de conformitate:</strong> {{ product.conformity_documents|nl2br }}</p>{% endif %}
+              {% if product.manuals %}<p><strong>Manuale:</strong> {{ product.manuals|nl2br }}</p>{% endif %}
+            </div>
+          {% endif %}
         </article>
+
+        {% if product.faqs %}
+          <article class="product-editorial-section product-faq-section" id="intrebari-produs" data-editorial-section>
+            <header class="product-editorial-heading"><span class="eyebrow">Răspunsuri rapide</span><h2>Întrebări frecvente</h2></header>
+            <div class="product-faq-list">
+              {% for faq in product.faqs %}<details><summary>{{ faq.question }}<span aria-hidden="true">+</span></summary><p>{{ faq.answer|nl2br }}</p></details>{% endfor %}
+            </div>
+          </article>
+        {% endif %}
 
         <article class="product-editorial-section product-reviews-section" id="recenzii-produs" data-editorial-section>
           <header class="product-editorial-heading">
@@ -473,4 +510,5 @@
 <script type="module" src="{{ url('assets/js/storefront/product-gallery.js') }}?v=20261025-gallery5"></script>
 <script type="module" src="{{ url('assets/js/storefront/product-editorial.js') }}?v=20261031-editorial6"></script>
 <script type="module" src="{{ url('assets/js/storefront/product-reviews.js') }}?v=20261025-review-modal4"></script>
+<script type="module" src="{{ url('assets/js/storefront/product-view.js') }}?v=20261115-1"></script>
 {% endblock %}

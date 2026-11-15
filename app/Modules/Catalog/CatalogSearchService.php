@@ -82,8 +82,13 @@ final class CatalogSearchService
         $products = $this->productIndex ??= $this->catalog->searchableProducts();
         $skuQuery = mb_strtolower(trim($query), 'UTF-8');
         foreach ($products as $product) {
-            foreach ($this->csvValues((string) ($product['search_skus'] ?? '')) as $sku) {
-                if (mb_strtolower($sku, 'UTF-8') === $skuQuery) {
+            $codes = array_merge(
+                $this->csvValues((string) ($product['search_skus'] ?? '')),
+                $this->csvValues((string) ($product['search_eans'] ?? '')),
+                [(string) ($product['supplier_code'] ?? '')],
+            );
+            foreach ($codes as $code) {
+                if ($code !== '' && mb_strtolower($code, 'UTF-8') === $skuQuery) {
                     return ['products' => [$product], 'exact' => true];
                 }
             }
@@ -188,10 +193,22 @@ final class CatalogSearchService
             (string) ($product['short_description'] ?? ''),
             (string) ($product['description'] ?? ''),
             (string) ($product['brand'] ?? ''),
+            (string) ($product['model'] ?? ''),
+            (string) ($product['model_identifier'] ?? ''),
+            (string) ($product['compatibility_text'] ?? ''),
+            (string) ($product['tags'] ?? ''),
+            (string) ($product['source_name'] ?? ''),
+            (string) ($product['search_specification_groups'] ?? ''),
+            (string) ($product['search_specification_names'] ?? ''),
+            (string) ($product['search_specification_values'] ?? ''),
             (string) ($product['seo_title'] ?? ''),
             (string) ($product['meta_description'] ?? ''),
         ]), false);
-        $skuTokens = $this->tokens(str_replace(',', ' ', (string) ($product['search_skus'] ?? '')), false);
+        $skuTokens = $this->tokens(str_replace(',', ' ', implode(' ', [
+            (string) ($product['search_skus'] ?? ''),
+            (string) ($product['search_eans'] ?? ''),
+            (string) ($product['supplier_code'] ?? ''),
+        ])), false);
 
         $score = 0.0;
         foreach ($queryTokens as $queryToken) {

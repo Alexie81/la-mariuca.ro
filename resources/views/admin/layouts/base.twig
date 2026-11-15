@@ -204,6 +204,7 @@
 
   <script src="{{ url('assets/js/admin-rich-editor.js?v=20261031-rich-description-v1') }}" defer></script>
   <script src="{{ url('assets/js/admin.js?v=20261107-category-payments') }}" defer></script>
+  {% if admin_section|default('') == 'products' %}<script src="{{ url('assets/js/admin-product-details.js?v=20261115-1') }}" defer></script>{% endif %}
   {% if admin_section|default('') == 'payment_methods' %}<script src="{{ url('assets/js/payment-methods-admin.js?v=20261108-fees') }}" defer></script>{% endif %}
   {% if admin_section|default('') == 'orders' %}<script src="{{ url('assets/js/order-admin.js?v=20261108-cancellation-v10') }}" defer></script><script src="{{ url('assets/js/order-history.js?v=20261108-1') }}" defer></script>{% endif %}
   {% if admin_section|default('') == 'orders' %}<script src="{{ url('assets/js/order-notifications.js?v=20261108-v2') }}" defer></script>{% endif %}

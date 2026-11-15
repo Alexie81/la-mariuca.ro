@@ -15,6 +15,7 @@ document.querySelectorAll('[data-variant-select]').forEach((variantControl) => {
     .filter((control) => control instanceof HTMLSelectElement);
   const requiredProductOptions = [...form.querySelectorAll('[data-product-option][required]')]
     .filter((control) => control instanceof HTMLInputElement || control instanceof HTMLSelectElement || control instanceof HTMLTextAreaElement);
+  const publicAvailability = form.dataset.publicAvailability || 'automatic';
   const money = new Intl.NumberFormat('ro-RO', { style: 'currency', currency: 'RON' });
 
   const variantOptions = variantControl instanceof HTMLSelectElement
@@ -160,7 +161,9 @@ document.querySelectorAll('[data-variant-select]').forEach((variantControl) => {
       stock.classList.toggle('is-available', isAvailable);
       stock.classList.toggle('is-unavailable', !isAvailable);
       const stockText = stock.querySelector('span');
-      if (stockText) stockText.textContent = isAvailable ? 'În stoc' : 'Stoc epuizat';
+      if (stockText) stockText.textContent = publicAvailability === 'preorder'
+        ? 'Disponibil pentru precomandă'
+        : (isAvailable ? 'În stoc' : 'Stoc epuizat');
     }
   };
 

@@ -7,6 +7,7 @@ namespace Tests\Integration;
 use App\AppFactory;
 use App\Modules\Cart\CartService;
 use Psr\Http\Message\ResponseInterface;
+use RuntimeException;
 use Slim\Psr7\Factory\ServerRequestFactory;
 use Tests\DatabaseTestCase;
 
@@ -103,6 +104,43 @@ final class CartTest extends DatabaseTestCase
         self::assertSame(2, $payload['item_quantity']);
         self::assertSame(2, $payload['cart_count']);
         self::assertSame(2, (new CartService($this->pdo))->summary()['count']);
+    }
+
+    public function testPreorderWithBackordersCanBeAddedWithoutPhysicalStock(): void
+    {
+        $this->seed();
+        $row = $this->pdo->query('SELECT v.id AS variant_id,p.id AS product_id,p.slug FROM product_variants v JOIN products p ON p.id=v.product_id ORDER BY v.id LIMIT 1')->fetch();
+        self::assertIsArray($row);
+        $this->pdo->exec('UPDATE inventory SET physical_quantity=0,reserved_quantity=0 WHERE variant_id=' . (int) $row['variant_id']);
+        $this->pdo->exec("UPDATE products SET public_availability='preorder',backorder_policy='allow' WHERE id=" . (int) $row['product_id']);
+
+        $cart = new CartService($this->pdo);
+        $cart->add((int) $row['variant_id'], 2);
+        $item = $cart->summary()['items'][0];
+
+        self::assertSame(2, (int) $item['quantity']);
+        self::assertSame(999999, (int) $item['available_quantity']);
+        self::assertSame(1, (int) $item['stock_unlimited']);
+        self::assertStringContainsString('Disponibil pentru precomandă', (string) $this->get('/produs/' . $row['slug'] . '/')->getBody());
+    }
+
+    public function testOnRequestAndUnavailableProductsCannotBeAddedDirectly(): void
+    {
+        $this->seed();
+        $row = $this->pdo->query('SELECT v.id AS variant_id,p.id AS product_id FROM product_variants v JOIN products p ON p.id=v.product_id ORDER BY v.id LIMIT 1')->fetch();
+        self::assertIsArray($row);
+        $cart = new CartService($this->pdo);
+
+        foreach (['on_request', 'unavailable'] as $availability) {
+            $statement = $this->pdo->prepare("UPDATE products SET public_availability=:availability,backorder_policy='allow' WHERE id=:id");
+            $statement->execute(['availability' => $availability, 'id' => $row['product_id']]);
+            try {
+                $cart->add((int) $row['variant_id'], 1);
+                self::fail('Produsul marcat ' . $availability . ' nu trebuie adăugat direct în coș.');
+            } catch (RuntimeException $exception) {
+                self::assertSame('Varianta nu este disponibilă.', $exception->getMessage());
+            }
+        }
     }
 
     private function get(string $path): ResponseInterface

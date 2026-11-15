@@ -139,6 +139,44 @@ final class CatalogTest extends DatabaseTestCase
         self::assertSame('body-petrecut-liniste', $result['products'][0]['slug']);
     }
 
+    public function testSemanticSearchUsesSupplierCodesModelsAndSpecifications(): void
+    {
+        $this->seed();
+        $productId = (int) $this->pdo->query("SELECT id FROM products WHERE slug='body-petrecut-liniste'")->fetchColumn();
+        $this->pdo->exec("UPDATE products SET supplier_code='FURN-AX91',model='Luna Mini',model_identifier='LM-2026' WHERE id=" . $productId);
+        $statement = $this->pdo->prepare('INSERT INTO product_specifications (product_id,group_name,name,value,position) VALUES (:product,:group_name,:name,:value,0)');
+        $statement->execute([
+            'product' => $productId,
+            'group_name' => 'Materiale',
+            'name' => 'Textură',
+            'value' => 'muselină premium',
+        ]);
+        $search = new CatalogSearchService(new CatalogRepository($this->pdo));
+
+        self::assertSame('body-petrecut-liniste', $search->products('FURN-AX91')['products'][0]['slug']);
+        self::assertSame('body-petrecut-liniste', $search->products('Luna Mini')['products'][0]['slug']);
+        self::assertSame('body-petrecut-liniste', $search->products('muselina premium')['products'][0]['slug']);
+    }
+
+    public function testAccountingTrackingCannotBeDisabledWhileProductHasBalance(): void
+    {
+        $this->seed();
+        $service = new CatalogAdminService($this->pdo);
+        $productId = (int) $this->pdo->query("SELECT id FROM products WHERE slug='rochie-de-botez-raisa'")->fetchColumn();
+        $variant = $this->pdo->query('SELECT id,sku FROM product_variants WHERE product_id=' . $productId . ' ORDER BY is_default DESC,id LIMIT 1')->fetch();
+        self::assertIsArray($variant);
+        $now = gmdate('c');
+        $statement = $this->pdo->prepare("INSERT INTO accounting_stock_balances (scope_type,scope_id,product_id,variant_id,sku,quantity,created_at,updated_at) VALUES ('product',:scope,:product,NULL,:sku,1,:now,:now)");
+        $statement->execute(['scope' => $productId, 'product' => $productId, 'sku' => $variant['sku'], 'now' => $now]);
+        $form = $service->productForm($productId);
+        self::assertIsArray($form);
+        $form['track_in_conta'] = '0';
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Urmărirea contabilă nu poate fi oprită');
+        $service->saveProduct($form, $productId);
+    }
+
     public function testHomepageCollectionsContainOnlyPublishedMainCategories(): void
     {
         $this->seed();

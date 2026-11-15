@@ -250,11 +250,19 @@ final class StorefrontController
         $categoryTrail = empty($product['category_slug'])
             ? []
             : $this->categoryPaths->trailForSlug((string) $product['category_slug']);
+        $reviewSummary = $this->reviews->summaryForProduct((int) $product['id']);
         $offers = [];
         foreach ($variants as $variant) {
+            $availability = match ((string) ($product['public_availability'] ?? 'automatic')) {
+                'in_stock' => 'https://schema.org/InStock',
+                'preorder' => 'https://schema.org/PreOrder',
+                'on_request' => 'https://schema.org/LimitedAvailability',
+                'unavailable' => 'https://schema.org/OutOfStock',
+                default => (int) $variant['available_quantity'] > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+            };
             $offers[] = [
-                '@type' => 'Offer', 'priceCurrency' => 'RON', 'price' => number_format(((int) $variant['price_bani']) / 100, 2, '.', ''),
-                'availability' => (int) $variant['available_quantity'] > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+                '@type' => 'Offer', 'priceCurrency' => (string) ($product['currency'] ?? 'RON'), 'price' => number_format(((int) $variant['price_bani']) / 100, 2, '.', ''),
+                'availability' => $availability,
                 'sku' => $variant['sku'], 'url' => $this->config->rootUrl() . '/produs/' . $product['slug'] . '/',
             ];
         }
@@ -265,26 +273,58 @@ final class StorefrontController
             'sku' => $variants[0]['sku'] ?? '',
             'offers' => $offers,
         ];
+        if (!empty($product['images'])) {
+            $productStructuredData['image'] = array_map(fn(array $image): string => $this->config->rootUrl() . '/' . ltrim((string) $image['image_path'], '/'), $product['images']);
+        }
         $brand = trim((string) ($product['brand'] ?? ''));
         if ($brand !== '') {
             $productStructuredData['brand'] = ['@type' => 'Brand', 'name' => $brand];
         }
+        $modelIdentifier = trim((string) ($product['model_identifier'] ?: $product['model'] ?? ''));
+        if ($modelIdentifier !== '') {
+            $productStructuredData['mpn'] = $modelIdentifier;
+        }
+        $ean = trim((string) ($variants[0]['ean'] ?? ''));
+        if (preg_match('/^\d{13}$/D', $ean)) {
+            $productStructuredData['gtin13'] = $ean;
+        }
+        if ((int) ($reviewSummary['count'] ?? 0) > 0) {
+            $productStructuredData['aggregateRating'] = [
+                '@type' => 'AggregateRating',
+                'ratingValue' => number_format((float) $reviewSummary['average'], 1, '.', ''),
+                'reviewCount' => (int) $reviewSummary['count'],
+            ];
+        }
+        $graph = [$this->breadcrumbStructuredData($categoryTrail, (string) $product['name'], '/produs/' . $product['slug'] . '/', false)];
+        if ((int) ($product['structured_data_enabled'] ?? 1) === 1) {
+            array_unshift($graph, $productStructuredData);
+            if (!empty($product['faqs'])) {
+                $graph[] = [
+                    '@type' => 'FAQPage',
+                    'mainEntity' => array_map(static fn(array $faq): array => [
+                        '@type' => 'Question', 'name' => (string) $faq['question'],
+                        'acceptedAnswer' => ['@type' => 'Answer', 'text' => (string) $faq['answer']],
+                    ], $product['faqs']),
+                ];
+            }
+        }
         $structured = [
             '@context' => 'https://schema.org',
-            '@graph' => [
-                $productStructuredData,
-                $this->breadcrumbStructuredData($categoryTrail, (string) $product['name'], '/produs/' . $product['slug'] . '/', false),
-            ],
+            '@graph' => $graph,
         ];
+        $meta = $this->meta($product['seo_title'] ?: $product['name'], $product['meta_description'] ?: $product['short_description'], '/produs/' . $product['slug'] . '/', (int) $product['indexable'] !== 1);
+        if (trim((string) ($product['canonical_url'] ?? '')) !== '') {
+            $meta['canonical'] = (string) $product['canonical_url'];
+        }
         return $this->view->render('storefront/pages/product.twig', [
             'product' => $product,
             'product_category_trail' => $categoryTrail,
             'similar_products' => $this->recommendations->similarTo($product, 15),
             'product_reviews' => $this->reviews->approvedForProduct((int) $product['id']),
-            'review_summary' => $this->reviews->summaryForProduct((int) $product['id']),
+            'review_summary' => $reviewSummary,
             'review_form_user' => $this->auth->user(),
             'structured_data' => json_encode($structured, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
-            'meta' => $this->meta($product['seo_title'] ?: $product['name'], $product['meta_description'] ?: $product['short_description'], '/produs/' . $product['slug'] . '/', (int) $product['indexable'] !== 1),
+            'meta' => $meta,
         ]);
     }
 
@@ -335,6 +375,19 @@ final class StorefrontController
         }
 
         return $this->view->redirect($this->config->path('produs/' . $slug . '/#formular-recenzie'));
+    }
+
+    public function recordProductView(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $product = $this->catalog->productBySlug((string) ($args['slug'] ?? ''));
+        if ($product === null) {
+            return $response->withStatus(404);
+        }
+        $ip = (string) ($request->getServerParams()['REMOTE_ADDR'] ?? 'unknown');
+        if ($this->limiter->allow('product-view-' . (int) $product['id'], $ip, 1, 900)) {
+            $this->catalog->recordProductView((int) $product['id']);
+        }
+        return $response->withStatus(204)->withHeader('Cache-Control', 'no-store');
     }
 
     public function collection(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface

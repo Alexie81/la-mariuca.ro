@@ -235,9 +235,34 @@ final class AdminPanelTest extends DatabaseTestCase
             'stock' => '4',
             'category_ids' => [(string) $categoryId, (string) $secondaryCategoryId],
             'gallery_media_ids' => [(string) $galleryMediaIds[1], (string) $galleryMediaIds[0]],
-            'status' => 'draft',
+            'status' => 'published',
             'featured' => 'on',
             'indexable' => 'on',
+            'structured_data_enabled' => '1',
+            'source_name' => 'Atelier test',
+            'supplier_code' => 'SRC-001',
+            'brand' => 'Producător test',
+            'model' => 'MODEL-2026',
+            'unit' => 'buc',
+            'vat_rate' => '21,00',
+            'currency' => 'RON',
+            'source_price' => '80,00',
+            'external_reference_price' => '159,00',
+            'margin_percent' => '46,63',
+            'compatibility_text' => 'Copii 3-6 ani',
+            'tags' => 'test, ceremonie',
+            'warranty_legal' => 'Conform legislației aplicabile',
+            'manufacturer_email' => 'producator@example.test',
+            'ce_marking' => '1',
+            'safety_warnings' => 'A se utiliza sub supravegherea unui adult.',
+            'canonical_url' => 'http://localhost/produs/produs-creat-din-modal/',
+            'specifications' => [
+                ['group' => 'Materiale', 'name' => 'Țesătură', 'value' => 'Bumbac organic'],
+                ['group' => 'Dimensiuni', 'name' => 'Lungime', 'value' => '42 cm'],
+            ],
+            'faqs' => [
+                ['question' => 'Cum aleg mărimea?', 'answer' => 'Consultă ghidul de mărimi și măsoară copilul.'],
+            ],
         ], '127.0.0.86', [], ['Accept' => 'application/json']);
         self::assertSame(200, $created->getStatusCode());
         self::assertSame('application/json; charset=utf-8', $created->getHeaderLine('Content-Type'));
@@ -256,6 +281,10 @@ final class AdminPanelTest extends DatabaseTestCase
         self::assertSame($createdSeo['name'], $createdSeo['seo_title']);
         self::assertSame($automaticMetaDescription, $createdSeo['short_description']);
         self::assertSame($automaticMetaDescription, $createdSeo['meta_description']);
+        self::assertSame(2, (int) $this->pdo->query('SELECT COUNT(*) FROM product_specifications WHERE product_id=' . $createdId)->fetchColumn());
+        self::assertSame(1, (int) $this->pdo->query('SELECT COUNT(*) FROM product_faqs WHERE product_id=' . $createdId)->fetchColumn());
+        self::assertSame(2100, (int) $this->pdo->query('SELECT vat_rate_basis_points FROM products WHERE id=' . $createdId)->fetchColumn());
+        self::assertSame(8000, (int) $this->pdo->query('SELECT source_price_bani FROM products WHERE id=' . $createdId)->fetchColumn());
         $createdEditModal = (string) $this->get('/admin/produse/' . $createdId . '/editare/modal/')->getBody();
         self::assertMatchesRegularExpression('/name="category_ids\[\]" value="' . $categoryId . '" checked/', $createdEditModal);
         self::assertMatchesRegularExpression('/name="category_ids\[\]" value="' . $secondaryCategoryId . '" checked/', $createdEditModal);
@@ -263,6 +292,19 @@ final class AdminPanelTest extends DatabaseTestCase
             strpos($createdEditModal, 'name="gallery_media_ids[]" value="' . $galleryMediaIds[0] . '"'),
             strpos($createdEditModal, 'name="gallery_media_ids[]" value="' . $galleryMediaIds[1] . '"')
         );
+        self::assertStringContainsString('value="Atelier test"', $createdEditModal);
+        self::assertStringContainsString('value="Bumbac organic"', $createdEditModal);
+        self::assertStringContainsString('Cum aleg mărimea?', $createdEditModal);
+
+        $publicProduct = (string) $this->get('/produs/produs-creat-din-modal/')->getBody();
+        self::assertStringContainsString('<link rel="canonical" href="http://localhost/produs/produs-creat-din-modal/">', $publicProduct);
+        self::assertStringContainsString('Bumbac organic', $publicProduct);
+        self::assertStringContainsString('Întrebări frecvente', $publicProduct);
+        self::assertStringContainsString('FAQPage', $publicProduct);
+        self::assertStringNotContainsString('"gtin13"', $publicProduct);
+        $viewResponse = $this->request('POST', '/produs/produs-creat-din-modal/vizualizare/', ['_csrf' => $_SESSION['_csrf']], '127.0.0.186');
+        self::assertSame(204, $viewResponse->getStatusCode());
+        self::assertSame(1, (int) $this->pdo->query('SELECT SUM(views) FROM product_view_daily WHERE product_id=' . $createdId)->fetchColumn());
         $createdVariantId = (int) $this->pdo->query("SELECT id FROM product_variants WHERE sku='LM-MODAL-001'")->fetchColumn();
 
         $duplicateAvailability = json_decode((string) $this->get('/admin/produse/verifica-nume/?nume=PRODUS%20CREAT%20DIN%20MODAL')->getBody(), true, 512, JSON_THROW_ON_ERROR);

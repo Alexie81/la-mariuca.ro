@@ -62,6 +62,27 @@
           <input name="brand" value="{{ product.brand|default('') }}" maxlength="190" autocomplete="organization" placeholder="Ex: La Măriuca">
           <small>Este vizibil clienților și este transmis către Google Merchant când este completat.</small>
         </label>
+        <label class="admin-product-field">
+          <span>Sursă principală <em>opțional</em></span>
+          <input name="source_name" value="{{ product.source_name|default('') }}" maxlength="190" placeholder="Ex: Atelier propriu, distribuitor extern">
+          <small>Denumirea comercială a sursei, dacă diferă de furnizor.</small>
+        </label>
+        <label class="admin-product-field">
+          <span>Cod furnizor / sursă <em>opțional</em></span>
+          <input name="supplier_code" value="{{ product.supplier_code|default('') }}" maxlength="190" placeholder="Codul din catalogul furnizorului">
+        </label>
+        <label class="admin-product-field">
+          <span>Model <em>opțional</em></span>
+          <input name="model" value="{{ product.model|default('') }}" maxlength="190" placeholder="Ex: LM-MARIA-2026">
+        </label>
+        <label class="admin-product-field">
+          <span>Unitate de măsură</span>
+          <input name="unit" value="{{ product.unit|default('buc') }}" maxlength="30" placeholder="buc">
+        </label>
+        <label class="admin-product-field admin-product-field--wide">
+          <span>Titlu extins <em>opțional</em></span>
+          <input name="extended_title" value="{{ product.extended_title|default('') }}" maxlength="255" placeholder="Titlu comercial mai amplu, fără a schimba numele principal">
+        </label>
         <div class="admin-product-field admin-product-field--wide">
           <span>Categorii <b>*</b></span>
           <details class="admin-category-picker" data-admin-category-picker>
@@ -296,6 +317,25 @@
       </div>
     </section>
 
+    <section class="admin-product-editor__section" aria-labelledby="product-section-commercial{{ is_modal ? '-modal' : '' }}">
+      <header>
+        <span class="admin-product-editor__section-icon is-violet" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 5h14v14H5zM8 9h8M8 13h5"/></svg></span>
+        <div><span>Comercial și fiscal</span><h3 id="product-section-commercial{{ is_modal ? '-modal' : '' }}">TVA, sursă și disponibilitate</h3></div>
+      </header>
+      <div class="admin-product-editor__grid">
+        <label class="admin-product-field"><span>Cotă TVA</span><span class="admin-product-field__suffix"><input name="vat_rate" inputmode="decimal" value="{{ product ? (product.vat_rate_basis_points / 100)|number_format(2, ',', '') : '21,00' }}"><em>%</em></span></label>
+        <label class="admin-product-field"><span>Monedă</span><input name="currency" value="{{ product.currency|default('RON') }}" maxlength="3" pattern="[A-Za-z]{3}" placeholder="RON"></label>
+        <label class="admin-product-field"><span>Preț sursă / furnizor</span><span class="admin-product-field__suffix"><input name="source_price" inputmode="decimal" value="{{ product and product.source_price_bani is not null ? '%d,%02d'|format(product.source_price_bani // 100, product.source_price_bani % 100) : '' }}" placeholder="0,00"><em>RON</em></span><small>Informativ; costul contabil rămâne cel din NIR și loturi.</small></label>
+        <label class="admin-product-field"><span>Preț extern de referință</span><span class="admin-product-field__suffix"><input name="external_reference_price" inputmode="decimal" value="{{ product and product.external_reference_price_bani is not null ? '%d,%02d'|format(product.external_reference_price_bani // 100, product.external_reference_price_bani % 100) : '' }}" placeholder="0,00"><em>RON</em></span></label>
+        <label class="admin-product-field"><span>Marjă informativă</span><span class="admin-product-field__suffix"><input name="margin_percent" inputmode="decimal" value="{{ product and product.margin_basis_points is not null ? (product.margin_basis_points / 100)|number_format(2, ',', '') : '' }}" placeholder="0,00"><em>%</em></span></label>
+        <label class="admin-product-field"><span>Stoc extern</span><input type="number" name="external_stock_quantity" value="{{ product.external_stock_quantity|default('') }}" placeholder="Necunoscut"></label>
+        <label class="admin-product-field"><span>Disponibilitate publică</span><select name="public_availability"><option value="automatic" {{ product.public_availability|default('automatic') == 'automatic' ? 'selected' }}>Automată din stoc</option><option value="in_stock" {{ product.public_availability|default('') == 'in_stock' ? 'selected' }}>În stoc</option><option value="preorder" {{ product.public_availability|default('') == 'preorder' ? 'selected' }}>Precomandă</option><option value="on_request" {{ product.public_availability|default('') == 'on_request' ? 'selected' }}>La cerere</option><option value="unavailable" {{ product.public_availability|default('') == 'unavailable' ? 'selected' }}>Indisponibil</option></select></label>
+        <label class="admin-product-field"><span>Lipsă stoc</span><select name="backorder_policy"><option value="deny" {{ product.backorder_policy|default('deny') == 'deny' ? 'selected' }}>Nu accepta comenzi</option><option value="allow" {{ product.backorder_policy|default('') == 'allow' ? 'selected' }}>Acceptă comenzi în așteptare</option><option value="on_request" {{ product.backorder_policy|default('') == 'on_request' ? 'selected' }}>Doar la cerere</option></select></label>
+        <label class="admin-product-field admin-product-field--wide"><span>Compatibilitate</span><textarea name="compatibility_text" rows="2" placeholder="Branduri, modele, vârste sau utilizări compatibile">{{ product.compatibility_text|default('') }}</textarea></label>
+        <label class="admin-product-field admin-product-field--wide"><span>Etichete</span><input name="tags" value="{{ product.tags|default('') }}" placeholder="Separate prin virgulă"></label>
+      </div>
+    </section>
+
     <section class="admin-product-editor__section" aria-labelledby="product-section-story{{ is_modal ? '-modal' : '' }}">
       <header>
         <span class="admin-product-editor__section-icon is-rose" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 20s-7-4.3-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.7-7 10-7 10Z"/></svg></span>
@@ -468,7 +508,55 @@
       <div class="admin-product-editor__grid">
         <label class="admin-product-field"><span>Compoziție</span><input name="composition" value="{{ product.composition|default('') }}" placeholder="Ex: 100% bumbac"></label>
         <label class="admin-product-field"><span>Ghid de mărimi</span><input name="size_guide" value="{{ product.size_guide|default('') }}" placeholder="Recomandări pentru alegerea mărimii"></label>
+        <label class="admin-product-field"><span>Îngrijire</span><input name="care_instructions" value="{{ product.care_instructions|default('') }}" placeholder="Spălare, uscare, întreținere"></label>
+        <label class="admin-product-field"><span>Conținutul pachetului</span><input name="package_contents" value="{{ product.package_contents|default('') }}" placeholder="Ce primește clientul"></label>
         <label class="admin-product-field admin-product-field--full"><span>Notă informativă</span><input name="excluded_accessories" value="{{ product.excluded_accessories|default('') }}" placeholder="Ex: Elementele decorative din fotografie nu sunt incluse"></label>
+        <label class="admin-product-field"><span>Garanție legală</span><input name="warranty_legal" value="{{ product.warranty_legal|default('') }}" placeholder="Conform legislației aplicabile"></label>
+        <label class="admin-product-field"><span>Garanție comercială</span><input name="warranty_commercial" value="{{ product.warranty_commercial|default('') }}" placeholder="Dacă se oferă suplimentar"></label>
+        <label class="admin-product-field"><span>Adresă producător</span><input name="manufacturer_address" value="{{ product.manufacturer_address|default('') }}"></label>
+        <label class="admin-product-field"><span>E-mail producător</span><input type="email" name="manufacturer_email" value="{{ product.manufacturer_email|default('') }}"></label>
+        <label class="admin-product-field admin-product-field--wide"><span>Persoană responsabilă în UE</span><input name="eu_responsible_person" value="{{ product.eu_responsible_person|default('') }}"></label>
+        <label class="admin-product-field"><span>Identificator model</span><input name="model_identifier" value="{{ product.model_identifier|default('') }}"></label>
+        <label class="admin-product-mini-switch"><input type="checkbox" name="ce_marking" value="1" {{ product.ce_marking|default(false) ? 'checked' }}><i aria-hidden="true"><b></b></i><span>Produs cu marcaj CE</span></label>
+        <label class="admin-product-field admin-product-field--full"><span>Avertismente de siguranță</span><textarea name="safety_warnings" rows="3">{{ product.safety_warnings|default('') }}</textarea></label>
+        <label class="admin-product-field admin-product-field--wide"><span>Documente de conformitate</span><textarea name="conformity_documents" rows="2" placeholder="Denumiri sau linkuri, câte unul pe rând">{{ product.conformity_documents|default('') }}</textarea></label>
+        <label class="admin-product-field admin-product-field--wide"><span>Manuale</span><textarea name="manuals" rows="2" placeholder="Denumiri sau linkuri, câte unul pe rând">{{ product.manuals|default('') }}</textarea></label>
+        <label class="admin-product-field"><span>Actualizări software</span><textarea name="software_updates" rows="2">{{ product.software_updates|default('') }}</textarea></label>
+        <label class="admin-product-field"><span>Reparabilitate și piese</span><textarea name="repairability" rows="2" placeholder="Informații de reparabilitate">{{ product.repairability|default('') }}</textarea></label>
+        <label class="admin-product-field admin-product-field--full"><span>Disponibilitatea pieselor</span><input name="spare_parts_availability" value="{{ product.spare_parts_availability|default('') }}"></label>
+      </div>
+
+      {% set specification_rows = product.specifications|default([]) %}
+      {% if specification_rows is empty %}{% set specification_rows = [{group_name:'',name:'',value:''}] %}{% endif %}
+      <div class="admin-product-repeatable" data-product-repeatable="specifications">
+        <div class="admin-product-repeatable__head"><div><strong>Specificații grupate</strong><small>Ordinea rândurilor este păstrată în pagina publică.</small></div><button type="button" data-product-repeatable-add>+ Adaugă specificație</button></div>
+        <div class="admin-product-repeatable__rows" data-product-repeatable-rows>
+          {% for specification in specification_rows %}
+            <div class="admin-product-repeatable__row" data-product-repeatable-row>
+              <label><span>Grupă</span><input name="specifications[{{ loop.index0 }}][group]" value="{{ specification.group_name|default('') }}" placeholder="Ex: Materiale"></label>
+              <label><span>Denumire</span><input name="specifications[{{ loop.index0 }}][name]" value="{{ specification.name|default('') }}" placeholder="Ex: Material"></label>
+              <label><span>Valoare</span><input name="specifications[{{ loop.index0 }}][value]" value="{{ specification.value|default('') }}" placeholder="Ex: Bumbac organic"></label>
+              <span class="admin-product-repeatable__actions"><button type="button" data-product-repeatable-up aria-label="Mută mai sus">↑</button><button type="button" data-product-repeatable-down aria-label="Mută mai jos">↓</button><button type="button" data-product-repeatable-remove aria-label="Șterge specificația">×</button></span>
+            </div>
+          {% endfor %}
+        </div>
+        <template data-product-repeatable-template><div class="admin-product-repeatable__row" data-product-repeatable-row><label><span>Grupă</span><input name="specifications[__INDEX__][group]" placeholder="Ex: Materiale"></label><label><span>Denumire</span><input name="specifications[__INDEX__][name]" placeholder="Ex: Material"></label><label><span>Valoare</span><input name="specifications[__INDEX__][value]" placeholder="Ex: Bumbac organic"></label><span class="admin-product-repeatable__actions"><button type="button" data-product-repeatable-up aria-label="Mută mai sus">↑</button><button type="button" data-product-repeatable-down aria-label="Mută mai jos">↓</button><button type="button" data-product-repeatable-remove aria-label="Șterge specificația">×</button></span></div></template>
+      </div>
+
+      {% set faq_rows = product.faqs|default([]) %}
+      {% if faq_rows is empty %}{% set faq_rows = [{question:'',answer:''}] %}{% endif %}
+      <div class="admin-product-repeatable" data-product-repeatable="faqs">
+        <div class="admin-product-repeatable__head"><div><strong>Întrebări și răspunsuri</strong><small>FAQ-ul este inclus în datele structurate numai când este vizibil public.</small></div><button type="button" data-product-repeatable-add>+ Adaugă întrebare</button></div>
+        <div class="admin-product-repeatable__rows" data-product-repeatable-rows>
+          {% for faq in faq_rows %}
+            <div class="admin-product-repeatable__row is-faq" data-product-repeatable-row>
+              <label><span>Întrebare</span><input name="faqs[{{ loop.index0 }}][question]" value="{{ faq.question|default('') }}"></label>
+              <label><span>Răspuns</span><textarea name="faqs[{{ loop.index0 }}][answer]" rows="2">{{ faq.answer|default('') }}</textarea></label>
+              <span class="admin-product-repeatable__actions"><button type="button" data-product-repeatable-up aria-label="Mută mai sus">↑</button><button type="button" data-product-repeatable-down aria-label="Mută mai jos">↓</button><button type="button" data-product-repeatable-remove aria-label="Șterge întrebarea">×</button></span>
+            </div>
+          {% endfor %}
+        </div>
+        <template data-product-repeatable-template><div class="admin-product-repeatable__row is-faq" data-product-repeatable-row><label><span>Întrebare</span><input name="faqs[__INDEX__][question]"></label><label><span>Răspuns</span><textarea name="faqs[__INDEX__][answer]" rows="2"></textarea></label><span class="admin-product-repeatable__actions"><button type="button" data-product-repeatable-up aria-label="Mută mai sus">↑</button><button type="button" data-product-repeatable-down aria-label="Mută mai jos">↓</button><button type="button" data-product-repeatable-remove aria-label="Șterge întrebarea">×</button></span></div></template>
       </div>
     </section>
 
@@ -506,6 +594,11 @@
               <span class="admin-product-seo__counter" data-product-seo-description-count><strong>{{ seo_description_value|length }}</strong>/160</span>
             </small>
           </label>
+          <label class="admin-product-field admin-product-seo__field">
+            <span class="admin-product-seo__field-label"><span>Canonical personalizat</span><em>opțional</em></span>
+            <input type="url" name="canonical_url" value="{{ product.canonical_url|default('') }}" placeholder="https://la-mariuca.ro/produs/…">
+            <small>Lasă gol pentru adresa publică normală a produsului.</small>
+          </label>
         </div>
 
         <aside class="admin-product-seo__preview" aria-label="Previzualizarea rezultatului Google" data-product-seo-base-url="{{ url('produs/') }}">
@@ -533,6 +626,11 @@
           <small>Google poate analiza și include această pagină în rezultatele căutării.</small>
         </span>
         <em data-product-seo-visibility-status><i aria-hidden="true"></i><span>{{ not product or product.indexable ? 'Vizibilitate activă' : 'Vizibilitate oprită' }}</span></em>
+      </label>
+      <label class="admin-product-seo__visibility">
+        <input type="hidden" name="structured_data_enabled" value="0"><input type="checkbox" name="structured_data_enabled" value="1" {{ not product or product.structured_data_enabled ? 'checked' }}>
+        <i class="admin-product-seo__toggle" aria-hidden="true"><b></b></i>
+        <span><strong>Generează date structurate Product și FAQ</strong><small>Prețul, disponibilitatea, brandul și întrebările publice sunt transmise motoarelor de căutare.</small></span>
       </label>
     </section>
   </div>

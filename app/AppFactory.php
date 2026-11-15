@@ -206,6 +206,7 @@ final class AppFactory
         $app->get('/colectie/{slug}/', [$storefront, 'collection']);
         $app->get('/produs/{slug}/', [$storefront, 'product']);
         $app->post('/produs/{slug}/recenzie/', [$storefront, 'submitReview']);
+        $app->post('/produs/{slug}/vizualizare/', [$storefront, 'recordProductView']);
         $app->get('/magazin/', [$storefront, 'shop']);
         $app->get('/cautare/', [$storefront, 'search']);
         $app->get('/cautare/sugestii/', [$storefront, 'searchSuggestions']);

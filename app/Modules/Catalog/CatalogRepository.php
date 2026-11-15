@@ -112,7 +112,7 @@ final class CatalogRepository
                 )
                 SELECT p.*, {$displayPriceSql} AS price_bani,
                        {$displayComparePriceSql} AS compare_price_bani,
-                       CASE WHEN MAX(v.stock_unlimited)=1 THEN 999999 ELSE COALESCE(SUM(i.physical_quantity - i.reserved_quantity), 0) END AS available_quantity
+                       CASE WHEN MAX(v.stock_unlimited)=1 OR p.backorder_policy='allow' THEN 999999 ELSE COALESCE(SUM(i.physical_quantity - i.reserved_quantity), 0) END AS available_quantity
                 FROM products p
                 JOIN product_categories pc ON pc.product_id = p.id
                 JOIN descendants d ON d.id = pc.category_id
@@ -185,7 +185,7 @@ final class CatalogRepository
             $where[] = $categoryWhere;
         }
         if ($inStock) {
-            $having[] = '(MAX(v.stock_unlimited)=1 OR COALESCE(SUM(i.physical_quantity - i.reserved_quantity), 0) > 0)';
+            $having[] = "(MAX(v.stock_unlimited)=1 OR p.backorder_policy='allow' OR COALESCE(SUM(i.physical_quantity - i.reserved_quantity), 0) > 0)";
         }
         if ($maxPriceBani !== null) {
             $having[] = $displayPriceSql . ' <= :max_price';
@@ -202,7 +202,7 @@ final class CatalogRepository
                 (SELECT COUNT(*) FROM personalization_options required_option
                     WHERE required_option.product_id = p.id AND required_option.required = 1) AS required_personalization_count,
                 {$displayVariantIdSql} AS default_variant_id,
-                CASE WHEN MAX(v.stock_unlimited)=1 THEN 999999 ELSE COALESCE(SUM(i.physical_quantity - i.reserved_quantity), 0) END AS available_quantity,
+                CASE WHEN MAX(v.stock_unlimited)=1 OR p.backorder_policy='allow' THEN 999999 ELSE COALESCE(SUM(i.physical_quantity - i.reserved_quantity), 0) END AS available_quantity,
                 COALESCE(
                     (SELECT product_media.public_path
                         FROM product_images pi
@@ -261,7 +261,7 @@ final class CatalogRepository
             $where[] = $categoryWhere;
         }
         if ($inStock) {
-            $having[] = '(MAX(v.stock_unlimited)=1 OR COALESCE(SUM(i.physical_quantity - i.reserved_quantity), 0) > 0)';
+            $having[] = "(MAX(v.stock_unlimited)=1 OR p.backorder_policy='allow' OR COALESCE(SUM(i.physical_quantity - i.reserved_quantity), 0) > 0)";
         }
         if ($maxPriceBani !== null) {
             $having[] = $displayPriceSql . ' <= :max_price';
@@ -503,8 +503,10 @@ final class CatalogRepository
         }
         $variantStatement = $this->pdo->prepare("SELECT v.*, COALESCE(i.physical_quantity, 0) AS physical_quantity,
                 COALESCE(i.reserved_quantity, 0) AS reserved_quantity,
-                CASE WHEN v.stock_unlimited=1 THEN 999999 ELSE COALESCE(i.physical_quantity - i.reserved_quantity, 0) END AS available_quantity
-            FROM product_variants v LEFT JOIN inventory i ON i.variant_id = v.id
+                CASE WHEN v.stock_unlimited=1 OR p.backorder_policy='allow' THEN 999999 ELSE COALESCE(i.physical_quantity - i.reserved_quantity, 0) END AS available_quantity
+            FROM product_variants v
+            JOIN products p ON p.id = v.product_id
+            LEFT JOIN inventory i ON i.variant_id = v.id
             WHERE v.product_id = :id AND v.status = 'active' ORDER BY v.is_default DESC, v.id");
         $variantStatement->execute(['id' => $product['id']]);
         $product['variants'] = $variantStatement->fetchAll();
@@ -516,7 +518,23 @@ final class CatalogRepository
             $product['personalization_options'],
             static fn(array $option): bool => (int) ($option['required'] ?? 0) === 1,
         ));
+        $specifications = $this->pdo->prepare('SELECT group_name,name,value,position FROM product_specifications WHERE product_id=:id ORDER BY position,id');
+        $specifications->execute(['id' => $product['id']]);
+        $product['specifications'] = $specifications->fetchAll();
+        $faqs = $this->pdo->prepare('SELECT question,answer,position FROM product_faqs WHERE product_id=:id ORDER BY position,id');
+        $faqs->execute(['id' => $product['id']]);
+        $product['faqs'] = $faqs->fetchAll();
         return $product;
+    }
+
+    public function recordProductView(int $productId): void
+    {
+        $driver = (string) $this->pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
+        $date = gmdate('Y-m-d');
+        $sql = $driver === 'mysql'
+            ? 'INSERT INTO product_view_daily (product_id,viewed_on,views) VALUES (:product,:date,1) ON DUPLICATE KEY UPDATE views=views+1'
+            : 'INSERT INTO product_view_daily (product_id,viewed_on,views) VALUES (:product,:date,1) ON CONFLICT(product_id,viewed_on) DO UPDATE SET views=views+1';
+        $this->pdo->prepare($sql)->execute(['product' => $productId, 'date' => $date]);
     }
 
     /** @return array<string, mixed>|null */
@@ -538,7 +556,7 @@ final class CatalogRepository
         $statement = $this->pdo->prepare("SELECT p.*, primary_category.name AS category_name,
                 primary_category.slug AS category_slug, {$displayPriceSql} AS price_bani,
                 {$displayComparePriceSql} AS compare_price_bani,
-                CASE WHEN MAX(v.stock_unlimited)=1 THEN 999999 ELSE COALESCE(SUM(i.physical_quantity - i.reserved_quantity), 0) END AS available_quantity,
+                CASE WHEN MAX(v.stock_unlimited)=1 OR p.backorder_policy='allow' THEN 999999 ELSE COALESCE(SUM(i.physical_quantity - i.reserved_quantity), 0) END AS available_quantity,
                 COALESCE(
                     (SELECT product_media.public_path
                         FROM product_images pi
@@ -634,7 +652,7 @@ final class CatalogRepository
                 (SELECT COUNT(*) FROM personalization_options required_option
                     WHERE required_option.product_id = p.id AND required_option.required = 1) AS required_personalization_count,
                 {$displayVariantIdSql} AS default_variant_id,
-                CASE WHEN MAX(v.stock_unlimited)=1 THEN 999999 ELSE COALESCE(SUM(i.physical_quantity - i.reserved_quantity), 0) END AS available_quantity,
+                CASE WHEN MAX(v.stock_unlimited)=1 OR p.backorder_policy='allow' THEN 999999 ELSE COALESCE(SUM(i.physical_quantity - i.reserved_quantity), 0) END AS available_quantity,
                 COALESCE(
                     (SELECT product_media.public_path
                         FROM product_images pi
@@ -666,6 +684,12 @@ final class CatalogRepository
                 (SELECT GROUP_CONCAT(DISTINCT search_variant.sku)
                     FROM product_variants search_variant
                     WHERE search_variant.product_id = p.id AND search_variant.status = 'active') AS search_skus,
+                (SELECT GROUP_CONCAT(DISTINCT search_variant.ean)
+                    FROM product_variants search_variant
+                    WHERE search_variant.product_id = p.id AND search_variant.status = 'active' AND search_variant.ean IS NOT NULL) AS search_eans,
+                (SELECT GROUP_CONCAT(search_spec.group_name) FROM product_specifications search_spec WHERE search_spec.product_id=p.id) AS search_specification_groups,
+                (SELECT GROUP_CONCAT(search_spec.name) FROM product_specifications search_spec WHERE search_spec.product_id=p.id) AS search_specification_names,
+                (SELECT GROUP_CONCAT(search_spec.value) FROM product_specifications search_spec WHERE search_spec.product_id=p.id) AS search_specification_values,
                 (SELECT GROUP_CONCAT(DISTINCT search_category.name)
                     FROM product_categories search_pc
                     JOIN categories search_category ON search_category.id = search_pc.category_id
@@ -705,7 +729,7 @@ final class CatalogRepository
         $displayComparePriceSql = $this->displayVariantValueSql('compare_price_bani');
         $statement = $this->pdo->prepare("SELECT p.*, {$displayPriceSql} AS price_bani,
                 {$displayComparePriceSql} AS compare_price_bani,
-                CASE WHEN MAX(v.stock_unlimited)=1 THEN 999999 ELSE COALESCE(SUM(i.physical_quantity - i.reserved_quantity), 0) END AS available_quantity
+                CASE WHEN MAX(v.stock_unlimited)=1 OR p.backorder_policy='allow' THEN 999999 ELSE COALESCE(SUM(i.physical_quantity - i.reserved_quantity), 0) END AS available_quantity
             FROM collections col
             JOIN collection_products cp ON cp.collection_id = col.id
             JOIN products p ON p.id = cp.product_id AND p.status = 'published'
@@ -815,7 +839,7 @@ final class CatalogRepository
                 (SELECT COUNT(*) FROM personalization_options required_option
                     WHERE required_option.product_id = p.id AND required_option.required = 1) AS required_personalization_count,
                 {$displayVariantIdSql} AS default_variant_id,
-                CASE WHEN MAX(v.stock_unlimited)=1 THEN 999999 ELSE COALESCE(SUM(i.physical_quantity - i.reserved_quantity), 0) END AS available_quantity,
+                CASE WHEN MAX(v.stock_unlimited)=1 OR p.backorder_policy='allow' THEN 999999 ELSE COALESCE(SUM(i.physical_quantity - i.reserved_quantity), 0) END AS available_quantity,
                 COALESCE(
                     (SELECT product_media.public_path
                         FROM product_images pi

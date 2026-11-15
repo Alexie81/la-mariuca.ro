@@ -152,12 +152,13 @@ final class CatalogAdminService
         }
         $galleryMediaIds = $this->submittedProductImageIds($data);
         $trackInConta = (string) ($data['track_in_conta'] ?? '1') === '1';
+        $this->assertAccountingTrackingCanChange($id, $trackInConta);
         $variants = $this->submittedProductVariants($data, $id, $primarySku, $trackInConta);
         $now = gmdate('c');
         $this->pdo->beginTransaction();
         try {
             if ($id === null) {
-                $statement = $this->pdo->prepare('INSERT INTO products (name,slug,primary_sku,track_in_conta,short_description,description,brand,supplier_id,status,primary_category_id,seo_title,meta_description,composition,care_instructions,size_guide,package_contents,excluded_accessories,featured,indexable,published_at,created_at,updated_at) VALUES (:name,:slug,:primary_sku,:track_in_conta,:short_description,:description,:brand,:supplier_id,:status,:category,:seo_title,:meta_description,:composition,:care,:size_guide,:package_contents,:excluded_accessories,:featured,:indexable,:published_at,:now,:now)');
+                $statement = $this->pdo->prepare('INSERT INTO products (name,slug,primary_sku,track_in_conta,short_description,description,brand,supplier_id,status,primary_category_id,seo_title,meta_description,composition,care_instructions,size_guide,package_contents,excluded_accessories,featured,indexable,published_at,source_name,supplier_code,model,unit,extended_title,vat_rate_basis_points,currency,source_price_bani,external_reference_price_bani,margin_basis_points,compatibility_text,tags,warranty_legal,warranty_commercial,manufacturer_address,manufacturer_email,eu_responsible_person,ce_marking,model_identifier,safety_warnings,conformity_documents,manuals,software_updates,repairability,spare_parts_availability,public_availability,backorder_policy,canonical_url,structured_data_enabled,external_stock_quantity,created_at,updated_at) VALUES (:name,:slug,:primary_sku,:track_in_conta,:short_description,:description,:brand,:supplier_id,:status,:category,:seo_title,:meta_description,:composition,:care,:size_guide,:package_contents,:excluded_accessories,:featured,:indexable,:published_at,:source_name,:supplier_code,:model,:unit,:extended_title,:vat_rate_basis_points,:currency,:source_price_bani,:external_reference_price_bani,:margin_basis_points,:compatibility_text,:tags,:warranty_legal,:warranty_commercial,:manufacturer_address,:manufacturer_email,:eu_responsible_person,:ce_marking,:model_identifier,:safety_warnings,:conformity_documents,:manuals,:software_updates,:repairability,:spare_parts_availability,:public_availability,:backorder_policy,:canonical_url,:structured_data_enabled,:external_stock_quantity,:now,:now)');
                 $statement->execute($this->productParams($data, $name, $slug, $primarySku, $trackInConta, $shortDescription, $status, $categoryId, $supplierId, $now));
                 $id = (int) $this->pdo->lastInsertId();
                 $this->saveProductCategories($id, $categoryIds);
@@ -168,7 +169,7 @@ final class CatalogAdminService
                 if ($oldSlug === false) {
                     throw new RuntimeException('Produsul nu există.');
                 }
-                $statement = $this->pdo->prepare('UPDATE products SET name=:name,slug=:slug,primary_sku=:primary_sku,track_in_conta=:track_in_conta,short_description=:short_description,description=:description,brand=:brand,supplier_id=:supplier_id,status=:status,primary_category_id=:category,seo_title=:seo_title,meta_description=:meta_description,composition=:composition,care_instructions=:care,size_guide=:size_guide,package_contents=:package_contents,excluded_accessories=:excluded_accessories,featured=:featured,indexable=:indexable,published_at=:published_at,updated_at=:now WHERE id=:id');
+                $statement = $this->pdo->prepare('UPDATE products SET name=:name,slug=:slug,primary_sku=:primary_sku,track_in_conta=:track_in_conta,short_description=:short_description,description=:description,brand=:brand,supplier_id=:supplier_id,status=:status,primary_category_id=:category,seo_title=:seo_title,meta_description=:meta_description,composition=:composition,care_instructions=:care,size_guide=:size_guide,package_contents=:package_contents,excluded_accessories=:excluded_accessories,featured=:featured,indexable=:indexable,published_at=:published_at,source_name=:source_name,supplier_code=:supplier_code,model=:model,unit=:unit,extended_title=:extended_title,vat_rate_basis_points=:vat_rate_basis_points,currency=:currency,source_price_bani=:source_price_bani,external_reference_price_bani=:external_reference_price_bani,margin_basis_points=:margin_basis_points,compatibility_text=:compatibility_text,tags=:tags,warranty_legal=:warranty_legal,warranty_commercial=:warranty_commercial,manufacturer_address=:manufacturer_address,manufacturer_email=:manufacturer_email,eu_responsible_person=:eu_responsible_person,ce_marking=:ce_marking,model_identifier=:model_identifier,safety_warnings=:safety_warnings,conformity_documents=:conformity_documents,manuals=:manuals,software_updates=:software_updates,repairability=:repairability,spare_parts_availability=:spare_parts_availability,public_availability=:public_availability,backorder_policy=:backorder_policy,canonical_url=:canonical_url,structured_data_enabled=:structured_data_enabled,external_stock_quantity=:external_stock_quantity,updated_at=:now WHERE id=:id');
                 $statement->execute($this->productParams($data, $name, $slug, $primarySku, $trackInConta, $shortDescription, $status, $categoryId, $supplierId, $now) + ['id' => $id]);
                 $this->pdo->prepare('DELETE FROM product_categories WHERE product_id=:id')->execute(['id' => $id]);
                 $this->saveProductCategories($id, $categoryIds);
@@ -178,6 +179,8 @@ final class CatalogAdminService
             }
             $this->syncProductVariants($id, $variants, $now);
             $this->syncProductImages($id, $galleryMediaIds);
+            $this->syncProductSpecifications($id, $data['specifications'] ?? []);
+            $this->syncProductFaqs($id, $data['faqs'] ?? []);
             $this->stripeCatalog->enqueue($id);
             $this->pdo->commit();
             return $id;
@@ -565,8 +568,23 @@ final class CatalogAdminService
         $page = max(1, min($page, $totalPages));
         $offset = ($page - 1) * $perPage;
 
+        $order = 'updated_at DESC,id DESC';
+        if ($search !== '') {
+            $exact = mb_strtolower($search);
+            $prefix = $exact . '%';
+            $parameters += [
+                ':rank_sku_exact' => $exact, ':rank_ean_exact' => $exact, ':rank_supplier_exact' => $exact,
+                ':rank_sku_prefix' => $prefix, ':rank_ean_prefix' => $prefix, ':rank_supplier_prefix' => $prefix,
+                ':rank_name_exact' => $exact, ':rank_name_prefix' => $prefix, ':rank_name_contains' => '%' . $exact . '%',
+            ];
+            $order = "CASE
+                WHEN LOWER(sku)=:rank_sku_exact OR LOWER(ean)=:rank_ean_exact OR LOWER(supplier_code)=:rank_supplier_exact THEN 0
+                WHEN LOWER(sku) LIKE :rank_sku_prefix OR LOWER(ean) LIKE :rank_ean_prefix OR LOWER(supplier_code) LIKE :rank_supplier_prefix THEN 1
+                WHEN LOWER(name)=:rank_name_exact THEN 2 WHEN LOWER(name) LIKE :rank_name_prefix THEN 3
+                WHEN LOWER(name) LIKE :rank_name_contains THEN 4 ELSE 5 END, updated_at DESC,id DESC";
+        }
         $statement = $this->pdo->prepare('SELECT * FROM (' . $baseSql . ') admin_product'
-            . $where . ' ORDER BY updated_at DESC,id DESC LIMIT :limit OFFSET :offset');
+            . $where . ' ORDER BY ' . $order . ' LIMIT :limit OFFSET :offset');
         foreach ($parameters as $name => $value) {
             $statement->bindValue($name, $value);
         }
@@ -622,10 +640,10 @@ final class CatalogAdminService
     private function adminProductBaseSql(): string
     {
         return "SELECT
-            p.id,p.name,p.slug,p.status,p.featured,p.updated_at,p.primary_category_id,p.track_in_conta,p.brand,p.description,
+            p.id,p.name,p.slug,p.status,p.featured,p.updated_at,p.primary_category_id,p.track_in_conta,p.brand,p.description,p.model,p.compatibility_text,p.tags,
             p.accounting_minimum_units,p.supplier_id,
             COALESCE(c.name, 'Fără categorie') AS category_name,
-            COALESCE(s.alias, '') AS supplier_alias,COALESCE(s.company_name, '') AS supplier_name,
+            COALESCE(NULLIF(p.source_name,''),s.alias,'') AS supplier_alias,COALESCE(s.company_name, '') AS supplier_name,
             COALESCE(p.primary_sku, (SELECT dv.sku FROM product_variants dv WHERE dv.product_id=p.id ORDER BY dv.is_default DESC,dv.id LIMIT 1), '') AS sku,
             COALESCE((SELECT dv.ean FROM product_variants dv WHERE dv.product_id=p.id ORDER BY dv.is_default DESC,dv.id LIMIT 1), '') AS ean,
             COALESCE((SELECT dv.price_bani FROM product_variants dv WHERE dv.product_id=p.id ORDER BY dv.is_default DESC,dv.id LIMIT 1), 0) AS price_bani,
@@ -636,10 +654,12 @@ final class CatalogAdminService
             CASE WHEN EXISTS (SELECT 1 FROM product_variants uv WHERE uv.product_id=p.id AND uv.status='active' AND uv.stock_unlimited=1) THEN 1 ELSE 0 END AS has_unlimited_stock,
             COALESCE((SELECT SUM(ab.quantity) FROM accounting_stock_balances ab WHERE ab.product_id=p.id),(SELECT SUM(i.physical_quantity) FROM product_variants sv LEFT JOIN inventory i ON i.variant_id=sv.id WHERE sv.product_id=p.id),0) AS physical_quantity,
             COALESCE((SELECT SUM(i.reserved_quantity) FROM product_variants sv LEFT JOIN inventory i ON i.variant_id=sv.id WHERE sv.product_id=p.id),0) AS reserved_quantity,
-            COALESCE((SELECT sr.supplier_code FROM nir_supplier_references sr WHERE sr.product_id=p.id ORDER BY sr.is_primary DESC,sr.updated_at DESC,sr.id DESC LIMIT 1),'') AS supplier_code,
-            COALESCE((SELECT sr.last_price FROM nir_supplier_references sr WHERE sr.product_id=p.id ORDER BY sr.is_primary DESC,sr.updated_at DESC,sr.id DESC LIMIT 1),'') AS source_price,
+            COALESCE(NULLIF(p.supplier_code,''),(SELECT sr.supplier_code FROM nir_supplier_references sr WHERE sr.product_id=p.id ORDER BY sr.is_primary DESC,sr.updated_at DESC,sr.id DESC LIMIT 1),'') AS supplier_code,
+            CASE WHEN p.source_price_bani IS NOT NULL THEN p.source_price_bani/100.0 ELSE COALESCE((SELECT sr.last_price FROM nir_supplier_references sr WHERE sr.product_id=p.id ORDER BY sr.is_primary DESC,sr.updated_at DESC,sr.id DESC LIMIT 1),'') END AS source_price,
             COALESCE((SELECT sr.last_currency FROM nir_supplier_references sr WHERE sr.product_id=p.id ORDER BY sr.is_primary DESC,sr.updated_at DESC,sr.id DESC LIMIT 1),'') AS source_currency,
+            p.external_stock_quantity,
             COALESCE((SELECT SUM(oi.quantity) FROM order_items oi JOIN orders o ON o.id=oi.order_id WHERE oi.product_id=p.id AND o.status NOT IN ('cancelled')),0) AS sold_quantity,
+            COALESCE((SELECT SUM(pv.views) FROM product_view_daily pv WHERE pv.product_id=p.id),0) AS view_count,
             COALESCE((SELECT AVG(pr.rating) FROM product_reviews pr WHERE pr.product_id=p.id AND pr.status='approved'),0) AS rating_average,
             COALESCE((SELECT COUNT(*) FROM product_reviews pr WHERE pr.product_id=p.id AND pr.status='approved'),0) AS review_count,
             (SELECT m.public_path FROM product_images pi JOIN media m ON m.id=pi.media_id WHERE pi.product_id=p.id AND m.public_path IS NOT NULL ORDER BY pi.position,pi.media_id LIMIT 1) AS image_path,
@@ -691,7 +711,7 @@ final class CatalogAdminService
         }
         if ($search !== '') {
             $needle = '%' . mb_strtolower($search) . '%';
-            $fields = ['name','slug','sku','ean','category_name','status','brand','supplier_alias','supplier_name','supplier_code','description'];
+            $fields = ['name','slug','sku','ean','category_name','status','brand','model','compatibility_text','tags','supplier_alias','supplier_name','supplier_code','description'];
             $searchParts = [];
             foreach ($fields as $index => $field) {
                 $key = ':admin_search_' . $index;
@@ -699,9 +719,13 @@ final class CatalogAdminService
                 $parameters[$key] = $needle;
             }
             $searchParts[] = "EXISTS (SELECT 1 FROM product_variants search_variant WHERE search_variant.product_id=admin_product.id AND (LOWER(search_variant.sku) LIKE :admin_search_variant OR LOWER(COALESCE(search_variant.ean,'')) LIKE :admin_search_variant_ean OR LOWER(search_variant.option_summary) LIKE :admin_search_variant_option))";
+            $searchParts[] = "EXISTS (SELECT 1 FROM product_specifications search_spec WHERE search_spec.product_id=admin_product.id AND (LOWER(search_spec.group_name) LIKE :admin_search_spec_group OR LOWER(search_spec.name) LIKE :admin_search_spec_name OR LOWER(search_spec.value) LIKE :admin_search_spec_value))";
             $parameters[':admin_search_variant'] = $needle;
             $parameters[':admin_search_variant_ean'] = $needle;
             $parameters[':admin_search_variant_option'] = $needle;
+            $parameters[':admin_search_spec_group'] = $needle;
+            $parameters[':admin_search_spec_name'] = $needle;
+            $parameters[':admin_search_spec_value'] = $needle;
             $conditions[] = '(' . implode(' OR ', $searchParts) . ')';
         }
         return [$conditions === [] ? '' : ' WHERE ' . implode(' AND ', $conditions), $parameters];
@@ -796,6 +820,13 @@ final class CatalogAdminService
         $images->execute(['product_id' => $id]);
         $row['gallery_images'] = $images->fetchAll();
 
+        $specifications = $this->pdo->prepare('SELECT group_name,name,value,position FROM product_specifications WHERE product_id=:product_id ORDER BY position,id');
+        $specifications->execute(['product_id' => $id]);
+        $row['specifications'] = $specifications->fetchAll();
+        $faqs = $this->pdo->prepare('SELECT question,answer,position FROM product_faqs WHERE product_id=:product_id ORDER BY position,id');
+        $faqs->execute(['product_id' => $id]);
+        $row['faqs'] = $faqs->fetchAll();
+
         return $row;
     }
 
@@ -849,6 +880,82 @@ final class CatalogAdminService
                 'media_id' => $mediaId,
                 'position' => $position,
             ]);
+        }
+    }
+
+    private function assertAccountingTrackingCanChange(?int $productId, bool $trackInConta): void
+    {
+        if ($productId === null || $trackInConta) {
+            return;
+        }
+        $current = $this->pdo->prepare('SELECT track_in_conta FROM products WHERE id=:id');
+        $current->execute(['id' => $productId]);
+        if ((int) $current->fetchColumn() !== 1) {
+            return;
+        }
+        $checks = [
+            'SELECT COUNT(*) FROM accounting_stock_balances WHERE product_id=:product AND quantity<>0',
+            'SELECT COUNT(*) FROM nir_stock_balances WHERE product_id=:product AND quantity_units<>0',
+            'SELECT COUNT(*) FROM nir_fifo_layers layer JOIN nir_lines line ON line.id=layer.line_id WHERE line.product_id=:product AND layer.remaining_units<>0',
+            'SELECT COUNT(*) FROM nir_pending_consumptions WHERE product_id=:product AND quantity_units<>0',
+        ];
+        foreach ($checks as $sql) {
+            $statement = $this->pdo->prepare($sql);
+            $statement->execute(['product' => $productId]);
+            if ((int) $statement->fetchColumn() > 0) {
+                throw new RuntimeException('Urmărirea contabilă nu poate fi oprită cât timp produsul are sold, loturi deschise sau costuri FIFO în așteptare. Regularizează mai întâi stocul contabil.');
+            }
+        }
+    }
+
+    private function syncProductSpecifications(int $productId, mixed $submitted): void
+    {
+        $rows = is_array($submitted) ? $submitted : [];
+        if (count($rows) > 100) {
+            throw new RuntimeException('Un produs poate avea maximum 100 de specificații.');
+        }
+        $this->pdo->prepare('DELETE FROM product_specifications WHERE product_id=:product')->execute(['product' => $productId]);
+        $insert = $this->pdo->prepare('INSERT INTO product_specifications (product_id,group_name,name,value,position) VALUES (:product,:group_name,:name,:value,:position)');
+        $position = 0;
+        foreach ($rows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $group = trim(mb_substr((string) ($row['group'] ?? ''), 0, 190));
+            $name = trim(mb_substr((string) ($row['name'] ?? ''), 0, 190));
+            $value = trim((string) ($row['value'] ?? ''));
+            if ($name === '' && $value === '') {
+                continue;
+            }
+            if ($name === '' || $value === '') {
+                throw new RuntimeException('Fiecare specificație completată trebuie să aibă denumire și valoare.');
+            }
+            $insert->execute(['product' => $productId, 'group_name' => $group, 'name' => $name, 'value' => $value, 'position' => $position++]);
+        }
+    }
+
+    private function syncProductFaqs(int $productId, mixed $submitted): void
+    {
+        $rows = is_array($submitted) ? $submitted : [];
+        if (count($rows) > 50) {
+            throw new RuntimeException('Un produs poate avea maximum 50 de întrebări și răspunsuri.');
+        }
+        $this->pdo->prepare('DELETE FROM product_faqs WHERE product_id=:product')->execute(['product' => $productId]);
+        $insert = $this->pdo->prepare('INSERT INTO product_faqs (product_id,question,answer,position) VALUES (:product,:question,:answer,:position)');
+        $position = 0;
+        foreach ($rows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $question = trim(mb_substr((string) ($row['question'] ?? ''), 0, 500));
+            $answer = trim((string) ($row['answer'] ?? ''));
+            if ($question === '' && $answer === '') {
+                continue;
+            }
+            if ($question === '' || $answer === '') {
+                throw new RuntimeException('Fiecare rând FAQ completat trebuie să aibă întrebare și răspuns.');
+            }
+            $insert->execute(['product' => $productId, 'question' => $question, 'answer' => $answer, 'position' => $position++]);
         }
     }
 
@@ -1395,6 +1502,29 @@ final class CatalogAdminService
     {
         $seoTitle = trim((string) ($data['seo_title'] ?? ''));
         $metaDescription = trim((string) ($data['meta_description'] ?? ''));
+        $manufacturerEmail = mb_strtolower(trim((string) ($data['manufacturer_email'] ?? '')));
+        if ($manufacturerEmail !== '' && filter_var($manufacturerEmail, FILTER_VALIDATE_EMAIL) === false) {
+            throw new RuntimeException('Adresa de e-mail a producătorului nu este validă.');
+        }
+        $canonicalUrl = trim((string) ($data['canonical_url'] ?? ''));
+        if ($canonicalUrl !== '' && (filter_var($canonicalUrl, FILTER_VALIDATE_URL) === false || !preg_match('#^https?://#i', $canonicalUrl))) {
+            throw new RuntimeException('Adresa canonical trebuie să fie un URL complet HTTP sau HTTPS.');
+        }
+        $vatRate = $this->percentageBasisPoints($data['vat_rate'] ?? '21', 'Cota TVA');
+        $margin = trim((string) ($data['margin_percent'] ?? ''));
+        $marginBasisPoints = $margin === '' ? null : $this->percentageBasisPoints($margin, 'Marja', -1000, 1000);
+        $currency = mb_strtoupper(trim((string) ($data['currency'] ?? 'RON')));
+        if (!preg_match('/^[A-Z]{3}$/D', $currency)) {
+            throw new RuntimeException('Moneda trebuie să folosească un cod ISO din trei litere.');
+        }
+        $availability = (string) ($data['public_availability'] ?? 'automatic');
+        $availability = in_array($availability, ['automatic', 'in_stock', 'preorder', 'on_request', 'unavailable'], true) ? $availability : 'automatic';
+        $backorder = (string) ($data['backorder_policy'] ?? 'deny');
+        $backorder = in_array($backorder, ['deny', 'allow', 'on_request'], true) ? $backorder : 'deny';
+        $externalStock = trim((string) ($data['external_stock_quantity'] ?? ''));
+        if ($externalStock !== '' && filter_var($externalStock, FILTER_VALIDATE_INT) === false) {
+            throw new RuntimeException('Stocul extern trebuie să fie un număr întreg.');
+        }
 
         return [
             'name' => $name, 'slug' => $slug, 'primary_sku' => $primarySku, 'track_in_conta' => $trackInConta ? 1 : 0,
@@ -1404,7 +1534,56 @@ final class CatalogAdminService
             'composition' => trim((string) ($data['composition'] ?? '')), 'care' => trim((string) ($data['care_instructions'] ?? '')), 'size_guide' => trim((string) ($data['size_guide'] ?? '')),
             'package_contents' => trim((string) ($data['package_contents'] ?? '')), 'excluded_accessories' => trim((string) ($data['excluded_accessories'] ?? '')),
             'featured' => isset($data['featured']) ? 1 : 0, 'indexable' => isset($data['indexable']) ? 1 : 0, 'published_at' => $status === 'published' ? $now : null, 'now' => $now,
+            'source_name' => trim(mb_substr((string) ($data['source_name'] ?? ''), 0, 190)),
+            'supplier_code' => trim(mb_substr((string) ($data['supplier_code'] ?? ''), 0, 190)),
+            'model' => trim(mb_substr((string) ($data['model'] ?? ''), 0, 190)),
+            'unit' => ($unit = trim(mb_substr((string) ($data['unit'] ?? 'buc'), 0, 30))) !== '' ? $unit : 'buc',
+            'extended_title' => trim(mb_substr((string) ($data['extended_title'] ?? ''), 0, 255)),
+            'vat_rate_basis_points' => $vatRate,
+            'currency' => $currency,
+            'source_price_bani' => $this->optionalMoney($data['source_price'] ?? ''),
+            'external_reference_price_bani' => $this->optionalMoney($data['external_reference_price'] ?? ''),
+            'margin_basis_points' => $marginBasisPoints,
+            'compatibility_text' => trim((string) ($data['compatibility_text'] ?? '')),
+            'tags' => trim((string) ($data['tags'] ?? '')),
+            'warranty_legal' => trim((string) ($data['warranty_legal'] ?? '')),
+            'warranty_commercial' => trim((string) ($data['warranty_commercial'] ?? '')),
+            'manufacturer_address' => trim((string) ($data['manufacturer_address'] ?? '')),
+            'manufacturer_email' => $manufacturerEmail,
+            'eu_responsible_person' => trim((string) ($data['eu_responsible_person'] ?? '')),
+            'ce_marking' => isset($data['ce_marking']) ? 1 : 0,
+            'model_identifier' => trim(mb_substr((string) ($data['model_identifier'] ?? ''), 0, 190)),
+            'safety_warnings' => trim((string) ($data['safety_warnings'] ?? '')),
+            'conformity_documents' => trim((string) ($data['conformity_documents'] ?? '')),
+            'manuals' => trim((string) ($data['manuals'] ?? '')),
+            'software_updates' => trim((string) ($data['software_updates'] ?? '')),
+            'repairability' => trim((string) ($data['repairability'] ?? '')),
+            'spare_parts_availability' => trim((string) ($data['spare_parts_availability'] ?? '')),
+            'public_availability' => $availability,
+            'backorder_policy' => $backorder,
+            'canonical_url' => $canonicalUrl,
+            'structured_data_enabled' => (string) ($data['structured_data_enabled'] ?? '1') === '1' ? 1 : 0,
+            'external_stock_quantity' => $externalStock === '' ? null : (int) $externalStock,
         ];
+    }
+
+    private function optionalMoney(mixed $value): ?int
+    {
+        $value = trim((string) $value);
+        return $value === '' ? null : Money::parse($value);
+    }
+
+    private function percentageBasisPoints(mixed $value, string $label, float $minimum = 0, float $maximum = 100): int
+    {
+        $normalized = str_replace(',', '.', trim((string) $value));
+        if ($normalized === '' || !is_numeric($normalized)) {
+            throw new RuntimeException($label . ' trebuie să fie un procent valid.');
+        }
+        $percentage = (float) $normalized;
+        if ($percentage < $minimum || $percentage > $maximum) {
+            throw new RuntimeException($label . ' trebuie să fie între ' . $minimum . '% și ' . $maximum . '%.');
+        }
+        return (int) round($percentage * 100);
     }
 
     private function wouldCreateCycle(int $id, int $parentId): bool
