@@ -423,6 +423,50 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         $this->service->delete($credit['id'],['request_key'=>'online-receipt-delete','version'=>$received['row_version'],'reason'=>'Corectare primire'],$this->actor);
         self::assertSame($before,(int)$this->pdo->query('SELECT physical_quantity FROM inventory WHERE variant_id='.$this->variant['id'])->fetchColumn());
     }
+    public static function returnCostCoverage(): array { return ['missing'=>[0,false],'partial'=>[1,false],'free acquisition'=>[2,true]]; }
+    #[\PHPUnit\Framework\Attributes\DataProvider('returnCostCoverage')]
+    public function testReturnCostIsUnknownUntilCoveredByActualAcquisitionLots(int $purchased,bool $complete): void
+    {
+        if($purchased>0) { $this->purchase($purchased,'0','RETURN-COVERAGE'); }
+        $sale=$this->service->issue($this->order(2),['request_key'=>'cost-coverage-sale'],$this->actor);
+        $credit=$this->service->credit($sale['id'],['request_key'=>'cost-coverage-credit','version'=>1,'reason'=>'Retur','quantities'=>[$sale['lines'][0]['id']=>2],'notify_customer'=>'0'],$this->actor);
+        $received=$this->service->receive($credit['id'],['request_key'=>'cost-coverage-receipt','version'=>1,'received'=>[$credit['lines'][0]['id']=>2],'restock'=>[$credit['lines'][0]['id']=>2]],$this->actor);
+        $nir=(new NirService($this->pdo))->document($received['receipt_nir']['id'],$this->actor);
+        self::assertSame($complete,$nir['cost_complete']); self::assertSame($complete,$nir['lines'][0]['cost_complete']);
+        self::assertSame($purchased*10000,(int)$this->pdo->query('SELECT COALESCE(SUM(initial_units),0) FROM nir_fifo_layers WHERE nir_id='.(int)$nir['id'])->fetchColumn());
+        $twig=new \Twig\Environment(new \Twig\Loader\FilesystemLoader($this->root.'/resources/views'),['autoescape'=>'html']);
+        $html=$twig->render('admin/nir/pdf.twig',['nir'=>$nir,'lines'=>$nir['lines'],'view_costs'=>true,'logo'=>null,'stamp'=>null,'nir_date'=>'15.11.2026','type_label'=>'Recepție retur client','status_label'=>'Confirmat','number'=>$nir['number']]);
+        if(!$complete) { self::assertStringContainsString('Cost de achiziție neînregistrat',$html); self::assertStringNotContainsString('0,00 lei',$html); }
+        else { self::assertStringNotContainsString('Cost de achiziție neînregistrat',$html); self::assertStringContainsString('0,00 lei',$html); }
+        $resale=$this->service->issue($this->order(2),['request_key'=>'cost-coverage-resale'],$this->actor);
+        self::assertSame((2-$purchased)*10000,$resale['lines'][0]['pending_units']);
+    }
+
+    public function testReturnNirPreservesOriginalLotCostsOnResaleAndExportsOriginalInvoice(): void
+    {
+        $this->purchase(1,'40','RETURN-LOT-A'); $this->purchase(2,'53.27','RETURN-LOT-B');
+        $sale=$this->service->issue($this->order(3),['request_key'=>'return-cost-sale'],$this->actor);
+        $repo=new InvoiceRepository($this->pdo);
+        $repo->update('invoices',['issued_at'=>'2026-11-09T23:30:00Z'],['id'=>$sale['id']]);
+        $credit=$this->service->credit($sale['id'],['request_key'=>'return-cost-credit','version'=>1,'reason'=>'Retur','quantities'=>[$sale['lines'][0]['id']=>3],'notify_customer'=>'0'],$this->actor);
+        $received=$this->service->receive($credit['id'],['request_key'=>'return-cost-receipt','version'=>1,'received'=>[$credit['lines'][0]['id']=>3],'restock'=>[$credit['lines'][0]['id']=>3]],$this->actor);
+        $nirs=new NirService($this->pdo); $nir=$nirs->document($received['receipt_nir']['id'],$this->actor);
+        self::assertTrue($nir['cost_complete']); self::assertSame(14654,$nir['inventory_bani']);
+        self::assertSame($sale['id'],$nir['original_invoices'][0]['id']); self::assertSame('2026-11-10',$nir['original_invoices'][0]['invoice_date']);
+        $layers=$this->pdo->query('SELECT initial_value_bani FROM nir_fifo_layers WHERE nir_id='.(int)$nir['id'].' ORDER BY id')->fetchAll(\PDO::FETCH_COLUMN);
+        self::assertSame([4000,10654],array_map('intval',$layers));
+        $resale=$this->service->issue($this->order(3),['request_key'=>'return-cost-resale'],$this->actor);
+        self::assertSame(14654,array_sum(array_column($resale['lines'][0]['trace'],'value_bani')));
+        self::assertSame(0,$resale['lines'][0]['pending_units']); self::assertSame(0,$this->balance());
+        $nir=$nirs->document($nir['id'],$this->actor); self::assertTrue($nir['cost_complete']);
+        $exporter=new \App\Modules\Inventory\NirExportService($this->root); $file=$exporter->individual($nir,'xlsx');
+        try {
+            $book=\PhpOffice\PhpSpreadsheet\IOFactory::load($file['path']); $sheet=$book->getActiveSheet();
+            self::assertSame($sale['display_number'].' / 10.11.2026',$sheet->getCell('J8')->getValue());
+            self::assertEquals(146.54,$sheet->getCell('J13')->getValue()); $book->disconnectWorksheets();
+        } finally { $exporter->cleanup($file['path']); }
+    }
+
     public function testVerificationConfirmsReturnNirWithReceptionDateAndInvoiceAttachment(): void
     {
         $this->purchase(5,'40','AUTOMATIC-RETURN-NIR'); $order=$this->order(3);
@@ -505,6 +549,17 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         self::assertSame($accounting,$this->balance()); self::assertSame($online,(int)$this->pdo->query('SELECT physical_quantity FROM inventory WHERE variant_id='.$this->variant['id'])->fetchColumn());
         self::assertSame('2026-11-15T12:00:00Z',$completed['receipt_nir']['received_at']); self::assertSame($receipt,(int)$completed['receipt_nir']['invoice_receipt_id']);
         $nir=$nirs->document($completed['receipt_nir']['id'],$this->actor); self::assertCount(1,$nir['attachments']); self::assertSame('customer_return',$nir['type']);
+        self::assertSame($tracked,$nir['cost_complete']); self::assertSame($tracked,$nir['lines'][0]['cost_complete']);
+        self::assertSame($invoice['id'],$nir['original_invoices'][0]['id']);
+        $nirPage=$app->handle($factory->createServerRequest('GET','http://localhost/admin/nir-uri/'.$nir['id'].'/'));
+        self::assertSame(200,$nirPage->getStatusCode()); self::assertStringContainsString('Factura inițială:',(string)$nirPage->getBody());
+        if(!$tracked) { self::assertStringContainsString('Cost de achiziție neînregistrat',(string)$nirPage->getBody()); }
+        $exporter=new \App\Modules\Inventory\NirExportService($this->root); $file=$exporter->individual($nir,'xlsx');
+        try {
+            $book=\PhpOffice\PhpSpreadsheet\IOFactory::load($file['path']);
+            if(!$tracked) { self::assertNull($book->getActiveSheet()->getCell('J13')->getValue()); self::assertSame('—',$book->getActiveSheet()->getCell('M14')->getValue()); }
+            $book->disconnectWorksheets();
+        } finally { $exporter->cleanup($file['path']); }
         self::assertSame($nir['id'],$this->service->receive($credit['id'],$input,$this->actor)['receipt_nir']['id']);
         $nirs->delete($nir['id'],$nir['row_version'],$this->actor);
         self::assertSame($accounting-($tracked?10000:0),$this->balance()); self::assertSame($online-1,(int)$this->pdo->query('SELECT physical_quantity FROM inventory WHERE variant_id='.$this->variant['id'])->fetchColumn());
@@ -862,6 +917,7 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         $input=['physically_received'=>true,'warehouse_id'=>$defaults['warehouse_id'],'location_id'=>$defaults['location_id']];
         $receipt=$nir->receiveReturn($returnId,$input,'bridge-nir-receipt',$this->actor);
         self::assertSame(40000,$this->balance()); self::assertSame(4000,$receipt['inventory_bani']);
+        self::assertSame($invoice['id'],$receipt['original_invoices'][0]['id']); self::assertTrue($receipt['cost_complete']);
         self::assertSame($credit['display_number'],$receipt['invoice_number']);
         self::assertSame($receipt['id'],$nir->receiveReturn($returnId,$input,'bridge-nir-receipt',$this->actor)['id']);
         self::assertSame([],$this->service->pendingReceipts($this->actor)); self::assertSame([],$nir->pendingReturnReceipts($this->actor));

@@ -48,4 +48,18 @@ final class ReturnStockLinks
         $q=$this->pdo->prepare('SELECT i.* FROM invoices i JOIN order_return_documents d ON d.invoice_id=i.id WHERE d.return_id=:id AND i.deleted_at IS NULL ORDER BY i.id');
         $q->execute(['id'=>$returnId]); return $q->fetchAll();
     }
+
+    /** The customer-return receipt refers to the sale invoice through its credit document.
+     * @return list<array<string,mixed>>
+     */
+    public function originalInvoicesForNir(int $nirId): array
+    {
+        $q=$this->pdo->prepare('SELECT DISTINCT original.id,original.series_code,original.number,original.issued_at
+            FROM nir_documents n JOIN invoices credit ON (
+                EXISTS (SELECT 1 FROM invoice_receipts r WHERE r.id=n.invoice_receipt_id AND r.invoice_id=credit.id)
+                OR EXISTS (SELECT 1 FROM order_return_documents d WHERE d.return_id=n.return_id AND d.invoice_id=credit.id))
+            JOIN invoices original ON original.id=credit.parent_id
+            WHERE n.id=:id AND n.type=\'customer_return\' AND credit.deleted_at IS NULL ORDER BY original.id');
+        $q->execute(['id'=>$nirId]); return $q->fetchAll();
+    }
 }

@@ -996,8 +996,27 @@ final class NirService
                 }
             }
         }
+        if($row['type']==='customer_return') {
+            $row['original_invoices']=$this->returnLinks->originalInvoicesForNir((int)$row['id']);
+            foreach($row['original_invoices'] as &$original) {
+                $original['invoice_date']=(new DateTimeImmutable($original['issued_at']))->setTimezone(new DateTimeZone('Europe/Bucharest'))->format('Y-m-d');
+            } unset($original);
+        }
         $reversals=$this->repository->all('nir_documents',['original_id'=>$row['id'],'status'=>'confirmed']); $row['reversal_status']=$reversals===[]?'none':'partial';
         $lines=$this->repository->all('nir_lines',['nir_id'=>$row['id']],'position');
+        if($row['type']==='customer_return' && $row['status']==='confirmed') {
+            // Zero is a real cost only when an original valued lot covers the returned goods.
+            // Missing history must not look like a free acquisition, including on old receipts.
+            $coverage=[];
+            foreach($this->repository->all('nir_fifo_layers',['nir_id'=>$row['id']]) as $layer) {
+                $coverage[(int)$layer['line_id']]=($coverage[(int)$layer['line_id']] ?? 0)+(int)$layer['initial_units'];
+            }
+            $row['cost_complete']=true;
+            foreach($lines as &$line) {
+                $line['cost_complete']=(int)$line['stock_quantity_units']===0 || ($coverage[(int)$line['id']] ?? 0)>=(int)$line['stock_quantity_units'];
+                if(!$line['cost_complete']) { $row['cost_complete']=false; }
+            } unset($line);
+        }
         $allReversed=$lines!==[];
         foreach($lines as &$line) {
             $parts=$this->repository->all('nir_lines',['original_line_id'=>$line['id']]); $line['reversed_units']=-NirDecimal::sum(array_column($parts,'stock_quantity_units'));

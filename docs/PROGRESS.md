@@ -1,5 +1,12 @@
 # Progres
 
+### 2026-11-15 — Factura inițială pe NIR și costul returului clientului
+- NIR-ul de retur client identifică factura inițială prin documentul de retur, atât pentru recepțiile legate direct de factură, cât și pentru fluxul mai vechi al comenzii. Referințele și data Europe/Bucharest apar în detalii, PDF și Excel; data facturii de retur din NIR rămâne distinctă. Funcționează și pentru documentele deja emise, fără migrare sau modificarea stocului.
+- Costurile reale rămân în loturile originale la retur și revânzare. Test nou pentru două loturi la **40,00 și 53,27 lei**, cu valoare totală **146,54 lei**, păstrată integral la revânzare. Acoperite separat costul absent, acoperirea parțială și achiziția reală la preț zero; costul lipsă nu generează loturi gratuite.
+- Recepțiile fără istoric de achiziție afișează explicit **Cost de achiziție neînregistrat**, în locul valorilor zero ambigue, în detalii, registru și exporturi. Starea se bazează pe cantitățile originale ale loturilor, deci nu se pierde după revânzare.
+- Verificat read-only cazul **LM-DEMO-000344 / NIR LM-NIR-2026-3**: factura inițială **LM 1 / 15.11.2026** este acum vizibilă inclusiv în PDF-ul real. Produsul are urmărire contabilă absentă în factura istorică și nu are achiziție în baza locală; utilizatorul a confirmat că nu deține documentul/costul. Nu s-a inventat un preț și nu s-au modificat stocurile sau documentele existente. Captură privată: `storage/qa/return-nir-original-invoice.jpg`.
+- Regresie comună facturi/NIR/avize: **277 teste / 2.405 aserțiuni**, plus **3 teste / 18 aserțiuni** pentru acoperirea costurilor. PHPStan, lint PHP/JS, **185 template-uri Twig** și diff check trecute. Fără SMTP, Stripe, MySQL/Apache sau deploy; roadmapul rămâne nebifat.
+
 ### 2026-11-15 — Ștergerea și refacerea recepției; verificări vechi fără NIR
 - Ștergerea eligibilă a ultimului **NIR de retur client** inversează numai stocul introdus de recepția lui, elimină legătura de verificare și revine direct la comandă. Factura de retur se păstrează; avertismentul și formularul de verificare reapar. O recepție nouă poate reutiliza numărul eliberat, fără dublarea stocului sau a alocărilor.
 - Confirmările vechi ale recepției șterse sunt invalidate; retrimiterea unui formular vechi răspunde cu 409 și cere redeschiderea verificării. Versiunea facturii este actualizată la ștergerea recepției.
