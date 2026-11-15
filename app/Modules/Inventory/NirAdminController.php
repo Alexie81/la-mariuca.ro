@@ -151,6 +151,9 @@ final class NirAdminController
                 $doc = $this->nirs->document($id, $this->actor());
                 $this->nirs->delete($id, $version, $this->actor());
                 foreach ($doc['attachments'] ?? [] as $file) { $this->storage->remove((string) $file['stored_name']); }
+                if($doc['type']==='customer_return' && !empty($doc['order_id'])) {
+                    return $this->success($request,'NIR-ul de retur a fost șters și stocul adăugat de el a fost retras. Poți verifica din nou produsele și confirma o nouă recepție.',$this->config->path('admin/comenzi/'.$doc['order_id'].'/'));
+                }
                 return $this->success($request, $doc['status']==='draft' ? 'Draftul a fost șters.' : 'Documentul a fost șters, iar efectul lui asupra stocului contabil a fost anulat.', $this->url());
             }
             if ($kind === 'reverse' || $kind === 'attachments') { $this->requirePermission($kind === 'reverse' ? 'reverse' : 'edit'); $stored = $this->uploads($request); $input['attachments'] = $stored; }

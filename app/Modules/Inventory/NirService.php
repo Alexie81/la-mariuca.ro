@@ -573,10 +573,10 @@ final class NirService
      * @param array<string,mixed> $invoice @param array<string,mixed> $attachment @param array<string,mixed> $actor
      * @return array<string,mixed>
      */
-    public function confirmInvoiceReceipt(array $invoice,int $receiptId,array $attachment,array $actor): array
+    public function confirmInvoiceReceipt(array $invoice,int $receiptId,array $attachment,array $actor,bool $postStock=true): array
     {
         $this->allow($actor,'confirm');
-        return $this->repository->transaction(function()use($invoice,$receiptId,$attachment,$actor):array {
+        return $this->repository->transaction(function()use($invoice,$receiptId,$attachment,$actor,$postStock):array {
             $invoices=new \App\Modules\Invoicing\InvoiceRepository($this->pdo);
             $receipt=$invoices->one('invoice_receipts',['id'=>$receiptId,'invoice_id'=>$invoice['id'],'reversed_at'=>null]);
             if($receipt===null || $this->returnLinks->nirForInvoice((int)$invoice['id'])!==null) { throw new NirConflictException('Recepția nu este disponibilă pentru generarea NIR-ului.'); }
@@ -594,9 +594,12 @@ final class NirService
                 if($credit===null) { throw new NirConflictException('Lipsește produsul de pe factura de retur.'); }
                 $source=$invoices->one('invoice_lines',['id'=>$credit['parent_line_id']]);
                 if($source===null) { throw new NirConflictException('Lipsește poziția din factura inițială.'); }
-                $stock=new InvoiceStockService($this->pdo);
-                $stock->receive($receiptId,$credit,$source,$plan['restock_units'],$actor);
-                $stock->receiveOnline($receiptId,$credit,$source,$plan['restock_units'],$actor);
+                // Legacy verifications already posted their stock. Only materialize their missing NIR.
+                if($postStock) {
+                    $stock=new InvoiceStockService($this->pdo);
+                    $stock->receive($receiptId,$credit,$source,$plan['restock_units'],$actor);
+                    $stock->receiveOnline($receiptId,$credit,$source,$plan['restock_units'],$actor);
+                }
                 $parts=$invoices->all('invoice_receipt_allocations',['receipt_id'=>$receiptId,'invoice_line_id'=>$credit['id']]);
                 $cost=NirDecimal::sum(array_column($parts,'value_bani'));
                 $rawLines[]=array_replace($this->emptyLine(),[
@@ -641,7 +644,7 @@ final class NirService
                 $this->repository->update('nir_stock_movements',['nir_id'=>$id,'line_id'=>$lineId,'type'=>'NIR_CUSTOMER_RETURN','source_type'=>'nir','source_id'=>$id],['event_key'=>'receipt:'.$receiptId.':'.$plans[$index]['line_id']]);
             }
             $this->appendAttachments($id,[$attachment],$actor);
-            $this->audit($id,'customer_return_received',$actor,null,$this->load($id),['invoice_id'=>$invoice['id'],'receipt_id'=>$receiptId]);
+            $this->audit($id,'customer_return_received',$actor,null,$this->load($id),['invoice_id'=>$invoice['id'],'receipt_id'=>$receiptId,'existing_verification'=>!$postStock]);
             $this->event($id,'nir.customer_return_received');
             return $this->document($id,$actor);
         });

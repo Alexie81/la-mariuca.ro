@@ -458,7 +458,8 @@ final class InvoiceService
             $key=$this->key($input); $hash=$this->hash([$id,$input]); if($retry=$this->retry($key,'receive',$hash)) { return $retry; }
             $invoice=$this->load($id); $this->version($invoice,$input);
             if(!in_array($invoice['kind'],['return','correction_negative'],true)) { throw new InvoiceException('Primirea fizică se înregistrează pentru o factură de retur.'); }
-            if($this->repository->one('invoice_receipts',['invoice_id'=>$id]) || (new \App\Modules\Inventory\ReturnStockLinks($this->repository->pdo()))->nirForInvoice($id)) { throw new InvoiceException('Primirea produselor a fost deja înregistrată.',409); }
+            $existingReceipt=$this->repository->one('invoice_receipts',['invoice_id'=>$id]);
+            if(($existingReceipt && $existingReceipt['reversed_at']!==null) || (new \App\Modules\Inventory\ReturnStockLinks($this->repository->pdo()))->nirForInvoice($id)) { throw new InvoiceException('Primirea produselor a fost deja înregistrată.',409); }
             $plans=[]; $hasProduct=false;
             foreach($invoice['lines'] as $line) {
                 if($line['kind']!=='product' || (int)$line['quantity_units']>=0) { continue; } $hasProduct=true;
@@ -470,10 +471,16 @@ final class InvoiceService
             if(!$hasProduct) { throw new InvoiceException('Documentul nu conține produse pentru primire.'); }
             $notes=trim((string)($input['reason'] ?? ''))!==''?$this->reason($input):'Verificarea produselor primite';
             $nirs=new \App\Modules\Inventory\NirService($this->repository->pdo());
-            $receivedAt=$nirs->receiptInstant((string)($input['received_at'] ?? $this->repository->now()));
-            $receipt=$this->repository->insert('invoice_receipts',['invoice_id'=>$id,'actor_id'=>$actor['id'],'received_at'=>$receivedAt,'lines_json'=>InvoiceSnapshot::json($plans),'notes'=>$notes,'reversed_at'=>null]);
+            $receivedAt=$nirs->receiptInstant((string)($input['received_at'] ?? $existingReceipt['received_at'] ?? $this->repository->now()));
+            if($existingReceipt) {
+                if($plans!=json_decode($existingReceipt['lines_json'],true,512,JSON_THROW_ON_ERROR)) { throw new InvoiceException('Cantitățile au fost deja verificate. Generează NIR-ul cu cantitățile înregistrate.',409); }
+                $receipt=(int)$existingReceipt['id'];
+                $this->repository->update('invoice_receipts',['received_at'=>$receivedAt],['id'=>$receipt]);
+            } else {
+                $receipt=$this->repository->insert('invoice_receipts',['invoice_id'=>$id,'actor_id'=>$actor['id'],'received_at'=>$receivedAt,'lines_json'=>InvoiceSnapshot::json($plans),'notes'=>$notes,'reversed_at'=>null]);
+            }
             $attachment=$this->receiptFiles->store($invoice);
-            $nirs->confirmInvoiceReceipt($invoice,$receipt,$attachment,$actor);
+            $nirs->confirmInvoiceReceipt($invoice,$receipt,$attachment,$actor,$existingReceipt===null);
             $this->touch($invoice,[]); $this->audit($id,'physically_received',$actor,$notes,[],['receipt_id'=>$receipt,'lines'=>$plans]); $this->remember($key,'receive',$hash,$id);
             if(($input['notify_customer'] ?? '0')==='1') { (new ReturnReceiptNotification($this->repository))->queue((int)$invoice['order_id'],'invoice:'.$receipt,$id); }
             return $this->decorate($this->load($id));
@@ -631,7 +638,7 @@ final class InvoiceService
         $pending=[];
         foreach(['return','correction_negative'] as $kind) {
             foreach($this->repository->all('invoices',['kind'=>$kind,'deleted_at'=>null]) as $invoice) {
-                if($this->repository->one('invoice_receipts',['invoice_id'=>$invoice['id']]) || (new \App\Modules\Inventory\ReturnStockLinks($this->repository->pdo()))->nirForInvoice((int)$invoice['id'])) { continue; }
+                if((new \App\Modules\Inventory\ReturnStockLinks($this->repository->pdo()))->nirForInvoice((int)$invoice['id'])) { continue; }
                 if($this->repository->one('invoice_lines',['invoice_id'=>$invoice['id'],'kind'=>'product'])) { $pending[]=$this->brief($invoice); }
             }
         }
@@ -802,6 +809,7 @@ final class InvoiceService
     private function retry(string $key,string $action,string $hash): ?array
     {
         $prior=$this->repository->one('invoice_actions',['request_key'=>$key]); if(!$prior) { return null; }
+        if($prior['action']==='receive_deleted') { throw new InvoiceException('Recepția a fost ștearsă. Redeschide verificarea produselor pentru o recepție nouă.',409); }
         if($prior['action']!==$action || $prior['request_hash']!==$hash) { throw new InvoiceException('Această operațiune a fost deja folosită cu alte date.',409); }
         return $this->decorate($this->load((int)$prior['invoice_id']));
     }
@@ -836,8 +844,10 @@ final class InvoiceService
         $invoice['requires_nir']=count(array_filter($invoice['lines'],static fn(array $line):bool=>$line['kind']==='product' && !empty($line['scope_type'])))>0;
         $invoice['order_return']=$this->repository->one('order_return_documents',['invoice_id'=>$invoice['id']]);
         $invoice['receipt']=$this->repository->one('invoice_receipts',['invoice_id'=>$invoice['id']]);
+        $invoice['receipt_quantities']=[];
         if($invoice['receipt']) {
             $invoice['receipt']['lines']=json_decode($invoice['receipt']['lines_json'],true,512,JSON_THROW_ON_ERROR);
+            $invoice['receipt_quantities']=array_column($invoice['receipt']['lines'],null,'line_id');
             $names=array_column($invoice['lines'],'name','id');
             foreach($invoice['receipt']['lines'] as &$receivedLine) { $receivedLine['name']=$names[$receivedLine['line_id']] ?? 'Articol'; } unset($receivedLine);
         }

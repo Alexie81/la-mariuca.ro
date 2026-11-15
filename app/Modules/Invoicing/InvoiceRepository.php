@@ -12,6 +12,9 @@ final class InvoiceRepository
     /** Called only after the NIR's stock was reversed and the NIR deleted. Action tombstones remain. */
     public function deleteReceipt(int $receiptId): void
     {
+        $receipt=$this->one('invoice_receipts',['id'=>$receiptId]); if($receipt===null) { return; }
+        $query=$this->pdo->prepare("UPDATE invoice_actions SET action='receive_deleted' WHERE invoice_id=:id AND action='receive'"); $query->execute(['id'=>$receipt['invoice_id']]);
+        $query=$this->pdo->prepare('UPDATE invoices SET row_version=row_version+1,updated_at=:now WHERE id=:id'); $query->execute(['id'=>$receipt['invoice_id'],'now'=>$this->now()]);
         $query=$this->pdo->prepare('DELETE FROM invoice_receipt_allocations WHERE receipt_id=:id'); $query->execute(['id'=>$receiptId]);
         $query=$this->pdo->prepare('DELETE FROM invoice_receipts WHERE id=:id'); $query->execute(['id'=>$receiptId]);
     }

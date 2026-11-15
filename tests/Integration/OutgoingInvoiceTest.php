@@ -457,9 +457,62 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         self::assertStringContainsString('admin/nir-uri/'.$nir['id'].'/',(string)$page->getBody());
         $download=$app->handle($factory->createServerRequest('GET','http://localhost/admin/nir-uri/'.$nir['id'].'/documente/'.$file['id'].'/'));
         self::assertSame(200,$download->getStatusCode()); self::assertSame($file['sha256'],hash('sha256',(string)$download->getBody()));
-        $nirs->delete((int)$nir['id'],(int)$nir['row_version'],$this->actor);
+        $delete=$app->handle($factory->createServerRequest('POST','http://localhost/admin/nir-uri/'.$nir['id'].'/sterge/')
+            ->withHeader('Accept','application/json')->withParsedBody(['_csrf'=>$_SESSION['_csrf'],'row_version'=>$nir['row_version']]));
+        self::assertSame(200,$delete->getStatusCode(),(string)$delete->getBody());
+        self::assertSame('/admin/comenzi/'.$order.'/',json_decode((string)$delete->getBody(),true)['redirect']);
         self::assertSame(20000,$this->balance()); self::assertNull($this->service->document($creditId,$this->actor)['receipt_nir']);
         self::assertNull($repo->one('invoice_receipts',['invoice_id'=>$creditId]));
+        self::assertFileDoesNotExist($path);
+        $page=$app->handle($factory->createServerRequest('GET','http://localhost/admin/comenzi/'.$order.'/'));
+        self::assertStringContainsString('Au ajuns produsele?',(string)$page->getBody());
+        self::assertStringContainsString('Verifică produsele și creează NIR',(string)$page->getBody());
+        self::assertNull($repo->one('invoices',['id'=>$creditId])['deleted_at']);
+        try { $this->service->receive($creditId,$input,$this->actor); self::fail('Deleted confirmation replayed'); }
+        catch(InvoiceException $error) { self::assertSame(409,$error->getCode()); }
+        $input['request_key']='automatic-nir-recreated'; $input['version']=$this->service->document($creditId,$this->actor)['row_version'];
+        $recreated=$this->service->receive($creditId,$input,$this->actor);
+        self::assertNotSame($nir['id'],$recreated['receipt_nir']['id']); self::assertSame($nir['number'],$recreated['receipt_nir']['number']);
+        self::assertSame(30000,$this->balance()); self::assertSame(1,(int)$this->pdo->query("SELECT COUNT(*) FROM nir_documents WHERE type='customer_return'")->fetchColumn());
+        self::assertSame($recreated['receipt_nir']['id'],$this->service->receive($creditId,$input,$this->actor)['receipt_nir']['id']);
+        self::assertSame(30000,$this->balance());
+    }
+    /** @return array<string,array{bool}> */
+    public static function legacyReceiptScopes(): array { return ['tracked'=>[true],'untracked'=>[false]]; }
+    #[\PHPUnit\Framework\Attributes\DataProvider('legacyReceiptScopes')]
+    public function testLegacyVerificationGetsMissingNirWithoutPostingStockAgain(bool $tracked): void
+    {
+        $this->purchase(5,'40','LEGACY-RETURN-NIR');
+        if(!$tracked) { $this->pdo->exec('UPDATE products SET track_in_conta=0 WHERE id='.$this->variant['product_id']); }
+        $this->pdo->exec('UPDATE product_variants SET stock_unlimited=0 WHERE id='.$this->variant['id']);
+        $order=$this->order(2); $invoice=$this->service->issue($order,['request_key'=>'legacy-nir-sale'],$this->actor);
+        $orders=new \App\Modules\Orders\OrderService($this->pdo); $orders->transition($order,'ship',null,$this->actor['id']);
+        $credit=$this->service->credit($invoice['id'],['request_key'=>'legacy-nir-credit','version'=>1,'reason'=>'Retur client','quantities'=>[$invoice['lines'][0]['id']=>2],'notify_customer'=>'0'],$this->actor);
+        $repo=new InvoiceRepository($this->pdo); $line=$credit['lines'][0];
+        $plan=['line_id'=>$line['id'],'received_units'=>20000,'restock_units'=>10000,'quarantine_units'=>10000,'missing_units'=>0];
+        $receipt=$repo->insert('invoice_receipts',['invoice_id'=>$credit['id'],'actor_id'=>$this->actor['id'],'received_at'=>'2026-11-15T12:00:00Z','lines_json'=>json_encode([$plan]),'notes'=>'Verificare veche','reversed_at'=>null]);
+        $stock=new InvoiceStockService($this->pdo); $stock->receive($receipt,$line,$invoice['lines'][0],10000,$this->actor); $stock->receiveOnline($receipt,$line,$invoice['lines'][0],10000,$this->actor);
+        $accounting=$this->balance(); $online=(int)$this->pdo->query('SELECT physical_quantity FROM inventory WHERE variant_id='.$this->variant['id'])->fetchColumn();
+        $_SESSION['user_id']=$this->actor['id']; $factory=new \Slim\Psr7\Factory\ServerRequestFactory(); $app=\App\AppFactory::create($this->root);
+        $page=$app->handle($factory->createServerRequest('GET','http://localhost/admin/comenzi/'.$order.'/'));
+        self::assertStringContainsString('Recepție fără NIR',(string)$page->getBody()); self::assertStringContainsString('Generează NIR-ul recepției',(string)$page->getBody());
+        $form=$app->handle($factory->createServerRequest('GET','http://localhost/admin/facturi/'.$credit['id'].'/receive/')->withHeader('X-Invoice-Modal','1'));
+        self::assertSame(200,$form->getStatusCode()); self::assertStringContainsString('name="restock['.$line['id'].']" value="1" readonly',(string)$form->getBody());
+        $input=['request_key'=>'legacy-nir-complete','version'=>1,'received'=>[$line['id']=>2],'restock'=>[$line['id']=>1]];
+        try { $this->service->receive($credit['id'],array_replace($input,['restock'=>[$line['id']=>2]]),$this->actor); self::fail('Changed legacy quantities accepted'); }
+        catch(InvoiceException $error) { self::assertSame(409,$error->getCode()); }
+        $completed=$this->service->receive($credit['id'],$input,$this->actor); $nirs=new NirService($this->pdo);
+        self::assertSame($accounting,$this->balance()); self::assertSame($online,(int)$this->pdo->query('SELECT physical_quantity FROM inventory WHERE variant_id='.$this->variant['id'])->fetchColumn());
+        self::assertSame('2026-11-15T12:00:00Z',$completed['receipt_nir']['received_at']); self::assertSame($receipt,(int)$completed['receipt_nir']['invoice_receipt_id']);
+        $nir=$nirs->document($completed['receipt_nir']['id'],$this->actor); self::assertCount(1,$nir['attachments']); self::assertSame('customer_return',$nir['type']);
+        self::assertSame($nir['id'],$this->service->receive($credit['id'],$input,$this->actor)['receipt_nir']['id']);
+        $nirs->delete($nir['id'],$nir['row_version'],$this->actor);
+        self::assertSame($accounting-($tracked?10000:0),$this->balance()); self::assertSame($online-1,(int)$this->pdo->query('SELECT physical_quantity FROM inventory WHERE variant_id='.$this->variant['id'])->fetchColumn());
+        $fresh=$this->service->document($credit['id'],$this->actor); self::assertNull($fresh['receipt']); self::assertNull($fresh['receipt_nir']);
+        $input['request_key']='legacy-nir-new-reception'; $input['version']=$fresh['row_version'];
+        $again=$this->service->receive($credit['id'],$input,$this->actor);
+        self::assertSame($accounting,$this->balance()); self::assertSame($online,(int)$this->pdo->query('SELECT physical_quantity FROM inventory WHERE variant_id='.$this->variant['id'])->fetchColumn());
+        self::assertSame($nir['number'],$again['receipt_nir']['number']);
     }
     public function testFailedNirGenerationRollsBackVerificationStockAndAttachment(): void
     {
