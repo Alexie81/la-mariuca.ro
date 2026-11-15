@@ -196,6 +196,24 @@ final class CartTest extends DatabaseTestCase
         self::assertStringNotContainsString('data-cart-form', $page);
     }
 
+    public function testHiddenSupplierBlocksAddingAndUpdatingCartItems(): void
+    {
+        $this->seed();
+        $row=$this->pdo->query("SELECT v.id AS variant_id,p.id AS product_id FROM product_variants v JOIN products p ON p.id=v.product_id JOIN inventory i ON i.variant_id=v.id WHERE p.status='published' AND v.status='active' AND i.physical_quantity-i.reserved_quantity>=2 LIMIT 1")->fetch();
+        $service=new SupplierAdminService($this->pdo);
+        $supplier=$service->save(['alias'=>'Furnizor ascuns QA']);
+        $this->pdo->exec('UPDATE products SET supplier_id='.$supplier.' WHERE id='.$row['product_id']);
+        $cart=new CartService($this->pdo); $cart->add((int)$row['variant_id'],1);
+        $item=(int)$cart->summary()['items'][0]['id'];
+        $service->save(['alias'=>'Furnizor ascuns QA','products_visible_online'=>'0'],$supplier);
+        foreach([fn()=>$cart->add((int)$row['variant_id'],1),fn()=>$cart->update($item,2)] as $action) {
+            try { $action(); self::fail('Hidden products must not be ordered'); }
+            catch(RuntimeException $e) { self::assertNotSame('',$e->getMessage()); }
+        }
+        self::assertSame(1,$cart->summary()['count']);
+        $cart->update($item,0); self::assertSame(0,$cart->summary()['count']);
+    }
+
     public function testArchivedProductReturnsGoneWhileDraftRemainsNotFound(): void
     {
         $this->seed();

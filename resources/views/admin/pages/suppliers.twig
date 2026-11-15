@@ -60,7 +60,7 @@
                 </td>
                 <td data-label="CUI"><code class="admin-suppliers-table__tax">{{ supplier.tax_id ?: '—' }}</code></td>
                 <td data-label="Produse"><span class="admin-suppliers-table__count"><strong>{{ supplier.product_count }}</strong><small>{{ supplier.product_count == 1 ? 'produs' : 'produse' }}</small></span></td>
-                <td data-label="Status"><span class="admin-supplier-card__status{{ supplier.status == 'active' ? ' is-active' : '' }}">{{ supplier.status == 'active' ? 'activ' : 'inactiv' }}</span></td>
+                <td data-label="Status"><span class="admin-supplier-card__status{{ supplier.status == 'active' ? ' is-active' : '' }}">{{ supplier.status == 'active' ? 'activ' : 'inactiv' }}</span><br><span class="supplier-visibility-badge{{ not supplier.products_visible_online ? ' is-hidden' : '' }}">{{ supplier.products_visible_online ? 'Produse online' : 'Produse ascunse' }}</span></td>
                 <td data-label="Acțiuni" class="admin-suppliers-table__actions">
                   <div class="admin-suppliers-table__action-group">
                     <a href="{{ url('admin/furnizori/' ~ supplier.id ~ '/editare/') }}" data-admin-supplier-editor-trigger data-modal-url="{{ url('admin/furnizori/' ~ supplier.id ~ '/editare/modal/') }}" aria-label="Editează {{ supplier.alias }}" title="Editează"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 20 4.2-1 10.4-10.4a2 2 0 0 0-2.8-2.8L5.4 16.2 4 20Z"/><path d="m14.5 7.1 2.8 2.8"/></svg><span class="admin-suppliers-table__mobile-label">Editează</span></a>

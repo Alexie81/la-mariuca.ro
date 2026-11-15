@@ -1,0 +1,1 @@
+ALTER TABLE suppliers ADD COLUMN products_visible_online TINYINT UNSIGNED NOT NULL DEFAULT 1;

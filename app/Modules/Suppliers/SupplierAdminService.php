@@ -91,6 +91,10 @@ final class SupplierAdminService
         }
         $status = ($data['status'] ?? 'active') === 'inactive' ? 'inactive' : 'active';
         $now = $this->now();
+        $visibility = $data['products_visible_online'] ?? ($id === null ? 1 : ($this->find($id)['products_visible_online'] ?? 1));
+        if (!in_array($visibility, [0, 1, '0', '1'], true)) {
+            throw new RuntimeException('Alege dacă produsele sunt vizibile online.');
+        }
         $parameters = [
             'alias' => $alias,
             'company_name' => $this->nullableText($data, 'company_name', 190),
@@ -103,11 +107,12 @@ final class SupplierAdminService
             'address' => $this->nullableText($data, 'address', 1000),
             'notes' => $this->nullableText($data, 'notes', 5000),
             'status' => $status,
+            'products_visible_online' => (int) $visibility,
             'updated_at' => $now,
         ];
 
         if ($id === null) {
-            $statement = $this->pdo->prepare('INSERT INTO suppliers (alias,company_name,tax_id,trade_register,contact_name,email,phone,website,address,notes,status,created_at,updated_at) VALUES (:alias,:company_name,:tax_id,:trade_register,:contact_name,:email,:phone,:website,:address,:notes,:status,:created_at,:updated_at)');
+            $statement = $this->pdo->prepare('INSERT INTO suppliers (alias,company_name,tax_id,trade_register,contact_name,email,phone,website,address,notes,status,products_visible_online,created_at,updated_at) VALUES (:alias,:company_name,:tax_id,:trade_register,:contact_name,:email,:phone,:website,:address,:notes,:status,:products_visible_online,:created_at,:updated_at)');
             $statement->execute($parameters + ['created_at' => $now]);
             return (int) $this->pdo->lastInsertId();
         }
@@ -115,7 +120,7 @@ final class SupplierAdminService
         if ($this->find($id) === null) {
             throw new RuntimeException('Furnizorul nu mai există.');
         }
-        $statement = $this->pdo->prepare('UPDATE suppliers SET alias=:alias,company_name=:company_name,tax_id=:tax_id,trade_register=:trade_register,contact_name=:contact_name,email=:email,phone=:phone,website=:website,address=:address,notes=:notes,status=:status,updated_at=:updated_at WHERE id=:id');
+        $statement = $this->pdo->prepare('UPDATE suppliers SET alias=:alias,company_name=:company_name,tax_id=:tax_id,trade_register=:trade_register,contact_name=:contact_name,email=:email,phone=:phone,website=:website,address=:address,notes=:notes,status=:status,products_visible_online=:products_visible_online,updated_at=:updated_at WHERE id=:id');
         $statement->execute($parameters + ['id' => $id]);
         return $id;
     }

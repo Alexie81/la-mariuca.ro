@@ -118,7 +118,7 @@ final class CatalogRepository
                 JOIN descendants d ON d.id = pc.category_id
                 JOIN product_variants v ON v.product_id = p.id AND v.status = 'active'
                 LEFT JOIN inventory i ON i.variant_id = v.id
-                WHERE p.status = 'published'
+                WHERE p.status = 'published' AND NOT EXISTS (SELECT 1 FROM suppliers visibility_supplier WHERE visibility_supplier.id=p.supplier_id AND visibility_supplier.products_visible_online=0)
                 GROUP BY p.id
                 ORDER BY {$order}
                 LIMIT {$limit} OFFSET {$offset}";
@@ -178,7 +178,7 @@ final class CatalogRepository
         $offset = max(0, ($page - 1) * $limit);
 
         [$cte, $categoryWhere, $categoryParams] = $this->shopCategoryScope($categoryIds);
-        $where = ["p.status = 'published'"];
+        $where = ["p.status = 'published' AND NOT EXISTS (SELECT 1 FROM suppliers visibility_supplier WHERE visibility_supplier.id=p.supplier_id AND visibility_supplier.products_visible_online=0)"];
         $having = [];
         $params = $categoryParams;
         if ($categoryWhere !== null) {
@@ -254,7 +254,7 @@ final class CatalogRepository
     {
         $displayPriceSql = $this->displayVariantValueSql('price_bani');
         [$cte, $categoryWhere, $categoryParams] = $this->shopCategoryScope($categoryIds);
-        $where = ["p.status = 'published'"];
+        $where = ["p.status = 'published' AND NOT EXISTS (SELECT 1 FROM suppliers visibility_supplier WHERE visibility_supplier.id=p.supplier_id AND visibility_supplier.products_visible_online=0)"];
         $having = [];
         $params = $categoryParams;
         if ($categoryWhere !== null) {
@@ -346,7 +346,7 @@ final class CatalogRepository
             LEFT JOIN media category_media ON category_media.id = category.image_media_id
             LEFT JOIN category_tree ON category_tree.ancestor_id = category.id
             LEFT JOIN product_categories product_category ON product_category.category_id = category_tree.id
-            LEFT JOIN products product ON product.id = product_category.product_id AND product.status = 'published'
+            LEFT JOIN products product ON product.id = product_category.product_id AND product.status = 'published' AND NOT EXISTS (SELECT 1 FROM suppliers visibility_supplier WHERE visibility_supplier.id=product.supplier_id AND visibility_supplier.products_visible_online=0)
             LEFT JOIN product_variants variant ON variant.product_id = product.id AND variant.status = 'active'
             WHERE category.status = 'published'
               AND category.visibility = 'public'
@@ -414,7 +414,7 @@ final class CatalogRepository
     public function shopPriceRange(int|array|null $categoryIds = []): array
     {
         [$cte, $categoryWhere, $categoryParams] = $this->shopCategoryScope($categoryIds);
-        $where = ["p.status = 'published'", "variant.status = 'active'"];
+        $where = ["p.status = 'published' AND NOT EXISTS (SELECT 1 FROM suppliers visibility_supplier WHERE visibility_supplier.id=p.supplier_id AND visibility_supplier.products_visible_online=0)", "variant.status = 'active'"];
         if ($categoryWhere !== null) {
             $where[] = $categoryWhere;
         }
@@ -480,7 +480,7 @@ final class CatalogRepository
             LEFT JOIN suppliers s ON s.id = p.supplier_id
             WHERE p.slug = :slug";
         if ($publicOnly) {
-            $sql .= " AND p.status = 'published'";
+            $sql .= " AND p.status = 'published' AND NOT EXISTS (SELECT 1 FROM suppliers visibility_supplier WHERE visibility_supplier.id=p.supplier_id AND visibility_supplier.products_visible_online=0)";
         }
         $statement = $this->pdo->prepare($sql . ' LIMIT 1');
         $statement->execute(['slug' => $slug]);
@@ -593,7 +593,7 @@ final class CatalogRepository
             LEFT JOIN categories primary_category ON primary_category.id = p.primary_category_id
             LEFT JOIN product_categories pc ON pc.product_id = p.id
             LEFT JOIN categories c ON c.id = pc.category_id
-            WHERE p.status = 'published' AND (p.name LIKE :query OR v.sku LIKE :query OR c.name LIKE :query)
+            WHERE p.status = 'published' AND NOT EXISTS (SELECT 1 FROM suppliers visibility_supplier WHERE visibility_supplier.id=p.supplier_id AND visibility_supplier.products_visible_online=0) AND (p.name LIKE :query OR v.sku LIKE :query OR c.name LIKE :query)
             GROUP BY p.id ORDER BY p.name, p.id LIMIT {$limit} OFFSET {$offset}");
         $statement->execute(['query' => '%' . trim($query) . '%']);
         return $statement->fetchAll();
@@ -606,7 +606,7 @@ final class CatalogRepository
             JOIN product_variants v ON v.product_id = p.id AND v.status = 'active'
             LEFT JOIN product_categories pc ON pc.product_id = p.id
             LEFT JOIN categories c ON c.id = pc.category_id
-            WHERE p.status = 'published' AND (p.name LIKE :query OR v.sku LIKE :query OR c.name LIKE :query)");
+            WHERE p.status = 'published' AND NOT EXISTS (SELECT 1 FROM suppliers visibility_supplier WHERE visibility_supplier.id=p.supplier_id AND visibility_supplier.products_visible_online=0) AND (p.name LIKE :query OR v.sku LIKE :query OR c.name LIKE :query)");
         $statement->execute(['query' => '%' . trim($query) . '%']);
         return (int) $statement->fetchColumn();
     }
@@ -624,7 +624,7 @@ final class CatalogRepository
               AND c.name LIKE :query
               AND EXISTS (
                 SELECT 1 FROM product_categories pc
-                JOIN products p ON p.id = pc.product_id AND p.status = 'published'
+                JOIN products p ON p.id = pc.product_id AND p.status = 'published' AND NOT EXISTS (SELECT 1 FROM suppliers visibility_supplier WHERE visibility_supplier.id=p.supplier_id AND visibility_supplier.products_visible_online=0)
                 WHERE pc.category_id = c.id
               )
             ORDER BY CASE WHEN c.name LIKE :prefix THEN 0 ELSE 1 END, c.position, c.name
@@ -700,7 +700,7 @@ final class CatalogRepository
             JOIN product_variants v ON v.product_id = p.id AND v.status = 'active'
             LEFT JOIN inventory i ON i.variant_id = v.id
             LEFT JOIN categories primary_category ON primary_category.id = p.primary_category_id
-            WHERE p.status = 'published'
+            WHERE p.status = 'published' AND NOT EXISTS (SELECT 1 FROM suppliers visibility_supplier WHERE visibility_supplier.id=p.supplier_id AND visibility_supplier.products_visible_online=0)
             GROUP BY p.id
             ORDER BY p.name, p.id");
         return $statement->fetchAll();
@@ -717,7 +717,7 @@ final class CatalogRepository
             WHERE c.status = 'published' AND c.visibility = 'public'
               AND EXISTS (
                 SELECT 1 FROM product_categories pc
-                JOIN products p ON p.id = pc.product_id AND p.status = 'published'
+                JOIN products p ON p.id = pc.product_id AND p.status = 'published' AND NOT EXISTS (SELECT 1 FROM suppliers visibility_supplier WHERE visibility_supplier.id=p.supplier_id AND visibility_supplier.products_visible_online=0)
                 WHERE pc.category_id = c.id
               )
             ORDER BY c.position, c.name, c.id");
@@ -734,7 +734,7 @@ final class CatalogRepository
                 CASE WHEN MAX(v.stock_unlimited)=1 OR p.backorder_policy='allow' THEN 999999 ELSE COALESCE(SUM(i.physical_quantity - i.reserved_quantity), 0) END AS available_quantity
             FROM collections col
             JOIN collection_products cp ON cp.collection_id = col.id
-            JOIN products p ON p.id = cp.product_id AND p.status = 'published'
+            JOIN products p ON p.id = cp.product_id AND p.status = 'published' AND NOT EXISTS (SELECT 1 FROM suppliers visibility_supplier WHERE visibility_supplier.id=p.supplier_id AND visibility_supplier.products_visible_online=0)
             JOIN product_variants v ON v.product_id = p.id AND v.status = 'active'
             LEFT JOIN inventory i ON i.variant_id = v.id
             WHERE col.slug = :slug AND col.status = 'published'
@@ -760,7 +760,8 @@ final class CatalogRepository
         if ($table === null) {
             return [];
         }
-        $extra = $type === 'category' ? " AND visibility = 'public' AND EXISTS (SELECT 1 FROM product_categories pc JOIN products p ON p.id = pc.product_id AND p.status = 'published' WHERE pc.category_id = categories.id)" : '';
+        $extra = $type === 'category' ? " AND visibility = 'public' AND EXISTS (SELECT 1 FROM product_categories pc JOIN products p ON p.id = pc.product_id AND p.status = 'published' AND NOT EXISTS (SELECT 1 FROM suppliers visibility_supplier WHERE visibility_supplier.id=p.supplier_id AND visibility_supplier.products_visible_online=0) WHERE pc.category_id = categories.id)" : '';
+        if ($type === 'product') { $extra = ' AND NOT EXISTS (SELECT 1 FROM suppliers visibility_supplier WHERE visibility_supplier.id=products.supplier_id AND visibility_supplier.products_visible_online=0)'; }
         return $this->pdo->query("SELECT slug, updated_at FROM {$table} WHERE status = 'published' AND indexable = 1{$extra} ORDER BY id")->fetchAll();
     }
 
@@ -860,7 +861,7 @@ final class CatalogRepository
             JOIN product_variants v ON v.product_id = p.id AND v.status = 'active'
             LEFT JOIN inventory i ON i.variant_id = v.id
             LEFT JOIN categories primary_category ON primary_category.id = p.primary_category_id
-            WHERE p.status = 'published'{$featuredFilter}{$excludeFilter}
+            WHERE p.status = 'published' AND NOT EXISTS (SELECT 1 FROM suppliers visibility_supplier WHERE visibility_supplier.id=p.supplier_id AND visibility_supplier.products_visible_online=0){$featuredFilter}{$excludeFilter}
             GROUP BY p.id
             ORDER BY p.published_at DESC, p.id DESC
             LIMIT {$limit}");

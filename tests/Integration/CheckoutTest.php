@@ -132,6 +132,16 @@ final class CheckoutTest extends DatabaseTestCase
 
     public function testSupplierDeactivationIsRevalidatedAtCheckout(): void
     {
+        $this->assertSupplierBlocksCheckout('status', 'inactive');
+    }
+
+    public function testHiddenSupplierProductsCannotBeOrderedFromAnExistingCart(): void
+    {
+        $this->assertSupplierBlocksCheckout('products_visible_online', '0');
+    }
+
+    private function assertSupplierBlocksCheckout(string $field, string $value): void
+    {
         $this->seed();
         $variant = $this->pdo->query("SELECT v.id,v.product_id FROM product_variants v JOIN inventory i ON i.variant_id=v.id WHERE i.physical_quantity>1 LIMIT 1")->fetch();
         self::assertIsArray($variant);
@@ -139,7 +149,7 @@ final class CheckoutTest extends DatabaseTestCase
         $this->pdo->exec('UPDATE products SET supplier_id=' . $supplierId . ' WHERE id=' . (int) $variant['product_id']);
         $cart = new CartService($this->pdo);
         $cart->add((int) $variant['id'], 1);
-        $this->pdo->exec("UPDATE suppliers SET status='inactive' WHERE id=" . $supplierId);
+        $this->pdo->prepare('UPDATE suppliers SET '.$field.'=? WHERE id=?')->execute([$value,$supplierId]);
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Un produs nu mai este disponibil');

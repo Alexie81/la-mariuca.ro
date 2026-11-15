@@ -117,6 +117,32 @@ final class SupplierAdminTest extends DatabaseTestCase
         return $this->request('GET', $path);
     }
 
+    public function testSupplierVisibilityHidesPublicProductsAndPreservesAdminRecords(): void
+    {
+        $service=new \App\Modules\Suppliers\SupplierAdminService($this->pdo);
+        $id=$service->save(['alias'=>'Vizibilitate QA']);
+        $row=$this->pdo->query("SELECT id,slug,primary_category_id FROM products WHERE status='published' ORDER BY id LIMIT 1")->fetch();
+        $this->pdo->exec('UPDATE products SET supplier_id='.$id.' WHERE id='.$row['id']);
+        $catalog=new \App\Modules\Catalog\CatalogRepository($this->pdo);
+        $count=$catalog->publishedProductCount();
+        $this->post('/admin/furnizori/'.$id.'/editare/', ['_csrf'=>$_SESSION['_csrf'],'alias'=>'Vizibilitate QA','status'=>'active','products_visible_online'=>'0']);
+        self::assertSame(0,(int)$service->find($id)['products_visible_online']); self::assertSame('active',$service->find($id)['status']);
+        self::assertNull($catalog->productBySlug($row['slug'])); self::assertNotNull($catalog->productBySlug($row['slug'],false));
+        self::assertSame(404,$this->get('/produs/'.$row['slug'].'/')->getStatusCode());
+        self::assertSame($count-1,$catalog->publishedProductCount());
+        foreach([$catalog->shopProducts(1,50),$catalog->searchableProducts(),$catalog->latestProducts(24),$catalog->productsForCategory((int)$row['primary_category_id'])] as $products) {
+            self::assertNotContains((int)$row['id'],array_map('intval',array_column($products,'id')));
+        }
+        self::assertNotContains($row['slug'],array_column($catalog->sitemapEntities('product'),'slug'));
+        $admin=(string)$this->get('/admin/produse/'.$row['id'].'/')->getBody(); self::assertStringContainsString('Fișa completă a produsului',$admin);
+        self::assertStringContainsString('Moderare recenzii',(string)$this->get('/admin/furnizori/')->getBody());
+        $modal=(string)$this->get('/admin/furnizori/'.$id.'/editare/modal/')->getBody(); self::assertStringContainsString('role="switch" name="products_visible_online" value="1" aria-label=',$modal);
+        $service->save(['alias'=>'Vizibilitate QA','products_visible_online'=>'1'],$id);
+        self::assertSame(200,$this->get('/produs/'.$row['slug'].'/')->getStatusCode()); self::assertSame($count,$catalog->publishedProductCount());
+        self::assertContains($row['slug'],array_column($catalog->sitemapEntities('product'),'slug'));
+        self::assertSame('published',$this->pdo->query('SELECT status FROM products WHERE id='.$row['id'])->fetchColumn());
+    }
+
     /** @param array<string,mixed> $data */
     private function post(string $path, array $data): ResponseInterface
     {

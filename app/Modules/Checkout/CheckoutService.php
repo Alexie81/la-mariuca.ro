@@ -395,6 +395,7 @@ final class CheckoutService
         return $item['product_status'] === 'published'
             && $item['variant_status'] === 'active'
             && (string) ($item['supplier_status'] ?? 'active') === 'active'
+            && (int) ($item['supplier_products_visible'] ?? 1) === 1
             && !in_array((string) $item['public_availability'], ['on_request', 'unavailable'], true)
             && (int) $item['quantity'] <= (int) $item['available_quantity'];
     }

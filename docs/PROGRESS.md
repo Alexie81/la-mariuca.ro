@@ -2,6 +2,13 @@
 
 Actualizat: 2026-11-15
 
+### 2026-11-15 — Vizibilitatea produselor după furnizor și acces la recenzii
+- Conform ultimei clarificări, pagina rămâne **Furnizori**. Nu se introduce un registru de surse de aprovizionare sau un furnizor prestabilit. După **Stare**, formularul are numai noul comutator **Produse vizibile online**, independent de starea furnizorului.
+- Oprirea ascunde produsele asociate din magazin, categorii, colecții, căutare, recomandări și sitemap; adresa publică a produsului răspunde cu 404. Adăugarea în coș, creșterea cantității și finalizarea unui coș existent sunt validate pe server. Produsele, stocurile și documentele rămân în administrare; reactivarea restabilește vizibilitatea produselor publicate fără rescrierea statusului lor.
+- Lista furnizorilor arată și **Produse online / Produse ascunse**. Navigarea include **Moderare recenzii** în grupul Produse și clienți, cu acces la registrul existent și marcarea paginii active.
+- Migrarea aditivă `062_supplier_online_visibility.sql` există pentru SQLite/MySQL și este aplicată local pe SQLite; furnizorii existenți pornesc cu vizibilitatea activă. Nu au fost ascunse produse din baza principală pentru verificare.
+- Regresiile automate din rularea de **89 teste / 836 aserțiuni** acoperă ascunderea/reactivarea, păstrarea administrării, accesul HTTP, sitemapul și coșurile deja create. Formularele au fost inspectate la 1280/390 px, cu comutare fără salvare; linkul de moderare a fost deschis și verificat din meniul mobil. Nicio publicare sau bifare de roadmap; MySQL/Apache nu sunt declarate verificate.
+
 ### 2026-11-15 — Email opțional la emiterea facturii
 - Sub sumarul prună al confirmării apare comutatorul **Trimite factura prin email**, activ implicit, cu destinatarul și explicația linkului privat/PDF-ului atașat. Debifarea emite documentul fără să adauge emailul manual în coadă. Formularul funcționează și fără JavaScript.
 - Emiterea și pregătirea emailului sunt atomice; reluarea cererii nu dublează documentul, linkul sau mesajul. O automatizare restantă nu pregătește din nou emailul deja pus în coadă manual. Compatibilitatea cheilor de reluare pentru emiterea fără email este păstrată.

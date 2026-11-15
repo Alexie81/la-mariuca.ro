@@ -9,6 +9,11 @@
       <label><span>CUI / CIF <em>opțional</em></span><input name="tax_id" value="{{ supplier.tax_id|default('') }}" maxlength="60" placeholder="Ex: RO12345678"></label>
       <label><span>Registrul Comerțului <em>opțional</em></span><input name="trade_register" value="{{ supplier.trade_register|default('') }}" maxlength="80" placeholder="Ex: J40/1234/2026"></label>
       <label><span>Stare</span><select name="status"><option value="active" {{ supplier is not defined or not supplier or supplier.status == 'active' ? 'selected' }}>Activ</option><option value="inactive" {{ supplier and supplier.status == 'inactive' ? 'selected' }}>Inactiv</option></select><small>Furnizorii inactivi nu apar în selectorul produsului.</small></label>
+      <label class="supplier-visibility">
+        <input type="hidden" name="products_visible_online" value="0">
+        <span class="supplier-visibility__heading"><span>Produse vizibile online</span><span class="supplier-visibility__switch"><input type="checkbox" role="switch" name="products_visible_online" value="1"{{ not supplier or supplier.products_visible_online ? ' checked' : '' }} aria-label="Produse vizibile online"><i aria-hidden="true"></i></span></span>
+        <small>Când este oprit, produsele acestui furnizor sunt ascunse în magazin. Rămân în administrare și în documentele existente.</small>
+      </label>
     </div>
   </section>
 
