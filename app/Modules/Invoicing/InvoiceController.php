@@ -82,13 +82,24 @@ final class InvoiceController
             $editOrder=(in_array($kind,['edit','correct'],true) && $invoice)||in_array($kind,['order-edit','order-payment'],true)?(new \App\Modules\Orders\OrderService($this->repository->pdo()))->findForAdmin($invoice['order_id'] ?? $orderId):null;
             if($kind==='order-payment' && $editOrder) { $editOrder['payment_version']=$this->repository->paymentVersion((int)$editOrder['id']); $editOrder['cash']=$this->repository->orderCash((int)$editOrder['id']); $documents=$this->repository->all('invoices',['order_id'=>$editOrder['id'],'deleted_at'=>null]); $editOrder['payment_total']=$documents!==[]?max(0,$this->repository->orderNet((int)$editOrder['id'])):(int)$editOrder['total_bani']; }
             $actions=$editOrder?(new OrderDocumentPolicy($this->repository))->actions($editOrder):[];
+            if($editOrder) {
+                $editOrder['edit_version']=$this->repository->editVersion((int)$editOrder['id']);
+                $cumulative=0; $allocated=0;
+                foreach($editOrder['items'] as &$item) {
+                    $cumulative+=(int)$item['line_total_bani'];
+                    $next=InvoiceCalculator::ratio((int)$editOrder['discount_bani'],$cumulative,(int)$editOrder['subtotal_bani']);
+                    $item['agreed_unit_bani']=InvoiceCalculator::ratio((int)$item['line_total_bani']-($next-$allocated),1,(int)$item['quantity']);
+                    $allocated=$next;
+                }
+                unset($item);
+            }
             if($kind==='order-edit' && $editOrder) { (new OrderDocumentPolicy($this->repository))->assert($editOrder,'edit_contact'); }
             $returnRequest=null;
             if($kind==='decide' && $invoice) { foreach($invoice['return_requests'] as $candidate) { if((int)$candidate['id']===(int)($request->getQueryParams()['request'] ?? 0)) { $returnRequest=$candidate; } } if(!$returnRequest) { throw new InvoiceException('Solicitarea nu există.',404); } }
             $data=['action'=>$kind,'invoice'=>$invoice,'preview'=>$preview,'order_id'=>$orderId,'orders'=>$kind==='issue'?$this->repository->eligibleOrders():[],
                 'warehouse_id'=>(int)($request->getQueryParams()['warehouse_id'] ?? 0),'warehouses'=>$this->repository->all('company_warehouses',['is_active'=>1]),'request_key'=>bin2hex(random_bytes(24)),
                 'form_action'=>$this->url($invoice?$invoice['id'].'/'.$kind.'/':($kind==='issue'?'emite/':'0/'.$kind.'/')),'back_url'=>$this->url($invoice?$invoice['id'].'/':''),'values'=>[],
-                'edit_order'=>$editOrder,'order_actions'=>$actions,'return_request'=>$returnRequest,'return_policy'=>$this->service->returnPolicy(),
+                'edit_order'=>$editOrder,'order_actions'=>$actions,'can_reprice'=>($this->actor()['role'] ?? '')==='administrator','edit_focus'=>in_array($request->getQueryParams()['focus'] ?? '',['items','contact'],true)?$request->getQueryParams()['focus']:'contact','return_request'=>$returnRequest,'return_policy'=>$this->service->returnPolicy(),
                 'is_modal'=>$request->getHeaderLine('X-Invoice-Modal')==='1','return_to_order'=>$returnToOrder,'return_to_orders'=>$returnToOrders];
             $data['product_options']=$editOrder && !$data['is_modal']?$this->repository->productChoices(null,0,0):[];
             if($kind==='order-edit' && $editOrder) { $data['back_url']=$this->config->path('admin/comenzi/'.$editOrder['id'].'/'); }

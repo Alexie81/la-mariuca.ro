@@ -174,7 +174,7 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         $dispatch->issue($orderId,str_repeat('9',32),$this->actor);
         $order=(new InvoiceRepository($this->pdo))->one('orders',['id'=>$orderId]);
         $shipping=['address'=>'Strada nouă 2','city'=>'Iași','county'=>'Iași','country'=>'RO','postal_code'=>''];
-        $this->service->editOrder($orderId,['request_key'=>'edit-order-existing','order_version'=>$order['updated_at'],'version'=>$invoice['row_version'],'reason'=>'Corectare date client','billing'=>['name'=>'Maria Pop','email'=>'maria@example.test'],'shipping_address'=>$shipping],$this->actor);
+        $this->service->editOrder($orderId,['request_key'=>'edit-order-existing','order_version'=>(new InvoiceRepository($this->pdo))->editVersion($orderId),'version'=>$invoice['row_version'],'reason'=>'Corectare date client','billing'=>['name'=>'Maria Pop','email'=>'maria@example.test'],'shipping_address'=>$shipping],$this->actor);
         $updated=$this->service->load($invoice['id']);
         self::assertSame($invoice['number'],$updated['number']); self::assertSame($invoice['series_code'],$updated['series_code']);
         self::assertSame('Maria Pop',$updated['snapshot']['customer']['name']); self::assertSame($shipping,$updated['snapshot']['shipping_address']);
@@ -536,7 +536,7 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         self::assertStringContainsString('href="/admin/comenzi/'.$orderId.'/" data-iv-close',$html);
         self::assertStringContainsString('data-iv-add-item',$html);
         $extra=$this->pdo->query("SELECT v.* FROM product_variants v JOIN products p ON p.id=v.product_id JOIN inventory i ON i.variant_id=v.id WHERE v.status='active' AND p.status='published' AND v.price_bani>0 AND i.physical_quantity-i.reserved_quantity>=1 AND v.id<>".(int)$item['variant_id']." ORDER BY v.id LIMIT 1")->fetch();
-        $input=['_csrf'=>$_SESSION['_csrf'],'request_key'=>'http-order-preparation','order_id'=>$orderId,'order_version'=>$order['updated_at'],'reason'=>'Actualizare comandă','items'=>[['id'=>$item['id'],'quantity'=>'2'],['sku'=>$extra['sku'],'quantity'=>'1','price_bani'=>1]],'billing'=>['name'=>'Client Corectat']];
+        $input=['_csrf'=>$_SESSION['_csrf'],'request_key'=>'http-order-preparation','order_id'=>$orderId,'order_version'=>(new InvoiceRepository($this->pdo))->editVersion($orderId),'reason'=>'Actualizare comandă','items'=>[['id'=>$item['id'],'quantity'=>'2'],['sku'=>$extra['sku'],'quantity'=>'1','price_bani'=>1]],'billing'=>['name'=>'Client Corectat']];
         $request=$factory->createServerRequest('POST','http://localhost/admin/facturi/0/order-edit/',['REMOTE_ADDR'=>'127.0.0.77'])->withParsedBody($input)->withHeader('Accept','application/json');
         $response=$app->handle($request);$result=json_decode((string)$response->getBody(),true);
         self::assertSame(200,$response->getStatusCode(),json_encode($result));self::assertSame('/admin/comenzi/'.$orderId.'/',$result['redirect']);

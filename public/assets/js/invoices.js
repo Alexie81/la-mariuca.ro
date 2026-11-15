@@ -12,6 +12,30 @@
   const endLoader=()=>{clearTimeout(timer);if(loader?.open)loader.close();};
   const copy=async text=>{try{await navigator.clipboard.writeText(text);toast('Copiat cu succes');}catch{toast('Copierea nu este disponibilă. Selectează textul pentru copiere.');}};
   const disclosures=new WeakMap();
+  const initialValues=new WeakMap();
+  const saveDialog=root.querySelector('[data-iv-save-dialog]');
+  const confirmEdit=form=>new Promise(resolve=>{
+    if(!saveDialog){resolve(true);return;}
+    if(saveDialog.open){resolve(false);return;}
+    const before=initialValues.get(form)||new Map(),after=new Map(new FormData(form)),groups=new Set();
+    new Set([...before.keys(),...after.keys()]).forEach(key=>{
+      if(before.get(key)===after.get(key))return;
+      if(key.startsWith('items['))groups.add('Produsele, cantitățile sau prețurile');
+      else if(key.startsWith('billing['))groups.add('Datele clientului și facturarea');
+      else if(key.startsWith('shipping'))groups.add('Adresa sau costul livrării');
+    });
+    const list=saveDialog.querySelector('[data-iv-save-changes]');list.replaceChildren();
+    (groups.size?[...groups]:['Confirmarea datelor comenzii']).forEach(text=>{const li=document.createElement('li');li.textContent=text;list.append(li);});
+    const checkbox=saveDialog.querySelector('[data-iv-save-notify]'),field=form.querySelector('[name="notify_customer"]');
+    checkbox.checked=field.checked;
+    saveDialog.querySelector('[data-iv-save-recipient]').textContent='Către '+(form.querySelector('[name="billing[email]"]')?.value||'adresa salvată în comandă');
+    const controller=new AbortController(),options={signal:controller.signal};
+    const finish=accepted=>{if(accepted)field.checked=checkbox.checked;controller.abort();saveDialog.close();form.querySelector('button[type="submit"]')?.focus();resolve(accepted);};
+    saveDialog.querySelectorAll('[data-iv-save-cancel]').forEach(button=>button.addEventListener('click',()=>finish(false),options));
+    saveDialog.querySelector('[data-iv-save-accept]').addEventListener('click',()=>finish(true),options);
+    saveDialog.addEventListener('cancel',event=>{event.preventDefault();finish(false);},options);
+    saveDialog.showModal();saveDialog.querySelector('[data-iv-save-accept]').focus();
+  });
   const toggleDisclosure=details=>{
     const current=disclosures.get(details),expand=current?!current.expand:!details.open;
     const start=details.getBoundingClientRect().height;
@@ -31,6 +55,7 @@
     };
   };
   const init=scope=>{
+    scope.querySelectorAll('[data-iv-form]').forEach(form=>{initialValues.set(form,new Map(new FormData(form)));if(form.dataset.kind==='order-edit')form.querySelector('[name="notify_customer"]')?.closest('.iv-edit-notify').setAttribute('hidden','');});
     const balance=scope.querySelector('[data-iv-payment-amount]');
     if(balance){const update=()=>{balance.hidden=scope.querySelector('[data-iv-payment-state]:checked')?.value!=='partial';};scope.querySelectorAll('[data-iv-payment-state]').forEach(radio=>radio.addEventListener('change',update));update();}
     scope.querySelectorAll('[data-iv-select]').forEach(toggle=>{const row=toggle.closest('.iv-select-line'),quantity=row.querySelector('[data-iv-quantity]');quantity.disabled=!toggle.checked;});
@@ -54,6 +79,7 @@
     row.querySelector('[data-iv-product-name]').textContent=product.name;
     row.querySelector('[data-iv-product-meta]').textContent=[product.option_summary,product.sku,money(product.price_bani)+' / buc.'].filter(Boolean).join(' · ');
     row.querySelector('[data-iv-unit-price]').value=(Number(product.price_bani)/100).toFixed(2);
+    row.querySelector('[data-iv-unit-price]').readOnly=false;
     const photo=row.querySelector('[data-iv-preview-photo]'),img=photo.querySelector('img'),icon=photo.querySelector('svg');
     img.hidden=true;img.removeAttribute('src');icon.removeAttribute('hidden');
     if(product.image_url){img.alt=product.name;img.onload=()=>{img.hidden=false;icon.setAttribute('hidden','');};img.onerror=()=>{img.hidden=true;icon.removeAttribute('hidden');};img.src=product.image_url;}
@@ -100,6 +126,7 @@
       if(!form)throw new Error('Sesiunea a expirat. Reîncarcă pagina pentru autentificare.');
       content.replaceChildren(document.importNode(form,true));dialog.dataset.kind=form.dataset.kind;dialog.setAttribute('aria-label',form.querySelector('h2')?.textContent||'Administrare factură');init(content);baseline=signature(content.querySelector('form'));
       endLoader();if(!dialog.open)dialog.showModal();dialog.querySelector('[data-iv-close]')?.focus();
+      if(form.querySelector('[name="edit_focus"]')?.value==='items'){const heading=dialog.querySelector('[data-iv-items-heading]');heading?.scrollIntoView({block:'start'});heading?.focus({preventScroll:true});}
     }catch(e){if(e.name!=='AbortError')toast(e.message||'Formularul nu poate fi deschis.');}finally{endLoader();}
   };
   const finishClose=()=>{dialog.dataset.closing='1';setTimeout(()=>{dialog.close();delete dialog.dataset.closing;content.replaceChildren();opener?.focus();},matchMedia('(prefers-reduced-motion: reduce)').matches?0:180);};
@@ -119,7 +146,7 @@
     const disclosure=e.target.closest('[data-iv-disclosure]>summary');if(disclosure){e.preventDefault();toggleDisclosure(disclosure.parentElement);return;}
     const addItem=e.target.closest('[data-iv-add-item]');if(addItem){openPicker(addItem);return;}
     const changeItem=e.target.closest('[data-iv-change-product]');if(changeItem){openPicker(changeItem,changeItem.closest('.iv-edit-item'));return;}
-    const removeItem=e.target.closest('[data-iv-remove-item]');if(removeItem){removeItem.closest('.iv-edit-item').remove();root.querySelector('[data-iv-add-item]')?.focus();return;}
+    const removeItem=e.target.closest('[data-iv-remove-item]');if(removeItem){const form=removeItem.closest('form');if(form.querySelectorAll('.iv-edit-item').length===1){error(form,'Păstrează cel puțin un produs. Poți înlocui această poziție cu alt produs.');return;}removeItem.closest('.iv-edit-item').remove();form.querySelector('[data-iv-add-item]')?.focus();return;}
     const trigger=e.target.closest('[data-iv-modal]');if(trigger){e.preventDefault();open(trigger.href,trigger);return;}
     const closeButton=e.target.closest('[data-iv-close]');if(closeButton && dialog?.open){e.preventDefault();close();return;}
     const copyButton=e.target.closest('[data-iv-copy]');if(copyButton){copy(copyButton.dataset.ivCopy);return;}
@@ -136,8 +163,15 @@
     }
   });
   root.addEventListener('submit',async e=>{
+    if(e.target.matches('[data-dispatch-issue]')){
+      e.preventDefault();if(busy)return;busy=true;const form=e.target,button=form.querySelector('button');button.disabled=true;startLoader();
+      try{const response=await fetch(form.action,{method:'POST',body:new FormData(form),credentials:'same-origin',headers:{Accept:'application/json'}});const result=await response.json();if(!response.ok||!result.ok)throw new Error(result.message||'Avizul nu a putut fi generat.');sessionStorage.setItem('iv-feedback',result.message);location.assign(result.redirect);}
+      catch(err){toast(err.message||'Avizul nu a putut fi generat. Reîncarcă pagina și încearcă din nou.');}
+      finally{busy=false;button.disabled=false;endLoader();}return;
+    }
     const form=e.target.closest('[data-iv-form]');if(!form)return;e.preventDefault();if(busy)return;if(!form.reportValidity())return;
     if(form.method.toLowerCase()==='get'){const url=new URL(form.action,location.href);new FormData(form).forEach((value,key)=>url.searchParams.set(key,value));if(dialog?.open)open(url.href);else location.assign(url.href);return;}
+    if(form.dataset.kind==='order-edit' && !await confirmEdit(form))return;
     busy=true;const submit=form.querySelector('button[type="submit"],.iv-form-footer>button');if(submit)submit.disabled=true;startLoader();
     try{const response=await fetch(form.action,{method:'POST',body:new FormData(form),credentials:'same-origin',headers:{'Accept':'application/json'}});let result;try{result=await response.json();}catch{throw new Error('Sesiunea a expirat sau serverul nu răspunde. Datele tale sunt păstrate în formular.');}
       if(!response.ok||!result.ok)throw new Error(result.message||'Verifică datele introduse.');
@@ -146,5 +180,6 @@
     }catch(err){error(form,err.message);}finally{endLoader();busy=false;if(submit)submit.disabled=false;}
   });
   root.querySelector('[data-iv-lightbox]')?.addEventListener('click',e=>{if(e.target===e.currentTarget)e.currentTarget.close();});
+  window.addEventListener('beforeunload',event=>{if(dirty()&&!busy){event.preventDefault();event.returnValue='';}});
   init(root);const feedback=sessionStorage.getItem('iv-feedback');if(feedback){sessionStorage.removeItem('iv-feedback');toast(feedback);}
 })();

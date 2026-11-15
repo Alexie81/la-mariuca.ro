@@ -1,0 +1,8 @@
+{% import 'admin/partials/nir-ui.twig' as n %}
+<dialog class="iv-discard iv-save-confirm" data-iv-save-dialog aria-labelledby="iv-save-title">
+  <header><span class="iv-mark">{{ n.icon('edit') }}</span><div><span class="iv-eyebrow">Ultima verificare</span><h2 id="iv-save-title">Salvăm modificările?</h2></div><button type="button" class="iv-icon" data-iv-save-cancel aria-label="Înapoi la editare">{{ n.icon('close') }}</button></header>
+  <p>Comanda și documentele încă modificabile se actualizează împreună. Seria și numărul facturii se păstrează.</p>
+  <div class="iv-save-summary"><strong>Ai modificat</strong><ul data-iv-save-changes></ul></div>
+  <label class="iv-edit-notify"><span class="iv-switch"><input type="checkbox" role="switch" data-iv-save-notify><span></span></span><span><strong>Trimite actualizarea clientului</strong><small data-iv-save-recipient></small><small>Emailul include detaliile schimbate și produsele actualizate, în formatul magazinului.</small></span></label>
+  <div class="iv-actions"><button type="button" class="iv-btn" data-iv-save-cancel>Înapoi la editare</button><button type="button" class="iv-btn iv-btn--primary" data-iv-save-accept>{{ n.icon('check') }}Da, salvează</button></div>
+</dialog>

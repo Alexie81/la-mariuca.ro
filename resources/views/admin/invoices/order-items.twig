@@ -1,20 +1,23 @@
 {% import 'admin/partials/nir-ui.twig' as n %}
 <section class="iv-form-step iv-product-editor" data-iv-product-url="{{ url('admin/facturi/produse/') }}">
-  <header><b>2</b><div><h3>Produse și livrare</h3><p>Caută după nume sau SKU, alege varianta și ajustează cantitatea.</p></div></header>
-  <input type="hidden" name="order_version" value="{{ edit_order.updated_at }}"><input type="hidden" name="order_id" value="{{ edit_order.id }}">
+  <header tabindex="-1" data-iv-items-heading><b>2</b><div><h3>Produse și livrare</h3><p>Adaugă, înlocuiește sau elimină produse și verifică valorile convenite.</p></div></header>
+  <input type="hidden" name="items_present" value="1">
   <div class="iv-edit-items" data-iv-edit-items>
     {% for item in edit_order.items %}
       <article class="iv-edit-item" data-iv-chosen-sku="{{ item.sku }}">
         <input type="hidden" name="items[{{ loop.index0 }}][id]" value="{{ item.id }}">
-        <span class="iv-edit-photo">{% if item.image_path|default('') %}<img src="{{ url(item.image_path|trim('/')) }}" alt="{{ item.product_name }}">{% else %}{{ n.icon('image') }}{% endif %}</span>
-        <div class="iv-edit-identity"><span class="iv-item-tag">În comandă</span><strong>{{ item.product_name }}</strong><small>{{ item.sku }}{% if item.variant_summary %} · {{ item.variant_summary }}{% endif %}</small></div>
-        <label class="iv-edit-quantity">Cantitate<input type="number" name="items[{{ loop.index0 }}][quantity]" min="0" max="999" step="1" required value="{{ item.quantity }}"></label>
+        <span class="iv-edit-photo" data-iv-preview-photo>{{ n.icon('image') }}<img{{ not item.image_path|default('') ? ' hidden' : '' }}{% if item.image_path|default('') %} src="{{ url(item.image_path|trim('/')) }}"{% endif %} alt="{{ item.product_name }}"></span>
+        <div class="iv-edit-identity"><span class="iv-item-tag">În comandă</span><input type="hidden" name="items[{{ loop.index0 }}][sku]" value="{{ item.sku }}" data-iv-sku><strong data-iv-product-name>{{ item.product_name }}</strong><small data-iv-product-meta>{{ item.sku }}{% if item.variant_summary %} · {{ item.variant_summary }}{% endif %}</small><button type="button" class="iv-change-product" data-iv-change-product>{{ n.icon('search') }}Schimbă produsul</button></div>
+        <label class="iv-edit-quantity">Cantitate<input type="number" name="items[{{ loop.index0 }}][quantity]" min="1" max="99" step="1" required value="{{ item.quantity }}"></label>
+        <label class="iv-edit-price">Preț final, Lei<input name="items[{{ loop.index0 }}][unit_price]" inputmode="decimal" data-iv-unit-price value="{{ (item.agreed_unit_bani/100)|number_format(2,'.','') }}" required{{ not can_reprice|default(false) ? ' readonly' : '' }}></label>
+        <button type="button" class="iv-icon iv-remove-product" data-iv-remove-item aria-label="Elimină {{ item.product_name }}" title="Elimină produsul">{{ n.icon('trash') }}</button>
+        <noscript><label class="iv-choice"><input type="checkbox" name="items[{{ loop.index0 }}][remove]" value="1">Elimină acest produs</label><p>Pentru înlocuire, elimină produsul și adaugă varianta nouă mai jos.</p></noscript>
       </article>
     {% endfor %}
   </div>
   <button type="button" class="iv-btn iv-add-product" data-iv-add-item data-next-index="{{ edit_order.items|length }}">{{ n.icon('plus') }}Adaugă un produs</button>
-  <noscript><div class="iv-fields"><label>Adaugă un produs din catalog<select name="items[{{ edit_order.items|length }}][sku]"><option value="">Alege produsul</option>{% for product in product_options %}<option value="{{ product.sku }}">{{ product.name }} · {{ product.option_summary }} · {{ product.sku }}</option>{% endfor %}</select></label><label>Cantitate pentru produsul nou<input name="items[{{ edit_order.items|length }}][quantity]" type="number" min="0" max="999" value="0"></label></div></noscript>
-  <p class="iv-editor-note">Prețurile produselor existente se păstrează. Pentru un produs nou poți ajusta prețul propus din catalog înainte de salvare.</p>
+  <noscript><div class="iv-fields"><label>Adaugă un produs din catalog<select name="items[{{ edit_order.items|length }}][sku]"><option value="">Alege produsul</option>{% for product in product_options %}<option value="{{ product.sku }}">{{ product.name }} · {{ product.option_summary }} · {{ product.sku }}</option>{% endfor %}</select></label><label>Cantitate pentru produsul nou<input name="items[{{ edit_order.items|length }}][quantity]" type="number" min="0" max="99" value="0"></label><label>Preț produs nou, Lei<input name="items[{{ edit_order.items|length }}][unit_price]" inputmode="decimal"></label></div></noscript>
+  <p class="iv-editor-note">Prețurile afișate includ reducerile deja convenite. Modificările se salvează cu motiv și istoric; factura netransmisă păstrează seria și numărul.</p>
   <template data-iv-item-template>
     <article class="iv-edit-item iv-edit-item--new">
       <span class="iv-edit-photo" data-iv-preview-photo>{{ n.icon('image') }}<img hidden alt=""></span>
@@ -24,10 +27,10 @@
         <strong data-iv-product-name></strong><small data-iv-product-meta></small>
         <button type="button" class="iv-change-product" data-iv-change-product>{{ n.icon('search') }}Schimbă produsul</button>
       </div>
-      <label class="iv-edit-quantity">Cantitate<input type="number" name="items[INDEX][quantity]" min="1" max="999" step="1" value="1" required></label>
+      <label class="iv-edit-quantity">Cantitate<input type="number" name="items[INDEX][quantity]" min="1" max="99" step="1" value="1" required></label>
       <label class="iv-edit-price">Preț convenit, Lei<input name="items[INDEX][unit_price]" inputmode="decimal" data-iv-unit-price required></label>
       <button type="button" class="iv-icon iv-remove-product" data-iv-remove-item aria-label="Elimină produsul nou" title="Elimină produsul nou">{{ n.icon('trash') }}</button>
     </article>
   </template>
-  <div class="iv-edit-shipping"><span class="iv-mark">{{ n.icon('box') }}</span><div><strong>Costul livrării</strong><small>Valoarea care va apărea pe documentul nou.</small></div><label><span class="iv-money-input"><input name="shipping" aria-label="Livrare, Lei" inputmode="decimal" value="{{ (edit_order.shipping_bani/100)|number_format(2,'.','') }}" required><span>Lei</span></span></label></div>
+  <div class="iv-edit-shipping"><span class="iv-mark">{{ n.icon('box') }}</span><div><strong>Costul livrării</strong><small>Valoarea salvată în comandă și în factura modificabilă.</small></div><label><span class="iv-money-input"><input name="shipping" aria-label="Livrare, Lei" inputmode="decimal" value="{{ (edit_order.shipping_bani/100)|number_format(2,'.','') }}" required><span>Lei</span></span></label></div>
 </section>

@@ -20,18 +20,22 @@ final class OrderConfirmationEmail
         private readonly DeliveryEstimateProvider $deliveryEstimates = new StoredDeliveryEstimate(),
     ) {}
 
-    /** @return array{subject:string,text:string,html:string} */
-    public function render(int $orderId, string $recipient): array
+    /** @param array<string,mixed>|null $change @return array{subject:string,text:string,html:string} */
+    public function render(int $orderId, string $recipient, ?array $change = null): array
     {
         // Authorize the recipient before loading or rendering personal details.
         $trackingUrl = $this->tracking->emailUrl($orderId, $recipient);
         $order = $this->tracking->details($orderId);
         if ($order === null) { throw new DomainException('Comanda nu este disponibilă.'); }
+        if ($change !== null) {
+            $order = $change['order'];
+            if ((int)$order['id'] !== $orderId || mb_strtolower($order['email']) !== mb_strtolower($recipient)) { throw new DomainException('Actualizarea nu corespunde destinatarului.'); }
+        }
         $card = $order['payment_method'] === 'stripe';
-        if ($card && $order['payment_status'] !== 'paid') {
+        if ($change === null && $card && $order['payment_status'] !== 'paid') {
             throw new DomainException('Confirmarea prin email așteaptă plata cardului.');
         }
-        if (in_array($order['status'], ['cancelled', 'returned'], true)) {
+        if ($change === null && in_array($order['status'], ['cancelled', 'returned'], true)) {
             throw new DomainException('Nu se trimite o confirmare pentru o comandă anulată sau returnată.');
         }
         $review = $order['status'] === 'manual_review';
@@ -43,10 +47,16 @@ final class OrderConfirmationEmail
             : ($card ? 'Plata ta a fost primită, iar comanda este confirmată. Îți mulțumim că ai ales La Măriuca pentru bucuriile celor mici.'
             : 'Am primit alegerile tale și ne vom ocupa cu grijă de fiecare detaliu. Vei achita comanda la livrare.');
         $shared = (new OrderEmailViewData($this->config, $this->images, $this->deliveryEstimates))->forOrder($order);
+        if ($change !== null) {
+            $subject = 'Comanda ' . $order['order_number'] . ' a fost actualizată';
+            $message = 'Am actualizat detaliile comenzii tale.';
+            $introduction = 'Mai jos găsești modificările salvate de echipa noastră și produsele comenzii actualizate. Dacă ai o întrebare, ne poți răspunde direct la acest email.';
+        }
         $data = [
             'subject' => $subject, 'message' => $message, 'introduction' => $introduction,
             'preheader' => $message . ' ' . $shared['payment_method'] . ' — ' . $shared['payment_state'] . '. Toate detaliile comenzii tale sunt aici.',
-            'badge' => $review ? 'În verificare' : ($card ? 'Comandă confirmată' : 'Comandă primită'),
+            'badge' => $change !== null ? 'Comandă actualizată' : ($review ? 'În verificare' : ($card ? 'Comandă confirmată' : 'Comandă primită')),
+            'changes' => $change['changes'] ?? [],
             'tracking_url' => $trackingUrl, 'shop_url' => $this->config->rootUrl() . '/',
             'logo_url' => $this->config->rootUrl() . '/assets/images/logo-la-mariuca-transparent.png',
             'status_icon' => $this->config->rootUrl() . '/assets/images/email-status-' . ($review ? 'review' : ($card ? 'confirmed' : 'received')) . '.png',
@@ -62,7 +72,7 @@ final class OrderConfirmationEmail
             'contact_email' => $this->config->get('CONTACT_EMAIL', 'contact@la-mariuca.ro'),
             'year' => date('Y'),
         ] + $shared;
-        return ['subject' => $subject, 'html' => $this->twig->render('emails/order-confirmation.twig', $data),
-            'text' => $this->twig->render('emails/order-confirmation-text.twig', $data)];
+        return ['subject' => $subject, 'html' => $this->twig->render($change !== null ? 'emails/order-change.twig' : 'emails/order-confirmation.twig', $data),
+            'text' => $this->twig->render($change !== null ? 'emails/order-change-text.twig' : 'emails/order-confirmation-text.twig', $data)];
     }
 }

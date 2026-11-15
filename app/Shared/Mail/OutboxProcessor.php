@@ -42,7 +42,7 @@ final class OutboxProcessor
         if (!ctype_digit($floor)) { throw new RuntimeException('MAIL_SEND_AFTER_ID trebuie să fie un ID pozitiv sau zero.'); }
         $types = array_values(array_filter(array_map('trim', explode(',', $this->config->get('MAIL_MESSAGE_TYPES')))));
         foreach ($types as $type) {
-            if (!in_array($type, ['invoice', 'invoice_return_notice', 'order_confirmation', 'internal_order_notification', 'order_status_update', 'verify_email', ...OrderCancellationEmail::TYPES], true)) {
+            if (!in_array($type, ['invoice', 'invoice_return_notice', 'order_confirmation', 'order_details_changed', 'internal_order_notification', 'order_status_update', 'verify_email', ...OrderCancellationEmail::TYPES], true)) {
                 throw new RuntimeException('MAIL_MESSAGE_TYPES conține un tip necunoscut.');
             }
         }
@@ -102,6 +102,9 @@ final class OutboxProcessor
                     $rendered = $invoiceEmail->render($payload, (string) $message['recipient']);
                     $subject = $rendered['subject']; $body = $rendered['text']; $html = $rendered['html'];
                     $attachment = $rendered['attachment']; $attachmentName = $rendered['attachment_name'];
+                } elseif ($message['message_type'] === 'order_details_changed') {
+                    $rendered = $confirmation->render((int) ($payload['order_id'] ?? 0), (string) $message['recipient'], $payload);
+                    $subject = $rendered['subject']; $body = $rendered['text']; $html = $rendered['html'];
                 } elseif ($message['message_type'] === 'order_confirmation') {
                     $rendered = $confirmation->render((int) ($payload['order_id'] ?? 0), (string) $message['recipient']);
                     $subject = $rendered['subject']; $body = $rendered['text']; $html = $rendered['html'];

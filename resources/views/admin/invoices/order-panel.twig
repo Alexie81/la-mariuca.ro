@@ -1,78 +1,59 @@
 {% import 'admin/partials/nir-ui.twig' as n %}
 {% set has_invoices = order.issued_invoices is not empty %}
-{% set can_issue_invoice = order.document_actions.issue_invoice.allowed %}
-<section class="order-billing{{ has_invoices ? ' order-billing--issued' : '' }}" aria-labelledby="order-billing-title">
-  <div class="order-billing__intro">
-    <span class="order-billing__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 3h8l4 4v14l-3-1.5-3 1.5-3-1.5L6 21V3Z"/><path d="M14 3v5h4M9 12h6M9 16h4"/></svg></span>
-    <div class="order-billing__heading">
-      <span class="order-billing__eyebrow">Documentele comenzii</span>
-      <div class="order-billing__title"><h2 id="order-billing-title">Facturare</h2><span class="order-billing__state"><i aria-hidden="true"></i>{{ has_invoices ? 'Documente emise' : (can_issue_invoice ? 'De emis' : 'Fără factură') }}</span></div>
-      <p>{{ has_invoices ? 'Deschide documentele emise pentru această comandă.' : (can_issue_invoice ? 'Verifică datele și emite factura, direct de aici.' : 'Emiterea nu este disponibilă pentru această comandă.') }}</p>
-    </div>
-  </div>
-  {% if has_invoices %}
+<section class="order-billing" aria-labelledby="order-billing-title">
+  <header class="order-billing__head">
+    <span class="order-billing__icon">{{ n.icon('document') }}</span>
+    <div><span class="order-billing__eyebrow">Documentele comenzii</span><h2 id="order-billing-title">Facturare și aviz</h2></div>
+    <span class="order-billing__state{{ has_invoices ? ' is-issued' : '' }}">{{ has_invoices ? 'Factură emisă' : 'Fără factură' }}</span>
+  </header>
+  <div class="order-billing__body">
+    {% if has_invoices %}
     <div class="order-billing__documents">
-      {% for invoice in order.issued_invoices %}
-        <a class="order-billing__document" href="{{ url('admin/facturi/' ~ invoice.id ~ '/') }}">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h8l4 4v14H6zM14 3v5h4M9 12h6M9 16h4"/></svg>
-          <span><small>{{ invoice.gross_bani < 0 ? 'Retur / corecție' : 'Factură emisă' }}</small><strong>{{ invoice.series_code }} {{ invoice.number }}</strong></span>
-          <svg class="order-billing__arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
-        </a>
+      {% for document in order.billing_documents %}
+      <article class="order-billing__invoice">
+        <div class="order-billing__summary">
+          <span class="order-billing__doc-icon">{{ n.icon(document.gross_bani < 0 ? 'return' : 'document') }}</span>
+          <a href="{{ url('admin/facturi/' ~ document.id ~ '/') }}"><small>{{ document.kind_label }}</small><strong>{{ document.display_number }}</strong></a>
+          <div class="order-billing__amount"><small>Total document</small><strong>{{ document.total_display }}</strong></div>
+          <a class="order-billing__open" href="{{ url('admin/facturi/' ~ document.id ~ '/') }}" aria-label="Deschide factura {{ document.display_number }}">{{ n.icon('chevron') }}</a>
+        </div>
+        <div class="order-billing__toolbar">
+          <a href="{{ url('admin/facturi/' ~ document.id ~ '/pdf/?view=1') }}" target="_blank" rel="noopener">{{ n.icon('eye') }}Vezi factura</a>
+          {% if can_manage_documents %}<a href="{{ url('admin/facturi/' ~ document.id ~ '/email/?return_to=order') }}" data-iv-modal>{{ n.icon('document') }}Trimite pe email</a>
+          <details class="order-billing__more"><summary>Alte acțiuni{{ n.icon('chevron') }}</summary>
+            <div class="order-billing__menu">
+              {% if document.receipt_nir %}<a href="{{ url('admin/nir-uri/' ~ document.receipt_nir.id ~ '/') }}">{{ n.icon('warehouse') }}NIR retur · {{ document.receipt_nir.number }}</a>{% endif %}
+              {% if document.gross_bani < 0 and not document.receipt and not document.receipt_nir %}<a href="{{ url('admin/facturi/' ~ document.id ~ '/receive/?return_to=order') }}" data-iv-modal>{{ n.icon('box') }}Înregistrează primirea produselor</a>{% endif %}
+              {% if document.gross_bani < 0 or (document.payment_method == 'cod' and document.payment_state != 'paid') %}<a href="{{ url('admin/facturi/' ~ document.id ~ '/payment/?return_to=order') }}" data-iv-modal>{{ n.icon('money') }}{{ document.gross_bani < 0 ? 'Înregistrează restituirea' : 'Înregistrează încasarea' }}</a>{% endif %}
+              {% if document.gross_bani > 0 %}<a href="{{ url('admin/facturi/' ~ document.id ~ '/request/?return_to=order') }}" data-iv-modal>{{ n.icon('return') }}Înregistrează cerere de retur</a>{% endif %}
+              <a href="{{ url('admin/facturi/' ~ document.id ~ '/link/?return_to=order') }}" data-iv-modal>{{ n.icon('link') }}Link privat pentru client</a>
+              {% if can_delete_documents and not document.delete_blocker %}<a class="is-danger" href="{{ url('admin/facturi/' ~ document.id ~ '/delete/?return_to=order') }}" data-iv-modal>{{ n.icon('trash') }}Șterge ultimul document</a>{% endif %}
+            </div>
+          </details>{% endif %}
+        </div>
+        {% if can_manage_documents %}{% for request in document.return_requests %}{% if request.state == 'pending' %}<a class="order-billing__pending" href="{{ url('admin/facturi/' ~ document.id ~ '/decide/?request=' ~ request.id ~ '&return_to=order') }}" data-iv-modal>{{ n.icon('return') }}Analizează cererea de retur{{ n.icon('chevron') }}</a>{% endif %}{% endfor %}{% endif %}
+      </article>
       {% endfor %}
     </div>
-  {% endif %}
-  {% if can_manage_documents and (can_issue_invoice or order.document_actions.edit_contact.allowed or order.document_actions.correct.allowed) %}
-    <div class="order-billing__actions">
-      {% if can_issue_invoice %}
-      <a class="order-billing__action order-billing__action--primary" href="{{ url('admin/facturi/emite/?order=' ~ order.id ~ '&return_to=order') }}" data-iv-modal>
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h8l4 4v14H6zM14 3v5h4M9 14h6M12 11v6"/></svg>
-        <span>Emite factura</span>
-        <svg class="order-billing__arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5"/></svg>
-      </a>
-      {% endif %}
-      {% if order.document_actions.edit_contact.allowed %}
-      <a class="order-billing__action order-billing__action--secondary" href="{{ url('admin/facturi/0/order-edit/?order=' ~ order.id) }}" data-iv-modal>
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 16 12-12 4 4L8 20H4zM13 7l4 4"/></svg>
-        <span>{{ has_invoices ? 'Editează comanda și factura' : 'Editează comanda' }}</span>
-        <svg class="order-billing__arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
-      </a>
-      {% endif %}
-      {% if order.document_actions.correct.allowed and not order.document_actions.edit_items.allowed %}
-        {% for invoice in order.issued_invoices %}{% if invoice.kind == 'sale' %}<a class="order-billing__action order-billing__action--secondary" href="{{ url('admin/facturi/' ~ invoice.id ~ '/correct/?return_to=order') }}" data-iv-modal><span>Corectează prin documente noi</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10h10a6 6 0 0 1 6 6M8 6l-4 4 4 4"/></svg></a>{% endif %}{% endfor %}
-      {% endif %}
-    </div>
-  {% endif %}
-  {% if can_manage_documents and has_invoices %}
-  <div class="order-document-tools">
-    {% for document in order.billing_documents %}
-    <details class="order-document-tools__item">
-      <summary><span class="order-document-tools__mark">{{ n.icon(document.gross_bani < 0 ? 'return' : 'document') }}</span><span><strong>{{ document.display_number }}</strong><small>{{ document.kind_label }} · {{ document.total_display }}</small></span>{{ n.icon('chevron') }}</summary>
-      <div class="order-document-tools__actions">
-        <a href="{{ url('admin/facturi/' ~ document.id ~ '/email/?return_to=order') }}" data-iv-modal>{{ n.icon('document') }}Trimite factura pe email</a>
-        {% if document.receipt_nir %}<a href="{{ url('admin/nir-uri/' ~ document.receipt_nir.id ~ '/') }}">{{ n.icon('warehouse') }}NIR retur · {{ document.receipt_nir.number }}</a>{% endif %}
-        {% if document.gross_bani < 0 and not document.receipt and not document.receipt_nir %}<a href="{{ url('admin/facturi/' ~ document.id ~ '/receive/?return_to=order') }}" data-iv-modal>{{ n.icon('box') }}Înregistrează primirea produselor</a>{% endif %}
-        {% if document.gross_bani < 0 or (document.payment_method == 'cod' and document.payment_state != 'paid') %}<a href="{{ url('admin/facturi/' ~ document.id ~ '/payment/?return_to=order') }}" data-iv-modal>{{ n.icon('money') }}{{ document.gross_bani < 0 ? 'Înregistrează restituirea banilor' : 'Înregistrează încasarea' }}</a>{% endif %}
-        {% if document.gross_bani > 0 %}<a href="{{ url('admin/facturi/' ~ document.id ~ '/request/?return_to=order') }}" data-iv-modal>{{ n.icon('return') }}Înregistrează cerere de retur</a>{% endif %}
-        <a href="{{ url('admin/facturi/' ~ document.id ~ '/link/?return_to=order') }}" data-iv-modal>{{ n.icon('link') }}Link privat pentru client</a>
-        {% if can_delete_documents and not document.delete_blocker %}<a class="is-danger" href="{{ url('admin/facturi/' ~ document.id ~ '/delete/?return_to=order') }}" data-iv-modal>{{ n.icon('trash') }}Șterge ultimul document</a>{% endif %}
-      </div>
-      {% for request in document.return_requests %}{% if request.state == 'pending' %}<a class="order-billing__action order-billing__action--primary" href="{{ url('admin/facturi/' ~ document.id ~ '/decide/?request=' ~ request.id ~ '&return_to=order') }}" data-iv-modal>{{ n.icon('return') }}Analizează cererea de retur</a>{% endif %}{% endfor %}
-    </details>
-    {% endfor %}
-  </div>
-  {% endif %}
-  {% if can_manage_documents %}
-  <div class="order-dispatch-note" id="aviz">
-    <div class="order-dispatch-note__copy"><span class="order-billing__eyebrow">Document logistic</span><strong>{{ order.dispatch_note ? order.dispatch_note.series_code ~ ' ' ~ order.dispatch_note.number : 'Aviz de însoțire' }}</strong><small>{{ order.dispatch_note ? 'Aviz emis din instantaneul comenzii. Nu modifică stocul.' : 'Generează documentul din client, livrare și produsele comenzii.' }}</small></div>
-    {% if order.dispatch_note %}
-      <div class="order-dispatch-note__actions">
-        <a href="{{ url('admin/comenzi/' ~ order.id ~ '/aviz/pdf/?deschide=1') }}" target="_blank" rel="noopener">{{ n.icon('eye') }}Vizualizează</a>
-        <a href="{{ url('admin/comenzi/' ~ order.id ~ '/aviz/pdf/') }}">{{ n.icon('download') }}Descarcă PDF</a>
-        {% if order.dispatch_note.can_delete %}<form action="{{ url('admin/comenzi/' ~ order.id ~ '/aviz/sterge/') }}" method="post"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="request_key" value="{{ order.dispatch_note_request_key }}"><button type="submit" class="is-danger" onclick="return confirm('Ștergi avizul? Istoricul operațiunii va rămâne în audit.')">{{ n.icon('trash') }}Șterge</button></form>{% endif %}
-      </div>
     {% else %}
-      <form action="{{ url('admin/comenzi/' ~ order.id ~ '/aviz/') }}" method="post"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="request_key" value="{{ order.dispatch_note_request_key }}"><button type="submit" class="order-billing__action order-billing__action--secondary">{{ n.icon('document') }}<span>Generează avizul</span>{{ n.icon('chevron') }}</button></form>
+    <div class="order-billing__empty"><span class="order-billing__doc-icon">{{ n.icon('document') }}</span><div><strong>Factura comenzii</strong><p>{{ order.document_actions.issue_invoice.allowed ? 'Datele sunt pregătite pentru emitere.' : order.document_actions.issue_invoice.reason }}</p></div>
+      {% if can_manage_documents and order.document_actions.issue_invoice.allowed %}<a class="order-billing__button is-primary" href="{{ url('admin/facturi/emite/?order=' ~ order.id ~ '&return_to=order') }}" data-iv-modal>{{ n.icon('plus') }}Emite factura</a>{% endif %}
+    </div>
+    {% endif %}
+    {% if can_manage_documents %}
+    <div class="order-billing__dispatch" id="aviz">
+      <span class="order-billing__doc-icon">{{ n.icon('box') }}</span>
+      <div class="order-billing__dispatch-copy"><span class="order-billing__eyebrow">Aviz de însoțire</span><strong>{{ order.dispatch_note ? order.dispatch_note.series_code ~ ' ' ~ order.dispatch_note.number : 'Pregătit din datele comenzii' }}</strong><p>{{ order.dispatch_note ? 'Document emis · disponibil pentru vizualizare și descărcare.' : 'Clientul, adresa de livrare și produsele se preiau automat.' }}</p></div>
+      <div class="order-billing__dispatch-actions">
+      {% if order.dispatch_note %}
+        <a class="order-billing__button is-primary" href="{{ url('admin/comenzi/' ~ order.id ~ '/aviz/pdf/?deschide=1') }}" target="_blank" rel="noopener">{{ n.icon('eye') }}Vezi avizul</a>
+        <a class="order-billing__button" href="{{ url('admin/comenzi/' ~ order.id ~ '/aviz/pdf/') }}" data-iv-download>{{ n.icon('download') }}Descarcă PDF</a>
+        {% if order.dispatch_note.can_delete %}<form action="{{ url('admin/comenzi/' ~ order.id ~ '/aviz/sterge/') }}" method="post"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="request_key" value="{{ order.dispatch_note_request_key }}"><button type="submit" class="order-billing__button is-danger" onclick="return confirm('Ștergi avizul? Istoricul operațiunii va rămâne în audit.')" aria-label="Șterge avizul">{{ n.icon('trash') }}</button></form>{% endif %}
+      {% elseif order.status not in ['cancelled','returned','refunded'] %}
+        <form action="{{ url('admin/comenzi/' ~ order.id ~ '/aviz/') }}" method="post" data-dispatch-issue><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="request_key" value="{{ order.dispatch_note_request_key }}"><button type="submit" class="order-billing__button is-primary">{{ n.icon('plus') }}Generează avizul</button></form>
+      {% else %}<span class="order-billing__unavailable">Comanda este închisă.</span>{% endif %}
+      </div>
+    </div>
     {% endif %}
   </div>
-  {% endif %}
 </section>

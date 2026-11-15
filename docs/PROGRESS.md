@@ -2,6 +2,13 @@
 
 Actualizat: 2026-11-15
 
+### 2026-11-15 — Documentele comenzii și editor cu confirmare/email
+- Facturarea are un panou compact cu un singur sumar pentru fiecare document, acțiuni de vizualizare/email și aviz separat, cu butoane contrastante. Generarea avizului oferă feedback JSON și păstrează formularul POST fără JS.
+- Editarea pornește din creionul secțiunilor Produse sau Contact. Administratorul poate renegocia explicit prețul cu motiv, schimba produsul, cantitatea, adăuga sau elimina poziții. Factura netransmisă păstrează seria/numărul și reface stocul contabil; avizul modificabil se actualizează. Eliminarea eliberează rezervarea păstrând cantitatea sa istorică pozitivă. Versiunea formularului detectează inclusiv modificări în aceeași secundă.
+- Confirmarea salvării oferă notificare opțională la adresa actualizată a clientului. Emailul reutilizează headerul, produsele și footerul confirmării comenzii, cu diferențe înainte/după și snapshot la salvare; motivul intern nu este trimis. Coada este atomică și deduplicată la reîncercarea salvării. Fără JS există comutator în formular.
+- Utilizatorul a confirmat explicit păstrarea blocării produselor după livrare. Blocările SPV și ale lanțurilor de retur/corecție rămân pe server. Acțiunea de corecție nu mai este promovată în panoul comenzii.
+- Verificări intermediare: **62 teste / 680 aserțiuni** pentru facturi, comenzi, avize și catalog; **7 teste noi / 94 aserțiuni** pentru editor, rollback, versiuni, stoc, email, acces și CSRF. Lint PHP, PHPStan, sintaxă JS și **166 template-uri Twig** compilate. Emailul a fost procesat numai în preview. Verificarea responsive finală și cererile ulterioare privind statusul/XML sunt în lucru; fără deploy sau trimiteri reale.
+
 ### 2026-11-15 — Registru compact și modale pentru moderarea recenziilor
 - Pagina recenziilor folosește un tabel cu miniaturi, autor, fragment de text, notă, stare și acțiuni. Are sumar global, taburi de stare, căutare după produs/client/email/comandă/text, filtre pentru notă și răspuns, sortare și paginare pe server cu 10/20/50 de rânduri. Paginile inexistente sunt normalizate, iar sumarul rămâne independent de filtrul curent.
 - Detaliile se încarcă la cerere într-un modal cu secțiuni Recenzie, Răspuns public și Istoric. Aprobarea, respingerea, mutarea în așteptare, răspunsul și retragerea au confirmări dedicate; după salvare se revine în lista filtrată. Erorile păstrează răspunsul introdus, iar închiderea/schimbarea secțiunii protejează textul nesalvat. Fără JavaScript există pagină separată și formulare HTML complete.

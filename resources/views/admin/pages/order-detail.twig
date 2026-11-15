@@ -2,6 +2,7 @@
 {% block title %}Comanda {{ order.order_number ?: '#' ~ order.id }}{% endblock %}
 {% block content %}
 {% import 'admin/invoices/ui.twig' as iv %}
+{% import 'admin/partials/nir-ui.twig' as n %}
   <div class="order-workspace" data-admin-order-workspace data-iv-page>
     {% set unit_count = 0 %}{% for item in order.items %}{% set unit_count = unit_count + item.quantity %}{% endfor %}
     <header class="order-hero">
@@ -37,7 +38,8 @@
     <div class="order-layout">
       <div class="order-column">
         <section class="order-card" aria-labelledby="order-products-title">
-          <header class="order-card__head"><div><span class="order-kicker">În această comandă</span><h2 id="order-products-title">Produsele comandate</h2></div><span class="order-count">{{ unit_count }} {{ unit_count == 1 ? 'bucată' : 'bucăți' }}</span></header>
+          <header class="order-card__head"><div><span class="order-kicker">În această comandă</span><h2 id="order-products-title">Produsele comandate</h2></div><div class="order-section-actions"><span class="order-count">{{ unit_count }} {{ unit_count == 1 ? 'bucată' : 'bucăți' }}</span>{% if can_manage_documents and order.document_actions.edit_items.allowed %}<a class="order-section-edit" href="{{ url('admin/facturi/0/order-edit/?order=' ~ order.id ~ '&focus=items') }}" data-iv-modal>{{ n.icon('edit') }}Editează produsele</a>{% endif %}</div></header>
+          {% if can_manage_documents and not order.document_actions.edit_items.allowed %}<p class="order-edit-blocked">{{ n.icon('shield') }}{{ order.document_actions.edit_items.reason }}</p>{% endif %}
           <div class="order-products">
             {% for item in order.items %}
               <article class="order-product">
@@ -49,7 +51,7 @@
           </div>
         </section>
 
-        <section class="order-card" aria-labelledby="order-customer-title"><header class="order-card__head"><div><span class="order-kicker">Client și destinație</span><h2 id="order-customer-title">Contact și livrare</h2></div></header><div class="order-contact-grid">
+        <section class="order-card" aria-labelledby="order-customer-title"><header class="order-card__head"><div><span class="order-kicker">Client și destinație</span><h2 id="order-customer-title">Contact și livrare</h2></div>{% if can_manage_documents and order.document_actions.edit_contact.allowed %}<a class="order-section-edit" href="{{ url('admin/facturi/0/order-edit/?order=' ~ order.id ~ '&focus=contact') }}" data-iv-modal>{{ n.icon('edit') }}Editează detaliile</a>{% endif %}</header><div class="order-contact-grid">
           {% set contact_name = order.customer_name|default('')|trim %}
           {% set contact_email = order.email|default('')|trim %}
           {% set contact_phone = order.phone|default('')|trim %}

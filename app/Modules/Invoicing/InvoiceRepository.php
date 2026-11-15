@@ -194,6 +194,16 @@ final class InvoiceRepository
         return ['received'=>$received,'refunded'=>(int)$q->fetchColumn()];
     }
     /** Optimistic token also distinguishes changes made within the same second. */
+    public function editVersion(int $orderId): string
+    {
+        $order=$this->one('orders',['id'=>$orderId]) ?? throw new InvoiceException('Comanda nu există.',404);
+        $items=$this->all('order_items',['order_id'=>$orderId]);
+        usort($items,static fn(array $a,array $b):int=>(int)$a['id']<=>(int)$b['id']);
+        $q=$this->pdo->prepare('SELECT COUNT(*) FROM order_document_operations WHERE order_id=:id');
+        $q->execute(['id'=>$orderId]);
+        return hash('sha256',InvoiceSnapshot::json([$order,$items,(int)$q->fetchColumn()]));
+    }
+    /** Optimistic token also distinguishes changes made within the same second. */
     public function paymentVersion(int $orderId): string
     {
         $order=$this->one('orders',['id'=>$orderId]) ?? throw new InvoiceException('Comanda nu există.',404);

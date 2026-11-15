@@ -14,7 +14,7 @@ final class InvoiceService
     public function allow(array $actor,string $permission='view'): void
     {
         $user=$this->repository->one('users',['id'=>(int)($actor['id'] ?? 0),'status'=>'active']);
-        $roles=$permission==='view'?['administrator','manager','operator']:($permission==='delete'?['administrator']:['administrator','manager']);
+        $roles=$permission==='view'?['administrator','manager','operator']:(in_array($permission,['delete','reprice'],true)?['administrator']:['administrator','manager']);
         if(!$user || !in_array($user['role'],$roles,true)) { throw new InvoiceException('Nu ai permisiunea necesară pentru această operațiune.',403); }
     }
     /** @param array<string,mixed> $actor @return array<string,mixed> */
@@ -42,6 +42,7 @@ final class InvoiceService
     public function editOrder(int $orderId,array $input,array $actor): void
     {
         $this->allow($actor,'edit');
+        if(isset($input['items_present'])) { $input['items']=(array)($input['items'] ?? []); }
         $this->repository->transaction(function()use($orderId,$input,$actor):void {
             $key=$this->key($input); $hash=$this->hash([$orderId,$input]); $this->reason($input);
             $prior=$this->repository->one('order_document_operations',['request_key'=>$key]);
@@ -50,7 +51,9 @@ final class InvoiceService
                 return;
             }
             $order=$this->repository->one('orders',['id'=>$orderId]) ?? throw new InvoiceException('Comanda nu există.');
-            if(($input['order_version'] ?? '')!==$order['updated_at']) { throw new InvoiceException('Comanda s-a modificat. Reîncarcă formularul.',409); }
+            if(!hash_equals($this->repository->editVersion($orderId),(string)($input['order_version'] ?? ''))) { throw new InvoiceException('Comanda s-a modificat. Reîncarcă formularul.',409); }
+            $notification=new OrderChangeNotification($this->repository);
+            $before=$notification->snapshot($orderId);
             $policy=new OrderDocumentPolicy($this->repository);
             $policy->assert($order,'edit_contact');
             if(isset($input['items'])) { $policy->assert($order,'edit_items'); }
@@ -76,6 +79,7 @@ final class InvoiceService
             $this->repository->insert('audit_log',['actor_user_id'=>$actor['id'],'action'=>'order.details_edited','entity_type'=>'order','entity_id'=>$orderId,'context_json'=>InvoiceSnapshot::json(['reason'=>$input['reason'],'invoice_id'=>$existing['id'] ?? null,'shipping_before'=>json_decode($order['shipping_address_json'],true),'shipping_after'=>$input['shipping_address'] ?? null]),'created_at'=>$this->repository->now()]);
             $this->repository->update('orders',['updated_at'=>$this->repository->now()],['id'=>$orderId]);
             if(!$existing) { $this->regenerateDispatchNote($orderId,$actor); }
+            if(($input['notify_customer'] ?? '')==='1') { $notification->queue($before,$notification->snapshot($orderId),$actor); }
             $this->repository->insert('order_document_operations',['request_key'=>$key,'order_id'=>$orderId,'action'=>'edit','payload_hash'=>$hash,'result_id'=>$existing['id'] ?? null,'created_at'=>$this->repository->now()]);
         });
     }

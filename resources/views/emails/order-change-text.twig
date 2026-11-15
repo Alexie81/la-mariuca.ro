@@ -1,0 +1,8 @@
+{% autoescape false %}CE S-A SCHIMBAT ÎN COMANDA {{ number }}
+{% for change in changes %}
+{{ change.label }}
+Înainte: {{ change.before ?: 'Necompletat' }}
+Acum: {{ change.after ?: 'Necompletat' }}
+{% endfor %}
+{% endautoescape %}
+{% include 'emails/order-confirmation-text.twig' %}

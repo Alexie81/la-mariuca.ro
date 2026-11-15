@@ -21,7 +21,12 @@ final class DispatchNoteController
     {
         try {
             $input=(array)$request->getParsedBody(); $this->service->issue((int)$args['id'],(string)($input['request_key']??''),$this->actor()); Flash::set('success','Avizul a fost generat din datele comenzii.');
-        } catch(\Throwable $error) {Flash::set('error',$error instanceof InvoiceException?$error->getMessage():'Avizul nu a putut fi generat.');}
+            if(str_contains($request->getHeaderLine('Accept'),'application/json')) { return $this->json(['ok'=>true,'message'=>'Avizul a fost generat. Îl poți deschide sau descărca din comandă.','redirect'=>$this->config->path('admin/comenzi/'.(int)$args['id'].'/').'#aviz']); }
+        } catch(\Throwable $error) {
+            $message=$error instanceof InvoiceException?$error->getMessage():'Avizul nu a putut fi generat.';
+            if(str_contains($request->getHeaderLine('Accept'),'application/json')) { return $this->json(['ok'=>false,'message'=>$message],$error instanceof InvoiceException?($error->getCode()?:422):500); }
+            Flash::set('error',$message);
+        }
         return $this->redirect((int)$args['id']);
     }
 
@@ -48,4 +53,6 @@ final class DispatchNoteController
     /** @return array<string,mixed> */
     private function actor(): array {return $this->auth->user()??throw new InvoiceException('Autentifică-te în administrare.',403);}
     private function redirect(int $orderId): ResponseInterface {return (new Response(302))->withHeader('Location',$this->config->path('admin/comenzi/'.$orderId.'/').'#aviz');}
+    /** @param array<string,mixed> $data */
+    private function json(array $data,int $status=200): ResponseInterface {$response=new Response($status);$response->getBody()->write(json_encode($data,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR));return $response->withHeader('Content-Type','application/json')->withHeader('Cache-Control','no-store');}
 }

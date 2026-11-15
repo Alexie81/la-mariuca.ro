@@ -1,0 +1,13 @@
+{% extends 'emails/order-confirmation.twig' %}
+{% block introduction %}
+{{ parent() }}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:24px;background:#faf5f8;border:1px solid #eedfe9;border-radius:16px;"><tr><td style="padding:20px;">
+  <h3 style="margin:0 0 14px;font-size:18px;color:#59435b;">Ce s-a schimbat</h3>
+  {% for change in changes %}<div style="padding:12px 0;{{ not loop.last ? 'border-bottom:1px solid #e9dce6;' : '' }}">
+    <strong style="display:block;font-size:14px;color:#59435b;">{{ change.label }}</strong>
+    <p style="margin:6px 0 0;font-size:13px;line-height:21px;color:#78818d;">Înainte: {{ change.before ?: 'Necompletat' }}</p>
+    <p style="margin:3px 0 0;font-size:14px;line-height:22px;color:#35414d;">Acum: <strong>{{ change.after ?: 'Necompletat' }}</strong></p>
+  </div>{% endfor %}
+</td></tr></table>
+{% endblock %}
+{% block products_heading %}Produsele comenzii actualizate{% endblock %}
