@@ -21,7 +21,7 @@ final class OrderDocumentPolicy
         }
         $terminal=in_array($order['status'],['cancelled','returned','refunded','return_requested','return_refused','return_confirmed','manual_review'],true);
         $reason=$terminal?'Comanda este într-un flux închis sau de retur.':($chain?'Există documente de retur sau corecție. Datele istorice sunt păstrate.':$blocked);
-        $delivered=$order['status']==='delivered' || $this->repository->one('audit_log',['entity_type'=>'order','entity_id'=>$order['id'],'action'=>'order.deliver'])!==null;
+        $delivered=$order['status']==='delivered';
         $itemReason=$reason ?: ($delivered?'Comanda este livrată. Produsele, cantitățile și prețurile rămân în istoricul livrării.':'');
         $issueReason=$positive?'Factura inițială este deja emisă.':($terminal?'Comanda nu este eligibilă pentru emitere.':($order['payment_method']==='stripe' && $order['payment_status']!=='paid'?'Așteaptă confirmarea plății cu cardul.':''));
         $decision=static fn(string $why,string $mode):array=>['allowed'=>$why==='','reason'=>$why,'mode'=>$mode];

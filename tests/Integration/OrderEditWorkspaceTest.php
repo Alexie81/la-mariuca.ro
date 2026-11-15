@@ -107,11 +107,11 @@ final class OrderEditWorkspaceTest extends DatabaseTestCase
     public function testDeliveredAndFiscalStatesRejectProductEditsIncludingForgedRequests(): void
     {
         $id=$this->order();$item=$this->repo->all('order_items',['order_id'=>$id])[0];
-        $this->repo->update('orders',['status'=>'delivered'],['id'=>$id]);
+        $orders=new OrderService($this->pdo);$orders->transition($id,'deliver',null,$this->actor['id']);
         $this->reject($id,$this->input($id)+['items'=>[['id'=>$item['id'],'quantity'=>'1','unit_price'=>'45']]],409);
         $this->service->editOrder($id,$this->input($id)+['billing'=>['phone'=>'0700111333']],$this->actor);
         self::assertSame('0700111333',$this->repo->one('orders',['id'=>$id])['phone']);
-        $this->repo->update('orders',['status'=>'new'],['id'=>$id]);$invoice=$this->service->issue($id,['request_key'=>'spv-edit-invoice'],$this->actor);
+        $orders->transition($id,'reset',null,$this->actor['id']);$invoice=$this->service->issue($id,['request_key'=>'spv-edit-invoice'],$this->actor);
         foreach([['fiscal_state'=>'processing'],['fiscal_state'=>'sent'],['fiscal_state'=>'error','fiscal_reference'=>'upload-123'],['fiscal_state'=>'not_sent','fiscal_attempted_at'=>'2026-11-15']] as $fiscal) {
             $this->repo->update('invoices',array_replace(['fiscal_attempted_at'=>null,'fiscal_reference'=>null],$fiscal),['id'=>$invoice['id']]);
             $before=$this->state();$this->reject($id,$this->input($id)+['version'=>1,'notify_customer'=>'1','items'=>[['id'=>$item['id'],'quantity'=>'1']]],409);self::assertSame($before,$this->state());
@@ -162,8 +162,17 @@ final class OrderEditWorkspaceTest extends DatabaseTestCase
         $issue=$factory->createServerRequest('POST','http://localhost/admin/comenzi/'.$id.'/aviz/')->withHeader('Accept','application/json')->withParsedBody(['_csrf'=>$_SESSION['_csrf'],'request_key'=>str_repeat('b',32)]);
         $response=$app->handle($issue);self::assertSame(200,$response->getStatusCode());self::assertTrue(json_decode((string)$response->getBody(),true)['ok']);self::assertCount(1,(new DispatchNoteRepository($this->pdo))->activeForOrder($id)?[1]:[]);
         $again=$app->handle($issue);self::assertSame(200,$again->getStatusCode());self::assertSame(1,(int)$this->pdo->query('SELECT COUNT(*) FROM dispatch_notes')->fetchColumn());
-        $this->repo->update('orders',['status'=>'delivered'],['id'=>$id]);$html=(string)$app->handle($factory->createServerRequest('GET','http://localhost/admin/comenzi/'.$id.'/'))->getBody();
+        $orders=new OrderService($this->pdo);$orders->transition($id,'deliver',null,$this->actor['id']);$html=(string)$app->handle($factory->createServerRequest('GET','http://localhost/admin/comenzi/'.$id.'/'))->getBody();
         self::assertStringNotContainsString('Editează produsele',$html);self::assertStringContainsString('Comanda este livrată.',$html);self::assertStringContainsString('Editează detaliile',$html);
+        $orders->transition($id,'reset',null,$this->actor['id']);
+        $html=(string)$app->handle($factory->createServerRequest('GET','http://localhost/admin/comenzi/'.$id.'/'))->getBody();
+        self::assertStringContainsString('Editează produsele',$html);self::assertStringNotContainsString('Comanda este livrată.',$html);
+        $item=$this->repo->all('order_items',['order_id'=>$id])[0];
+        $response=$app->handle($post->withParsedBody($this->input($id)+['_csrf'=>$_SESSION['_csrf'],'order_id'=>$id,'items'=>[['id'=>$item['id'],'quantity'=>'1','unit_price'=>'75.50']]]));
+        self::assertSame(200,$response->getStatusCode(),(string)$response->getBody());
+        self::assertSame(1,(int)$this->repo->one('order_items',['id'=>$item['id']])['quantity']);
+        self::assertSame(7550,$this->dispatch->forOrder($id,$this->actor)['snapshot']['total_bani']);
+        self::assertCount(1,$this->repo->all('audit_log',['entity_type'=>'order','entity_id'=>$id,'action'=>'order.deliver']));
         unset($_SESSION['user_id']);self::assertSame(303,$app->handle($factory->createServerRequest('GET','http://localhost/admin/facturi/0/order-edit/')->withQueryParams(['order'=>$id]))->getStatusCode());
         unset($app);gc_collect_cycles();
     }
@@ -191,9 +200,15 @@ final class OrderEditWorkspaceTest extends DatabaseTestCase
         }
         self::assertSame($accounting,$this->pdo->query('SELECT * FROM accounting_stock_movements ORDER BY id')->fetchAll());
         self::assertSame(1,(int)$this->service->load((int)$invoice['id'])['row_version']);
-        // Returning to a preparation state must not bypass the delivered-product lock.
+        // The current state governs editing; delivery history remains in the audit.
         $service->transition($id,'reset',null,$this->actor['id']);$item=$this->repo->all('order_items',['order_id'=>$id])[0];
-        $this->reject($id,$this->input($id)+['version'=>1,'items'=>[['id'=>$item['id'],'quantity'=>'1']]],409);
+        $this->service->editOrder($id,$this->input($id)+['version'=>1,'items'=>[['id'=>$item['id'],'quantity'=>'1','unit_price'=>'75.50']]],$this->actor);
+        self::assertSame(1,(int)$this->repo->one('order_items',['id'=>$item['id']])['quantity']);
+        self::assertNotEmpty($this->repo->all('audit_log',['entity_type'=>'order','entity_id'=>$id,'action'=>'order.deliver']));
+        $stock=$this->repo->one('inventory_reservations',['order_id'=>$id,'variant_id'=>$this->variant['id']]);
+        self::assertSame('active',$stock['status']);self::assertSame(1,(int)$stock['quantity']);
+        $updatedInvoice=$this->service->load((int)$invoice['id']);self::assertSame($invoice['number'],$updatedInvoice['number']);
+        self::assertSame(7550,(int)$updatedInvoice['lines'][0]['gross_bani']);self::assertSame(10000,(int)$updatedInvoice['lines'][0]['quantity_units']);
         $old=$service->statusVersion($id);$service->transition($id,'confirm',null,$this->actor['id']);$before=$this->state();
         try{$service->transition($id,'ship',null,$this->actor['id'],'',false,$old);self::fail('Stale status accepted');}catch(\RuntimeException $e){self::assertStringContainsString('între timp',$e->getMessage());}
         self::assertSame($before,$this->state());

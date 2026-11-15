@@ -1,5 +1,10 @@
 # Progres
 
+### 2026-11-15 — Editarea produselor urmărește statusul actual
+- Conform clarificării utilizatorului, istoricul unei livrări nu mai blochează permanent produsele după revenirea comenzii la Nouă sau alt pas anterior. Avertismentul „Comanda este livrată” și blocarea aferentă se aplică numai stării actuale Livrată. Această regulă înlocuiește interpretarea anterioară bazată pe audit; auditul livrării rămâne intact.
+- Regula comună controlează atât butonul din comandă, cât și salvarea pe server. Protecțiile SPV, documentele dependente, stările închise/retur și validarea stocului rămân aplicabile.
+- Verificări: **18 teste / 507 aserțiuni**, inclusiv Livrată → Nouă → salvarea cantității/prețului, actualizarea aceleiași facturi și a avizului, rezervări corecte, istoricul păstrat, HTML fără avertismentul vechi și blocare SPV menținută. PHPStan, lint PHP și diff check trecute. Verificare read-only pe comanda locală **LM-DEMO-000344**: status `new`, o livrare în audit, `edit_items.allowed=true`. Fără modificări ale datelor comenzii principale, emailuri sau deploy în această intervenție.
+
 ### 2026-11-15 — Trimitere reală autorizată pentru aviz
 - La solicitarea explicită a utilizatorului a fost emis avizul **LM-AVZ-2026 1** pentru comanda demonstrativă **LM-DEMO-000344**, deoarece toate avizele anterioare erau șterse. Numărul 1 eliberat a fost reutilizat; comenzile și stocurile nu au fost schimbate prin această emitere.
 - Un singur email `dispatch_note` a fost trimis prin procesorul SMTP existent la destinatarul comenzii: mesajul din coadă **10**, `sent`, o încercare, fără eroare, acceptat SMTP la **18:39:17 Europe/Bucharest**. Logul confirmă **1 acceptat SMTP, 0 preview-uri, 0 eșuate**. Cheia dedicată împiedică repetarea accidentală a probei.
