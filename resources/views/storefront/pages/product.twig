@@ -4,9 +4,10 @@
 {% block content %}
 {% set gallery_count = product.images|length %}
 {% set default_variant = product.variants|first %}
-{% set direct_order_allowed = product.public_availability|default('automatic') not in ['on_request', 'unavailable'] %}
+{% set source_active = product.supplier_status|default('active') == 'active' %}
+{% set direct_order_allowed = source_active and product.public_availability|default('automatic') not in ['on_request', 'unavailable'] %}
 {% set visually_available = product.public_availability|default('automatic') in ['preorder', 'on_request'] or (direct_order_allowed and default_variant and default_variant.available_quantity > 0) %}
-{% set public_availability_label = product.public_availability|default('automatic') == 'preorder' ? 'Disponibil pentru precomandă' : (product.public_availability|default('automatic') == 'on_request' ? 'Disponibil la cerere' : (product.public_availability|default('automatic') == 'unavailable' ? 'Indisponibil' : (default_variant and default_variant.available_quantity > 0 ? 'În stoc' : 'Stoc epuizat'))) %}
+{% set public_availability_label = not source_active ? 'Temporar indisponibil' : (product.public_availability|default('automatic') == 'preorder' ? 'Disponibil pentru precomandă' : (product.public_availability|default('automatic') == 'on_request' ? 'Disponibil la cerere' : (product.public_availability|default('automatic') == 'unavailable' ? 'Indisponibil' : (default_variant and default_variant.available_quantity > 0 ? 'În stoc' : 'Stoc epuizat')))) %}
 {% set default_variant_is_in_cart = default_variant ? is_variant_in_cart(default_variant.id) : false %}
 {% set product_is_favorite = is_favorite(product.id) %}
 <main class="product-page" data-product-view-url="{{ url('produs/' ~ product.slug ~ '/vizualizare/') }}" data-product-view-csrf="{{ csrf_token() }}">
@@ -222,7 +223,7 @@
           </form>
         {% elseif product.variants %}
           <div class="product-buy-form product-direct-order-unavailable">
-            <p>{{ product.public_availability == 'on_request' ? 'Produsul se comandă la cerere. Scrie-ne și verificăm împreună termenul și disponibilitatea.' : 'Produsul nu poate fi comandat momentan.' }}</p>
+            <p>{{ not source_active ? 'Sursa acestui produs este temporar inactivă. Produsul nu poate fi comandat până la reactivarea aprovizionării.' : (product.public_availability == 'on_request' ? 'Produsul se comandă la cerere. Scrie-ne și verificăm împreună termenul și disponibilitatea.' : 'Produsul nu poate fi comandat momentan.') }}</p>
             {% if product.public_availability == 'on_request' %}<a class="product-add-button" href="{{ url('pagina/contact/') }}">Întreabă despre produs</a>{% endif %}
           </div>
         {% endif %}

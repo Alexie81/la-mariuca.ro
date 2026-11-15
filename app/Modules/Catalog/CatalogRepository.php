@@ -446,6 +446,7 @@ final class CatalogRepository
     public function productBySlug(string $slug, bool $publicOnly = true): ?array
     {
         $sql = "SELECT p.*, c.name AS category_name, c.slug AS category_slug,
+                COALESCE(s.status, 'active') AS supplier_status,
                 COALESCE(
                     (SELECT product_media.public_path
                         FROM product_images pi
@@ -476,6 +477,7 @@ final class CatalogRepository
                 ) AS image_alt
             FROM products p
             LEFT JOIN categories c ON c.id = p.primary_category_id
+            LEFT JOIN suppliers s ON s.id = p.supplier_id
             WHERE p.slug = :slug";
         if ($publicOnly) {
             $sql .= " AND p.status = 'published'";

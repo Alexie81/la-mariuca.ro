@@ -93,7 +93,7 @@ final class CartService
             throw new RuntimeException('Cantitatea trebuie să fie între 1 și ' . $this->maxQuantity . '.');
         }
         $variant = $this->variant($variantId);
-        if ($variant === null || $variant['product_status'] !== 'published' || $variant['status'] !== 'active' || !$this->isPubliclyOrderable((string) $variant['public_availability'])) {
+        if ($variant === null || $variant['product_status'] !== 'published' || $variant['status'] !== 'active' || $variant['supplier_status'] !== 'active' || !$this->isPubliclyOrderable((string) $variant['public_availability'])) {
             throw new RuntimeException('Varianta nu este disponibilă.');
         }
         $this->validatePersonalization((int) $variant['product_id'], $personalization);
@@ -164,11 +164,12 @@ final class CartService
         if ($quantity > $this->maxQuantity) {
             throw new RuntimeException('Cantitatea maximă pe linie este ' . $this->maxQuantity . '.');
         }
-        $statement = $this->pdo->prepare("SELECT ci.variant_id, p.status AS product_status, v.status AS variant_status, p.public_availability,
+        $statement = $this->pdo->prepare("SELECT ci.variant_id, p.status AS product_status, v.status AS variant_status, p.public_availability,COALESCE(s.status,'active') AS supplier_status,
                 CASE WHEN v.stock_unlimited=1 OR p.backorder_policy='allow' THEN 999999 ELSE COALESCE(i.physical_quantity - i.reserved_quantity, 0) END AS available_quantity
             FROM cart_items ci
             JOIN product_variants v ON v.id=ci.variant_id
             JOIN products p ON p.id=v.product_id
+            LEFT JOIN suppliers s ON s.id=p.supplier_id
             LEFT JOIN inventory i ON i.variant_id = ci.variant_id
             WHERE ci.id = :id AND ci.cart_id = :cart");
         $statement->execute(['id' => $itemId, 'cart' => $cartId]);
@@ -176,7 +177,7 @@ final class CartService
         if (!is_array($row)) {
             throw new RuntimeException('Linia nu aparține coșului curent.');
         }
-        if ($row['product_status'] !== 'published' || $row['variant_status'] !== 'active' || !$this->isPubliclyOrderable((string) $row['public_availability'])) {
+        if ($row['product_status'] !== 'published' || $row['variant_status'] !== 'active' || $row['supplier_status'] !== 'active' || !$this->isPubliclyOrderable((string) $row['public_availability'])) {
             throw new RuntimeException('Produsul nu mai este disponibil pentru comandă directă.');
         }
         if ($quantity > (int) $row['available_quantity']) {
@@ -431,7 +432,7 @@ final class CartService
     private function baseSummary(): array
     {
         $statement = $this->pdo->prepare("SELECT ci.id, ci.variant_id, ci.quantity, ci.personalization_json,
-                p.id AS product_id, p.name, p.slug, p.status AS product_status, p.public_availability, v.status AS variant_status, v.sku, v.option_summary, v.options_json, v.price_bani,
+                p.id AS product_id, p.name, p.slug, p.status AS product_status, p.public_availability, COALESCE(s.status,'active') AS supplier_status, v.status AS variant_status, v.sku, v.option_summary, v.options_json, v.price_bani,
                 CASE WHEN v.stock_unlimited=1 OR p.backorder_policy='allow' THEN 1 ELSE 0 END AS stock_unlimited,
                 COALESCE(variant_media.public_path,
                     (SELECT product_media.public_path
@@ -452,6 +453,7 @@ final class CartService
             FROM cart_items ci
             JOIN product_variants v ON v.id = ci.variant_id
             JOIN products p ON p.id = v.product_id
+            LEFT JOIN suppliers s ON s.id=p.supplier_id
             LEFT JOIN media variant_media ON variant_media.id = v.image_media_id
             LEFT JOIN inventory i ON i.variant_id = v.id
             WHERE ci.cart_id = :cart ORDER BY ci.id");
@@ -476,7 +478,7 @@ final class CartService
     /** @return array<string, mixed>|null */
     private function variant(int $id): ?array
     {
-        $statement = $this->pdo->prepare("SELECT v.*, p.status AS product_status, p.public_availability, p.backorder_policy, CASE WHEN v.stock_unlimited=1 OR p.backorder_policy='allow' THEN 999999 ELSE COALESCE(i.physical_quantity - i.reserved_quantity, 0) END AS available_quantity FROM product_variants v JOIN products p ON p.id = v.product_id LEFT JOIN inventory i ON i.variant_id = v.id WHERE v.id = :id");
+        $statement = $this->pdo->prepare("SELECT v.*, p.status AS product_status, p.public_availability, p.backorder_policy,COALESCE(s.status,'active') AS supplier_status, CASE WHEN v.stock_unlimited=1 OR p.backorder_policy='allow' THEN 999999 ELSE COALESCE(i.physical_quantity - i.reserved_quantity, 0) END AS available_quantity FROM product_variants v JOIN products p ON p.id = v.product_id LEFT JOIN suppliers s ON s.id=p.supplier_id LEFT JOIN inventory i ON i.variant_id = v.id WHERE v.id = :id");
         $statement->execute(['id' => $id]);
         $row = $statement->fetch();
         return is_array($row) ? $row : null;

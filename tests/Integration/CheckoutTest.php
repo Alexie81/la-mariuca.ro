@@ -9,6 +9,7 @@ use App\Modules\Cart\CartService;
 use App\Modules\Checkout\CheckoutService;
 use App\Modules\Orders\OrderService;
 use App\Modules\Payments\StripeWebhookController;
+use App\Modules\Suppliers\SupplierAdminService;
 use App\Shared\Config\Config;
 use Psr\Http\Message\ResponseInterface;
 use RuntimeException;
@@ -127,6 +128,22 @@ final class CheckoutTest extends DatabaseTestCase
         $inventory = $this->pdo->query('SELECT * FROM inventory WHERE variant_id=' . (int) $variant['id'])->fetch();
         self::assertSame(2, (int) $inventory['reserved_quantity']);
         self::assertSame(1, (int) $this->pdo->query('SELECT COUNT(*) FROM inventory_reservations WHERE order_id=' . (int) $result['id'])->fetchColumn());
+    }
+
+    public function testSupplierDeactivationIsRevalidatedAtCheckout(): void
+    {
+        $this->seed();
+        $variant = $this->pdo->query("SELECT v.id,v.product_id FROM product_variants v JOIN inventory i ON i.variant_id=v.id WHERE i.physical_quantity>1 LIMIT 1")->fetch();
+        self::assertIsArray($variant);
+        $supplierId = (new SupplierAdminService($this->pdo))->save(['alias' => 'Sursă checkout', 'company_name' => 'Sursă checkout SRL']);
+        $this->pdo->exec('UPDATE products SET supplier_id=' . $supplierId . ' WHERE id=' . (int) $variant['product_id']);
+        $cart = new CartService($this->pdo);
+        $cart->add((int) $variant['id'], 1);
+        $this->pdo->exec("UPDATE suppliers SET status='inactive' WHERE id=" . $supplierId);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Un produs nu mai este disponibil');
+        (new CheckoutService($this->pdo, $cart, Config::load($this->root)))->place($this->checkoutData('inactive-supplier'));
     }
 
     public function testDuplicateIdempotencyKeyDoesNotCreateSecondOrder(): void

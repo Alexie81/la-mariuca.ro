@@ -244,7 +244,11 @@ final class StorefrontController
         $product = $this->catalog->productBySlug($slug);
         if ($product === null) {
             $redirect = $this->catalog->redirectFor('product', $slug);
-            return $redirect !== null ? $this->view->redirect($this->config->path('produs/' . $redirect['new_slug'] . '/'), 301) : $this->notFound();
+            if ($redirect !== null) {
+                return $this->view->redirect($this->config->path('produs/' . $redirect['new_slug'] . '/'), 301);
+            }
+            $privateProduct = $this->catalog->productBySlug($slug, false);
+            return is_array($privateProduct) && $privateProduct['status'] === 'archived' ? $this->gone() : $this->notFound();
         }
         $variants = (array) $product['variants'];
         $categoryTrail = empty($product['category_slug'])
@@ -253,7 +257,9 @@ final class StorefrontController
         $reviewSummary = $this->reviews->summaryForProduct((int) $product['id']);
         $offers = [];
         foreach ($variants as $variant) {
-            $availability = match ((string) ($product['public_availability'] ?? 'automatic')) {
+            $availability = (string) ($product['supplier_status'] ?? 'active') !== 'active'
+                ? 'https://schema.org/OutOfStock'
+                : match ((string) ($product['public_availability'] ?? 'automatic')) {
                 'in_stock' => 'https://schema.org/InStock',
                 'preorder' => 'https://schema.org/PreOrder',
                 'on_request' => 'https://schema.org/LimitedAvailability',
@@ -1007,5 +1013,14 @@ final class StorefrontController
     private function notFound(): ResponseInterface
     {
         return $this->view->render('storefront/pages/error.twig', ['title' => 'Pagina nu a fost găsită', 'message' => 'Adresa nu există sau conținutul nu este publicat.', 'meta' => $this->meta('Pagina nu a fost găsită', '', '/404', true)], 404);
+    }
+
+    private function gone(): ResponseInterface
+    {
+        return $this->view->render('storefront/pages/error.twig', [
+            'title' => 'Produs retras',
+            'message' => 'Acest produs a fost retras din catalog și nu mai este disponibil.',
+            'meta' => $this->meta('Produs retras', '', '/410', true),
+        ], 410);
     }
 }

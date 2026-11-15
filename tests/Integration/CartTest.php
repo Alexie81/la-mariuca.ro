@@ -6,6 +6,7 @@ namespace Tests\Integration;
 
 use App\AppFactory;
 use App\Modules\Cart\CartService;
+use App\Modules\Suppliers\SupplierAdminService;
 use Psr\Http\Message\ResponseInterface;
 use RuntimeException;
 use Slim\Psr7\Factory\ServerRequestFactory;
@@ -173,6 +174,37 @@ final class CartTest extends DatabaseTestCase
         }
         $cart->add($variantIds[0], 1);
         self::assertSame(2, $cart->summary()['count']);
+    }
+
+    public function testInactiveSupplierBlocksDirectOrderingAndIsExplainedOnProductPage(): void
+    {
+        $this->seed();
+        $row = $this->pdo->query('SELECT v.id AS variant_id,p.id AS product_id,p.slug FROM product_variants v JOIN products p ON p.id=v.product_id ORDER BY v.id LIMIT 1')->fetch();
+        self::assertIsArray($row);
+        $supplierId = (new SupplierAdminService($this->pdo))->save(['alias' => 'Sursă temporar oprită', 'company_name' => 'Sursă temporar oprită SRL']);
+        $this->pdo->exec("UPDATE suppliers SET status='inactive' WHERE id=" . $supplierId);
+        $this->pdo->exec('UPDATE products SET supplier_id=' . $supplierId . ' WHERE id=' . (int) $row['product_id']);
+
+        try {
+            (new CartService($this->pdo))->add((int) $row['variant_id'], 1);
+            self::fail('Produsul unei surse inactive nu trebuie adăugat în coș.');
+        } catch (RuntimeException $exception) {
+            self::assertSame('Varianta nu este disponibilă.', $exception->getMessage());
+        }
+        $page = (string) $this->get('/produs/' . $row['slug'] . '/')->getBody();
+        self::assertStringContainsString('Sursa acestui produs este temporar inactivă', $page);
+        self::assertStringNotContainsString('data-cart-form', $page);
+    }
+
+    public function testArchivedProductReturnsGoneWhileDraftRemainsNotFound(): void
+    {
+        $this->seed();
+        $slug = 'costumas-micul-gentleman';
+        $this->pdo->exec("UPDATE products SET status='archived' WHERE slug='" . $slug . "'");
+        self::assertSame(410, $this->get('/produs/' . $slug . '/')->getStatusCode());
+
+        $this->pdo->exec("UPDATE products SET status='draft' WHERE slug='" . $slug . "'");
+        self::assertSame(404, $this->get('/produs/' . $slug . '/')->getStatusCode());
     }
 
     private function get(string $path): ResponseInterface
