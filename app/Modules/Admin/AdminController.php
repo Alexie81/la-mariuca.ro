@@ -1519,6 +1519,7 @@ final class AdminController
             'order.ship' => ['Comandă expediată', 'truck', 'blue'],
             'order.deliver' => ['Comandă livrată', 'heart', 'sage'],
             'order.cancel' => ['Comandă anulată', 'cancel', 'rose'],
+            'order.cancellation_documents' => ['Documentele anulării rezolvate', 'return', 'violet'],
             'order.return_requested' => ['Cerere de retur înregistrată', 'return', 'violet'],
             'order.return_request_rejected' => ['Cerere de retur respinsă', 'return', 'rose'],
             'order.return_reversed' => ['Retur anulat · comandă restabilită', 'return', 'sage'],
