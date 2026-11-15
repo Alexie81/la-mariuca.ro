@@ -54,13 +54,36 @@
       disclosures.delete(details);
     };
   };
+  const shareResult=(form,result)=>{
+    form.querySelector('[name="public_token"]').value=result.public_token;
+    form.querySelector('[name="link_action"]').value='email';
+    form.querySelector('[name="request_key"]').value=result.next_request_key;
+    form.querySelector('[data-iv-public-link]').value=result.link;
+    form.querySelector('[data-iv-share-ready]').hidden=false;
+    const whatsapp=form.querySelector('[data-iv-whatsapp]');
+    if(result.whatsapp_url){whatsapp.href=result.whatsapp_url;whatsapp.removeAttribute('aria-disabled');}else{whatsapp.removeAttribute('href');whatsapp.setAttribute('aria-disabled','true');}
+    form.querySelector('[data-iv-share-phone-note]').hidden=!!result.whatsapp_url;
+    const status=form.querySelector('[data-iv-share-status]');status.textContent=result.message;status.classList.toggle('is-success',!!result.link_email_sent);
+    form.querySelector('[data-iv-share-submit] span').textContent=result.link_email_sent?'Trimite din nou pe email':'Trimite pe email';
+    form.querySelector('[data-iv-errors]').hidden=true;
+    baseline=signature(form);
+  };
+  const prepareShare=async form=>{
+    if(form.querySelector('[name="public_token"]').value)return;
+    const submit=form.querySelector('[data-iv-share-submit]');submit.disabled=true;busy=true;
+    form.querySelector('[data-iv-share-status]').textContent='Pregătim linkul privat…';
+    try{const body=new FormData(form);body.set('link_action','prepare');const response=await fetch(form.action,{method:'POST',body,credentials:'same-origin',headers:{Accept:'application/json'}});const result=await response.json();if(!response.ok||!result.ok)throw new Error(result.message||'Linkul nu a putut fi pregătit.');shareResult(form,result);}
+    catch(err){form.querySelector('[data-iv-share-status]').textContent='Linkul nu este încă pregătit. Poți încerca din nou.';error(form,err.message||'Reîncearcă pregătirea linkului.');}
+    finally{submit.disabled=false;busy=false;}
+  };
   const init=scope=>{
     scope.querySelectorAll('[data-iv-form]').forEach(form=>{initialValues.set(form,new Map(new FormData(form)));if(form.dataset.kind==='order-edit')form.querySelector('[name="notify_customer"]')?.closest('.iv-edit-notify').setAttribute('hidden','');});
     const balance=scope.querySelector('[data-iv-payment-amount]');
-    if(balance){const update=()=>{balance.hidden=scope.querySelector('[data-iv-payment-state]:checked')?.value!=='partial';};scope.querySelectorAll('[data-iv-payment-state]').forEach(radio=>radio.addEventListener('change',update));update();}
+    if(balance){const refund=scope.querySelector('[data-iv-refund-fields]'),amount=refund?.querySelector('[name="refund_amount"]');let partialAmount=amount?.value||'0.00',lastState='';const update=()=>{const state=scope.querySelector('[data-iv-payment-state]:checked')?.value;balance.hidden=state!=='partial';if(refund){const isRefund=['refunded','partially_refunded'].includes(state);refund.hidden=!isRefund;amount.required=isRefund;amount.readOnly=state==='refunded';if(state==='refunded'){if(lastState!=='refunded')partialAmount=amount.value;amount.value=refund.dataset.received;}else if(lastState==='refunded'){amount.value=partialAmount;}lastState=state;}};scope.querySelectorAll('[data-iv-payment-state]').forEach(radio=>radio.addEventListener('change',update));update();}
     scope.querySelectorAll('[data-iv-select]').forEach(toggle=>{const row=toggle.closest('.iv-select-line'),quantity=row.querySelector('[data-iv-quantity]');quantity.disabled=!toggle.checked;});
     const type=scope.querySelector('[data-iv-customer-type]'),fields=scope.querySelector('[data-iv-company-fields]');if(type && fields)fields.hidden=type.value!=='company';
     if(matchMedia('(max-width: 900px)').matches)scope.querySelectorAll('[data-iv-mobile-fold]').forEach(panel=>panel.open=false);
+    scope.querySelectorAll('[data-iv-share]').forEach(box=>prepareShare(box.closest('form')));
   };
   const picker=root.querySelector('[data-iv-picker]'), pickerQuery=picker?.querySelector('[data-iv-picker-query]');
   const pickerResults=picker?.querySelector('[data-iv-picker-results]'), pickerStatus=picker?.querySelector('[data-iv-picker-status]');
@@ -150,7 +173,8 @@
     const trigger=e.target.closest('[data-iv-modal]');if(trigger){e.preventDefault();open(trigger.href,trigger);return;}
     const closeButton=e.target.closest('[data-iv-close]');if(closeButton && dialog?.open){e.preventDefault();close();return;}
     const copyButton=e.target.closest('[data-iv-copy]');if(copyButton){copy(copyButton.dataset.ivCopy);return;}
-    if(e.target.closest('[data-iv-copy-link]')){copy(root.querySelector('[data-iv-public-link]').value);return;}
+    if(e.target.closest('[data-iv-copy-link]')){copy(e.target.closest('form').querySelector('[data-iv-public-link]').value);return;}
+    if(e.target.closest('[data-iv-whatsapp][aria-disabled="true"]')){e.preventDefault();return;}
     const clear=e.target.closest('[data-iv-clear]');if(clear){const input=clear.closest('.iv-search').querySelector('input');input.value='';clear.hidden=true;input.focus();return;}
     const image=e.target.closest('[data-iv-image]');if(image){const lightbox=root.querySelector('[data-iv-lightbox]');lightbox.querySelector('img').src=image.dataset.ivImage;lightbox.querySelector('img').alt=image.dataset.title;lightbox.querySelector('span').textContent=image.dataset.title;lightbox.showModal();return;}
     if(e.target.closest('[data-iv-lightbox-close]')){root.querySelector('[data-iv-lightbox]').close();return;}
@@ -175,7 +199,7 @@
     busy=true;const submit=form.querySelector('button[type="submit"],.iv-form-footer>button');if(submit)submit.disabled=true;startLoader();
     try{const response=await fetch(form.action,{method:'POST',body:new FormData(form),credentials:'same-origin',headers:{'Accept':'application/json'}});let result;try{result=await response.json();}catch{throw new Error('Sesiunea a expirat sau serverul nu răspunde. Datele tale sunt păstrate în formular.');}
       if(!response.ok||!result.ok)throw new Error(result.message||'Verifică datele introduse.');
-      baseline=signature(form);if(result.link!==undefined){const box=form.querySelector('[data-iv-link-result]');if(result.link){box.hidden=false;box.querySelector('input').value=result.link;}else if(box)box.hidden=true;toast(result.message);}
+      baseline=signature(form);if(result.link!==undefined){shareResult(form,result);}
       else{sessionStorage.setItem('iv-feedback',result.message);location.assign(result.redirect);}
     }catch(err){error(form,err.message);}finally{endLoader();busy=false;if(submit)submit.disabled=false;}
   });

@@ -14,8 +14,9 @@ final class InvoiceEmail
     {
         $invoice=InvoiceModule::service($this->repository->pdo(),$this->root)->load((int)($payload['invoice_id'] ?? 0));
         $snapshot=$invoice['snapshot']; $customer=$snapshot['customer'];
-        $notice=isset($payload['return_notice']);
-        if(mb_strtolower($recipient)!==mb_strtolower($customer['email']) || (!$notice && !hash_equals((string)($payload['document_hash'] ?? ''),InvoiceService::documentHash($invoice)))) { throw new InvoiceException('Factura a fost actualizată. Pregătește un email nou pentru varianta actuală.'); }
+        $notice=isset($payload['return_notice']);$linkOnly=($payload['delivery_kind'] ?? '')==='link';
+        if(mb_strtolower($recipient)!==mb_strtolower($customer['email']) || (!$notice && !$linkOnly && !hash_equals((string)($payload['document_hash'] ?? ''),InvoiceService::documentHash($invoice)))) { throw new InvoiceException('Factura a fost actualizată. Pregătește un email nou pentru varianta actuală.'); }
+        if($linkOnly) { $link=$this->repository->one('invoice_public_links',['invoice_id'=>$invoice['id'],'token_hash'=>hash('sha256',(string)($payload['public_token'] ?? '')),'revoked_at'=>null]);if(!$link) { throw new InvoiceException('Linkul facturii nu mai este disponibil.'); } }
         $base=$this->config->rootUrl(); $image=fn(string $name):string=>$base.'/assets/images/'.$name;
         $number=$invoice['series_code'].' '.$invoice['number']; $negative=in_array($invoice['kind'],['return','correction_negative'],true);
         $items=[]; $quantity=0;
@@ -43,6 +44,12 @@ final class InvoiceEmail
             'summary_icon'=>$image('email-order-receipt-v2.png'),'delivery_icon'=>$image('email-order-truck-v2.png'),'payment_icon'=>$image('email-order-'.($invoice['payment_method']==='stripe'?'card':'cash').'-v2.png'),
             'savings_icon'=>$image('email-savings-confetti.gif'),'anpc_logo_url'=>$image('anpc-sal.png'),'cab_logo_url'=>$image('cab-it-mark.png'),'care_badge_url'=>$image('email-customer-care.png'),'heart_icon_url'=>$image('icon-favorite-hearts.png'),'year'=>date('Y')];
         $twig=new Environment(new FilesystemLoader($this->root.'/resources/views'),['autoescape'=>'html']);
+        if($linkOnly) {
+            $data['personal_message']=(string)($payload['personal_message'] ?? '');$data['badge']='Factura ta';
+            return ['subject'=>$subject,'html'=>$twig->render('emails/invoice-link.twig',$data),
+                'text'=>'Bună, '.$customer['name']."!\n\n".($data['personal_message']!==''?$data['personal_message']."\n\n":'').'Accesează linkul pentru a vizualiza factura '.$number.': '.$data['tracking_url']."\n\nEchipa La Măriuca",
+                'attachment'=>null,'attachment_name'=>null];
+        }
         if($notice) {
             $state=(string)$payload['return_notice'];
             $title=match($state){'received'=>'Am primit solicitarea de retur','accepted'=>'Solicitarea de retur a fost acceptată','partial'=>'Solicitarea de retur a fost acceptată parțial','physically_received'=>'Produsele returnate au fost recepționate','refunded'=>'Restituirea banilor a fost înregistrată',default=>'Răspuns la solicitarea de retur'};

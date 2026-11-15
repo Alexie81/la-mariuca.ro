@@ -80,7 +80,13 @@ final class InvoiceController
             $returnToOrders=$kind==='issue' && ($request->getQueryParams()['return_to'] ?? '')==='orders';
             $returnToOrder=!$returnToOrders && ($orderId>0 || ($invoice && ($request->getQueryParams()['return_to'] ?? '')==='order'));
             $editOrder=(in_array($kind,['edit','correct'],true) && $invoice)||in_array($kind,['order-edit','order-payment','return-reconcile'],true)?(new \App\Modules\Orders\OrderService($this->repository->pdo()))->findForAdmin($invoice['order_id'] ?? $orderId):null;
-            if($kind==='order-payment' && $editOrder) { $editOrder['payment_version']=$this->repository->paymentVersion((int)$editOrder['id']); $editOrder['cash']=$this->repository->orderCash((int)$editOrder['id']); $documents=$this->repository->all('invoices',['order_id'=>$editOrder['id'],'deleted_at'=>null]); $editOrder['payment_total']=$documents!==[]?max(0,$this->repository->orderNet((int)$editOrder['id'])):(int)$editOrder['total_bani']; }
+            if($kind==='order-payment' && $editOrder) {
+                $editOrder['payment_version']=$this->repository->paymentVersion((int)$editOrder['id']);
+                $editOrder['cash']=$this->repository->orderCash((int)$editOrder['id']);
+                $editOrder['can_record_refund']=(new OrderRefundService($this->repository))->eligible($editOrder);
+                $documents=$this->repository->all('invoices',['order_id'=>$editOrder['id'],'deleted_at'=>null]);
+                $editOrder['payment_total']=$editOrder['can_record_refund']?(int)$editOrder['total_bani']:($documents!==[]?max(0,$this->repository->orderNet((int)$editOrder['id'])):(int)$editOrder['total_bani']);
+            }
             $actions=$editOrder?(new OrderDocumentPolicy($this->repository))->actions($editOrder):[];
             if($editOrder) {
                 $editOrder['edit_version']=$this->repository->editVersion((int)$editOrder['id']);
@@ -130,10 +136,7 @@ final class InvoiceController
             elseif($kind==='delete') { $this->service->delete($id,$input,$actor); $id=0; }
             elseif($kind==='email') { $this->service->queueEmail($id,(string)($input['request_key'] ?? ''),$actor); }
             elseif($kind==='link') {
-                $token=$this->service->publicLink($id,$actor,($input['revoke'] ?? '')==='1');
-                $link=$token!==''?$this->config->rootUrl().'/factura/'.$token.'/':'';
-                if($this->jsonWanted($request)) { return $this->json(['ok'=>true,'link'=>$link,'message'=>$link!==''?'Linkul este pregătit. Distribuie-l doar clientului.':'Linkurile anterioare au fost revocate.']); }
-                return $this->render('admin/pages/invoice-link.twig',['public_link'=>$link,'back_url'=>$this->url($id.'/')]);
+                return $this->shareLink($request,$id,$input,$actor);
             } elseif($kind==='dismiss') { $this->service->dismissReminders($actor); }
             elseif($kind==='policy') { $this->service->saveReturnPolicy($input,$actor); }
             elseif($kind==='order-edit') { $this->service->editOrder((int)($input['order_id'] ?? 0),$input,$actor); }
@@ -189,6 +192,24 @@ final class InvoiceController
     /** @return array<string,mixed> */
     private function actor(): array { return $this->auth->user() ?? throw new InvoiceException('Autentifică-te în administrare.',403); }
     private function url(string $suffix=''): string { return $this->config->path('admin/facturi/'.$suffix); }
+    /** @param array<string,mixed> $input @param array<string,mixed> $actor */
+    private function shareLink(ServerRequestInterface $request,int $id,array $input,array $actor): ResponseInterface
+    {
+        $email=($input['link_action'] ?? '')==='email';
+        $token=$email?(string)($input['public_token'] ?? ''):$this->service->publicLink($id,$actor,false,true);
+        if($email) { $this->service->queueLinkEmail($id,(string)($input['request_key'] ?? ''),$token,(string)($input['personal_message'] ?? ''),$actor); }
+        $invoice=$this->service->document($id,$actor);
+        $link=$this->config->rootUrl().'/factura/'.$token.'/?view=1';
+        $phone=preg_replace('/\D/','',(string)($invoice['customer']['phone'] ?? '')) ?? '';
+        if(str_starts_with($phone,'00')) { $phone=substr($phone,2); }
+        if(preg_match('/^0\d{9}$/D',$phone)) { $phone='40'.substr($phone,1); }
+        $whatsapp=preg_match('/^[1-9]\d{7,14}$/D',$phone)?'https://wa.me/'.$phone.'?text='.rawurlencode('Bună! Poți vizualiza factura '.$invoice['display_number'].' aici: '.$link):'';
+        $message=$email?'Emailul cu linkul facturii este în coada de trimitere.':'Linkul este pregătit pentru client.';
+        $key=bin2hex(random_bytes(24));
+        if($this->jsonWanted($request)) { return $this->json(['ok'=>true,'link'=>$link,'public_token'=>$token,'whatsapp_url'=>$whatsapp,'message'=>$message,'link_email_sent'=>$email,'next_request_key'=>$key]); }
+        return $this->render('admin/pages/invoice-form.twig',['action'=>'link','invoice'=>$invoice,'public_link'=>$link,'public_token'=>$token,'whatsapp_url'=>$whatsapp,'share_message'=>$message,
+            'personal_message'=>(string)($input['personal_message'] ?? ''),'request_key'=>$key,'form_action'=>$this->url($id.'/link/'),'back_url'=>$this->url($id.'/'),'is_modal'=>false]);
+    }
     /** @param array<string,mixed> $data */
     private function render(string $template,array $data,int $status=200): ResponseInterface
     {

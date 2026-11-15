@@ -109,9 +109,15 @@ final class InvoiceService
             if($order['payment_method']!=='cod') { throw new InvoiceException('Plata cu cardul este actualizată numai pe baza confirmării procesatorului.',409); }
             if(!hash_equals($this->repository->paymentVersion($orderId),(string)($input['order_version'] ?? ''))) { throw new InvoiceException('Comanda s-a modificat. Redeschide formularul.',409); }
             $cash=$this->repository->orderCash($orderId);
+            $refundService=new OrderRefundService($this->repository);
+            if(in_array($input['payment_status'] ?? '',['refunded','partially_refunded'],true)) {
+                $refundService->record($order,$input,$actor);
+                $this->repository->insert('order_document_operations',['request_key'=>$key,'order_id'=>$orderId,'action'=>'payment','payload_hash'=>$hash,'result_id'=>null,'created_at'=>$this->repository->now()]);
+                return;
+            }
             if($cash['refunded']>0 || in_array($order['payment_status'],['refunded','partially_refunded'],true)) { throw new InvoiceException('Există restituiri înregistrate. Folosește documentele de restituire pentru corectarea evidenței.',409); }
             $documents=$this->repository->all('invoices',['order_id'=>$orderId,'deleted_at'=>null]);
-            $total=$documents!==[]?max(0,$this->repository->orderNet($orderId)):(int)$order['total_bani'];
+            $total=$refundService->eligible($order)?(int)$order['total_bani']:($documents!==[]?max(0,$this->repository->orderNet($orderId)):(int)$order['total_bani']);
             $state=(string)($input['payment_status'] ?? '');
             if(!in_array($state,['pending','partial','paid'],true)) { throw new InvoiceException('Alege starea plății.'); }
             $amount=match($state){'pending'=>0,'paid'=>$total,default=>InvoiceCalculator::bani((string)($input['amount'] ?? '0'))};
@@ -310,6 +316,7 @@ final class InvoiceService
             $snapshot['order_status_before']=$order['status']; $snapshot['order_payment_before']=$order['payment_status'];
             $result=$this->create($kind,(int)$original['order_id'],$snapshot,$lines,$actor,$key,$id,null,$reason,null);
             (new OrderReturnWorkflow($this->repository))->linkCredit($result,(string)$order['status'],$reason,$actor,$returnId);
+            (new OrderRefundService($this->repository))->allocate((int)$original['order_id']);
             $this->touch($original,['row_version'=>(int)$original['row_version']+1]);
             if(!$productLeft && $kind==='return' && !$this->repository->hasUnreturnedProducts((int)$original['order_id'])) { $this->repository->update('orders',['status'=>'returned','updated_at'=>$this->repository->now()],['id'=>$original['order_id']]); }
             if($kind==='return' && ($input['notify_customer'] ?? '1')==='1') { $this->queueEmail((int)$result['id'],$key.':return-email',$actor); }
@@ -531,12 +538,12 @@ final class InvoiceService
         return '';
     }
     /** @param array<string,mixed> $actor @return string */
-    public function publicLink(int $id,array $actor,bool $revoke=false): string
+    public function publicLink(int $id,array $actor,bool $revoke=false,bool $preserveExisting=false): string
     {
         $this->allow($actor,'public_link');
-        return $this->repository->transaction(function()use($id,$actor,$revoke):string {
+        return $this->repository->transaction(function()use($id,$actor,$revoke,$preserveExisting):string {
             $this->load($id);
-            foreach($this->repository->all('invoice_public_links',['invoice_id'=>$id,'revoked_at'=>null]) as $link) { $this->repository->update('invoice_public_links',['revoked_at'=>$this->repository->now()],['id'=>$link['id']]); }
+            if($revoke || !$preserveExisting) { foreach($this->repository->all('invoice_public_links',['invoice_id'=>$id,'revoked_at'=>null]) as $link) { $this->repository->update('invoice_public_links',['revoked_at'=>$this->repository->now()],['id'=>$link['id']]); } }
             $token='';
             if(!$revoke) { $token=bin2hex(random_bytes(32)); $this->repository->insert('invoice_public_links',['invoice_id'=>$id,'token_hash'=>hash('sha256',$token),'created_at'=>$this->repository->now(),'revoked_at'=>null]); }
             $this->audit($id,$revoke?'public_link_revoked':'public_link_created',$actor,'',[],[]); return $token;
@@ -561,6 +568,24 @@ final class InvoiceService
             $this->repository->insert('invoice_public_links',['invoice_id'=>$id,'token_hash'=>hash('sha256',$token),'created_at'=>$this->repository->now(),'revoked_at'=>null]);
             $this->repository->insert('outbox_messages',['deduplication_key'=>$key,'message_type'=>'invoice','recipient'=>$email,'payload_json'=>InvoiceSnapshot::json(['invoice_id'=>$id,'order_id'=>$invoice['order_id'],'automatic'=>$automatic,'document_hash'=>self::documentHash($invoice),'public_token'=>$token]),'status'=>'pending','attempts'=>0,'available_at'=>$this->repository->now(),'created_at'=>$this->repository->now()]);
             $this->repository->update('invoices',['email_state'=>'queued'],['id'=>$id]); $this->audit($id,'email_queued',$actor,'',[],['recipient'=>$email]);
+        });
+    }
+    /** @param array<string,mixed> $actor */
+    public function queueLinkEmail(int $id,string $key,string $token,string $message,array $actor): void
+    {
+        $this->allow($actor,'email');
+        $this->repository->transaction(function()use($id,$key,$token,$message,$actor):void {
+            $this->key(['request_key'=>$key]);$message=trim($message);
+            if(mb_strlen($message)>2000) { throw new InvoiceException('Mesajul personalizat poate avea maximum 2.000 de caractere.'); }
+            $invoice=$this->publicDocument($token);
+            if((int)$invoice['id']!==$id) { throw new InvoiceException('Linkul nu aparține acestei facturi.',403); }
+            $email=$invoice['snapshot']['customer']['email'];if(!filter_var($email,FILTER_VALIDATE_EMAIL)) { throw new InvoiceException('Adresa clientului nu este validă.'); }
+            $payload=['invoice_id'=>$id,'order_id'=>$invoice['order_id'],'delivery_kind'=>'link','public_token'=>$token,'personal_message'=>$message];
+            $prior=$this->repository->one('outbox_messages',['deduplication_key'=>$key]);
+            if($prior) { if($prior['payload_json']!==InvoiceSnapshot::json($payload) || $prior['recipient']!==$email) { throw new InvoiceException('Confirmarea a fost folosită pentru alt email.',409); }return; }
+            $this->repository->insert('outbox_messages',['deduplication_key'=>$key,'message_type'=>'invoice','recipient'=>$email,'payload_json'=>InvoiceSnapshot::json($payload),'status'=>'pending','attempts'=>0,'available_at'=>$this->repository->now(),'created_at'=>$this->repository->now()]);
+            $this->repository->update('invoices',['email_state'=>'queued'],['id'=>$id]);
+            $this->audit($id,'email_queued',$actor,'',[],['recipient'=>$email,'delivery_kind'=>'link','has_personal_message'=>$message!=='']);
         });
     }
     /** @param array<string,mixed> $invoice */

@@ -6,7 +6,7 @@ use PDO;
 
 final class InvoiceRepository
 {
-    private const TABLES = ['invoices','invoice_lines','invoice_actions','invoice_audit','invoice_public_links','invoice_receipts','invoice_receipt_allocations','invoice_return_requests','invoice_reminder_dismissals','invoice_refunds','invoice_automation_intents','outbox_messages','orders','order_items','users','company_warehouses','inventory_reservations','inventory_movements','audit_log','invoice_return_policy','invoice_fiscal_jobs','payments','order_document_operations','order_return_documents','order_returns','order_return_items','order_return_requests'];
+    private const TABLES = ['invoices','invoice_lines','invoice_actions','invoice_audit','invoice_public_links','invoice_receipts','invoice_receipt_allocations','invoice_return_requests','invoice_reminder_dismissals','invoice_refunds','invoice_automation_intents','outbox_messages','orders','order_items','users','company_warehouses','inventory_reservations','inventory_movements','audit_log','invoice_return_policy','invoice_fiscal_jobs','payments','order_document_operations','order_return_documents','order_returns','order_return_items','order_return_requests','order_refunds'];
     public function __construct(private readonly PDO $pdo) {}
     public function pdo(): PDO { return $this->pdo; }
     public function now(): string { return gmdate('Y-m-d\TH:i:s\Z'); }
@@ -163,7 +163,12 @@ final class InvoiceRepository
         foreach($this->pdo->query("SELECT i.order_id,a.after_json FROM invoice_audit a JOIN invoices i ON i.id=a.invoice_id WHERE i.kind='corrected_positive' AND i.deleted_at IS NULL AND a.action='payment_recorded'")->fetchAll() as $row) { $received[$row['order_id']]=($received[$row['order_id']] ?? 0)+(int)(json_decode($row['after_json'],true)['amount_bani'] ?? 0); }
         // A recorded order balance remains authoritative even when the invoice is frozen.
         foreach($this->pdo->query("SELECT order_id,amount_bani FROM payments WHERE provider='manual_cod'")->fetchAll() as $row) { $received[$row['order_id']]=(int)$row['amount_bani']; }
-        foreach($this->pdo->query('SELECT i.order_id,SUM(r.amount_bani) AS amount FROM invoice_refunds r JOIN invoices i ON i.id=r.invoice_id GROUP BY i.order_id')->fetchAll() as $row) { $refunded[$row['order_id']]=(int)$row['amount']; }
+        foreach($this->pdo->query('SELECT i.order_id,SUM(r.amount_bani) AS amount FROM invoice_refunds r JOIN invoices i ON i.id=r.invoice_id WHERE r.order_refund_id IS NULL GROUP BY i.order_id')->fetchAll() as $row) { $refunded[$row['order_id']]=(int)$row['amount']; }
+        foreach($this->pdo->query('SELECT order_id,SUM(amount_bani) AS amount FROM order_refunds GROUP BY order_id')->fetchAll() as $row) { $refunded[$row['order_id']]=($refunded[$row['order_id']] ?? 0)+(int)$row['amount']; }
+        $legacy=[];
+        foreach($this->pdo->query('SELECT order_id,SUM(refunded_bani) AS amount FROM payments GROUP BY order_id')->fetchAll() as $row) { $legacy[$row['order_id']]=(int)$row['amount']; }
+        foreach($this->pdo->query('SELECT order_id,SUM(refund_bani) AS amount FROM order_returns WHERE voided_at IS NULL GROUP BY order_id')->fetchAll() as $row) { $legacy[$row['order_id']]=max($legacy[$row['order_id']] ?? 0,(int)$row['amount']); }
+        foreach($legacy as $orderId=>$amount) { $refunded[$orderId]=($refunded[$orderId] ?? 0)+$amount; }
         foreach($this->pdo->query('SELECT order_id,SUM(gross_bani) AS total FROM invoices WHERE deleted_at IS NULL GROUP BY order_id')->fetchAll() as $row) { $summary['outstanding']+=max(0,(int)$row['total']-($received[$row['order_id']] ?? 0)+($refunded[$row['order_id']] ?? 0)); }
         return $summary;
     }
@@ -187,11 +192,14 @@ final class InvoiceRepository
         $manual=$this->one('payments',['order_id'=>$orderId,'provider'=>'manual_cod']);
         if($manual) { $received=(int)$manual['amount_bani']; }
         elseif(!$root) {
-            $q=$this->pdo->prepare("SELECT COALESCE(SUM(amount_bani),0) FROM payments WHERE order_id=:id AND status IN ('paid','succeeded')"); $q->execute(['id'=>$orderId]); $received=(int)$q->fetchColumn();
+            $q=$this->pdo->prepare("SELECT COALESCE(SUM(amount_bani),0) FROM payments WHERE order_id=:id AND status IN ('paid','succeeded','refunded','partially_refunded')"); $q->execute(['id'=>$orderId]); $received=(int)$q->fetchColumn();
             if($received===0) { $order=$this->one('orders',['id'=>$orderId]); if(($order['payment_status'] ?? '')==='paid') { $received=(int)$order['total_bani']; } }
         }
-        $q=$this->pdo->prepare('SELECT COALESCE(SUM(r.amount_bani),0) FROM invoice_refunds r JOIN invoices i ON i.id=r.invoice_id WHERE i.order_id=:id'); $q->execute(['id'=>$orderId]);
-        return ['received'=>$received,'refunded'=>(int)$q->fetchColumn()];
+        $q=$this->pdo->prepare('SELECT COALESCE(SUM(r.amount_bani),0) FROM invoice_refunds r JOIN invoices i ON i.id=r.invoice_id WHERE i.order_id=:id AND r.order_refund_id IS NULL'); $q->execute(['id'=>$orderId]);$refunded=(int)$q->fetchColumn();
+        $q=$this->pdo->prepare('SELECT COALESCE(SUM(amount_bani),0) FROM order_refunds WHERE order_id=:id');$q->execute(['id'=>$orderId]);$refunded+=(int)$q->fetchColumn();
+        $q=$this->pdo->prepare('SELECT COALESCE(SUM(refunded_bani),0) FROM payments WHERE order_id=:id');$q->execute(['id'=>$orderId]);$legacy=(int)$q->fetchColumn();
+        $q=$this->pdo->prepare('SELECT COALESCE(SUM(refund_bani),0) FROM order_returns WHERE order_id=:id AND voided_at IS NULL');$q->execute(['id'=>$orderId]);$legacy=max($legacy,(int)$q->fetchColumn());
+        return ['received'=>$received,'refunded'=>$refunded+$legacy];
     }
     /** Optimistic token also distinguishes changes made within the same second. */
     public function editVersion(int $orderId): string
@@ -210,7 +218,7 @@ final class InvoiceRepository
         $q=$this->pdo->prepare('SELECT COUNT(*) FROM order_document_operations WHERE order_id=:id');
         $q->execute(['id'=>$orderId]);
         return hash('sha256',InvoiceSnapshot::json([
-            $order['updated_at'],$order['payment_status'],$order['total_bani'],$order['payment_method'],
+            $order['updated_at'],$order['status'],$order['payment_status'],$order['total_bani'],$order['payment_method'],
             $this->orderCash($orderId),$this->orderNet($orderId),(int)$q->fetchColumn(),
         ]));
     }

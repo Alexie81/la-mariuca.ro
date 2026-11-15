@@ -1,0 +1,13 @@
+{% import 'admin/partials/nir-ui.twig' as n %}{% set ready = public_link|default('') != '' %}
+<section class="iv-share" data-iv-share>
+  <input type="hidden" name="public_token" value="{{ public_token|default('') }}">
+  <input type="hidden" name="link_action" value="{{ ready ? 'email' : 'prepare' }}">
+  <div class="iv-share-recipient"><span class="iv-mark">{{ n.icon('document') }}</span><div><strong>{{ doc.display_number }}</strong><span>{{ doc.customer.name }}</span><small>{{ doc.customer.email }}</small></div><span class="iv-share-private">{{ n.icon('shield') }}Link privat</span></div>
+  <div class="iv-share-status" role="status" data-iv-share-status>{{ share_message|default(ready ? 'Linkul este pregătit pentru client.' : 'Pregătește linkul pentru a distribui factura.') }}</div>
+  <div class="iv-share-ready" data-iv-share-ready{% if not ready %} hidden{% endif %}>
+    <label>Linkul facturii<input readonly value="{{ public_link|default('') }}" data-iv-public-link aria-label="Linkul facturii"></label>
+    <div class="iv-share-actions"><button type="button" class="iv-btn" data-iv-copy-link>{{ n.icon('copy') }}Copiază linkul</button><a class="iv-btn iv-share-whatsapp" data-iv-whatsapp{% if whatsapp_url|default('') %} href="{{ whatsapp_url }}"{% else %} aria-disabled="true"{% endif %} target="_blank" rel="noopener noreferrer">{{ n.icon('message') }}WhatsApp</a></div>
+    <p class="iv-share-phone-note" data-iv-share-phone-note{% if whatsapp_url|default('') %} hidden{% endif %}>Adaugă un număr de telefon valid în datele clientului pentru a deschide conversația.</p>
+    <div class="iv-share-email"><div><strong>{{ n.icon('mail') }}Trimite pe email</strong><small>Către {{ doc.customer.email }}</small></div><label>Mesaj personalizat <span class="iv-share-optional">Opțional</span><textarea name="personal_message" rows="3" maxlength="2000" placeholder="Scrie un mesaj pentru client…">{{ personal_message|default('') }}</textarea></label><p>Clientul primește mesajul tău și un buton pentru vizualizarea facturii.</p></div>
+  </div>
+</section>

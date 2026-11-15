@@ -1,0 +1,15 @@
+{% extends 'emails/order-confirmation.twig' %}
+{% block introduction %}
+<h1 class="greeting" style="margin:24px 0 16px;color:#2d333d;font-size:32px;line-height:40px;font-weight:600;">Bună, {{ first_name }}!</h1>
+{% if personal_message %}<div style="margin:0 0 22px;padding:20px 22px;border:1px solid #eadfea;border-radius:18px;background:#fcf8fc;color:#514658;font-size:17px;line-height:28px;overflow-wrap:anywhere;">{{ personal_message|nl2br }}</div>{% endif %}
+<p style="margin:0;color:#697583;font-size:17px;line-height:28px;">Accesează linkul de mai jos pentru a vizualiza factura.</p>
+<table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:24px;"><tr><td>
+<!--[if mso]><v:roundrect href="{{ tracking_url }}" style="height:56px;v-text-anchor:middle;width:244px;" arcsize="50%" stroke="f" fillcolor="#75506e"><w:anchorlock xmlns:w="urn:schemas-microsoft-com:office:word"/><center style="color:#ffffff;font-family:Arial,sans-serif;font-size:17px;font-weight:bold;">Vizualizează factura</center></v:roundrect><![endif]-->
+<!--[if !mso]><!--><a href="{{ tracking_url }}" target="_blank" rel="noopener noreferrer" style="display:inline-block;padding:17px 25px;background:#75506e;border-radius:28px;color:#ffffff;font-size:17px;line-height:22px;font-weight:bold;text-decoration:none;">Vizualizează factura</a><!--<![endif]-->
+</td></tr></table>
+<p style="margin:16px 0 0;color:#7c8792;font-size:14px;line-height:23px;">Factura se deschide direct, fără autentificare.</p>
+{% endblock %}
+{% block order_contents %}{% endblock %}
+{% block delivery_and_payment %}{% endblock %}
+{% block email_origin %}Mesaj pentru factura{% endblock %}
+{% block private_link_notice %}Acest link este privat și oferă acces la factura ta.{% endblock %}

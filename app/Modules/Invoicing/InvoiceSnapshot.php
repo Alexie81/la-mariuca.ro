@@ -15,7 +15,7 @@ final class InvoiceSnapshot
         $order=(new OrderService($this->pdo))->findForAdmin($orderId) ?? throw new InvoiceException('Comanda nu există.',404);
         if(in_array($order['status'],['cancelled','manual_review'],true) || ($order['status']==='returned' && !$returnPair)) { throw new InvoiceException('Comanda nu este eligibilă pentru emiterea unei facturi.'); }
         if($order['payment_method']==='stripe' && $order['payment_status']!=='paid') { throw new InvoiceException('Factura cu card se emite numai după plata confirmată de procesator.'); }
-        if(in_array($order['payment_status'],['refunded','partially_refunded'],true)) { throw new InvoiceException('Verifică rambursarea comenzii înainte de facturare.'); }
+        if(in_array($order['payment_status'],['refunded','partially_refunded'],true) && !$returnPair) { throw new InvoiceException('Verifică rambursarea comenzii înainte de facturare.'); }
         if($order['currency']!=='RON') { throw new InvoiceException('Această comandă necesită un curs valutar înainte de facturare.'); }
         $company=(new CompanyRepository($this->pdo))->allCompanies()[0] ?? throw new InvoiceException('Completează datele firmei înainte de emitere.');
         foreach(['legal_name','tax_id','registered_address','city','country'] as $field) {

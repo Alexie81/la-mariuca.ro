@@ -74,7 +74,7 @@ final class OrderReturnWorkflow
         $links=new ReturnStockLinks($this->repository->pdo());
         if($links->invoicesForReturn((int)$return['id'])!==[]) { return 'Returul are încă o factură activă. Gestionează mai întâi documentul fiscal.'; }
         if((new NirRepository($this->repository->pdo()))->one('nir_documents',['return_id'=>$return['id']]) || $links->hasInvoiceReceipt((int)$return['id'])) { return 'Produsele au o recepție înregistrată. Verifică documentul de stoc înainte de revenire.'; }
-        if((int)$return['refund_bani']>0 || array_sum(array_column($this->repository->all('order_return_items',['return_id'=>$return['id']]),'restocked_quantity'))>0) { return 'Returul are stoc sau bani restituiți. Necesită verificarea operațiunilor existente.'; }
+        if($this->repository->orderCash((int)$return['order_id'])['refunded']>0 || (int)$return['refund_bani']>0 || array_sum(array_column($this->repository->all('order_return_items',['return_id'=>$return['id']]),'restocked_quantity'))>0) { return 'Returul are stoc sau bani restituiți. Necesită verificarea operațiunilor existente.'; }
         return '';
     }
 }

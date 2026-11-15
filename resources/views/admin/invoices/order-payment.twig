@@ -1,14 +1,26 @@
 {% import 'admin/partials/nir-ui.twig' as n %}
 <input type="hidden" name="order_id" value="{{ edit_order.id }}"><input type="hidden" name="order_version" value="{{ edit_order.payment_version }}">
-<section class="iv-payment-total"><span>{{ n.icon('money') }}Total de plată</span><strong>{{ money(edit_order.payment_total) }}</strong><small>Înregistrat până acum: {{ money(edit_order.cash.received) }}</small></section>
+<section class="iv-payment-total"><span>{{ n.icon('money') }}{{ edit_order.can_record_refund ? 'Valoarea comenzii' : 'Total de plată' }}</span><strong>{{ money(edit_order.payment_total) }}</strong><small>Încasat: {{ money(edit_order.cash.received) }}{% if edit_order.can_record_refund %} · Restituit: {{ money(edit_order.cash.refunded) }}{% endif %}</small></section>
 {% if edit_order.payment_method == 'cod' %}
 <section class="iv-form-step"><header><div><h3>Starea încasării</h3><p>Alege situația reală a încasării ramburs.</p></div></header>
 <div class="iv-payment-options">
 {% for option in [{value:'pending',label:'Neplătită',help:'Nu s-a încasat nicio sumă.',icon:'clock'},{value:'partial',label:'Plătită parțial',help:'Ai primit o parte din total.',icon:'money'},{value:'paid',label:'Achitată integral',help:'Toată suma a fost încasată.',icon:'check'}] %}
-<label class="iv-payment-option"><input type="radio" name="payment_status" value="{{ option.value }}" required{{ edit_order.payment_status == option.value ? ' checked' : '' }} data-iv-payment-state><span class="iv-payment-option__icon">{{ n.icon(option.icon) }}</span><span><strong>{{ option.label }}</strong><small>{{ option.help }}</small></span><i aria-hidden="true"></i></label>
+<label class="iv-payment-option"><input type="radio" name="payment_status" value="{{ option.value }}" required{{ edit_order.payment_status == option.value ? ' checked' : '' }}{{ edit_order.cash.refunded > 0 ? ' disabled' : '' }} data-iv-payment-state><span class="iv-payment-option__icon">{{ n.icon(option.icon) }}</span><span><strong>{{ option.label }}</strong><small>{{ option.help }}</small></span><i aria-hidden="true"></i></label>
 {% endfor %}
 </div>
 <label class="iv-payment-partial" data-iv-payment-amount>Total primit până acum, Lei<input name="amount" inputmode="decimal" value="{{ (edit_order.cash.received/100)|number_format(2,'.','') }}"><small>Se folosește numai când alegi „Plătită parțial”.</small></label>
 </section>
+{% if edit_order.can_record_refund %}
+<section class="iv-form-step"><header><div><h3>Rambursarea clientului</h3><p>Înregistrează banii pe care i-ai restituit efectiv.</p></div></header>
+<div class="iv-payment-options iv-payment-options--refund">
+{% for option in [{value:'partially_refunded',label:'Rambursată parțial',help:'Ai restituit o parte din suma încasată.',icon:'return'},{value:'refunded',label:'Rambursată',help:'Ai restituit întreaga sumă încasată.',icon:'check'}] %}
+<label class="iv-payment-option"><input type="radio" name="payment_status" value="{{ option.value }}" required{{ edit_order.payment_status == option.value ? ' checked' : '' }}{{ edit_order.cash.received <= 0 ? ' disabled' : '' }} data-iv-payment-state><span class="iv-payment-option__icon">{{ n.icon(option.icon) }}</span><span><strong>{{ option.label }}</strong><small>{{ option.help }}</small></span><i aria-hidden="true"></i></label>
+{% endfor %}</div>
+{% if edit_order.cash.received <= 0 %}<p class="iv-soft-note">Nu există o sumă încasată care să poată fi rambursată.</p>{% endif %}
+<div class="iv-payment-partial" data-iv-refund-fields data-received="{{ (edit_order.cash.received/100)|number_format(2,'.','') }}">
+<label>Total restituit până acum, Lei<input name="refund_amount" inputmode="decimal" value="{{ (edit_order.cash.refunded/100)|number_format(2,'.','') }}"><small>Include și restituirile anterioare. Maximum {{ money(edit_order.cash.received) }}; deja înregistrat {{ money(edit_order.cash.refunded) }}.</small></label>
+<label class="iv-choice"><input type="checkbox" name="notify_customer" value="1" checked>Anunță clientul prin email despre rambursarea înregistrată</label>
+</div></section>
+{% endif %}
 <div class="iv-soft-note">{{ n.icon('shield') }}Salvarea actualizează evidența plății și factura încă netransmisă. Nu încasează și nu transferă bani.</div>
 {% else %}<div class="iv-notice iv-notice--inline">{{ n.icon('shield') }}<p>Starea plății cu cardul vine din Stripe. O plată reușită este marcată automat după confirmarea procesatorului.</p></div>{% endif %}

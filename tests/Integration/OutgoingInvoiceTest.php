@@ -804,6 +804,127 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         } finally { $_ENV=$saved; }
     }
 
+    public function testOrderRefundStatusesWithoutInvoicePreserveCapturedMoneyAndRetries(): void
+    {
+        $repo=new InvoiceRepository($this->pdo);
+        foreach(['cancelled','returned','partial_return'] as $status) {
+            $order=$this->order($status==='partial_return'?2:1);
+            $this->service->setOrderPayment($order,['request_key'=>'refund-paid-'.$status,'order_version'=>$repo->paymentVersion($order),'payment_status'=>'paid'],$this->actor);
+            if($status==='partial_return') { $repo->update('orders',['status'=>'delivered'],['id'=>$order]);$item=$repo->all('order_items',['order_id'=>$order])[0];$this->service->returnOrder($order,['request_key'=>'refund-partial-return','quantities'=>[$item['id']=>1],'reason'=>'Retur confirmat','issue_invoice'=>'0'],$this->actor); } else { $repo->update('orders',['status'=>$status],['id'=>$order]); }$received=$repo->orderCash($order)['received'];
+            $input=['request_key'=>'refund-partial-'.$status,'order_version'=>$repo->paymentVersion($order),'payment_status'=>'partially_refunded','refund_amount'=>'10.25','notify_customer'=>'1'];
+            $this->service->setOrderPayment($order,$input,$this->actor);$this->service->setOrderPayment($order,$input,$this->actor);
+            self::assertSame(['received'=>$received,'refunded'=>1025],$repo->orderCash($order));
+            self::assertSame('partially_refunded',$repo->one('orders',['id'=>$order])['payment_status']);
+            self::assertCount(1,$repo->all('order_refunds',['order_id'=>$order]));
+            $full=['request_key'=>'refund-full-'.$status,'order_version'=>$repo->paymentVersion($order),'payment_status'=>'refunded','notify_customer'=>'1'];
+            $this->service->setOrderPayment($order,$full,$this->actor);$this->service->setOrderPayment($order,$full,$this->actor);
+            self::assertSame(['received'=>$received,'refunded'=>$received],$repo->orderCash($order));
+            self::assertSame('refunded',$repo->one('orders',['id'=>$order])['payment_status']);self::assertSame($status==='partial_return'?'delivered':$status,$repo->one('orders',['id'=>$order])['status']);
+            self::assertCount(2,$repo->all('order_refunds',['order_id'=>$order]));
+        }
+        self::assertCount(0,$repo->all('invoices'));self::assertSame(0,$this->balance());self::assertCount(6,$repo->all('outbox_messages',['message_type'=>'order_status_update']));
+    }
+
+    public function testOrderRefundsAllocateAcrossExistingAndLaterCreditsWithoutDoubleCounting(): void
+    {
+        $repo=new InvoiceRepository($this->pdo);$order=$this->order(2);
+        $this->service->setOrderPayment($order,['request_key'=>'allocate-refund-paid','order_version'=>$repo->paymentVersion($order),'payment_status'=>'paid'],$this->actor);
+        $invoice=$this->service->issue($order,['request_key'=>'allocate-refund-sale'],$this->actor);$repo->update('orders',['status'=>'delivered'],['id'=>$order]);
+        $line=$invoice['lines'][0];$credit=$this->service->credit($invoice['id'],['request_key'=>'allocate-refund-credit','version'=>$invoice['row_version'],'reason'=>'Retur client','quantities'=>[$line['id']=>1]],$this->actor);
+        $total=abs((int)$credit['gross_bani'])+1000;
+        $this->service->setOrderPayment($order,['request_key'=>'allocate-refund-first','order_version'=>$repo->paymentVersion($order),'payment_status'=>'partially_refunded','refund_amount'=>(string)($total/100)],$this->actor);
+        self::assertSame($total,$repo->orderCash($order)['refunded']);
+        self::assertSame(abs((int)$credit['gross_bani']),$this->service->document($credit['id'],$this->actor)['refunded_bani']);
+        $original=$this->service->load($invoice['id']);
+        $second=$this->service->credit($invoice['id'],['request_key'=>'allocate-refund-credit-two','version'=>$original['row_version'],'reason'=>'Retur suplimentar','quantities'=>[$line['id']=>1]],$this->actor);
+        self::assertSame(1000,$second['refunded_bani']);self::assertSame($total,$repo->orderCash($order)['refunded']);
+        $this->service->payment($second['id'],['request_key'=>'allocate-refund-document','version'=>$second['row_version'],'reason'=>'Restituire verificată','amount'=>'5'],$this->actor);
+        self::assertSame($total+500,$repo->orderCash($order)['refunded']);
+        self::assertSame(0,$repo->summary()['outstanding']);
+    }
+
+    public function testOrderRefundValidationAndStaleAmountsPreventOverRefunding(): void
+    {
+        $repo=new InvoiceRepository($this->pdo);$order=$this->order(1);
+        $this->service->setOrderPayment($order,['request_key'=>'refund-guard-paid','order_version'=>$repo->paymentVersion($order),'payment_status'=>'partial','amount'=>'50'],$this->actor);
+        $reject=function(array $input)use($order):void {try{$this->service->setOrderPayment($order,$input,$this->actor);self::fail('Invalid refund accepted');}catch(InvoiceException){}};
+        $base=['request_key'=>'refund-guard-validation','order_version'=>$repo->paymentVersion($order),'payment_status'=>'partially_refunded','refund_amount'=>'10'];
+        $reject($base);self::assertCount(0,$repo->all('order_refunds'));
+        $repo->update('orders',['status'=>'cancelled'],['id'=>$order]);$base['order_version']=$repo->paymentVersion($order);
+        foreach(['0','-1','50','51','invalid'] as $amount) { $reject(array_replace($base,['refund_amount'=>$amount])); }
+        self::assertSame(['received'=>5000,'refunded'=>0],$repo->orderCash($order));
+        $this->service->setOrderPayment($order,$base,$this->actor);
+        $reject(array_replace($base,['request_key'=>'refund-guard-stale','refund_amount'=>'20']));
+        $reject(array_replace($base,['request_key'=>'refund-guard-lower','order_version'=>$repo->paymentVersion($order),'refund_amount'=>'5']));
+        self::assertCount(1,$repo->all('order_refunds'));self::assertSame(1000,$repo->orderCash($order)['refunded']);
+    }
+
+    public function testPrivateLinkEmailPreservesLinksAndSupportsIdempotentResending(): void
+    {
+        $repo=new InvoiceRepository($this->pdo);$invoice=$this->service->issue($this->order(1),['request_key'=>'share-invoice'],$this->actor);
+        $first=$this->service->publicLink($invoice['id'],$this->actor);
+        $token=$this->service->publicLink($invoice['id'],$this->actor,false,true);
+        self::assertSame($invoice['id'],$this->service->publicDocument($first)['id']);
+        $message="Mulțumim!\n<script>alert(1)</script>";
+        $this->service->queueLinkEmail($invoice['id'],'share-email-first',$token,$message,$this->actor);
+        $this->service->queueLinkEmail($invoice['id'],'share-email-first',$token,$message,$this->actor);
+        $this->service->queueLinkEmail($invoice['id'],'share-email-second',$token,'',$this->actor);
+        $rows=$repo->all('outbox_messages',['message_type'=>'invoice']);self::assertCount(2,$rows);self::assertCount(2,$repo->all('invoice_public_links'));
+        $renderer=new \App\Modules\Invoicing\InvoiceEmail($repo,Config::load($this->root),$this->root);
+        $mail=$renderer->render(json_decode($rows[0]['payload_json'],true),$rows[0]['recipient']);
+        self::assertNull($mail['attachment']);self::assertNull($mail['attachment_name']);
+        self::assertStringContainsString('/factura/'.$token.'/?view=1',$mail['html']);
+        self::assertStringContainsString('Vizualizează factura',$mail['html']);self::assertStringContainsString('&lt;script&gt;alert(1)&lt;/script&gt;',$mail['html']);
+        self::assertStringNotContainsString('<script>',$mail['html']);self::assertStringNotContainsString($invoice['lines'][0]['sku'],$mail['html']);
+        foreach(['logo-la-mariuca','CAB IT','ANPC','Confidențialitate'] as $part) { self::assertStringContainsString($part,$mail['html']); }
+        self::assertStringContainsString($message,$mail['text']);
+        $plain=$renderer->render(json_decode($rows[1]['payload_json'],true),$rows[1]['recipient']);self::assertStringNotContainsString('Mulțumim!',$plain['html']);
+        try { $this->service->queueLinkEmail($invoice['id'],'share-email-first',$token,'Alt mesaj',$this->actor);self::fail('Reused confirmation accepted'); } catch(InvoiceException $e) { self::assertSame(409,$e->getCode()); }
+        try { $this->service->queueLinkEmail($invoice['id'],'share-too-long',$token,str_repeat('a',2001),$this->actor);self::fail('Oversized message accepted'); } catch(InvoiceException) {}
+        $other=$this->service->issue($this->order(1),['request_key'=>'share-other-invoice'],$this->actor);
+        try { $this->service->queueLinkEmail($other['id'],'share-wrong-invoice',$token,'',$this->actor);self::fail('Foreign invoice link accepted'); } catch(InvoiceException $e) { self::assertSame(403,$e->getCode()); }
+        $saved=$_ENV;
+        try {
+            $_ENV['APP_ENV']='development';$_ENV['MAIL_DELIVERY_MODE']='smtp';$_ENV['MAIL_SEND_AFTER_ID']='0';$_ENV['MAIL_MESSAGE_TYPES']='invoice';$_ENV['MAILER_DSN']='smtp://127.0.0.1:2525';$_ENV['MAIL_FROM_ADDRESS']='shop@example.test';
+            $this->pdo->exec("UPDATE outbox_messages SET available_at='2020-01-01'");
+            $processor=new \App\Shared\Mail\OutboxProcessor($this->pdo,Config::load($this->root),$this->root,new \Symfony\Component\Mailer\Transport\NullTransport());
+            self::assertSame(['processed'=>2,'sent'=>2,'previewed'=>0,'failed'=>0],$processor->process());self::assertSame(0,$processor->process()['processed']);
+        } finally { $_ENV=$saved; }
+        $this->service->publicLink($invoice['id'],$this->actor,true);
+        $this->expectException(InvoiceException::class);$renderer->render(json_decode($rows[0]['payload_json'],true),$rows[0]['recipient']);
+    }
+
+    public function testRefundBeforeReturnInvoiceKeepsCashWhenFiscalPairIsCreated(): void
+    {
+        $repo=new InvoiceRepository($this->pdo);$order=$this->order(1);
+        $this->service->setOrderPayment($order,['request_key'=>'refund-before-invoice-paid','order_version'=>$repo->paymentVersion($order),'payment_status'=>'paid'],$this->actor);
+        $received=$repo->orderCash($order)['received'];$repo->update('orders',['status'=>'delivered'],['id'=>$order]);$item=$repo->all('order_items',['order_id'=>$order])[0];
+        $this->service->returnOrder($order,['request_key'=>'refund-before-invoice-return','quantities'=>[$item['id']=>1],'reason'=>'Retur confirmat','issue_invoice'=>'0'],$this->actor);
+        $this->service->setOrderPayment($order,['request_key'=>'refund-before-invoice-full','order_version'=>$repo->paymentVersion($order),'payment_status'=>'refunded'],$this->actor);
+        $return=$repo->all('order_returns',['order_id'=>$order])[0];
+        $this->service->reconcileReturn($order,$return['id'],['request_key'=>'refund-before-invoice-reconcile','order_version'=>$repo->editVersion($order),'decision'=>'invoice'],$this->actor);
+        self::assertSame(['received'=>$received,'refunded'=>$received],$repo->orderCash($order));self::assertCount(2,$repo->all('invoices',['order_id'=>$order]));
+        self::assertSame('refunded',$repo->one('orders',['id'=>$order])['payment_status']);self::assertCount(1,$repo->all('order_refunds',['order_id'=>$order]));self::assertCount(1,$repo->all('invoice_refunds'));
+    }
+
+    public function testPrivateLinkModalHttpCsrfAndNonJavascriptFlow(): void
+    {
+        $repo=new InvoiceRepository($this->pdo);$invoice=$this->service->issue($this->order(1),['request_key'=>'share-http-invoice'],$this->actor);
+        $path='/admin/facturi/'.$invoice['id'].'/link/';$factory=new \Slim\Psr7\Factory\ServerRequestFactory();
+        $send=function(string $method,array $input=[],bool $json=false)use($factory,$path) { $app=\App\AppFactory::create($this->root);$request=$factory->createServerRequest($method,'http://localhost'.$path,['REMOTE_ADDR'=>'127.0.0.81'])->withParsedBody($input)->withHeader('Accept',$json?'application/json':'text/html');$response=$app->handle($request);unset($app);gc_collect_cycles();return $response; };
+        self::assertContains($send('GET')->getStatusCode(),[302,303,401,403]);$_SESSION['user_id']=$this->actor['id'];
+        $form=$send('GET');self::assertSame(200,$form->getStatusCode());self::assertCount(0,$repo->all('invoice_public_links'));
+        self::assertStringNotContainsString('name="revoke"',(string)$form->getBody());self::assertSame(419,$send('POST',['link_action'=>'prepare'],true)->getStatusCode());
+        $input=['_csrf'=>$_SESSION['_csrf'],'link_action'=>'prepare'];
+        $response=$send('POST',$input,true);self::assertSame(200,$response->getStatusCode(),(string)$response->getBody());$data=json_decode((string)$response->getBody(),true);
+        self::assertStringStartsWith('https://wa.me/40700000000?text=',$data['whatsapp_url']);self::assertStringContainsString(rawurlencode($data['link']),$data['whatsapp_url']);
+        self::assertStringEndsWith('/?view=1',$data['link']);self::assertFalse($data['link_email_sent']);
+        $plain=$send('POST',$input);self::assertSame(200,$plain->getStatusCode());self::assertStringContainsString('Copiază linkul',(string)$plain->getBody());self::assertStringContainsString('name="link_action" value="email"',(string)$plain->getBody());
+        $email=$send('POST',['_csrf'=>$_SESSION['_csrf'],'link_action'=>'email','public_token'=>$data['public_token'],'request_key'=>$data['next_request_key'],'personal_message'=>'Cu drag!'],true);
+        $sent=json_decode((string)$email->getBody(),true);self::assertSame(200,$email->getStatusCode(),(string)$email->getBody());self::assertTrue($sent['link_email_sent']);self::assertNotSame($data['next_request_key'],$sent['next_request_key']);
+        self::assertCount(1,$repo->all('outbox_messages',['message_type'=>'invoice']));self::assertCount(2,$repo->all('invoice_public_links'));
+    }
+
     private function order(int $quantity): int
     {
         $_SESSION['cart_token']=bin2hex(random_bytes(32)); $cart=new CartService($this->pdo); $cart->add($this->variant['id'],$quantity);
