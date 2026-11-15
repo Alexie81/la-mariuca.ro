@@ -344,6 +344,32 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         $this->pdo->exec("UPDATE companies SET tax_id='12345678'"); \App\Modules\Invoicing\InvoiceModule::process($this->pdo,$this->root);
         self::assertSame(2,(int)$this->pdo->query('SELECT COUNT(*) FROM invoices')->fetchColumn());
     }
+    public function testAutomationSeparatesIssuanceAndEmailForCardAndCod(): void
+    {
+        $automation=new \App\Modules\Invoicing\InvoiceAutomationService(new \App\Modules\Invoicing\InvoiceAutomationRepository($this->pdo));
+        $repo=new InvoiceRepository($this->pdo);
+        foreach([['cod',false],['cod',true],['card',false],['card',true]] as [$method,$email]) {
+            $automation->save(['revision'=>$automation->settings()['revision']],$this->actor['id']);
+            $id=$this->order(1);
+            if($method==='card') { $repo->update('orders',['payment_method'=>'stripe','payment_status'=>'paid','status'=>'confirmed'],['id'=>$id]); }
+            $automation->save(['revision'=>$automation->settings()['revision'],$method.'_issue'=>1,$method.'_email'=>(int)$email],$this->actor['id']);
+            $automation->prepareForOrder($id);
+            $processed=\App\Modules\Invoicing\InvoiceModule::process($this->pdo,$this->root);
+            self::assertSame(['issued'=>1,'failed'=>0,'emails'=>(int)$email],$processed);
+            self::assertSame(['issued'=>0,'failed'=>0,'emails'=>0],\App\Modules\Invoicing\InvoiceModule::process($this->pdo,$this->root));
+            $documents=$repo->currentOrderInvoices($id);self::assertCount(1,$documents);
+            $invoice=$this->service->load((int)$documents[0]['id']);
+            self::assertSame($email?'queued':'not_sent',$invoice['email_state']);
+            $messages=array_values(array_filter($repo->all('outbox_messages',['message_type'=>'invoice']),static fn(array $row):bool=>(int)json_decode($row['payload_json'],true)['invoice_id']===(int)$invoice['id']));
+            self::assertCount((int)$email,$messages);
+            if($email) {
+                $rendered=(new \App\Modules\Invoicing\InvoiceEmail($repo,Config::load($this->root),$this->root))->render(json_decode($messages[0]['payload_json'],true),$invoice['snapshot']['customer']['email']);
+                self::assertStringContainsString('/factura/',$rendered['html']);
+                self::assertSame('%PDF',substr((string)file_get_contents($rendered['attachment']),0,4));
+            }
+        }
+    }
+
     public function testManualEmailIsNotQueuedAgainByPendingAutomation(): void
     {
         $order=$this->order(1);

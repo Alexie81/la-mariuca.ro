@@ -1,5 +1,11 @@
 # Progres
 
+### 2026-11-15 — Verificarea celor patru automatizări de facturare
+- Verificate separat emiterea și emailul pentru card/ramburs: test nou cu toate cele patru combinații emitere cu/fără email, procesare repetată fără duplicare, link privat și PDF atașat. Verificate și setările/autosalvarea/CSRF, confirmarea Stripe, transportul injectat, retry-urile și nedublarea emailului deja pregătit manual.
+- **33 teste / 436 aserțiuni**, toate trecute. Nicio trimitere reală nouă sau plată Stripe în această verificare; emailurile testelor folosesc transporturi izolate.
+- Verificare read-only a configurației locale: `card_issue=false`, `card_email=false`, `cod_issue=false`, `cod_email=false`; toate cele patru opțiuni sunt oprite. Nicio intenție de automatizare în așteptare; un email de factură istoric în starea `sent`. Procesorul SMTP are heartbeat actual și verificarea de sănătate pentru tipul `invoice` nu raportează blocaje. Stripe este activ în **modul test**.
+- Regula obligatorie a facturii de retur pentru card confirmat este separată de aceste comutatoare pentru factura inițială: anularea/returul acceptat emite documentele chiar dacă automatizarea facturii inițiale este oprită. Activarea opțiunilor nu a fost cerută și configurația a rămas neschimbată. Fără deploy sau verificare Stripe live.
+
 ### 2026-11-15 — Anularea și documentele, cu reguli distincte pentru card
 - Ramburs: anularea nu mai șterge și nu mai emite automat documente. Modalul oferă ștergerea facturii numai dacă este ultima eligibilă din seria ei, emiterea facturii de retur sau rezolvarea ulterioară. Anularea directă a clientului păstrează factura. Avertismentul deasupra documentelor indică sursa anulării și acțiunile permise.
 - Conform clarificării ulterioare, **card confirmat Stripe**: nicio factură asociată nu se șterge, inclusiv factura de retur, după anulare/retur sau rambursare parțială/integrală. Anularea admin/client emite automat factura de retur; dacă lipsește factura inițială, perechea se creează în aceeași tranzacție. Înregistrarea/acceptarea returului emite obligatoriu documentul, indiferent de câmpul trimis din formular; cererea în analiză nu emite documente.
