@@ -18,9 +18,17 @@ final class InvoiceController
     public function index(ServerRequestInterface $request): ResponseInterface
     {
         try {
-            $filters=$request->getQueryParams(); $data=$this->service->registry($filters,$this->actor());
+            $filters=$request->getQueryParams(); if(!empty($filters['fiscal_state'])) { unset($filters['spv_group']); } $data=$this->service->registry($filters,$this->actor());
             $data['previous_url']=$data['page']>1?$this->url('?'.http_build_query(array_replace($filters,['page'=>$data['page']-1]))):null;
             $data['next_url']=$data['page']<$data['pages']?$this->url('?'.http_build_query(array_replace($filters,['page'=>$data['page']+1]))):null;
+            $data['quick_filters']=[];
+            foreach(['all'=>['Toate',[]],'sale'=>['Facturi',['kind'=>'sale']],'return'=>['Retururi',['kind'=>'return']],'spv'=>['SPV netrimise',['spv_group'=>'not_sent']],'nir'=>['NIR lipsă',['receipt'=>'pending']]] as $key=>[$label,$selection]) {
+                $base=array_diff_key($filters,array_flip(['page','kind','spv_group','fiscal_state','receipt']));
+                $active=$selection!==[];
+                foreach($selection as $field=>$value) { $active=$active && ($filters[$field] ?? '')===$value; }
+                if($key==='all') { $active=empty($filters['kind']) && empty($filters['spv_group']) && empty($filters['fiscal_state']) && empty($filters['receipt']); }
+                $data['quick_filters'][]=['label'=>$label,'url'=>$this->url('?'.http_build_query($base+$selection)),'active'=>$active];
+            }
             return $this->render('admin/pages/invoices.twig',$data+['filters'=>$filters,'export_query'=>http_build_query($filters)]);
         } catch(\Throwable $e) { return $this->failure($request,$e); }
     }
@@ -253,7 +261,7 @@ final class InvoiceController
     /** @param array<string,mixed> $data */
     private function render(string $template,array $data,int $status=200): ResponseInterface
     {
-        return $this->view->render($template,$data+['admin_section'=>'invoices','admin_context'=>'Facturi de ieșire','can_manage'=>in_array($this->actor()['role'],['administrator','manager'],true),'admin_unread_count'=>$this->notifications->unreadCount((int)$this->actor()['id'])],$status)->withHeader('Cache-Control','no-store');
+        return $this->view->render($template,$data+['admin_section'=>'invoices','admin_context'=>'Facturi de ieșire','can_manage'=>in_array($this->actor()['role'],['administrator','manager'],true),'can_manage_spv'=>$this->actor()['role']==='administrator','admin_unread_count'=>$this->notifications->unreadCount((int)$this->actor()['id'])],$status)->withHeader('Cache-Control','no-store');
     }
     private function jsonWanted(ServerRequestInterface $request): bool { return str_contains($request->getHeaderLine('Accept'),'application/json'); }
     /** @param array<string,mixed> $data */

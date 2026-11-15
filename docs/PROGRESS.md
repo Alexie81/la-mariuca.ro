@@ -1,5 +1,11 @@
 # Progres
 
+### 2026-11-15 — Registru facturi: stări SPV și recepție prin NIR
+- Pregătite stările comune pentru listă și fișă: netrimisă, programată, în așteptare, trimisă fără validare, acceptată/respinsă de ANAF, eroare și răspuns incert. Preview-ul emailului este etichetat explicit ca netrimis.
+- Filtrul recepției verifică existența unui **NIR de retur confirmat**, inclusiv legătura istorică prin returul comenzii. Verificarea produselor fără NIR nu mai dispare din lista documentelor de recepționat. Retururile exclusiv valorice nu cer NIR.
+- Registrul acceptă 10/15/25/50 documente pe pagină și grupuri SPV; exportul păstrează toate rezultatele filtrate. Numărul paginii și dimensiunea sunt limitate pe server.
+- Validări în workspace: **89 teste / 938 aserțiuni**, PHPStan și lint PHP fără erori. Aspectul final și verificarea mobilă sunt în curs; interfața va rămâne **pagină completă, fără popup pentru fișă**, conform corecției utilizatorului. Nicio transmitere ANAF sau modificare a documentelor principale.
+
 ### 2026-11-15 — Proveniența achiziției păstrată după retur și revânzare
 - Clarificarea utilizatorului: vânzarea fără achiziție duce stocul **0 → −1**; factura de retur nu postează stoc, iar NIR-ul returului închide minusul la **0**. A doua vânzare creează un nou minus; NIR-ul furnizorului adăugat ulterior îi atribuie costul **numai acestei a doua vânzări**, fără completarea retroactivă a returului deja închis. Test nou reproduce exact secvența, cu costul ulterior de **47,36 lei**.
 - Când achiziția exista înaintea primei vânzări, costurile și legătura dintre loturi se păstrau deja. Corectată prezentarea provenienței: lanțul `original_layer_id` este urmărit până la NIR-ul furnizorului/soldul inițial, inclusiv după retururi repetate. NIR-ul de retur rămâne documentul reintrării fizice; nu devine o nouă achiziție sau noul furnizor.
