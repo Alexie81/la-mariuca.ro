@@ -3267,3 +3267,11 @@ Nu se schimbă badge-ul facturii pozitive în `ANULATĂ` pentru a ascunde istori
 24. Toate schimbările au audit înainte/după.
 25. Testele concurente demonstrează că două clickuri nu dublează factura, returul, NIR-ul sau stocul.
 
+
+## Clarificări explicite ale operatorului — 15.11.2026 (retururi)
+
+- Maximum o cerere de retur pe comandă, comună interfeței client și admin, inclusiv după soluționare. Înregistrările istorice se păstrează. Retururile directe sunt operațiuni distincte; o cerere în analiză se soluționează prin acțiunea dedicată.
+- Pagina privată de urmărire arată cererea manuală sau publică și starea „în analiză” până la decizie. La acceptare arată și suma convenită; înregistrarea efectivă a banilor rămâne în starea plății.
+- Cererea manuală colectează cont bancar (implicit), titular, IBAN și bancă sau numerar. Pentru card se păstrează restituirea către metoda inițială.
+- Acceptarea/înregistrarea poate reține transport și costuri suplimentare opționale, cu total net editabil în intervalul 0–valoarea selectată. Defalcarea și ajustarea manuală se păstrează; documentul fiscal negativ folosește aceeași valoare netă, inclusiv la emiterea amânată. Costurile și totalul convenit nu constituie o plată și nu recepționează stocul.
+- Solicitarea clientului folosește modal cu fotografie și cantități; formularul normal rămâne disponibil fără JavaScript.

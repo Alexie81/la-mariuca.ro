@@ -282,6 +282,7 @@
       selects.forEach((select) => { select.selectedIndex = allSelected ? 0 : select.options.length - 1; });
       button.textContent = allSelected ? 'Selectează toate cantitățile' : 'Golește selecția';
       updateReturnSummary();
+      returnForm.dispatchEvent(new Event('change', {bubbles:true}));
     });
     syncRefundAmount();
     updateReturnSummary();

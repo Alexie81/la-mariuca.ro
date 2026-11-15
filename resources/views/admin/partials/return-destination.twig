@@ -1,0 +1,7 @@
+{% set destination = destination|default({}) %}
+<section class="return-panel" data-refund-destination>
+  <header><span class="return-step">↗</span><div><small>Restituirea banilor</small><h3>Unde primește clientul suma?</h3><p>Datele se păstrează împreună cu returul.</p></div></header>
+  {% if original_payment|default(false) %}<input type="hidden" name="refund_method" value="original_payment"><p class="return-hint">Către metoda inițială de plată cu cardul.</p>
+  {% else %}<div class="return-methods"><label><input type="radio" name="refund_method" value="bank"{{ destination.refund_method|default('bank') != 'cash' ? ' checked' : '' }}><span><strong>În cont bancar</strong><small>Recomandat</small></span></label><label><input type="radio" name="refund_method" value="cash"{{ destination.refund_method|default('bank') == 'cash' ? ' checked' : '' }}><span><strong>În numerar</strong><small>Restituire cash</small></span></label></div>
+  <div class="return-fields" data-bank-fields><label>Titularul contului<input name="holder" value="{{ destination.holder|default('') }}" maxlength="190" autocomplete="off" data-bank-required placeholder="Nume și prenume"></label><label>Banca<input name="bank_name" value="{{ destination.bank_name|default('') }}" maxlength="190" autocomplete="off" data-bank-required placeholder="Denumirea băncii"></label><label class="return-wide">IBAN<input name="iban" value="{{ destination.iban|default('') }}" maxlength="42" autocomplete="off" spellcheck="false" data-bank-required placeholder="RO…"></label></div>{% endif %}
+</section>

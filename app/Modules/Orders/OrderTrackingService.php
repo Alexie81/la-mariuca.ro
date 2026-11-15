@@ -122,6 +122,7 @@ final class OrderTrackingService
         $order['can_request_cancellation'] = $order['cancellation_request'] === null
             && OrderCancellationPolicy::allows((string) $order['status'], (string) $order['created_at']);
         $order['invoices'] = [];
+        $order['return_requests']=(new OrderTrackingReturns(new \App\Modules\Invoicing\InvoiceRepository($this->repository->pdo())))->forOrder($orderId);
         foreach($this->repository->issuedInvoices($orderId) as $document) {
             $order['invoices'][]=['id'=>$document['id'],'number'=>$document['series_code'].' '.$document['number'],'issued'=>true,'can_return'=>in_array($document['kind'],['sale','corrected_positive'],true)];
         }

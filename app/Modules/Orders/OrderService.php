@@ -247,6 +247,7 @@ final class OrderService
             . 'JOIN order_items oi ON oi.id=ri.order_item_id WHERE ri.return_id=:return ORDER BY ri.id'
         );
         foreach ($order['returns'] as &$return) {
+            $return['settlement']=json_decode($return['settlement_json'] ?? '{}',true,512,JSON_THROW_ON_ERROR);
             $returnItems->execute(['return' => $return['id']]);
             $return['items'] = $returnItems->fetchAll();
         }

@@ -259,7 +259,7 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         $invoice=$this->service->issue($this->order(2),['request_key'=>'issue-request-case'],$this->actor); $line=$invoice['lines'][0];
         $this->pdo->exec("UPDATE orders SET status='delivered' WHERE id=".$invoice['order_id']);
         $q=$this->pdo->prepare("INSERT INTO audit_log(actor_user_id,action,entity_type,entity_id,context_json,created_at) VALUES(:actor,'order.deliver','order',:id,'{}',:now)"); $q->execute(['actor'=>$this->actor['id'],'id'=>$invoice['order_id'],'now'=>gmdate('c')]);
-        $input=['request_key'=>'return-request-case','reason'=>'Mărime nepotrivită','quantities'=>[$line['id']=>'2'],'iban'=>'RO49AAAA1B31007593840000','holder'=>'Ana Pop'];
+        $input=['request_key'=>'return-request-case','reason'=>'Mărime nepotrivită','quantities'=>[$line['id']=>'2'],'iban'=>'RO49AAAA1B31007593840000','holder'=>'Ana Pop','bank_name'=>'Banca QA'];
         try { $this->service->requestReturn($invoice['id'],$input,null,$invoice['order_id']+1); self::fail('Wrong customer accepted'); } catch(InvoiceException $e) { self::assertSame(403,$e->getCode()); }
         $request=$this->service->requestReturn($invoice['id'],$input,null,$invoice['order_id']);
         self::assertSame($request['id'],$this->service->requestReturn($invoice['id'],$input,null,$invoice['order_id'])['id']);
@@ -490,7 +490,7 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
     public function testRejectedRequestAndInvalidPhysicalReceiptDoNotInventCreditsOrStock(): void
     {
         $invoice=$this->service->issue($this->order(2),['request_key'=>'reject-request-document'],$this->actor); $line=$invoice['lines'][0];
-        $request=$this->service->requestReturn($invoice['id'],['request_key'=>'reject-request-input','reason'=>'Cerere test','quantities'=>[$line['id']=>'1'],'iban'=>'RO49AAAA1B31007593840000','holder'=>'Ana Pop'],$this->actor);
+        $request=$this->service->requestReturn($invoice['id'],['request_key'=>'reject-request-input','reason'=>'Cerere test','quantities'=>[$line['id']=>'1'],'iban'=>'RO49AAAA1B31007593840000','holder'=>'Ana Pop','bank_name'=>'Banca QA'],$this->actor);
         $this->service->decideReturn($invoice['id'],['request_key'=>'reject-request-decision','return_request_id'=>$request['id'],'version'=>1,'reason'=>'Verificare cerere','decisions'=>[$line['id']=>['quantity'=>'0','reason'=>'Produs utilizat']]],$this->actor);
         self::assertSame(1,(int)$this->pdo->query('SELECT COUNT(*) FROM invoices')->fetchColumn());
         self::assertSame(-20000,$this->balance());
@@ -764,7 +764,7 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
     {
         $repo=new InvoiceRepository($this->pdo);$requests=new \App\Modules\Invoicing\OrderReturnRequests($repo);
         $order=$this->order(2);$repo->update('orders',['status'=>'delivered'],['id'=>$order]);$item=$repo->all('order_items',['order_id'=>$order])[0];
-        $input=['request_key'=>'request-without-invoice','reason'=>'Mărime nepotrivită','quantities'=>[$item['id']=>1]];
+        $input=['request_key'=>'request-without-invoice','refund_method'=>'cash','reason'=>'Mărime nepotrivită','quantities'=>[$item['id']=>1]];
         $id=$requests->create($order,$input,$this->actor);self::assertSame($id,$requests->create($order,$input,$this->actor));
         self::assertCount(0,$repo->all('invoices'));self::assertCount(0,$repo->all('order_returns'));self::assertSame(0,$this->balance());
         self::assertSame('delivered',$repo->one('orders',['id'=>$order])['status']);
@@ -773,7 +773,9 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         $returnId=$this->service->returnOrder($order,$accepted,$this->actor);self::assertSame($returnId,$this->service->returnOrder($order,$accepted,$this->actor));
         self::assertSame('accepted',$repo->one('order_return_requests',['id'=>$id])['state']);
         self::assertCount(1,$repo->all('order_returns'));self::assertCount(2,$repo->all('outbox_messages',['message_type'=>'order_status_update']));
-        $other=$requests->create($order,array_replace($input,['request_key'=>'another-return-request']),$this->actor);
+        try { $requests->create($order,array_replace($input,['request_key'=>'another-return-request']),$this->actor); self::fail('Second request accepted'); } catch(InvoiceException $e) { self::assertSame(409,$e->getCode()); }
+        $order=$this->order(1);$repo->update('orders',['status'=>'delivered'],['id'=>$order]);$item=$repo->all('order_items',['order_id'=>$order])[0];
+        $other=$requests->create($order,array_replace($input,['request_key'=>'separate-return-request','quantities'=>[$item['id']=>1]]),$this->actor);
         $requests->reject($order,$other,'Produsul nu îndeplinește condițiile de retur.',$this->actor);
         self::assertSame('rejected',$repo->one('order_return_requests',['id'=>$other])['state']);self::assertCount(1,$repo->all('order_returns'));
     }
@@ -923,6 +925,74 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         $email=$send('POST',['_csrf'=>$_SESSION['_csrf'],'link_action'=>'email','public_token'=>$data['public_token'],'request_key'=>$data['next_request_key'],'personal_message'=>'Cu drag!'],true);
         $sent=json_decode((string)$email->getBody(),true);self::assertSame(200,$email->getStatusCode(),(string)$email->getBody());self::assertTrue($sent['link_email_sent']);self::assertNotSame($data['next_request_key'],$sent['next_request_key']);
         self::assertCount(1,$repo->all('outbox_messages',['message_type'=>'invoice']));self::assertCount(2,$repo->all('invoice_public_links'));
+    }
+
+    public function testReturnCostsPersistAndReconcileIntoTheSameNetInvoiceWithoutMovingMoney(): void
+    {
+        $repo=new InvoiceRepository($this->pdo);$order=$this->order(2);$repo->update('orders',['status'=>'delivered'],['id'=>$order]);
+        $item=$repo->all('order_items',['order_id'=>$order])[0];$cash=$repo->orderCash($order);$stock=$this->balance();
+        $input=['request_key'=>'costs-direct-return-1','reason'=>'Retur client','quantities'=>[$item['id']=>1],'refund_method'=>'cash','transport_enabled'=>'1','transport_cost'=>'20,50','other_costs_enabled'=>'1','return_costs'=>[['name'=>'Reambalare','amount'=>'5.25']],'custom_refund_enabled'=>'1','refund_total'=>'100.00'];
+        $id=$this->service->returnOrder($order,$input,$this->actor);
+        self::assertSame($id,$this->service->returnOrder($order,$input,$this->actor));
+        $plan=json_decode($repo->one('order_returns',['id'=>$id])['settlement_json'],true);
+        self::assertSame(2575,$plan['costs_bani']);self::assertSame(10000,$plan['refund_bani']);self::assertSame('cash',$plan['destination']['refund_method']);
+        self::assertSame($cash,$repo->orderCash($order));self::assertSame($stock,$this->balance());
+        $this->service->reconcileReturn($order,$id,['request_key'=>'costs-reconcile-1','order_version'=>$repo->editVersion($order),'decision'=>'invoice'],$this->actor);
+        $credit=$repo->one('invoices',['order_id'=>$order,'kind'=>'return']);self::assertSame(-10000,(int)$credit['gross_bani']);
+        self::assertSame($cash,$repo->orderCash($order));self::assertSame(0,(int)$repo->one('order_returns',['id'=>$id])['refund_bani']);
+        self::assertCount(0,$repo->all('invoice_refunds'));self::assertCount(0,$repo->all('invoice_receipts'));
+        $changed=array_replace($input,['refund_total'=>'110.00']);
+        try { $this->service->returnOrder($order,$changed,$this->actor);self::fail('Changed retry accepted'); } catch(InvoiceException $e) { self::assertSame(409,$e->getCode()); }
+    }
+
+    public function testInvalidReturnCostsRollBackAndAZeroAgreedRefundCanStillDocumentTheProducts(): void
+    {
+        $repo=new InvoiceRepository($this->pdo);$order=$this->order(1);$repo->update('orders',['status'=>'delivered'],['id'=>$order]);$item=$repo->all('order_items',['order_id'=>$order])[0];
+        $input=['request_key'=>'zero-return-total','reason'=>'Retur client','quantities'=>[$item['id']=>1],'issue_invoice'=>'1','transport_enabled'=>'1','transport_cost'=>'99999'];
+        try { $this->service->returnOrder($order,$input,$this->actor);self::fail('Excessive costs accepted'); } catch(InvoiceException) {}
+        self::assertCount(0,$repo->all('order_returns'));self::assertCount(0,$repo->all('invoices'));self::assertSame('delivered',$repo->one('orders',['id'=>$order])['status']);
+        $id=$this->service->returnOrder($order,array_replace($input,['transport_enabled'=>'0','custom_refund_enabled'=>'1','refund_total'=>'0']),$this->actor);
+        self::assertSame(0,(int)$repo->one('invoices',['order_id'=>$order,'kind'=>'return'])['gross_bani']);
+        self::assertSame(0,json_decode($repo->one('order_returns',['id'=>$id])['settlement_json'],true)['refund_bani']);
+        self::assertCount(1,$repo->all('order_return_items',['return_id'=>$id]));self::assertCount(0,$repo->all('invoice_receipts'));self::assertCount(0,$repo->all('invoice_refunds'));
+    }
+
+    public function testManualRequestIsUniqueAcrossBothEntryPointsAndBankDetailsSurviveAcceptance(): void
+    {
+        $repo=new InvoiceRepository($this->pdo);$order=$this->order(2);$repo->update('orders',['status'=>'delivered'],['id'=>$order]);
+        $invoice=$this->service->issue($order,['request_key'=>'unique-return-sale'],$this->actor);$item=$repo->all('order_items',['order_id'=>$order])[0];
+        $requests=new \App\Modules\Invoicing\OrderReturnRequests($repo);
+        $input=['request_key'=>'unique-admin-request','reason'=>'Mărime nepotrivită','quantities'=>[$item['id']=>1],'refund_method'=>'bank','holder'=>'Ana Pop','iban'=>'ro49 aaaa 1b31 0075 9384 0000','bank_name'=>'Banca QA'];
+        foreach([['iban'=>'RO49INVALID'],['bank_name'=>''],['holder'=>'']] as $invalid) { try { $requests->create($order,array_replace($input,$invalid),$this->actor);self::fail('Invalid bank data accepted'); } catch(InvoiceException $e) { self::assertNotSame('',$e->getMessage()); } }
+        $id=$requests->create($order,$input,$this->actor);self::assertSame($id,$requests->create($order,$input,$this->actor));
+        try { $requests->create($order,array_replace($input,['bank_name'=>'Altă bancă']),$this->actor);self::fail('Changed bank retry accepted'); } catch(InvoiceException $e) { self::assertSame(409,$e->getCode()); }
+        $public=['request_key'=>'unique-public-request','reason'=>'Retur client','quantities'=>[$invoice['lines'][0]['id']=>'1'],'refund_method'=>'cash'];
+        try { $this->service->requestReturn($invoice['id'],$public,$this->actor);self::fail('Second entry point accepted'); } catch(InvoiceException) {}
+        $tracking=new \App\Modules\Orders\OrderTrackingReturns($repo);$rows=$tracking->forOrder($order);self::assertSame('pending',$rows[0]['state']);self::assertStringNotContainsString('RO49',json_encode($rows));
+        $return=$this->service->returnOrder($order,['request_key'=>'unique-admin-accept','return_request_id'=>$id,'reason'=>$input['reason'],'quantities'=>[$item['id']=>1],'issue_invoice'=>'1','transport_enabled'=>'1','transport_cost'=>'10'],$this->actor);
+        $plan=json_decode($repo->one('order_returns',['id'=>$return])['settlement_json'],true);self::assertSame('RO49AAAA1B31007593840000',$plan['destination']['iban']);self::assertSame('Banca QA',$plan['destination']['bank_name']);
+        self::assertSame($plan['base_bani']-1000,$plan['refund_bani']);self::assertSame(-$plan['refund_bani'],(int)$repo->one('invoices',['order_id'=>$order,'kind'=>'return'])['gross_bani']);
+        self::assertSame('accepted',$tracking->forOrder($order)[0]['state']);self::assertSame($plan['refund_bani'],$tracking->forOrder($order)[0]['settlement']['refund_bani']);
+        try { $requests->create($order,array_replace($input,['request_key'=>'unique-request-after-accept']),$this->actor);self::fail('Second request after decision accepted'); } catch(InvoiceException $e) { self::assertSame(409,$e->getCode()); }
+    }
+
+    public function testCustomerModalAndRequestDecisionWithCostsArePrivateAndFunctional(): void
+    {
+        $repo=new InvoiceRepository($this->pdo);$order=$this->order(2);$repo->update('orders',['status'=>'delivered'],['id'=>$order]);
+        $repo->insert('audit_log',['action'=>'order.deliver','entity_type'=>'order','entity_id'=>$order,'context_json'=>'{}','created_at'=>gmdate('c')]);
+        $invoice=$this->service->issue($order,['request_key'=>'modal-return-sale'],$this->actor);$id=$invoice['id'];$line=$invoice['lines'][0];
+        $_SESSION['tracked_order']=['id'=>$order,'expires'=>time()+3600];
+        $request=(new \Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('GET','http://localhost/urmarire-comanda/retur/'.$id.'/',['REMOTE_ADDR'=>'127.0.0.1'])->withHeader('X-Return-Modal','1');
+        $app=\App\AppFactory::create($this->root);$response=$app->handle($request);$html=(string)$response->getBody();
+        self::assertSame(200,$response->getStatusCode());self::assertStringContainsString('data-customer-return-form',$html);self::assertStringContainsString('customer-return__photo',$html);self::assertStringContainsString('name="bank_name"',$html);self::assertStringNotContainsString('<html',$html);self::assertSame('private, no-store',$response->getHeaderLine('Cache-Control'));
+        $post=$request->withMethod('POST')->withParsedBody(['request_key'=>'modal-return-request','quantities'=>[$line['id']=>1],'reason'=>'Mărime nepotrivită','refund_method'=>'cash']);
+        self::assertSame(419,$app->handle($post)->getStatusCode());
+        $response=$app->handle($post->withParsedBody($post->getParsedBody()+['_csrf'=>$_SESSION['_csrf']]));self::assertSame(200,$response->getStatusCode());self::assertStringContainsString('data-return-success',(string)$response->getBody());
+        $saved=$repo->one('invoice_return_requests',['order_id'=>$order]);$tracking=new \App\Modules\Orders\OrderTrackingReturns($repo);self::assertSame('pending',$tracking->forOrder($order)[0]['state']);
+        $credit=$this->service->decideReturn($id,['request_key'=>'modal-return-accept','return_request_id'=>$saved['id'],'version'=>$invoice['row_version'],'reason'=>'Retur acceptat','decisions'=>[$line['id']=>['quantity'=>'1']],'settlement_form'=>'1','transport_enabled'=>'1','transport_cost'=>'12.50','other_costs_enabled'=>'1','return_costs'=>[['name'=>'Reambalare','amount'=>'2.50']]],$this->actor);
+        self::assertSame(-(int)$line['gross_bani']/2+1500,$credit['gross_bani']);self::assertSame('accepted',$tracking->forOrder($order)[0]['state']);self::assertSame(1500,$tracking->forOrder($order)[0]['settlement']['costs_bani']);
+        $_SESSION['tracked_order']['id']=$order+1;self::assertSame(303,$app->handle($request)->getStatusCode());
+        unset($app);gc_collect_cycles();
     }
 
     private function order(int $quantity): int

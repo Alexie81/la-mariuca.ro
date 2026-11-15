@@ -367,6 +367,23 @@ final class OrderTrackingTest extends DatabaseTestCase
         self::assertSame(429, $this->request('POST', $path, ['_csrf'=>$_SESSION['_csrf'], 'reason'=>'Cerere validă.'])->getStatusCode());
     }
 
+    public function testManualReturnIsShownUntilDecisionWithoutExposingBankDataOrAnotherRequestButton(): void
+    {
+        $repo=new \App\Modules\Invoicing\InvoiceRepository($this->pdo);
+        $actorId=$repo->insert('users',['email'=>'return-reviewer@example.test','password_hash'=>'disabled','first_name'=>'QA','last_name'=>'Reviewer','role'=>'administrator','status'=>'active','created_at'=>gmdate('c'),'updated_at'=>gmdate('c')]);
+        $repo->update('orders',['status'=>'delivered'],['id'=>$this->orderId]);$item=$repo->all('order_items',['order_id'=>$this->orderId])[0];
+        $requests=new \App\Modules\Invoicing\OrderReturnRequests($repo);
+        $input=['request_key'=>'tracking-manual-request','reason'=>'Mărime nepotrivită','quantities'=>[$item['id']=>1],'refund_method'=>'bank','holder'=>'Ana Pop','bank_name'=>'Banca QA','iban'=>'RO49AAAA1B31007593840000'];
+        $id=$requests->create($this->orderId,$input,['id'=>$actorId]);
+        $_SESSION['tracked_order']=['id'=>$this->orderId,'expires'=>time()+3600];
+        $html=(string)$this->request('GET')->getBody();
+        self::assertStringContainsString('Cerere de retur în analiză',$html);self::assertStringContainsString('Mărime nepotrivită',$html);self::assertStringNotContainsString('Solicită un retur</a>',$html);self::assertStringNotContainsString('RO49AAAA',$html);
+        $requests->reject($this->orderId,$id,'Produsul a fost utilizat.',['id'=>$actorId]);
+        $html=(string)$this->request('GET')->getBody();self::assertStringContainsString('Cerere de retur respinsă',$html);self::assertStringContainsString('Produsul a fost utilizat.',$html);self::assertStringNotContainsString('Cerere de retur în analiză',$html);
+        try { $requests->create($this->orderId,array_replace($input,['request_key'=>'tracking-second-request']),['id'=>$actorId]);self::fail('Second request after rejection accepted'); } catch(\App\Modules\Invoicing\InvoiceException $e) { self::assertSame(409,$e->getCode()); }
+        unset($_SESSION['tracked_order']);$html=(string)$this->request('GET')->getBody();self::assertStringNotContainsString('Mărime nepotrivită',$html);
+    }
+
     /** @param array<string,string> $data */
     private function request(string $method, string $path = '/urmarire-comanda/', array $data = []): ResponseInterface
     {

@@ -32,7 +32,7 @@ final class InvoiceCustomerController
     {
         try { $order=$this->authorizedOrder(); $invoice=$this->service->load($id); if((int)$invoice['order_id']!==$order) { throw new InvoiceException('Documentul nu este disponibil.',404); } }
         catch(InvoiceException) { return $this->view->redirect($this->config->path('urmarire-comanda/')); }
-        return $this->view->render('storefront/pages/invoice-return.twig',['invoice'=>$invoice,'eligibility'=>$this->service->returnEligibility($invoice),'error'=>$error,'success'=>$success,'values'=>(array)$request->getParsedBody(),'request_key'=>bin2hex(random_bytes(24)),'meta'=>['title'=>'Solicită un retur · La Măriuca','noindex'=>true]],$status)
+        return $this->view->render($request->getHeaderLine('X-Return-Modal')==='1'?'storefront/partials/invoice-return-form.twig':'storefront/pages/invoice-return.twig',['invoice'=>$invoice,'eligibility'=>$this->service->returnEligibility($invoice),'error'=>$error,'success'=>$success,'values'=>(array)$request->getParsedBody(),'request_key'=>bin2hex(random_bytes(24)),'meta'=>['title'=>'Solicită un retur · La Măriuca','noindex'=>true]],$status)
             ->withHeader('Cache-Control','private, no-store')->withHeader('Referrer-Policy','no-referrer')->withHeader('X-Robots-Tag','noindex, nofollow');
     }
 }

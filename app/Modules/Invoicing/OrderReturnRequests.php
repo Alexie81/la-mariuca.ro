@@ -22,18 +22,20 @@ final class OrderReturnRequests
                 if((int)$value>0) { $quantities[(int)$id]=(int)$value; }
             }
             ksort($quantities);$json=InvoiceSnapshot::json($quantities);
+            $storedOrder=$this->repository->one('orders',['id'=>$orderId]) ?? throw new InvoiceException('Comanda nu există.',404);
+            $refundJson=InvoiceSnapshot::json(RefundDestination::normalize($input,$storedOrder['payment_method']==='stripe'));
             $prior=$this->repository->one('order_return_requests',['request_key'=>$key]);
             if($prior) {
-                if((int)$prior['order_id']!==$orderId || $prior['reason']!==$reason || $prior['quantities_json']!==$json) { throw new InvoiceException('Confirmarea a fost folosită pentru alte date.',409); }
+                if((int)$prior['order_id']!==$orderId || $prior['reason']!==$reason || $prior['quantities_json']!==$json || $prior['refund_details_json']!==$refundJson) { throw new InvoiceException('Confirmarea a fost folosită pentru alte date.',409); }
                 return (int)$prior['id'];
             }
             $order=(new \App\Modules\Orders\OrderService($this->repository->pdo()))->findForAdmin($orderId);
             if(!$order || !in_array($order['status'],['delivered','returned','return_requested','return_confirmed','return_refused'],true) || !$order['can_return']) { throw new InvoiceException('Solicitarea este disponibilă după livrare, pentru cantitățile încă eligibile.'); }
-            if($this->repository->one('order_return_requests',['order_id'=>$orderId,'state'=>'pending']) || $this->repository->one('invoice_return_requests',['order_id'=>$orderId,'state'=>'pending'])) { throw new InvoiceException('Comanda are deja o cerere de retur în analiză.',409); }
+            if($this->repository->one('order_return_requests',['order_id'=>$orderId]) || $this->repository->one('invoice_return_requests',['order_id'=>$orderId])) { throw new InvoiceException('Comanda are deja o cerere de retur. Se permite o singură cerere pe comandă.',409); }
             $available=array_column($order['items'],'returnable_quantity','id');
             if($quantities===[]) { throw new InvoiceException('Alege cel puțin un produs.'); }
             foreach($quantities as $id=>$quantity) { if($quantity>($available[$id] ?? 0)) { throw new InvoiceException('Cantitățile solicitate nu mai sunt disponibile.',409); } }
-            $id=$this->repository->insert('order_return_requests',['order_id'=>$orderId,'request_key'=>$key,'reason'=>$reason,'quantities_json'=>$json,'decision_reason'=>'','created_by'=>$actor['id'],'created_at'=>$this->repository->now()]);
+            $id=$this->repository->insert('order_return_requests',['order_id'=>$orderId,'request_key'=>$key,'reason'=>$reason,'quantities_json'=>$json,'refund_details_json'=>$refundJson,'decision_reason'=>'','created_by'=>$actor['id'],'created_at'=>$this->repository->now()]);
             $this->audit($orderId,'order.return_requested',$actor,['request_id'=>$id,'quantities'=>$quantities,'reason'=>$reason]);
             $this->notify($order,$id,'received','Am primit solicitarea ta de retur. O analizăm și te anunțăm după luarea unei decizii.');
             return $id;

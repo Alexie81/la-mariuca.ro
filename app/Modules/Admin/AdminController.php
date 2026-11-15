@@ -1115,6 +1115,7 @@ final class AdminController
         $order['email_delivery_warning']=(new \App\Shared\Mail\MailQueueHealth($this->config,dirname(__DIR__,3)))->warning('invoice');
         $order['billing_documents']=array_map(fn(array $document):array=>$invoiceService->document((int)$document['id'],$this->auth->user() ?? []),$order['issued_invoices']);
         $order['pending_return_requests']=(new \App\Modules\Invoicing\InvoiceRepository($this->pdo))->all('order_return_requests',['order_id'=>$order['id'],'state'=>'pending']);
+        $order['customer_return_requests']=(new \App\Modules\Orders\OrderTrackingReturns(new \App\Modules\Invoicing\InvoiceRepository($this->pdo)))->forOrder((int)$order['id']);
         $order['returns_missing_invoices']=(new \App\Modules\Invoicing\OrderReturnWorkflow(new \App\Modules\Invoicing\InvoiceRepository($this->pdo)))->missingDocuments((int)$order['id']);
 
         return $this->view->render('admin/pages/order-detail.twig', [
@@ -1395,7 +1396,7 @@ final class AdminController
                 'issue_invoice'=>(string)($data['issue_invoice'] ?? '0'),
                 'notify_customer'=>(string)($data['notify_customer'] ?? '0'),
                 'return_request_id'=>(int)($data['return_request_id'] ?? 0),
-            ],$this->auth->user() ?? []);
+            ]+array_intersect_key($data,array_flip(['refund_method','holder','iban','bank_name','transport_enabled','transport_cost','other_costs_enabled','return_costs','custom_refund_enabled','refund_total'])),$this->auth->user() ?? []);
             return $this->orderMutationResponse($request, (int) $args['id'], 'Returul a fost înregistrat și istoricul comenzii a fost actualizat.');
         } catch (\Throwable $exception) {
             return $this->orderMutationResponse($request, (int) $args['id'], '', $exception->getMessage());
@@ -1438,13 +1439,14 @@ final class AdminController
         if((int)($request->getQueryParams()['request'] ?? 0)>0) {
             $repo=new \App\Modules\Invoicing\InvoiceRepository($this->pdo);
             $pendingRequest=$repo->one('order_return_requests',['id'=>(int)$request->getQueryParams()['request'],'order_id'=>$orderId,'state'=>'pending']);
-            if($pendingRequest) { $pendingRequest['quantities']=json_decode($pendingRequest['quantities_json'],true,512,JSON_THROW_ON_ERROR); }
+            if($pendingRequest) { $pendingRequest['quantities']=json_decode($pendingRequest['quantities_json'],true,512,JSON_THROW_ON_ERROR); $pendingRequest['refund_details']=json_decode($pendingRequest['refund_details_json'] ?? '{}',true,512,JSON_THROW_ON_ERROR); }
         }
         if (!isset($partials[$type])) {
             throw new \RuntimeException('Acțiune de comandă necunoscută.');
         }
         $data = [
             'order' => $order,
+            'return_quotes'=>\App\Modules\Invoicing\ReturnSettlement::quotes($order),
             'partial_template' => $partials[$type],
             'request_mode'=>$type==='return-request','pending_return_request'=>$pendingRequest,
             'selected_action' => ($request->getQueryParams()['action'] ?? '')==='cancel'?'cancel':'',

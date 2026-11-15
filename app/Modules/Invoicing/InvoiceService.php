@@ -201,13 +201,19 @@ final class InvoiceService
             }
             if(array_filter($requested,static fn(mixed $q):bool=>(string)$q!=='0')) { throw new InvoiceException('Un produs nu aparține acestei comenzi.'); }
             if($selected===[]) { throw new InvoiceException('Alege o cantitate mai mare decât 0 pentru cel puțin un produs.'); }
-            $returnRequestId=(int)($input['return_request_id'] ?? 0);
+            $returnRequestId=(int)($input['return_request_id'] ?? 0);$destination=[];
+            if(($returnRequestId===0 && $this->repository->one('order_return_requests',['order_id'=>$orderId,'state'=>'pending'])) || $this->repository->one('invoice_return_requests',['order_id'=>$orderId,'state'=>'pending'])) { throw new InvoiceException('Există o cerere în analiză. Folosește acțiunea de verificare și acceptare a cererii.',409); }
             if($returnRequestId>0) {
                 $pending=(new OrderReturnRequests($this->repository))->pending($orderId,$returnRequestId);
                 $requested=json_decode($pending['quantities_json'],true,512,JSON_THROW_ON_ERROR);
                 ksort($selected);ksort($requested);
                 if($selected!==$requested) { throw new InvoiceException('Confirmă cantitățile din cerere. Pentru alte cantități, respinge cererea cu explicație și înregistrează returul separat.'); }
+                $destination=json_decode($pending['refund_details_json'] ?? '{}',true,512,JSON_THROW_ON_ERROR);
             }
+            if(isset($input['refund_method'])) { $destination=RefundDestination::normalize($input,$order['payment_method']==='stripe'); }
+            $quotes=ReturnSettlement::quotes((new \App\Modules\Orders\OrderService($this->repository->pdo()))->findForAdmin($orderId));
+            $base=0;foreach($selected as $itemId=>$quantity) { $base+=$quotes[$itemId][$quantity]; }
+            $settlement=ReturnSettlement::calculate($base,$input)+['destination'=>$destination];
             $issue=(string)($input['issue_invoice'] ?? '0')==='1'; $plans=[];
             if($issue) {
                 $positive=array_values(array_filter($this->repository->all('invoices',['order_id'=>$orderId,'deleted_at'=>null]),static fn(array $i):bool=>in_array($i['kind'],['sale','corrected_positive'],true)));
@@ -232,8 +238,11 @@ final class InvoiceService
             }
             // Physical receipt and money transfers are separate explicit operations.
             $returnId=(new \App\Modules\Orders\OrderService($this->repository->pdo()))->registerReturn($orderId,$selected,$reason,(string)($input['notes'] ?? ''),false,'none',0,(int)$actor['id'],(string)($input['notify_customer'] ?? '0')==='1');
+            $this->repository->update('order_returns',['settlement_json'=>InvoiceSnapshot::json($settlement)],['id'=>$returnId]);
+            $retention=$settlement['base_bani']-$settlement['refund_bani'];
             foreach($plans as $index=>$plan) {
-                $this->credit((int)$plan['document']['id'],['request_key'=>$key.':credit:'.$index,'version'=>$plan['document']['row_version'],'reason'=>$reason,'quantities'=>$plan['quantities'],'notify_customer'=>$input['notify_customer'] ?? '0'],$actor,'return',$returnId);
+                $part=min($retention,$this->returnValue($plan['document'],$plan['quantities']));$retention-=$part;
+                $this->credit((int)$plan['document']['id'],['request_key'=>$key.':credit:'.$index,'version'=>$plan['document']['row_version'],'reason'=>$reason,'quantities'=>$plan['quantities'],'retention'=>number_format($part/100,2,'.',''),'retention_name'=>ReturnSettlement::retentionName($settlement),'notify_customer'=>$input['notify_customer'] ?? '0'],$actor,'return',$returnId);
             }
             if($returnRequestId>0) { $this->repository->update('order_return_requests',['state'=>'accepted','return_id'=>$returnId,'decision_reason'=>$reason,'decided_by'=>$actor['id'],'decided_at'=>$this->repository->now()],['id'=>$returnRequestId]); }
             $this->repository->insert('order_document_operations',['request_key'=>$key,'order_id'=>$orderId,'action'=>'return','payload_hash'=>$hash,'result_id'=>$returnId,'created_at'=>$this->repository->now()]);
@@ -276,8 +285,11 @@ final class InvoiceService
                     if($quantities!==[]) { $plans[]=['doc'=>$doc,'quantities'=>$quantities]; }
                 }
                 if($plans===[] || array_sum($needed)>0) { throw new InvoiceException('Cantitățile returului nu mai sunt disponibile pe facturile comenzii.',409); }
+                $settlement=json_decode($return['settlement_json'] ?? '{}',true,512,JSON_THROW_ON_ERROR);
+                $retention=($settlement['base_bani'] ?? 0)-($settlement['refund_bani'] ?? 0);
                 foreach($plans as $index=>$plan) {
-                    $credit=$this->credit((int)$plan['doc']['id'],['request_key'=>$key.':credit:'.$index,'version'=>$plan['doc']['row_version'],'reason'=>$reason,'quantities'=>$plan['quantities'],'notify_customer'=>'0'],$actor,'return',$returnId);
+                    $part=min($retention,$this->returnValue($plan['doc'],$plan['quantities']));$retention-=$part;
+                    $credit=$this->credit((int)$plan['doc']['id'],['request_key'=>$key.':credit:'.$index,'version'=>$plan['doc']['row_version'],'reason'=>$reason,'quantities'=>$plan['quantities'],'retention'=>number_format($part/100,2,'.',''),'retention_name'=>ReturnSettlement::retentionName($settlement),'notify_customer'=>'0'],$actor,'return',$returnId);
                     if(($input['notify_customer'] ?? '')==='1') { $this->queueEmail((int)$credit['id'],$key.':email:'.$index,$actor); }
                 }
             } else { throw new InvoiceException('Alege cum dorești să continui returul.'); }
@@ -303,11 +315,12 @@ final class InvoiceService
             }
             if($lines===[]) { throw new InvoiceException('Selectează cel puțin o poziție și cantitatea returnată.'); }
             if($kind==='return' && $selectedShipping && $productLeft) { throw new InvoiceException('Livrarea poate fi restituită numai la returul integral al produselor rămase.'); }
-            $retention=InvoiceCalculator::bani((string)($input['retention'] ?? '0'));
             $refundable=-InvoiceCalculator::totals($lines)['gross_bani'];
+            $settlement=isset($input['settlement_form'])?ReturnSettlement::calculate($refundable,$input):null;
+            $retention=$settlement?$refundable-$settlement['refund_bani']:InvoiceCalculator::bani((string)($input['retention'] ?? '0'));
             if($retention>$refundable) { throw new InvoiceException('Costul reținut nu poate depăși valoarea returnată.'); }
             if($retention>0) {
-                $name=trim((string)($input['retention_name'] ?? '')); if($name==='') { throw new InvoiceException('Precizează denumirea costului reținut.'); }
+                $name=$settlement?ReturnSettlement::retentionName($settlement):trim((string)($input['retention_name'] ?? '')); if($name==='') { throw new InvoiceException('Precizează denumirea costului reținut.'); }
                 $vat=(bool)$original['snapshot']['company']['is_vat_payer']?(int)$original['snapshot']['company']['vat_rate_basis_points']:0;
                 $lines[]=InvoiceCalculator::line(InvoiceSnapshot::serviceIdentity($name,'retention'),10000,$retention,0,$vat);
             }
@@ -316,6 +329,11 @@ final class InvoiceService
             $snapshot['order_status_before']=$order['status']; $snapshot['order_payment_before']=$order['payment_status'];
             $result=$this->create($kind,(int)$original['order_id'],$snapshot,$lines,$actor,$key,$id,null,$reason,null);
             (new OrderReturnWorkflow($this->repository))->linkCredit($result,(string)$order['status'],$reason,$actor,$returnId);
+            if($settlement) {
+                if(isset($input['refund_method'])) { $settlement['destination']=RefundDestination::normalize($input,$order['payment_method']==='stripe'); }
+                $link=$this->repository->one('order_return_documents',['invoice_id'=>$result['id']]);
+                if($link) { $this->repository->update('order_returns',['settlement_json'=>InvoiceSnapshot::json($settlement)],['id'=>$link['return_id']]); }
+            }
             (new OrderRefundService($this->repository))->allocate((int)$original['order_id']);
             $this->touch($original,['row_version'=>(int)$original['row_version']+1]);
             if(!$productLeft && $kind==='return' && !$this->repository->hasUnreturnedProducts((int)$original['order_id'])) { $this->repository->update('orders',['status'=>'returned','updated_at'=>$this->repository->now()],['id'=>$original['order_id']]); }
@@ -646,8 +664,9 @@ final class InvoiceService
             $detail=json_decode($line['snapshot_json'],true,512,JSON_THROW_ON_ERROR);
             if($line['kind']!=='product' || (!$policy['allow_personalized'] && !empty($detail['personalization']))) { continue; }
             $units=max(0,(int)$line['quantity_units']-$this->repository->creditedUnits((int)$line['id']));
-            if($units>0) { $eligible[]=$line+['available_units'=>$units]; }
+            if($units>0) { $eligible[]=$line+['available_units'=>$units,'snapshot'=>$detail]; }
         }
+        if($reason==='' && ($this->repository->one('order_return_requests',['order_id'=>$invoice['order_id']]) || $this->repository->one('invoice_return_requests',['order_id'=>$invoice['order_id']]))) { $reason='Există deja o cerere de retur. Starea ei este afișată în pagina comenzii.'; }
         if($eligible===[] && $reason==='') { $reason='Nu există produse eligibile pentru un nou retur. Contactează magazinul dacă ai nevoie de ajutor.'; }
         return ['allowed'=>$reason==='','reason'=>$reason,'lines'=>$eligible,'deadline'=>$deadline,'days'=>$policy['days']];
     }
@@ -661,9 +680,10 @@ final class InvoiceService
             $invoice=$this->load($id);
             if($actor===null && (int)$invoice['order_id']!==$authorizedOrder) { throw new InvoiceException('Verifică din nou accesul la comandă.',403); }
             $key=$this->key($input); $reason=$this->reason($input);
+            $requestHash=$this->hash([$id,$reason,array_intersect_key($input,array_flip(['quantities','refund_method','holder','iban','bank_name']))]);
             $prior=$this->repository->one('invoice_return_requests',['request_key'=>$key]);
-            if($prior) { if((int)$prior['invoice_id']!==$id) { throw new InvoiceException('Operațiune deja folosită.',409); } return $prior; }
-            if($this->repository->one('invoice_return_requests',['invoice_id'=>$id,'state'=>'pending'])) { throw new InvoiceException('Ai deja o solicitare în analiză pentru această factură.'); }
+            if($prior) { $details=json_decode($prior['request_json'],true,512,JSON_THROW_ON_ERROR);if((int)$prior['invoice_id']!==$id || (isset($details['request_hash']) && $details['request_hash']!==$requestHash)) { throw new InvoiceException('Confirmarea a fost folosită pentru alte date.',409); } return $prior; }
+            if($this->repository->one('invoice_return_requests',['order_id'=>$invoice['order_id']]) || $this->repository->one('order_return_requests',['order_id'=>$invoice['order_id']])) { throw new InvoiceException('Există deja o cerere de retur pentru această comandă.'); }
             $eligibility=$this->returnEligibility($invoice);
             if($actor===null && !$eligibility['allowed']) { throw new InvoiceException($eligibility['reason']); }
             $eligibleIds=array_column($eligibility['lines'],'id'); $lines=[];
@@ -673,11 +693,8 @@ final class InvoiceService
                 $lines[]=['line_id'=>$line['id'],'name'=>$line['name'],'sku'=>$line['sku'],'quantity_units'=>$units,'gross_bani'=>-InvoiceCalculator::credit($line,$units,$this->repository->creditedUnits((int)$line['id']))['gross_bani']];
             }
             if(!$lines) { throw new InvoiceException('Alege cel puțin un produs și cantitatea.'); }
-            $method=$invoice['payment_method']==='stripe'?'original_payment':(string)($input['refund_method'] ?? 'bank');
-            if(!in_array($method,['original_payment','bank'],true) || ($invoice['payment_method']!=='stripe' && $method==='original_payment')) { throw new InvoiceException('Alege o metodă validă de restituire.'); }
-            $iban=strtoupper(preg_replace('/\s+/','',(string)($input['iban'] ?? '')) ?? ''); $holder=trim((string)($input['holder'] ?? ''));
-            if($method==='bank' && (!$this->validIban($iban) || mb_strlen($holder)<3)) { throw new InvoiceException('Completează un IBAN valid și numele titularului contului.'); }
-            $request=['lines'=>$lines,'refund_method'=>$method,'iban'=>$method==='bank'?$iban:'','holder'=>$method==='bank'?$holder:'','return_shipping_payer'=>'customer','requested_by'=>$actor['id'] ?? null];
+            $destination=RefundDestination::normalize($input,$invoice['payment_method']==='stripe');
+            $request=['lines'=>$lines]+$destination+['return_shipping_payer'=>'customer','requested_by'=>$actor['id'] ?? null,'request_hash'=>$requestHash];
             $requestId=$this->repository->insert('invoice_return_requests',['invoice_id'=>$id,'order_id'=>$invoice['order_id'],'request_key'=>$key,'reason'=>$reason,'request_json'=>InvoiceSnapshot::json($request),'decision_json'=>'{}','created_at'=>$this->repository->now()]);
             $this->audit($id,'return_requested',$actor ?? ['id'=>null],$reason,[],['request_id'=>$requestId,'lines'=>$lines]);
             $this->queueReturnNotice($invoice,$requestId,'received','Am primit solicitarea ta de retur. Verificăm produsele și te anunțăm după analiză.');
@@ -704,7 +721,7 @@ final class InvoiceService
             $credit=null;
             if($quantities) {
                 if(!empty($input['refund_shipping'])) { foreach($invoice['lines'] as $line) { if($line['kind']==='shipping') { $quantities[$line['id']]=InvoiceCalculator::quantity(max(0,(int)$line['quantity_units']-$this->repository->creditedUnits((int)$line['id']))); } } }
-                $credit=$this->credit($id,['request_key'=>'return-decision:'.$request['id'],'version'=>$invoice['row_version'],'reason'=>$reason,'quantities'=>$quantities,'retention'=>$input['retention'] ?? '0','retention_name'=>$input['retention_name'] ?? 'Transport retur'],$actor);
+                $credit=$this->credit($id,['request_key'=>'return-decision:'.$request['id'],'version'=>$invoice['row_version'],'reason'=>$reason,'quantities'=>$quantities]+array_intersect_key($input,array_flip(['settlement_form','transport_enabled','transport_cost','other_costs_enabled','return_costs','custom_refund_enabled','refund_total','retention','retention_name','refund_method','holder','iban','bank_name']))+array_intersect_key($payload,array_flip(['refund_method','holder','iban','bank_name'])),$actor);
             }
             $accepted=array_sum(array_column($decisions,'accepted_units')); $requested=array_sum(array_column($payload['lines'],'quantity_units'));
             $state=$credit?($accepted<$requested?'partial':'accepted'):'rejected';
@@ -784,12 +801,12 @@ final class InvoiceService
     /** @param array<string,mixed> $input */
     private function key(array $input): string { $key=(string)($input['request_key'] ?? ''); if(!preg_match('/^[a-zA-Z0-9:_-]{8,120}$/D',$key)) { throw new InvoiceException('Redeschide formularul pentru a continua în siguranță.'); } return $key; }
     private function hash(mixed $data): string { return hash('sha256',InvoiceSnapshot::json($data)); }
-    private function validIban(string $iban): bool
+    /** @param array<string,mixed> $invoice @param array<int|string,mixed> $quantities */
+    private function returnValue(array $invoice,array $quantities): int
     {
-        if(!preg_match('/^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$/D',$iban) || (str_starts_with($iban,'RO') && strlen($iban)!==24)) { return false; }
-        $remainder=0;
-        foreach(str_split(substr($iban,4).substr($iban,0,4)) as $character) { foreach(str_split(ctype_digit($character)?$character:(string)(ord($character)-55)) as $digit) { $remainder=($remainder*10+(int)$digit)%97; } }
-        return $remainder===1;
+        $value=0;
+        foreach($invoice['lines'] as $line) { $units=InvoiceCalculator::units((string)($quantities[$line['id']] ?? '0')); if($units>0) { $value-=InvoiceCalculator::credit($line,$units,$this->repository->creditedUnits((int)$line['id']))['gross_bani']; } }
+        return $value;
     }
     /** @return array<string,mixed>|null */
     private function retry(string $key,string $action,string $hash): ?array
