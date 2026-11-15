@@ -137,7 +137,12 @@ final class InvoiceService
     {
         $this->allow($actor,'issue');
         return $this->repository->transaction(function()use($orderId,$input,$actor):array {
-            $key=$this->key($input); $hash=$this->hash([$orderId,$input['billing'] ?? [],$input['warehouse_id'] ?? null]);
+            $sendEmail=$input['send_email'] ?? '0';
+            if(!in_array($sendEmail,['0','1',0,1],true)) { throw new InvoiceException('Alege dacă trimiți factura prin email.'); }
+            $sendEmail=(string)$sendEmail==='1';
+            $requestData=[$orderId,$input['billing'] ?? [],$input['warehouse_id'] ?? null];
+            if($sendEmail) { $requestData[]=true; }
+            $key=$this->key($input); $hash=$this->hash($requestData);
             if($retry=$this->retry($key,'issue',$hash)) { return $retry; }
             $existing=$this->repository->one('invoices',['primary_order_id'=>$orderId]);
             if($existing) { return $this->decorate($this->load((int)$existing['id'])); }
@@ -149,7 +154,12 @@ final class InvoiceService
             }
             $data=$this->snapshots->fromOrder($orderId,(array)($input['billing'] ?? []));
             $invoice=$this->create('sale',$orderId,$data['snapshot'],$data['lines'],$actor,$key,null,null,'',isset($input['warehouse_id'])?(int)$input['warehouse_id']:null);
-            $this->remember($key,'issue',$hash,(int)$invoice['id']); return $this->decorate($invoice);
+            $this->remember($key,'issue',$hash,(int)$invoice['id']);
+            if($sendEmail) {
+                $this->queueEmail((int)$invoice['id'],'invoice-issue-email:'.$invoice['id'],$actor);
+                $invoice=$this->load((int)$invoice['id']);
+            }
+            return $this->decorate($invoice);
         });
     }
     /** Confirm a commercial return, independently of its optional fiscal documents.

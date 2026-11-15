@@ -2,6 +2,13 @@
 
 Actualizat: 2026-11-15
 
+### 2026-11-15 — Email opțional la emiterea facturii
+- Sub sumarul prună al confirmării apare comutatorul **Trimite factura prin email**, activ implicit, cu destinatarul și explicația linkului privat/PDF-ului atașat. Debifarea emite documentul fără să adauge emailul manual în coadă. Formularul funcționează și fără JavaScript.
+- Emiterea și pregătirea emailului sunt atomice; reluarea cererii nu dublează documentul, linkul sau mesajul. O automatizare restantă nu pregătește din nou emailul deja pus în coadă manual. Compatibilitatea cheilor de reluare pentru emiterea fără email este păstrată.
+- Emailul folosește identitatea vizuală comună, sumar prună, număr/valoare/stare plată, produse, footer și buton **Deschide factura**. Linkul privat deschide PDF-ul fără autentificare, cu descărcare separată și atașament; revocarea, verificarea destinatarului și antetele private rămân active. Cantitatea afișată exclude serviciul de livrare.
+- Verificări: **89 teste / 836 aserțiuni** pentru facturi, furnizori, coș și checkout; două regresii suplimentare pentru email/export după ajustarea footerului. PHPStan fără erori și **159 template-uri Twig** compilate. Verificate în browser confirmarea la 1280/390 px și emailul demonstrativ la 1280/390/320 px, fără imagini lipsă sau overflow orizontal în email.
+- Nicio factură emisă în baza principală, niciun email real trimis și niciun serviciu live configurat. Gmail/Outlook reale, SMTP pe hosting și concurența MySQL nu au fost verificate. Nicio bifare nouă în roadmap.
+
 ### 2026-11-15 — Audit integral al specificației produse–comenzi–facturi–retururi–stoc
 - Specificația integrală furnizată de utilizator este versionată identic în `docs/ORDER_LIFECYCLE_REFERENCE.md` și a fost parcursă cap-coadă împreună cu implementarea existentă. Cerințele aplicabile local identificate ca lipsă au fost implementate fără a rescrie migrații deja publicate și fără a activa servicii live.
 - Fluxurile de administrare pentru stoc, facturi, retururi și SPV au fost finalizate și aliniate vizual cu fișa NIR aprobată. Avizul se emite acum din snapshotul real al comenzii; registrul catalogului are export filtrat, iar fișa completă a produsului reunește identificare, sursă/furnizor, variante, preț, TVA, conformitate, stoc, vânzări, aprovizionări și recenzii.

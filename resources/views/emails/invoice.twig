@@ -1,3 +1,23 @@
 {% extends 'emails/order-confirmation.twig' %}
-{% block introduction %}<h1 class="greeting" style="margin:24px 0 10px;color:#2d333d;font-size:38px;line-height:46px;font-weight:600;letter-spacing:-1px;">Bună, {{ first_name }}!</h1><h2 class="intro-title" style="margin:0 0 14px;color:#414b59;font-size:25px;line-height:34px;font-weight:normal;">{{ message }}</h2><p style="margin:0;color:#697583;font-size:17px;line-height:28px;">{{ introduction }}</p><table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:25px;"><tr><td><!--[if mso]><v:roundrect href="{{ tracking_url }}" style="height:56px;v-text-anchor:middle;width:244px;" arcsize="50%" stroke="f" fillcolor="#b44968"><w:anchorlock xmlns:w="urn:schemas-microsoft-com:office:word"/><center style="color:#ffffff;font-family:Arial,sans-serif;font-size:17px;font-weight:bold;">Descarcă factura</center></v:roundrect><![endif]--><!--[if !mso]><!--><a href="{{ tracking_url }}" style="display:inline-block;min-width:198px;padding:17px 22px;background-color:#b44968;border:1px solid #b44968;border-radius:28px;color:#ffffff;font-size:17px;font-weight:bold;line-height:22px;text-align:center;text-decoration:none;">Descarcă factura</a><!--<![endif]--></td></tr></table><p style="margin:12px 0 0;color:#7c8792;font-size:14px;line-height:22px;">PDF-ul este și atașat acestui email. Păstrează linkul privat.</p>{% endblock %}
+{% block introduction %}
+<h1 class="greeting" style="margin:24px 0 10px;color:#2d333d;font-size:38px;line-height:46px;font-weight:600;letter-spacing:-1px;">Bună, {{ first_name }}!</h1>
+<h2 class="intro-title" style="margin:0 0 14px;color:#414b59;font-size:25px;line-height:34px;font-weight:normal;">{{ message }}</h2>
+<p style="margin:0;color:#697583;font-size:17px;line-height:28px;">{{ introduction }}</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="#60445c" style="margin-top:24px;background-color:#60445c;border-radius:22px;"><tr><td style="padding:23px 24px;">
+  <p style="margin:0 0 8px;color:#ead6e4;font-size:12px;line-height:20px;letter-spacing:1.3px;text-transform:uppercase;">Documentul tău · {{ order_number }}</p>
+  <p style="margin:0;color:#ffffff;font-size:28px;line-height:36px;font-weight:bold;">Factura {{ invoice_number }}</p>
+  <p style="margin:9px 0 0;color:#f4e8f0;font-size:18px;line-height:28px;">{{ total }} <span style="color:#d9c3d3;">· {{ payment_state }}</span></p>
+</td></tr></table>
+<table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:24px;"><tr><td>
+  <!--[if mso]><v:roundrect href="{{ tracking_url }}" style="height:56px;v-text-anchor:middle;width:244px;" arcsize="50%" stroke="f" fillcolor="#b44968"><w:anchorlock xmlns:w="urn:schemas-microsoft-com:office:word"/><center style="color:#ffffff;font-family:Arial,sans-serif;font-size:17px;font-weight:bold;">Deschide factura</center></v:roundrect><![endif]-->
+  <!--[if !mso]><!--><a href="{{ tracking_url }}" target="_blank" rel="noopener noreferrer" style="display:inline-block;min-width:198px;padding:17px 22px;background-color:#b44968;border:1px solid #b44968;border-radius:28px;color:#ffffff;font-size:17px;font-weight:bold;line-height:22px;text-align:center;text-decoration:none;">Deschide factura</a><!--<![endif]-->
+</td></tr></table>
+<p style="margin:14px 0 0;color:#7c8792;font-size:14px;line-height:23px;">Documentul se deschide printr-un link privat, fără autentificare. Îl găsești și atașat acestui email.</p>
+<p style="margin:8px 0 0;font-size:14px;line-height:23px;"><a href="{{ download_url }}" style="color:#a74768;text-decoration:underline;">Descarcă factura PDF</a> <span style="color:#7c8792;">pentru a păstra o copie.</span></p>
+{% endblock %}
 {% block products_heading %}Pe factura ta{% endblock %}
+{% block summary_heading %}Rezumatul facturii{% endblock %}
+{% block total_label %}Total factură{% endblock %}
+{% block summary_payment_status %}<p style="margin:12px 0 0;color:#725565;font-size:14px;line-height:22px;">{{ payment_state }}</p>{% endblock %}
+{% block email_origin %}Mesaj generat pentru factura{% endblock %}
+{% block private_link_notice %}Linkul oferă acces la factura ta. Păstrează-l privat.{% endblock %}

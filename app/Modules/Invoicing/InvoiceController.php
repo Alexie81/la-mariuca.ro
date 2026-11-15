@@ -128,6 +128,7 @@ final class InvoiceController
                 $id=(int)$result['id'];
             }
             $message=match($kind) { 'issue'=>'Factura a fost emisă.','return'=>'Factura de retur a fost emisă.','receive'=>'Primirea produselor a fost înregistrată.','email'=>'Emailul cu factura a fost pus în coada de trimitere.','delete'=>'Factura a fost eliminată, iar stocul a fost recalculat.','payment'=>'Înregistrarea a fost salvată.','correct'=>'Documentele de corecție au fost emise.',default=>'Modificările au fost salvate.' };
+            if($kind==='issue' && ($result['email_state'] ?? '')==='queued') { $message='Factura a fost emisă. Emailul cu link privat și PDF este pregătit pentru trimitere.'; }
             $redirect=in_array($kind,['order-edit','order-payment'],true)?$this->config->path('admin/comenzi/'.(int)$input['order_id'].'/'):$this->url($id>0?$id.'/':'');
             if(($input['return_to'] ?? '')==='order' && ($result || $sourceOrderId>0)) { $redirect=$this->config->path('admin/comenzi/'.(int)($result['order_id'] ?? $sourceOrderId).'/'); }
             if($kind==='issue' && ($input['return_to'] ?? '')==='orders') { $redirect=$this->config->path('admin/comenzi/'); }
@@ -157,7 +158,7 @@ final class InvoiceController
     {
         try {
             if(!(new \App\Shared\Http\RateLimiter($this->repository->pdo()))->allow('invoice-public',(string)($request->getServerParams()['REMOTE_ADDR'] ?? ''),60,300)) { return new Response(429); }
-            $invoice=$this->service->publicDocument($args['token']); return $this->file($this->exports->pdf($invoice),$this->exports->filename($invoice).'.pdf','pdf'); }
+            $invoice=$this->service->publicDocument($args['token']); return $this->file($this->exports->pdf($invoice),$this->exports->filename($invoice).'.pdf','pdf',($request->getQueryParams()['view'] ?? '')==='1'); }
         catch(\Throwable) { $response=new Response(404); $response->getBody()->write('Linkul facturii nu este disponibil. Contactează magazinul pentru o copie.'); return $response->withHeader('Content-Type','text/plain; charset=utf-8')->withHeader('Cache-Control','no-store'); }
     }
     private function file(string $path,string $name,string $format,bool $inline=false): ResponseInterface

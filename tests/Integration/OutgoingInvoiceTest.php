@@ -93,6 +93,45 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         self::assertSame('Firma QA',$reload['snapshot']['company']['legal_name']); self::assertSame($invoice['lines'][0]['name'],$reload['lines'][0]['name']);
         self::assertSame((int)$this->pdo->query('SELECT total_bani FROM orders WHERE id='.$order)->fetchColumn(),$invoice['gross_bani']);
     }
+    public function testManualIssueEmailChoiceIsAtomicAndIdempotent(): void
+    {
+        $order=$this->order(1);
+        $input=['request_key'=>'manual-issue-with-email','send_email'=>'1'];
+        $invoice=$this->service->issue($order,$input,$this->actor);
+        self::assertSame('queued',$invoice['email_state']);
+        $this->service->issue($order,$input,$this->actor);
+        $this->service->issue($order,['request_key'=>'another-issue-with-email','send_email'=>'1'],$this->actor);
+        self::assertSame(1,(int)$this->pdo->query("SELECT COUNT(*) FROM outbox_messages WHERE message_type='invoice'")->fetchColumn());
+        self::assertSame(1,(int)$this->pdo->query('SELECT COUNT(*) FROM invoice_public_links')->fetchColumn());
+        $off=$this->service->issue($this->order(1),['request_key'=>'manual-issue-no-email','send_email'=>'0'],$this->actor);
+        self::assertSame('not_sent',$off['email_state']);
+        self::assertSame(1,(int)$this->pdo->query("SELECT COUNT(*) FROM outbox_messages WHERE message_type='invoice'")->fetchColumn());
+        try { $this->service->issue($order,array_replace($input,['send_email'=>'0']),$this->actor); self::fail('Changed retry must be rejected'); }
+        catch(InvoiceException $e) { self::assertSame(409,$e->getCode()); }
+        $next=$this->order(1); $balance=$this->balance();
+        $this->pdo->exec("CREATE TRIGGER reject_invoice_email BEFORE INSERT ON outbox_messages WHEN NEW.message_type='invoice' BEGIN SELECT RAISE(ABORT,'QA queue unavailable'); END");
+        try { $this->service->issue($next,['request_key'=>'manual-issue-email-rollback','send_email'=>'1'],$this->actor); self::fail('Queue failure must roll back'); }
+        catch(\PDOException) { self::assertSame(2,(int)$this->pdo->query('SELECT COUNT(*) FROM invoices')->fetchColumn()); self::assertSame($balance,$this->balance()); }
+    }
+
+    public function testEmailCtaOpensPrivatePdfWithoutLoginAndRevocationStillWorks(): void
+    {
+        $invoice=$this->service->issue($this->order(1),['request_key'=>'email-direct-link','send_email'=>'1'],$this->actor);
+        $payload=json_decode($this->pdo->query("SELECT payload_json FROM outbox_messages WHERE message_type='invoice'")->fetchColumn(),true);
+        $mail=(new \App\Modules\Invoicing\InvoiceEmail(new InvoiceRepository($this->pdo),Config::load($this->root),$this->root))->render($payload,'invoice.customer@example.test');
+        $url='http://localhost/factura/'.$payload['public_token'].'/?view=1';
+        self::assertStringContainsString('href="'.$url.'"',$mail['html']); self::assertStringContainsString('Deschide factura',$mail['html']);
+        self::assertStringContainsString('Rezumatul facturii',$mail['html']); self::assertStringContainsString($url,$mail['text']);
+        $_SESSION=[];
+        $factory=new \Slim\Psr7\Factory\ServerRequestFactory();
+        $app=\App\AppFactory::create($this->root);
+        $response=$app->handle($factory->createServerRequest('GET',$url,['REMOTE_ADDR'=>'127.0.0.74']));
+        self::assertSame(200,$response->getStatusCode()); self::assertStringStartsWith('inline;',$response->getHeaderLine('Content-Disposition'));
+        self::assertSame('noindex, nofollow',$response->getHeaderLine('X-Robots-Tag')); self::assertStringStartsWith('%PDF',(string)$response->getBody());
+        $this->service->publicLink($invoice['id'],$this->actor,true);
+        self::assertSame(404,$app->handle($factory->createServerRequest('GET',$url))->getStatusCode());
+        unset($app); gc_collect_cycles();
+    }
     public function testLatePurchaseReconcilesAndDeletionRestoresExactBalance(): void
     {
         $invoice=$this->service->issue($this->order(6),['request_key'=>'issue-before-nir'],$this->actor);
@@ -304,6 +343,18 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         $this->pdo->exec("UPDATE companies SET tax_id='12345678'"); \App\Modules\Invoicing\InvoiceModule::process($this->pdo,$this->root);
         self::assertSame(2,(int)$this->pdo->query('SELECT COUNT(*) FROM invoices')->fetchColumn());
     }
+    public function testManualEmailIsNotQueuedAgainByPendingAutomation(): void
+    {
+        $order=$this->order(1);
+        $automation=new \App\Modules\Invoicing\InvoiceAutomationService(new \App\Modules\Invoicing\InvoiceAutomationRepository($this->pdo));
+        $automation->save(['revision'=>$automation->settings()['revision'],'cod_issue'=>1,'cod_email'=>1],$this->actor['id']);
+        $automation->prepareForOrder($order);
+        $this->service->issue($order,['request_key'=>'manual-before-automation','send_email'=>'1'],$this->actor);
+        $result=\App\Modules\Invoicing\InvoiceModule::process($this->pdo,$this->root);
+        self::assertSame(0,$result['emails']); self::assertSame(0,$result['failed']);
+        self::assertSame(1,(int)$this->pdo->query("SELECT COUNT(*) FROM outbox_messages WHERE message_type='invoice'")->fetchColumn());
+        self::assertSame('complete',$this->pdo->query('SELECT state FROM invoice_automation_intents WHERE order_id='.$order)->fetchColumn());
+    }
     public function testOnlineStockReturnsOnlyAfterPhysicalReceiptOfShippedPieces(): void
     {
         $this->pdo->exec('UPDATE product_variants SET stock_unlimited=0 WHERE id='.$this->variant['id']);
@@ -512,10 +563,11 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         self::assertStringNotContainsString('data-iv-order',$html);
         self::assertStringNotContainsString('name="billing[',$html);
         self::assertStringContainsString('Stoc contabil actualizat',$html);
+        self::assertStringContainsString('name="send_email" value="1" checked',$html);
         $standalone=$app->handle($get);self::assertSame(200,$standalone->getStatusCode());
         self::assertStringContainsString('Înapoi la comandă',(string)$standalone->getBody());
         self::assertSame(0,(int)$this->pdo->query('SELECT COUNT(*) FROM invoices')->fetchColumn());
-        $input=['_csrf'=>$_SESSION['_csrf'],'order_id'=>$orderId,'request_key'=>'issue-from-order','return_to'=>'order'];
+        $input=['_csrf'=>$_SESSION['_csrf'],'order_id'=>$orderId,'request_key'=>'issue-from-order','return_to'=>'order','send_email'=>'1'];
         $confirmation=$this->service->issuanceConfirmation($orderId,$this->actor);
         $input+=['confirmation_hash'=>$confirmation['confirmation_hash'],'expected_number'=>$confirmation['series'].' '.$confirmation['number']];
         $post=$factory->createServerRequest('POST','http://localhost/admin/facturi/emite/',['REMOTE_ADDR'=>'127.0.0.78'])->withParsedBody($input);
@@ -525,6 +577,7 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         $again=$app->handle($post);self::assertSame('/admin/comenzi/'.$orderId.'/',$again->getHeaderLine('Location'));
         self::assertSame(1,(int)$this->pdo->query('SELECT COUNT(*) FROM invoices')->fetchColumn());
         self::assertSame(-10000,$this->balance());
+        self::assertSame(1,(int)$this->pdo->query("SELECT COUNT(*) FROM outbox_messages WHERE message_type='invoice'")->fetchColumn());
         unset($app);gc_collect_cycles();
     }
     public function testOrderReturnCanRemainWithoutAnInvoiceAndNeverTouchesStock(): void

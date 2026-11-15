@@ -86,7 +86,7 @@
           <td class="product-copy" valign="middle" style="padding:0 0 0 18px;word-wrap:break-word;overflow-wrap:anywhere;">
             <p class="product-name" style="margin:0 0 5px;color:#37414d;font-size:18px;line-height:26px;font-weight:bold;">{% if product_url %}<a href="{{ product_url }}" target="_blank" rel="noopener noreferrer" style="color:#37414d;text-decoration:none;">{{ item.name }}</a>{% else %}{{ item.name }}{% endif %}</p>
             {% if item.variant %}<p class="product-meta" style="margin:0 0 3px;color:#73808c;font-size:15px;line-height:23px;">{{ item.variant }}</p>{% endif %}
-            <p class="product-meta" style="margin:6px 0 0;color:#83909b;font-size:14px;line-height:22px;">SKU: {{ item.sku }}</p>
+            {% if item.sku %}<p class="product-meta" style="margin:6px 0 0;color:#83909b;font-size:14px;line-height:22px;">SKU: {{ item.sku }}</p>{% endif %}
           </td>
         </tr></table>
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:15px;border-top:1px solid #e5e9ef;"><tr>
@@ -98,7 +98,7 @@
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="#fcf3f6" style="margin-top:22px;background-color:#fcf3f6;border:1px solid #f1e0e7;border-radius:24px;"><tr><td class="totals-pad" style="padding:22px;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
           <td class="summary-icon-cell" width="48" style="width:48px;"><img src="{{ summary_icon }}" width="38" height="38" alt="" style="display:block;width:38px;height:38px;"></td>
-          <td><p class="summary-heading" style="margin:0;color:#725565;font-size:20px;line-height:28px;font-weight:bold;">Rezumatul comenzii</p></td>
+          <td><p class="summary-heading" style="margin:0;color:#725565;font-size:20px;line-height:28px;font-weight:bold;">{% block summary_heading %}Rezumatul comenzii{% endblock %}</p></td>
           {% if savings %}<td align="right" style="padding-left:10px;"><table role="presentation" cellpadding="0" cellspacing="0"><tr><td class="savings-pill" bgcolor="#e7f3ec" style="padding:8px 12px;background-color:#e7f3ec;border:1px solid #d5e9dc;border-radius:22px;color:#287c51;font-size:15px;line-height:23px;white-space:nowrap;">−{{ savings }}</td></tr></table></td>{% endif %}
         </tr></table>
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:18px;">
@@ -106,7 +106,7 @@
         </table>
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="#ffffff" style="margin-top:19px;background-color:#ffffff;border:1px solid #efdee5;border-radius:18px;"><tr><td class="total-card-pad" style="padding:20px;">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
-            <td class="total-label" style="color:#695361;font-size:17px;line-height:26px;">Total comandă</td>
+            <td class="total-label" style="color:#695361;font-size:17px;line-height:26px;">{% block total_label %}Total comandă{% endblock %}</td>
             <td class="total-number" align="right" style="padding-left:10px;color:#703a50;font-size:36px;line-height:44px;letter-spacing:-0.8px;font-weight:500;white-space:nowrap;">{{ total }}</td>
           </tr></table>
           {% block summary_payment_status %}<table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:12px;"><tr><td style="padding:5px 10px;border-radius:20px;background-color:{{ paid ? '#edf7f0' : '#f6f3f9' }};color:{{ paid ? '#2e805a' : '#85708e' }};font-size:14px;line-height:22px;">{{ paid ? '✓ Achitat integral.' : 'De achitat la livrare' }}</td></tr></table>{% endblock %}
@@ -180,7 +180,7 @@
               <td width="32" valign="middle" style="width:32px;"><table role="presentation" width="22" cellpadding="0" cellspacing="0"><tr><td align="center" height="22" style="height:22px;border:1px solid #bccbd8;border-radius:7px;color:#627b91;font-size:16px;line-height:22px;">↗</td></tr></table></td>
               <td style="color:#4d6377;font-size:15px;line-height:24px;font-weight:bold;">Un link doar pentru tine</td>
             </tr></table>
-            <p class="email-note-copy" style="margin:9px 0 0;color:#687b8d;font-size:15px;line-height:25px;">Linkul de urmărire oferă acces la comanda ta. Păstrează-l privat.</p>
+            <p class="email-note-copy" style="margin:9px 0 0;color:#687b8d;font-size:15px;line-height:25px;">{% block private_link_notice %}Linkul de urmărire oferă acces la comanda ta. Păstrează-l privat.{% endblock %}</p>
           </td></tr></table>
         </td></tr>
       </table>

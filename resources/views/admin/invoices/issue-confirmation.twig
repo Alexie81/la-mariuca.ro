@@ -7,6 +7,11 @@
   <div><span class="iv-eyebrow">Factura care urmează</span><strong>{{ preview.series }} {{ preview.number }}</strong><small>Numărul se rezervă la confirmare.</small></div>
   <div><span>Total de facturat</span><strong>{{ (preview.total/100)|number_format(2,',','.') }} <small>Lei</small></strong></div>
 </section>
+<label class="iv-issue-email">
+  <span class="iv-issue-email__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="m4 7 8 6 8-6"/></svg></span>
+  <span class="iv-issue-email__copy"><strong>Trimite factura prin email</strong><span>{{ preview.snapshot.customer.email }}</span><small>Clientul primește un link privat pentru deschidere și factura PDF atașată.</small></span>
+  <span class="iv-switch"><input type="checkbox" role="switch" name="send_email" value="1" checked aria-label="Trimite factura prin email clientului"><span></span></span>
+</label>
 {% if warehouses|length > 1 %}<label>Gestiune<select name="warehouse_id" required>{% for warehouse in warehouses %}<option value="{{ warehouse.id }}"{{ (warehouse_id ? warehouse.id == warehouse_id : warehouse.is_default) ? ' selected' : '' }}>{{ warehouse.name }}</option>{% endfor %}</select></label>{% elseif warehouses|length == 1 %}<input type="hidden" name="warehouse_id" value="{{ warehouses[0].id }}">{% endif %}
 <section class="iv-form-step iv-issue-customer">
   <header><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/></svg><div><h3>{{ preview.snapshot.customer.name }}</h3><p>{{ preview.snapshot.customer.email }}</p></div></header>

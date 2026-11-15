@@ -31,7 +31,7 @@ final class InvoiceModule
                     if(!$current || $current['state']==='complete') { return; }
                     $invoice=$current['invoice_id']?$service->load((int)$current['invoice_id']):$service->issue((int)$current['order_id'],['request_key'=>$current['issue_key']],$actor);
                     if(!$current['invoice_id']) { $result['issued']++; }
-                    if($current['send_email']) {
+                    if($current['send_email'] && in_array($invoice['email_state'],['not_sent','needs_resend'],true)) {
                         $service->queueEmail((int)$invoice['id'],$current['email_key'],$actor,true); $result['emails']++;
                     }
                     $repository->update('invoice_automation_intents',['invoice_id'=>$invoice['id'],'state'=>'complete','last_error'=>null,'updated_at'=>$repository->now()],['order_id'=>$current['order_id']]);
