@@ -27,7 +27,8 @@ final class OrderStatusEmail
         $order = $this->tracking->details($orderId);
         if ($order === null) { throw new DomainException('Comanda nu este disponibilă.'); }
         $labels = ['new'=>'nouă', 'confirmed'=>'confirmată', 'preparing'=>'în pregătire', 'shipped'=>'expediată',
-            'delivered'=>'livrată', 'cancelled'=>'anulată', 'returned'=>'returnată', 'manual_review'=>'în verificare'];
+            'delivered'=>'livrată', 'cancelled'=>'anulată', 'returned'=>'returnată', 'manual_review'=>'în verificare',
+            'return_requested'=>'cu retur solicitat', 'return_confirmed'=>'cu retur confirmat', 'return_refused'=>'cu retur refuzat', 'refunded'=>'rambursată'];
         $state = (string) ($payload['status'] ?? $order['status']);
         if (!isset($labels[$state])) { throw new DomainException('Starea comenzii nu este validă.'); }
         $customMessage = trim((string) ($payload['message'] ?? ''));

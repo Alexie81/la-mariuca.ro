@@ -724,6 +724,85 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         catch(\App\Modules\Inventory\NirConflictException) {}
         self::assertSame(30000,$this->balance());
     }
+    public function testDeletingLastReturnRestoresOrderAndReturnableQuantities(): void
+    {
+        $order=$this->order(2);$repo=new InvoiceRepository($this->pdo);
+        $repo->update('orders',['status'=>'delivered'],['id'=>$order]);
+        $item=$repo->all('order_items',['order_id'=>$order])[0];
+        $returnId=$this->service->returnOrder($order,['request_key'=>'lifecycle-full-return','quantities'=>[$item['id']=>2],'reason'=>'Mărime nepotrivită','issue_invoice'=>'1'],$this->actor);
+        self::assertSame('returned',$repo->one('orders',['id'=>$order])['status']);
+        $credit=$this->service->load((int)$repo->one('order_return_documents',['return_id'=>$returnId])['invoice_id']);
+        $this->service->delete($credit['id'],['request_key'=>'lifecycle-delete-last','version'=>$credit['row_version'],'reason'=>'Anulăm returul'],$this->actor);
+        $loaded=(new \App\Modules\Orders\OrderService($this->pdo))->findForAdmin($order);
+        self::assertSame('delivered',$loaded['status']);self::assertSame(2,$loaded['items'][0]['returnable_quantity']);self::assertSame([],$loaded['returns']);
+        self::assertNotNull($repo->one('order_returns',['id'=>$returnId])['voided_at']);
+        self::assertSame([],(new \App\Modules\Inventory\NirRepository($this->pdo))->pendingReturnNotifications($this->actor['id'],gmdate('Y-m-d')));
+        self::assertSame([],(new \App\Modules\Invoicing\OrderReturnWorkflow($repo))->missingDocuments($order));
+        self::assertSame(-20000,$this->balance());
+    }
+
+    public function testExistingReturnWithoutInvoiceCanBeInvoicedOrReversedWithoutDuplicateQuantities(): void
+    {
+        $repo=new InvoiceRepository($this->pdo);$workflow=new \App\Modules\Invoicing\OrderReturnWorkflow($repo);
+        foreach(['invoice','restore'] as $decision) {
+            $order=$this->order(1);$repo->update('orders',['status'=>'delivered'],['id'=>$order]);$item=$repo->all('order_items',['order_id'=>$order])[0];
+            $id=$this->service->returnOrder($order,['request_key'=>'orphan-'.$decision,'quantities'=>[$item['id']=>1],'reason'=>'Retur client','issue_invoice'=>'0'],$this->actor);
+            self::assertCount(1,$workflow->missingDocuments($order));
+            $input=['request_key'=>'repair-'.$decision,'order_version'=>$repo->editVersion($order),'decision'=>$decision,'reason'=>'Reconciliere retur','notify_customer'=>'1'];
+            $this->service->reconcileReturn($order,$id,$input,$this->actor);$this->service->reconcileReturn($order,$id,$input,$this->actor);
+            self::assertSame([],$workflow->missingDocuments($order));
+            $loaded=(new \App\Modules\Orders\OrderService($this->pdo))->findForAdmin($order);
+            self::assertSame($decision==='invoice'?0:1,$loaded['items'][0]['returnable_quantity']);
+            self::assertSame($decision==='invoice'?'returned':'delivered',$loaded['status']);
+            self::assertCount($decision==='invoice'?2:0,$repo->all('invoices',['order_id'=>$order,'deleted_at'=>null]));
+        }
+        self::assertCount(1,$repo->all('outbox_messages',['message_type'=>'invoice']));
+    }
+
+    public function testReturnRequestWithoutInvoiceIsReviewedSeparatelyAndAcceptsOnlyRequestedItems(): void
+    {
+        $repo=new InvoiceRepository($this->pdo);$requests=new \App\Modules\Invoicing\OrderReturnRequests($repo);
+        $order=$this->order(2);$repo->update('orders',['status'=>'delivered'],['id'=>$order]);$item=$repo->all('order_items',['order_id'=>$order])[0];
+        $input=['request_key'=>'request-without-invoice','reason'=>'Mărime nepotrivită','quantities'=>[$item['id']=>1]];
+        $id=$requests->create($order,$input,$this->actor);self::assertSame($id,$requests->create($order,$input,$this->actor));
+        self::assertCount(0,$repo->all('invoices'));self::assertCount(0,$repo->all('order_returns'));self::assertSame(0,$this->balance());
+        self::assertSame('delivered',$repo->one('orders',['id'=>$order])['status']);
+        $accepted=['request_key'=>'accept-request-no-invoice','return_request_id'=>$id,'reason'=>'Retur solicitat de client','quantities'=>[$item['id']=>1],'notify_customer'=>'1','issue_invoice'=>'0'];
+        try { $this->service->returnOrder($order,array_replace($accepted,['quantities'=>[$item['id']=>2]]),$this->actor);self::fail('Accepted different quantities'); } catch(InvoiceException) {}
+        $returnId=$this->service->returnOrder($order,$accepted,$this->actor);self::assertSame($returnId,$this->service->returnOrder($order,$accepted,$this->actor));
+        self::assertSame('accepted',$repo->one('order_return_requests',['id'=>$id])['state']);
+        self::assertCount(1,$repo->all('order_returns'));self::assertCount(2,$repo->all('outbox_messages',['message_type'=>'order_status_update']));
+        $other=$requests->create($order,array_replace($input,['request_key'=>'another-return-request']),$this->actor);
+        $requests->reject($order,$other,'Produsul nu îndeplinește condițiile de retur.',$this->actor);
+        self::assertSame('rejected',$repo->one('order_return_requests',['id'=>$other])['state']);self::assertCount(1,$repo->all('order_returns'));
+    }
+
+    public function testInvoiceResendsAndReturnReceiptEmailsReachInjectedTransportExactlyOnce(): void
+    {
+        $saved=$_ENV;
+        try {
+            $_ENV['APP_ENV']='development';$_ENV['MAIL_DELIVERY_MODE']='smtp';$_ENV['MAIL_SEND_AFTER_ID']='0';$_ENV['MAIL_MESSAGE_TYPES']='invoice,invoice_return_notice';$_ENV['MAILER_DSN']='smtp://127.0.0.1:2525';$_ENV['MAIL_FROM_ADDRESS']='shop@example.test';
+            $this->purchase(4,'25','MAIL-RETURN-RECEIPT');$order=$this->order(1);$repo=new InvoiceRepository($this->pdo);
+            $repo->update('orders',['status'=>'delivered'],['id'=>$order]);$invoice=$this->service->issue($order,['request_key'=>'mail-sale-invoice'],$this->actor);
+            $this->service->queueEmail($invoice['id'],'resend-invoice-first',$this->actor);$this->service->queueEmail($invoice['id'],'resend-invoice-second',$this->actor);$this->service->queueEmail($invoice['id'],'resend-invoice-second',$this->actor);
+            $credit=$this->service->credit($invoice['id'],['request_key'=>'mail-return-credit','version'=>$invoice['row_version'],'reason'=>'Retur client','quantities'=>[$invoice['lines'][0]['id']=>1]],$this->actor);
+            $nir=new NirService($this->pdo);$defaults=$nir->defaults($this->actor)['values'];
+            $returnId=$credit['order_return']['return_id'];
+            $receipt=$nir->receiveReturn($returnId,['physically_received'=>true,'warehouse_id'=>$defaults['warehouse_id'],'location_id'=>$defaults['location_id']],'mail-return-nir',$this->actor);
+            $nir->receiveReturn($returnId,['physically_received'=>true,'warehouse_id'=>$defaults['warehouse_id'],'location_id'=>$defaults['location_id']],'mail-return-nir',$this->actor);
+            self::assertCount(1,$repo->all('outbox_messages',['message_type'=>'invoice_return_notice']));
+            self::assertCount(3,$repo->all('outbox_messages',['message_type'=>'invoice']));
+            $notice=$repo->all('outbox_messages',['message_type'=>'invoice_return_notice'])[0];
+            $rendered=(new \App\Modules\Invoicing\InvoiceEmail($repo,Config::load($this->root),$this->root))->render(json_decode($notice['payload_json'],true),$notice['recipient']);
+            self::assertStringContainsString('recepționate',$rendered['subject']);self::assertStringContainsString('logo-la-mariuca',$rendered['html']);self::assertStringContainsString('cab-it-mark',$rendered['html']);
+            $this->pdo->exec("UPDATE outbox_messages SET available_at='2020-01-01'");
+            $processor=new \App\Shared\Mail\OutboxProcessor($this->pdo,Config::load($this->root),$this->root,new \Symfony\Component\Mailer\Transport\NullTransport());
+            self::assertSame(['processed'=>4,'sent'=>4,'previewed'=>0,'failed'=>0],$processor->process());
+            self::assertSame(0,$processor->process()['processed']);self::assertSame('sent',$repo->one('invoices',['id'=>$invoice['id']])['email_state']);
+            self::assertSame($receipt['id'],$credit['order_return']['return_id']>0?$this->service->document($credit['id'],$this->actor)['receipt_nir']['id']:null);
+        } finally { $_ENV=$saved; }
+    }
+
     private function order(int $quantity): int
     {
         $_SESSION['cart_token']=bin2hex(random_bytes(32)); $cart=new CartService($this->pdo); $cart->add($this->variant['id'],$quantity);

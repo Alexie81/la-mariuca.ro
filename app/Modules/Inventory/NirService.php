@@ -16,7 +16,7 @@ final class NirService
     private readonly \App\Modules\Companies\ReceiptLocationService $locations;
     private const MONEY=['net_bani','tax_bani','total_bani','discount_bani','net_ron_bani','tax_ron_bani','total_ron_bani','inventory_bani'];
     private const COSTS=['unit_price','discount_percent','vat_percent','extra_cost_ron','net_override','tax_override','gross_override','unit_cost_ron','last_price','initial_value_bani','remaining_value_bani','value_bani','price_history'];
-    public function __construct(PDO $pdo) { $this->repository=new NirRepository($pdo); $this->returnLinks=new ReturnStockLinks($pdo); $this->locations=new \App\Modules\Companies\ReceiptLocationService(new \App\Modules\Companies\CompanyRepository($pdo)); $this->search=new \App\Modules\Catalog\CatalogSearchService(new \App\Modules\Catalog\CatalogRepository($pdo)); }
+    public function __construct(private readonly PDO $pdo) { $this->repository=new NirRepository($pdo); $this->returnLinks=new ReturnStockLinks($pdo); $this->locations=new \App\Modules\Companies\ReceiptLocationService(new \App\Modules\Companies\CompanyRepository($pdo)); $this->search=new \App\Modules\Catalog\CatalogSearchService(new \App\Modules\Catalog\CatalogRepository($pdo)); }
 
     /** @param array<string,mixed> $actor @return array<string,bool> */
     public function permissions(array $actor): array
@@ -531,7 +531,7 @@ final class NirService
     public function pendingReturnReceipts(array $actor): array
     {
         $this->allow($actor,'view'); $today=(new DateTimeImmutable('now',new DateTimeZone('Europe/Bucharest')))->format('Y-m-d'); $pending=[];
-        foreach($this->repository->all('order_returns',[],'id DESC') as $return) {
+        foreach($this->repository->all('order_returns',['voided_at'=>null],'id DESC') as $return) {
             if($this->repository->one('nir_documents',['return_id'=>$return['id']])!==null || $this->returnLinks->hasInvoiceReceipt((int)$return['id'])) { continue; }
             $reminder=$this->repository->one('nir_return_reminders',['return_id'=>$return['id'],'actor_id'=>$this->actorId($actor)]);
             $order=$this->repository->one('orders',['id'=>$return['order_id']]) ?? []; $items=[];
@@ -542,6 +542,9 @@ final class NirService
                 $items[]=array_replace($ordered,$item,['product_name'=>$ordered['product_name'] ?? $ordered['name'] ?? '', 'traceable_quantity'=>NirDecimal::quantity($traceable),'eligible'=>$traceable>=(int)$item['quantity']*10000]);
             }
             if($items===[]) { continue; }
+            $invoices=$this->returnLinks->invoicesForReturn((int)$return['id']);
+            $return['invoice_number']=implode(', ',array_map(static fn(array $invoice):string=>$invoice['series_code'].' '.$invoice['number'],$invoices));
+            $return['invoice_date']=$invoices!==[]?substr($invoices[0]['issued_at'],0,10):$today;
             $pending[]=array_replace($return,['return_id'=>$return['id'],'order_number'=>$order['number'] ?? $order['order_number'] ?? (string)$return['order_id'],'items'=>$items,'dismissed'=>$reminder!==null&&$reminder['dismissed_on']===$today,'eligible'=>!in_array(false,array_column($items,'eligible'),true),'requires_return_invoice'=>true]);
         } return $this->permissions($actor)['costs']?$pending:array_map(fn(array $row):array=>$this->redact($row,$actor),$pending);
     }
@@ -565,6 +568,7 @@ final class NirService
         return $this->repository->transaction(function()use($returnId,$input,$key,$actor):array {
             $hash=$this->requestHash('customer_return',[$returnId,$input]); if(($previous=$this->retry($key,'customer_return',$hash))!==null) { return $this->document($previous,$actor); }
             $return=$this->repository->one('order_returns',['id'=>$returnId]); if($return===null) { throw new NirNotFoundException('Returul nu există.'); }
+            if($return['voided_at']!==null) { throw new NirConflictException('Returul a fost anulat și nu mai poate fi recepționat.'); }
             if($this->repository->one('nir_documents',['return_id'=>$returnId])!==null || $this->returnLinks->hasInvoiceReceipt($returnId)) { throw new NirConflictException('Primirea produselor acestui retur este deja înregistrată.'); }
             $linkedInvoices=$this->returnLinks->invoicesForReturn($returnId);
             if($linkedInvoices!==[]) {
@@ -614,7 +618,12 @@ final class NirService
             }
             $this->appendAttachments($id,(array)($input['attachments'] ?? []),$actor);
             $this->repository->update('nir_documents',['fingerprint'=>$this->duplicates($this->load($id),(bool)($input['accept_warnings'] ?? false))],['id'=>$id]);
-            $this->audit($id,'customer_return_received',$actor,null,$this->load($id),['return_id'=>$returnId]); $this->event($id,'nir.customer_return_received'); $this->remember($key,'customer_return',$hash,$id,$id); return $this->document($id,$actor);
+            $this->audit($id,'customer_return_received',$actor,null,$this->load($id),['return_id'=>$returnId]); $this->event($id,'nir.customer_return_received'); $this->remember($key,'customer_return',$hash,$id,$id);
+            if(($input['notify_customer'] ?? '1')==='1') {
+                $documents=(new ReturnStockLinks($this->pdo))->invoicesForReturn($returnId);
+                (new \App\Modules\Invoicing\ReturnReceiptNotification(new \App\Modules\Invoicing\InvoiceRepository($this->pdo)))->queue((int)$return['order_id'],'nir:'.$id,isset($documents[0])?(int)$documents[0]['id']:null);
+            }
+            return $this->document($id,$actor);
         });
     }
 

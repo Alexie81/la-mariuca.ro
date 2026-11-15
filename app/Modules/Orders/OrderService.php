@@ -238,7 +238,7 @@ final class OrderService
 
         $returns = $this->pdo->prepare(
             'SELECT r.*,u.first_name AS actor_first_name,u.last_name AS actor_last_name '
-            . 'FROM order_returns r LEFT JOIN users u ON u.id=r.actor_user_id WHERE r.order_id=:id ORDER BY r.id DESC'
+            . 'FROM order_returns r LEFT JOIN users u ON u.id=r.actor_user_id WHERE r.order_id=:id AND r.voided_at IS NULL ORDER BY r.id DESC'
         );
         $returns->execute(['id' => $orderId]);
         $order['returns'] = $returns->fetchAll();
@@ -562,12 +562,13 @@ final class OrderService
 
             $now = gmdate('c');
             $returnStatement = $this->pdo->prepare(
-                'INSERT INTO order_returns (order_id,return_type,reason,notes,restock,refund_mode,refund_bani,actor_user_id,created_at) '
-                . 'VALUES (:order,:type,:reason,:notes,:restock,:refund_mode,:refund,:actor,:now)'
+                'INSERT INTO order_returns (order_id,return_type,reason,notes,restock,refund_mode,refund_bani,actor_user_id,created_at,status_before) '
+                . 'VALUES (:order,:type,:reason,:notes,:restock,:refund_mode,:refund,:actor,:now,:status_before)'
             );
             $returnStatement->execute([
                 'order' => $orderId,
                 'type' => $isFull ? 'full' : 'partial',
+                'status_before' => $order['status'],
                 'reason' => mb_substr($reason, 0, 500),
                 'notes' => mb_substr(trim($notes), 0, 2000),
                 'restock' => $restock ? 1 : 0,

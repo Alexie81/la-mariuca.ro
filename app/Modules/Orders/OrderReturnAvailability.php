@@ -12,7 +12,7 @@ final class OrderReturnAvailability
     /** @return array<int,int> Returned whole pieces, keyed by order item. */
     public function returned(int $orderId): array
     {
-        $query=$this->pdo->prepare('SELECT ri.order_item_id,SUM(ri.quantity) AS quantity FROM order_return_items ri JOIN order_returns r ON r.id=ri.return_id WHERE r.order_id=:id GROUP BY ri.order_item_id');
+        $query=$this->pdo->prepare('SELECT ri.order_item_id,SUM(ri.quantity) AS quantity FROM order_return_items ri JOIN order_returns r ON r.id=ri.return_id WHERE r.order_id=:id AND r.voided_at IS NULL GROUP BY ri.order_item_id');
         $query->execute(['id'=>$orderId]); $result=[];
         foreach($query->fetchAll() as $row) { $result[(int)$row['order_item_id']]=(int)$row['quantity']; }
         $query=$this->pdo->prepare("SELECT l.order_item_id,SUM(-l.quantity_units) AS units FROM invoice_lines l JOIN invoices i ON i.id=l.invoice_id

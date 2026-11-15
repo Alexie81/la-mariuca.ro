@@ -1112,7 +1112,10 @@ final class AdminController
         $order = $this->decorateOrderForAdmin($order);
 
         $invoiceService=\App\Modules\Invoicing\InvoiceModule::service($this->pdo,dirname(__DIR__,3));
+        $order['email_delivery_warning']=(new \App\Shared\Mail\MailQueueHealth($this->config,dirname(__DIR__,3)))->warning('invoice');
         $order['billing_documents']=array_map(fn(array $document):array=>$invoiceService->document((int)$document['id'],$this->auth->user() ?? []),$order['issued_invoices']);
+        $order['pending_return_requests']=(new \App\Modules\Invoicing\InvoiceRepository($this->pdo))->all('order_return_requests',['order_id'=>$order['id'],'state'=>'pending']);
+        $order['returns_missing_invoices']=(new \App\Modules\Invoicing\OrderReturnWorkflow(new \App\Modules\Invoicing\InvoiceRepository($this->pdo)))->missingDocuments((int)$order['id']);
 
         return $this->view->render('admin/pages/order-detail.twig', [
             'order' => $order,
@@ -1167,6 +1170,22 @@ final class AdminController
     public function orderReturnModal(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
     {
         return $this->orderActionForm($request, (int) $args['id'], 'return');
+    }
+
+    public function orderReturnRequestModal(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        return $this->orderActionForm($request,(int)$args['id'],($request->getQueryParams()['decision'] ?? '')==='reject'?'return-reject':'return-request');
+    }
+
+    public function orderReturnRequest(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $data=(array)$request->getParsedBody();$orderId=(int)$args['id'];
+        try {
+            $service=new \App\Modules\Invoicing\OrderReturnRequests(new \App\Modules\Invoicing\InvoiceRepository($this->pdo));
+            if(($data['decision'] ?? '')==='reject') { $service->reject($orderId,(int)($data['return_request_id'] ?? 0),(string)($data['reason'] ?? ''),$this->auth->user() ?? []);$message='Cererea a fost respinsă. Răspunsul pentru client este în coada de email.'; }
+            else { $service->create($orderId,$data,$this->auth->user() ?? []);$message='Cererea de retur a fost înregistrată pentru analiză. Confirmarea pentru client este în coada de email.'; }
+            return $this->orderMutationResponse($request,$orderId,$message);
+        } catch(\Throwable $e) { return $this->orderMutationResponse($request,$orderId,'',$e->getMessage()); }
     }
 
     public function orderEmailModal(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
@@ -1375,6 +1394,7 @@ final class AdminController
                 'quantities'=>$quantities,'reason'=>(string)($data['reason'] ?? ''),'notes'=>(string)($data['notes'] ?? ''),
                 'issue_invoice'=>(string)($data['issue_invoice'] ?? '0'),
                 'notify_customer'=>(string)($data['notify_customer'] ?? '0'),
+                'return_request_id'=>(int)($data['return_request_id'] ?? 0),
             ],$this->auth->user() ?? []);
             return $this->orderMutationResponse($request, (int) $args['id'], 'Returul a fost înregistrat și istoricul comenzii a fost actualizat.');
         } catch (\Throwable $exception) {
@@ -1408,15 +1428,26 @@ final class AdminController
         $partials = [
             'status' => 'admin/partials/order-status-form.twig',
             'return' => 'admin/partials/order-return-form.twig',
+            'return-request' => 'admin/partials/order-return-form.twig',
+            'return-reject' => 'admin/partials/order-return-reject.twig',
             'email' => 'admin/partials/order-email-form.twig',
         ];
         $titles = ['status' => 'Schimbă statusul', 'return' => 'Înregistrează un retur', 'email' => 'Trimite actualizare'];
+        $titles+=['return-request'=>'Înregistrează o cerere de retur','return-reject'=>'Respinge cererea de retur'];
+        $pendingRequest=null;
+        if((int)($request->getQueryParams()['request'] ?? 0)>0) {
+            $repo=new \App\Modules\Invoicing\InvoiceRepository($this->pdo);
+            $pendingRequest=$repo->one('order_return_requests',['id'=>(int)$request->getQueryParams()['request'],'order_id'=>$orderId,'state'=>'pending']);
+            if($pendingRequest) { $pendingRequest['quantities']=json_decode($pendingRequest['quantities_json'],true,512,JSON_THROW_ON_ERROR); }
+        }
         if (!isset($partials[$type])) {
             throw new \RuntimeException('Acțiune de comandă necunoscută.');
         }
         $data = [
             'order' => $order,
             'partial_template' => $partials[$type],
+            'request_mode'=>$type==='return-request','pending_return_request'=>$pendingRequest,
+            'selected_action' => ($request->getQueryParams()['action'] ?? '')==='cancel'?'cancel':'',
             'form_title' => $titles[$type],
             'admin_section' => 'orders',
             'admin_context' => 'Comenzi',
@@ -1479,6 +1510,9 @@ final class AdminController
             'order.ship' => ['Comandă expediată', 'truck', 'blue'],
             'order.deliver' => ['Comandă livrată', 'heart', 'sage'],
             'order.cancel' => ['Comandă anulată', 'cancel', 'rose'],
+            'order.return_requested' => ['Cerere de retur înregistrată', 'return', 'violet'],
+            'order.return_request_rejected' => ['Cerere de retur respinsă', 'return', 'rose'],
+            'order.return_reversed' => ['Retur anulat · comandă restabilită', 'return', 'sage'],
             'order.return_full' => ['Retur integral înregistrat', 'return', 'violet'],
             'order.return_partial' => ['Retur parțial înregistrat', 'return', 'violet'],
             'order.email_queued' => ['E-mail pus în coadă', 'mail', 'blue'],

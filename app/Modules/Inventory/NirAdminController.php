@@ -323,9 +323,10 @@ final class NirAdminController
             foreach ($returns as $return) { if ((int) ($return['return_id'] ?? $return['id'] ?? 0)===(int) $args['id']) { $selected=$return; break; } }
             if ($selected===null) { throw new NirNotFoundException('Returul nu este disponibil pentru recepție.'); }
             return $this->render($this->modal($request)?'admin/partials/nir-action-content.twig':'admin/pages/nir-action.twig',array_replace($this->nirs->defaults($this->actor()),[
-                'action_kind'=>'customer_return','return'=>$selected,'return_document'=>$selected,'errors'=>[],'values'=>[],
+                'action_kind'=>'customer_return','return'=>$selected,'return_document'=>$selected,'errors'=>[],
                 'form_title'=>'Recepționează returul',
-                'form_action'=>$this->url('retururi/'.$args['id'].'/receptie/'),'back_url'=>$this->url('stoc/'),
+                'form_action'=>$this->url('retururi/'.$args['id'].'/receptie/'),'back_url'=>($request->getQueryParams()['return_to'] ?? '')==='order'?$this->config->path('admin/comenzi/'.$selected['order_id'].'/'):$this->url('stoc/'),
+                'return_to_order'=>($request->getQueryParams()['return_to'] ?? '')==='order',
                 'idempotency_key'=>bin2hex(random_bytes(24)),'is_modal'=>$this->modal($request),
             ]));
         } catch (\Throwable $e) { return $this->failure($request,$e); }
@@ -342,7 +343,7 @@ final class NirAdminController
             $input['attachments']=$stored;
             $doc=$this->nirs->receiveReturn((int) $args['id'],$input,(string) ($input['idempotency_key'] ?? ''),$this->actor());
             $this->removeUnusedUploads($stored,$doc);
-            return $this->success($request,'Returul fizic a fost recepționat.',$this->url($doc['id'].'/'),$doc);
+            return $this->success($request,'Returul fizic a fost recepționat.',($input['return_to'] ?? '')==='order'?$this->config->path('admin/comenzi/'.$doc['order_id'].'/'):$this->url($doc['id'].'/'),$doc);
         } catch (\Throwable $e) {
             foreach ($stored as $file) { $this->storage->remove((string) $file['stored_name']); }
             if (!$this->jsonWanted($request) && $e instanceof NirValidationException) {
@@ -351,6 +352,7 @@ final class NirAdminController
                 foreach ($returns as $return) { if ((int) $return['return_id']===(int) $args['id']) { $selected=$return; break; } }
                 return $this->render('admin/pages/nir-action.twig',array_replace($this->nirs->defaults($this->actor()),[
                     'action_kind'=>'customer_return','return_document'=>$selected,'form_title'=>'Recepționează returul',
+                    'return_to_order'=>($input['return_to'] ?? '')==='order',
                     'values'=>$input,'errors'=>$e->errors,'warnings'=>$e->warnings,'form_action'=>$request->getUri()->getPath(),
                     'idempotency_key'=>$input['idempotency_key'] ?? '', 'back_url'=>$this->url('stoc/'),
                 ]),422);

@@ -282,8 +282,8 @@ final class AppFactory
             $group->post('/comenzi/{id:[0-9]+}/aviz/', [$dispatchNoteController, 'issue']);
             $group->post('/comenzi/{id:[0-9]+}/aviz/sterge/', [$dispatchNoteController, 'delete']);
             $group->get('/comenzi/{id:[0-9]+}/aviz/pdf/', [$dispatchNoteController, 'pdf']);
-            $group->get('/facturi/{id:[0-9]+}/{action:edit|return|correct|receive|payment|delete|email|link|request|decide|policy|order-edit|order-payment}/', [$invoiceController, 'form']);
-            $group->post('/facturi/{id:[0-9]+}/{action:edit|return|correct|receive|payment|delete|email|link|dismiss|request|decide|policy|order-edit|order-payment}/', [$invoiceController, 'action']);
+            $group->get('/facturi/{id:[0-9]+}/{action:edit|return|correct|receive|payment|delete|email|link|request|decide|policy|order-edit|order-payment|return-reconcile}/', [$invoiceController, 'form']);
+            $group->post('/facturi/{id:[0-9]+}/{action:edit|return|correct|receive|payment|delete|email|link|dismiss|request|decide|policy|order-edit|order-payment|return-reconcile}/', [$invoiceController, 'action']);
             $group->get('/automatizari/', [$invoiceAutomationController, 'index']);
             $group->get('/spv-efactura/', [$spvPreviewController, 'index']);
             $group->get('/spv-efactura/retur/', [$spvPreviewController, 'callback']);
@@ -445,6 +445,8 @@ final class AppFactory
             $group->post('/comenzi/{id:[0-9]+}/nota/', [$adminController, 'saveOrderNote']);
             $group->get('/comenzi/{id:[0-9]+}/status/modal/', [$adminController, 'orderStatusModal']);
             $group->get('/comenzi/{id:[0-9]+}/retur/modal/', [$adminController, 'orderReturnModal']);
+            $group->get('/comenzi/{id:[0-9]+}/cerere-retur/modal/', [$adminController, 'orderReturnRequestModal']);
+            $group->post('/comenzi/{id:[0-9]+}/cerere-retur/', [$adminController, 'orderReturnRequest']);
             $group->get('/comenzi/{id:[0-9]+}/email/modal/', [$adminController, 'orderEmailModal']);
             $group->get('/comenzi/{id:[0-9]+}/anulare/{decision:accepta|respinge}/', [$adminController, 'orderCancellationForm']);
             $group->post('/comenzi/{id:[0-9]+}/anulare/decizie/', [$adminController, 'decideOrderCancellation']);

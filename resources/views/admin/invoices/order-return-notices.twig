@@ -1,0 +1,21 @@
+{% for request in order.pending_return_requests|default([]) %}<section class="order-return-notice" aria-label="Cerere de retur în analiză"><div class="order-return-notice__copy"><strong>Cerere de retur în analiză</strong><p>{{ request.reason }}</p><div class="order-return-notice__actions"><a class="order-billing__button is-primary" href="{{ url('admin/comenzi/' ~ order.id ~ '/retur/modal/?request=' ~ request.id) }}" data-order-modal-open data-modal-url="{{ url('admin/comenzi/' ~ order.id ~ '/retur/modal/?request=' ~ request.id) }}">Verifică și acceptă returul</a><a class="order-billing__button" href="{{ url('admin/comenzi/' ~ order.id ~ '/cerere-retur/modal/?decision=reject&request=' ~ request.id) }}" data-order-modal-open data-modal-url="{{ url('admin/comenzi/' ~ order.id ~ '/cerere-retur/modal/?decision=reject&request=' ~ request.id) }}">Respinge cu explicație</a></div></div></section>{% endfor %}
+{% import 'admin/partials/nir-ui.twig' as n %}
+{% if can_manage_documents %}
+<div class="order-return-notices">
+  {% for return in order.returns_missing_invoices %}
+  <section class="order-return-notice is-warning" aria-label="Retur fără factură">
+    <span class="order-return-notice__icon">{{ n.icon('warning') }}</span><div class="order-return-notice__copy"><strong>Retur înregistrat fără factură de retur</strong><p>{{ order.status == 'returned' ? 'Comanda este returnată, dar returul nu are un document fiscal activ.' : 'Cantitățile returului sunt înregistrate, dar factura de retur nu a fost emisă.' }} Poți emite documentul sau anula această înregistrare.</p><small>{{ return.reason }}</small>
+    <div class="order-return-notice__actions"><a class="order-billing__button is-primary" href="{{ url('admin/facturi/0/return-reconcile/?order=' ~ order.id ~ '&return=' ~ return.id ~ '&decision=invoice') }}" data-iv-modal>{{ n.icon('document') }}Generează factura de retur</a>{% if not return.restore_blocker %}<a class="order-billing__button" href="{{ url('admin/facturi/0/return-reconcile/?order=' ~ order.id ~ '&return=' ~ return.id ~ '&decision=restore') }}" data-iv-modal>{{ n.icon('back') }}{{ return.status_before|default('delivered') in ['new','confirmed','preparing','shipped'] ? 'Revino la starea anterioară' : 'Revino la Livrată' }}</a>{% else %}<small>{{ return.restore_blocker }}</small>{% endif %}</div></div>
+  </section>
+  {% endfor %}
+  {% for document in order.billing_documents %}{% if document.gross_bani < 0 %}
+  <section class="order-return-notice{{ document.receipt_nir or document.receipt ? ' is-complete' : '' }}" aria-label="Recepția produselor returnate">
+    <span class="order-return-notice__icon">{{ n.icon(document.receipt_nir or document.receipt ? 'check' : 'box') }}</span><div class="order-return-notice__copy"><strong>{{ document.receipt_nir or document.receipt ? 'Produse verificate pentru returul ' ~ document.display_number : 'Factura de retur ' ~ document.display_number ~ ' este emisă. Au ajuns produsele?' }}</strong>
+      {% if document.receipt_nir %}<p>Recepția fizică este înregistrată în NIR {{ document.receipt_nir.number }}.</p><a class="order-billing__button" href="{{ url('admin/nir-uri/' ~ document.receipt_nir.id ~ '/') }}">{{ n.icon('warehouse') }}Deschide NIR-ul de retur</a>
+      {% elseif document.receipt %}<p>Primirea fizică a fost deja înregistrată pentru acest document.</p>
+      {% else %}<p>Factura de retur nu pune marfa în stoc. Verifică produsele primite, apoi confirmă recepția. Până atunci, acest pas rămâne în așteptare.</p><div class="order-return-notice__actions">{% if document.order_return and document.requires_nir %}<a class="order-billing__button is-primary" href="{{ url('admin/nir-uri/retururi/' ~ document.order_return.return_id ~ '/receptie/?return_to=order') }}">{{ n.icon('box') }}Verifică produsele și creează NIR</a>{% else %}<a class="order-billing__button is-primary" href="{{ url('admin/facturi/' ~ document.id ~ '/receive/?return_to=order') }}" data-iv-modal>{{ n.icon('box') }}Verifică produsele primite</a>{% endif %}<span>Încă nu au ajuns? Revino aici la primirea coletului.</span></div>{% endif %}
+    </div>
+  </section>
+  {% endif %}{% endfor %}
+</div>
+{% endif %}

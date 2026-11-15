@@ -45,7 +45,7 @@ final class InvoiceEmail
         $twig=new Environment(new FilesystemLoader($this->root.'/resources/views'),['autoescape'=>'html']);
         if($notice) {
             $state=(string)$payload['return_notice'];
-            $title=match($state){'received'=>'Am primit solicitarea de retur','accepted'=>'Solicitarea de retur a fost acceptată','partial'=>'Solicitarea de retur a fost acceptată parțial',default=>'Răspuns la solicitarea de retur'};
+            $title=match($state){'received'=>'Am primit solicitarea de retur','accepted'=>'Solicitarea de retur a fost acceptată','partial'=>'Solicitarea de retur a fost acceptată parțial','physically_received'=>'Produsele returnate au fost recepționate','refunded'=>'Restituirea banilor a fost înregistrată',default=>'Răspuns la solicitarea de retur'};
             $tracking=new \App\Modules\Orders\OrderTrackingService(new \App\Modules\Orders\OrderTrackingRepository($this->repository->pdo()),new \App\Modules\Orders\OrderService($this->repository->pdo()),$this->config,$this->root);
             $data['subject']=$title.' · '.$snapshot['order_number']; $data['badge']='Returul tău'; $data['message']=$title;
             $data['introduction']=(string)$payload['message']; $data['tracking_url']=$tracking->emailUrl((int)$invoice['order_id'],$recipient); $data['preheader']=$title;

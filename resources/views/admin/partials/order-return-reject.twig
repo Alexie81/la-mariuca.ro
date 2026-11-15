@@ -1,0 +1,5 @@
+<header class="order-modal-head"><div><span class="order-kicker">Cerere de retur</span><h2 id="order-dialog-title">Respinge solicitarea</h2><p>{{ pending_return_request.reason|default('Cererea nu mai este disponibilă.') }}</p></div></header>
+{% if pending_return_request %}<form class="order-modal-form" method="post" action="{{ url('admin/comenzi/' ~ order.id ~ '/cerere-retur/') }}" data-order-async-form>
+<input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="decision" value="reject"><input type="hidden" name="return_request_id" value="{{ pending_return_request.id }}">
+<div class="order-modal-body"><label class="order-field"><span>Motivul refuzului · se trimite clientului</span><textarea name="reason" rows="4" minlength="3" maxlength="2000" required></textarea></label><p class="order-modal-feedback" data-order-form-feedback role="status" hidden></p></div>
+<footer class="order-modal-footer"><a class="order-modal-cancel" href="{{ url('admin/comenzi/' ~ order.id ~ '/') }}" data-order-dialog-close>Renunță</a><button class="order-modal-submit" type="submit">Confirmă refuzul</button></footer></form>{% endif %}

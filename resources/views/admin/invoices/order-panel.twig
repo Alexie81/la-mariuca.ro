@@ -7,6 +7,7 @@
     <span class="order-billing__state{{ has_invoices ? ' is-issued' : '' }}">{{ has_invoices ? 'Factură emisă' : 'Fără factură' }}</span>
   </header>
   <div class="order-billing__body">
+    {% if order.email_delivery_warning|default('') %}<p class="order-billing__mail-warning" role="status">{{ n.icon('info') }}{{ order.email_delivery_warning }}</p>{% endif %}
     {% if has_invoices %}
     <div class="order-billing__documents">
       {% for document in order.billing_documents %}
@@ -20,10 +21,10 @@
         <div class="order-billing__toolbar">
           <a href="{{ url('admin/facturi/' ~ document.id ~ '/pdf/?view=1') }}" target="_blank" rel="noopener">{{ n.icon('eye') }}Vezi factura</a>
           {% if can_manage_documents %}<a href="{{ url('admin/facturi/' ~ document.id ~ '/email/?return_to=order') }}" data-iv-modal>{{ n.icon('document') }}Trimite pe email</a>
-          <details class="order-billing__more"><summary>Alte acțiuni{{ n.icon('chevron') }}</summary>
+          <span class="order-billing__mail-state">{{ {'not_sent':'Email netrimis','queued':'Email în așteptare','sent':'Email acceptat de server','previewed':'Email generat în preview','failed':'Trimiterea emailului a eșuat','needs_resend':'Necesită retrimitere'}[document.email_state]|default(document.email_state) }}</span><details class="order-billing__more"><summary>Alte acțiuni{{ n.icon('chevron') }}</summary>
             <div class="order-billing__menu">
               {% if document.receipt_nir %}<a href="{{ url('admin/nir-uri/' ~ document.receipt_nir.id ~ '/') }}">{{ n.icon('warehouse') }}NIR retur · {{ document.receipt_nir.number }}</a>{% endif %}
-              {% if document.gross_bani < 0 and not document.receipt and not document.receipt_nir %}<a href="{{ url('admin/facturi/' ~ document.id ~ '/receive/?return_to=order') }}" data-iv-modal>{{ n.icon('box') }}Înregistrează primirea produselor</a>{% endif %}
+              {% if document.gross_bani < 0 and not document.receipt and not document.receipt_nir %}{% if document.order_return and document.requires_nir %}<a href="{{ url('admin/nir-uri/retururi/' ~ document.order_return.return_id ~ '/receptie/?return_to=order') }}">{{ n.icon('box') }}Verifică produsele și creează NIR</a>{% else %}<a href="{{ url('admin/facturi/' ~ document.id ~ '/receive/?return_to=order') }}" data-iv-modal>{{ n.icon('box') }}Înregistrează primirea produselor</a>{% endif %}{% endif %}
               {% if document.gross_bani < 0 or (document.payment_method == 'cod' and document.payment_state != 'paid') %}<a href="{{ url('admin/facturi/' ~ document.id ~ '/payment/?return_to=order') }}" data-iv-modal>{{ n.icon('money') }}{{ document.gross_bani < 0 ? 'Înregistrează restituirea' : 'Înregistrează încasarea' }}</a>{% endif %}
               {% if document.gross_bani > 0 %}<a href="{{ url('admin/facturi/' ~ document.id ~ '/request/?return_to=order') }}" data-iv-modal>{{ n.icon('return') }}Înregistrează cerere de retur</a>{% endif %}
               <a href="{{ url('admin/facturi/' ~ document.id ~ '/link/?return_to=order') }}" data-iv-modal>{{ n.icon('link') }}Link privat pentru client</a>

@@ -195,6 +195,13 @@ final class InvoiceService
             }
             if(array_filter($requested,static fn(mixed $q):bool=>(string)$q!=='0')) { throw new InvoiceException('Un produs nu aparține acestei comenzi.'); }
             if($selected===[]) { throw new InvoiceException('Alege o cantitate mai mare decât 0 pentru cel puțin un produs.'); }
+            $returnRequestId=(int)($input['return_request_id'] ?? 0);
+            if($returnRequestId>0) {
+                $pending=(new OrderReturnRequests($this->repository))->pending($orderId,$returnRequestId);
+                $requested=json_decode($pending['quantities_json'],true,512,JSON_THROW_ON_ERROR);
+                ksort($selected);ksort($requested);
+                if($selected!==$requested) { throw new InvoiceException('Confirmă cantitățile din cerere. Pentru alte cantități, respinge cererea cu explicație și înregistrează returul separat.'); }
+            }
             $issue=(string)($input['issue_invoice'] ?? '0')==='1'; $plans=[];
             if($issue) {
                 $positive=array_values(array_filter($this->repository->all('invoices',['order_id'=>$orderId,'deleted_at'=>null]),static fn(array $i):bool=>in_array($i['kind'],['sale','corrected_positive'],true)));
@@ -220,18 +227,59 @@ final class InvoiceService
             // Physical receipt and money transfers are separate explicit operations.
             $returnId=(new \App\Modules\Orders\OrderService($this->repository->pdo()))->registerReturn($orderId,$selected,$reason,(string)($input['notes'] ?? ''),false,'none',0,(int)$actor['id'],(string)($input['notify_customer'] ?? '0')==='1');
             foreach($plans as $index=>$plan) {
-                $credit=$this->credit((int)$plan['document']['id'],['request_key'=>$key.':credit:'.$index,'version'=>$plan['document']['row_version'],'reason'=>$reason,'quantities'=>$plan['quantities']],$actor);
-                $this->repository->insert('order_return_documents',['return_id'=>$returnId,'invoice_id'=>$credit['id']]);
+                $this->credit((int)$plan['document']['id'],['request_key'=>$key.':credit:'.$index,'version'=>$plan['document']['row_version'],'reason'=>$reason,'quantities'=>$plan['quantities'],'notify_customer'=>$input['notify_customer'] ?? '0'],$actor,'return',$returnId);
             }
+            if($returnRequestId>0) { $this->repository->update('order_return_requests',['state'=>'accepted','return_id'=>$returnId,'decision_reason'=>$reason,'decided_by'=>$actor['id'],'decided_at'=>$this->repository->now()],['id'=>$returnRequestId]); }
             $this->repository->insert('order_document_operations',['request_key'=>$key,'order_id'=>$orderId,'action'=>'return','payload_hash'=>$hash,'result_id'=>$returnId,'created_at'=>$this->repository->now()]);
             return $returnId;
         });
     }
-    /** @param array<string,mixed> $input @param array<string,mixed> $actor @return array<string,mixed> */
-    public function credit(int $id,array $input,array $actor,string $kind='return'): array
+    /** Complete an already recorded return without registering its quantities twice.
+     * @param array<string,mixed> $input @param array<string,mixed> $actor
+     */
+    public function reconcileReturn(int $orderId,int $returnId,array $input,array $actor): void
     {
         $this->allow($actor,'return');
-        return $this->repository->transaction(function()use($id,$input,$actor,$kind):array {
+        $this->repository->transaction(function()use($orderId,$returnId,$input,$actor):void {
+            $key=$this->key($input);$hash=$this->hash([$orderId,$returnId,$input]);$reason=$this->reason($input);
+            $prior=$this->repository->one('order_document_operations',['request_key'=>$key]);
+            if($prior) { if($prior['action']!=='return_reconcile' || $prior['payload_hash']!==$hash) { throw new InvoiceException('Confirmarea a fost folosită pentru altă operațiune.',409); } return; }
+            if(!hash_equals($this->repository->editVersion($orderId),(string)($input['order_version'] ?? ''))) { throw new InvoiceException('Comanda s-a modificat. Redeschide confirmarea.',409); }
+            $return=$this->repository->one('order_returns',['id'=>$returnId,'order_id'=>$orderId,'voided_at'=>null]) ?? throw new InvoiceException('Returul nu mai este disponibil.',409);
+            $workflow=new OrderReturnWorkflow($this->repository);
+            if((new \App\Modules\Inventory\ReturnStockLinks($this->repository->pdo()))->invoicesForReturn($returnId)!==[]) { throw new InvoiceException('Returul are deja un document fiscal.',409); }
+            $decision=(string)($input['decision'] ?? '');
+            if($decision==='restore') { $workflow->void($return,$actor,$reason); }
+            elseif($decision==='invoice') {
+                $order=$this->repository->one('orders',['id'=>$orderId]);
+                if(in_array($order['status'],['cancelled','refunded'],true)) { throw new InvoiceException('Comanda a fost închisă ulterior. Verifică operațiunile înainte de emiterea documentului lipsă.',409); }
+                $positive=array_values(array_filter($this->repository->all('invoices',['order_id'=>$orderId,'deleted_at'=>null]),static fn(array $row):bool=>in_array($row['kind'],['sale','corrected_positive'],true)));
+                if($positive===[]) { $data=$this->snapshots->fromOrder($orderId,[],true,true);$positive[]=$this->create('sale',$orderId,$data['snapshot'],$data['lines'],$actor,$key.':positive',null,null,'',null); }
+                $needed=[];foreach($this->repository->all('order_return_items',['return_id'=>$returnId]) as $item) { $needed[(int)$item['order_item_id']]=(int)$item['quantity']*10000; }
+                $plans=[];
+                foreach($positive as $document) {
+                    $doc=$this->load((int)$document['id']);$quantities=[];
+                    foreach($doc['lines'] as $line) {
+                        if($line['kind']!=='product') { continue; }$itemId=(int)$line['order_item_id'];
+                        $take=min($needed[$itemId] ?? 0,max(0,(int)$line['quantity_units']-$this->repository->creditedUnits((int)$line['id'])));
+                        if($take>0) { $quantities[$line['id']]=InvoiceCalculator::quantity($take);$needed[$itemId]-=$take; }
+                    }
+                    if($quantities!==[]) { $plans[]=['doc'=>$doc,'quantities'=>$quantities]; }
+                }
+                if($plans===[] || array_sum($needed)>0) { throw new InvoiceException('Cantitățile returului nu mai sunt disponibile pe facturile comenzii.',409); }
+                foreach($plans as $index=>$plan) {
+                    $credit=$this->credit((int)$plan['doc']['id'],['request_key'=>$key.':credit:'.$index,'version'=>$plan['doc']['row_version'],'reason'=>$reason,'quantities'=>$plan['quantities'],'notify_customer'=>'0'],$actor,'return',$returnId);
+                    if(($input['notify_customer'] ?? '')==='1') { $this->queueEmail((int)$credit['id'],$key.':email:'.$index,$actor); }
+                }
+            } else { throw new InvoiceException('Alege cum dorești să continui returul.'); }
+            $this->repository->insert('order_document_operations',['request_key'=>$key,'order_id'=>$orderId,'action'=>'return_reconcile','payload_hash'=>$hash,'result_id'=>$returnId,'created_at'=>$this->repository->now()]);
+        });
+    }
+    /** @param array<string,mixed> $input @param array<string,mixed> $actor @return array<string,mixed> */
+    public function credit(int $id,array $input,array $actor,string $kind='return',?int $returnId=null): array
+    {
+        $this->allow($actor,'return');
+        return $this->repository->transaction(function()use($id,$input,$actor,$kind,$returnId):array {
             $key=$this->key($input); $hash=$this->hash([$id,$input]); if($retry=$this->retry($key,$kind,$hash)) { return $retry; }
             $original=$this->load($id); $this->version($original,$input); $reason=$this->reason($input);
             if(!in_array($original['kind'],['sale','corrected_positive'],true)) { throw new InvoiceException('Returul se emite pentru o factură pozitivă.'); }
@@ -258,8 +306,10 @@ final class InvoiceService
             $order=$this->repository->one('orders',['id'=>$original['order_id']]);
             $snapshot['order_status_before']=$order['status']; $snapshot['order_payment_before']=$order['payment_status'];
             $result=$this->create($kind,(int)$original['order_id'],$snapshot,$lines,$actor,$key,$id,null,$reason,null);
+            (new OrderReturnWorkflow($this->repository))->linkCredit($result,(string)$order['status'],$reason,$actor,$returnId);
             $this->touch($original,['row_version'=>(int)$original['row_version']+1]);
             if(!$productLeft && $kind==='return' && !$this->repository->hasUnreturnedProducts((int)$original['order_id'])) { $this->repository->update('orders',['status'=>'returned','updated_at'=>$this->repository->now()],['id'=>$original['order_id']]); }
+            if($kind==='return' && ($input['notify_customer'] ?? '1')==='1') { $this->queueEmail((int)$result['id'],$key.':return-email',$actor); }
             $this->remember($key,$kind,$hash,(int)$result['id']); return $this->decorate($result);
         });
     }
@@ -393,6 +443,7 @@ final class InvoiceService
                 $this->stock->receiveOnline($receipt,$line,$source,$plan['restock_units'],$actor);
             }
             $this->touch($invoice,[]); $this->audit($id,'physically_received',$actor,$notes,[],['receipt_id'=>$receipt,'lines'=>$plans]); $this->remember($key,'receive',$hash,$id);
+            if(($input['notify_customer'] ?? '1')==='1') { (new ReturnReceiptNotification($this->repository))->queue((int)$invoice['order_id'],'invoice:'.$receipt,$id); }
             return $this->decorate($this->load($id));
         });
     }
@@ -409,9 +460,10 @@ final class InvoiceService
                 if($amount+$refunds>abs((int)$invoice['gross_bani'])) { throw new InvoiceException('Suma depășește valoarea de restituit.'); }
                 $cash=$this->repository->orderCash((int)$invoice['order_id']);
                 if($amount>$cash['received']-$cash['refunded']) { throw new InvoiceException('Nu poți înregistra o restituire mai mare decât banii încasați efectiv pentru comandă.'); }
-                $this->repository->insert('invoice_refunds',['invoice_id'=>$id,'amount_bani'=>$amount,'reference'=>$reason,'actor_id'=>$actor['id'],'created_at'=>$this->repository->now()]);
+                $refundId=$this->repository->insert('invoice_refunds',['invoice_id'=>$id,'amount_bani'=>$amount,'reference'=>$reason,'actor_id'=>$actor['id'],'created_at'=>$this->repository->now()]);
                 $this->repository->update('orders',['payment_status'=>$cash['refunded']+$amount===$cash['received']?'refunded':'partially_refunded','updated_at'=>$this->repository->now()],['id'=>$invoice['order_id']]);
                 if($invoice['fiscal_attempted_at']===null && $invoice['fiscal_reference']===null && in_array($invoice['fiscal_state'],['unconfigured','not_sent','queued','scheduled','awaiting_configuration'],true)) { $this->touch($invoice,[]); }
+                if(($input['notify_customer'] ?? '1')==='1') { $this->queueReturnNotice($invoice,$refundId,'refunded','Am înregistrat restituirea sumei de '.InvoiceCalculator::money($amount).' pentru returul tău.'); }
             } else {
                 if($invoice['payment_method']==='stripe') { throw new InvoiceException('Încasarea online este stabilită numai de procesatorul de plăți.'); }
                 $cash=$this->repository->orderCash((int)$invoice['order_id']);
@@ -458,6 +510,7 @@ final class InvoiceService
             }
             foreach($this->repository->all('invoice_public_links',['invoice_id'=>$id,'revoked_at'=>null]) as $link) { $this->repository->update('invoice_public_links',['revoked_at'=>$this->repository->now()],['id'=>$link['id']]); }
             $this->touch($invoice,['active_number'=>null,'primary_order_id'=>null,'deleted_at'=>$this->repository->now()]);
+            (new OrderReturnWorkflow($this->repository))->invoiceDeleted($id,$actor,$reason);
             $this->cancelQueuedEmail($id);
             $this->audit($id,'deleted',$actor,$reason,$before,['number_reusable'=>true]); $this->remember($key,'delete',$hash,$id);
         });
@@ -745,6 +798,8 @@ final class InvoiceService
         $invoice=$this->brief($invoice); $invoice['related']=array_map(fn(array $row):array=>$this->brief($row),$this->repository->children((int)$invoice['id']));
         $invoice['parent']=$invoice['parent_id']?$this->repository->one('invoices',['id'=>$invoice['parent_id']]):null;
         $invoice['receipt_nir']=(new \App\Modules\Inventory\ReturnStockLinks($this->repository->pdo()))->nirForInvoice((int)$invoice['id']);
+        $invoice['requires_nir']=count(array_filter($invoice['lines'],static fn(array $line):bool=>$line['kind']==='product' && !empty($line['scope_type'])))>0;
+        $invoice['order_return']=$this->repository->one('order_return_documents',['invoice_id'=>$invoice['id']]);
         $invoice['receipt']=$this->repository->one('invoice_receipts',['invoice_id'=>$invoice['id']]);
         if($invoice['receipt']) {
             $invoice['receipt']['lines']=json_decode($invoice['receipt']['lines_json'],true,512,JSON_THROW_ON_ERROR);
@@ -767,7 +822,7 @@ final class InvoiceService
     }
     private function cancelQueuedEmail(int $id): void
     {
-        foreach($this->repository->all('outbox_messages',['message_type'=>'invoice']) as $message) {
+        foreach(array_merge($this->repository->all('outbox_messages',['message_type'=>'invoice']),$this->repository->all('outbox_messages',['message_type'=>'invoice_return_notice'])) as $message) {
             $payload=json_decode($message['payload_json'],true);
             if((int)($payload['invoice_id'] ?? 0)===$id && in_array($message['status'],['pending','failed'],true)) {
                 $this->repository->update('outbox_messages',['status'=>'failed','attempts'=>5,'last_error'=>'Documentul a fost modificat sau eliminat. Generează o trimitere nouă.'],['id'=>$message['id']]);

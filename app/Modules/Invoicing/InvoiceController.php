@@ -79,7 +79,7 @@ final class InvoiceController
             }:null;
             $returnToOrders=$kind==='issue' && ($request->getQueryParams()['return_to'] ?? '')==='orders';
             $returnToOrder=!$returnToOrders && ($orderId>0 || ($invoice && ($request->getQueryParams()['return_to'] ?? '')==='order'));
-            $editOrder=(in_array($kind,['edit','correct'],true) && $invoice)||in_array($kind,['order-edit','order-payment'],true)?(new \App\Modules\Orders\OrderService($this->repository->pdo()))->findForAdmin($invoice['order_id'] ?? $orderId):null;
+            $editOrder=(in_array($kind,['edit','correct'],true) && $invoice)||in_array($kind,['order-edit','order-payment','return-reconcile'],true)?(new \App\Modules\Orders\OrderService($this->repository->pdo()))->findForAdmin($invoice['order_id'] ?? $orderId):null;
             if($kind==='order-payment' && $editOrder) { $editOrder['payment_version']=$this->repository->paymentVersion((int)$editOrder['id']); $editOrder['cash']=$this->repository->orderCash((int)$editOrder['id']); $documents=$this->repository->all('invoices',['order_id'=>$editOrder['id'],'deleted_at'=>null]); $editOrder['payment_total']=$documents!==[]?max(0,$this->repository->orderNet((int)$editOrder['id'])):(int)$editOrder['total_bani']; }
             $actions=$editOrder?(new OrderDocumentPolicy($this->repository))->actions($editOrder):[];
             if($editOrder) {
@@ -102,6 +102,12 @@ final class InvoiceController
                 'edit_order'=>$editOrder,'order_actions'=>$actions,'can_reprice'=>($this->actor()['role'] ?? '')==='administrator','edit_focus'=>in_array($request->getQueryParams()['focus'] ?? '',['items','contact'],true)?$request->getQueryParams()['focus']:'contact','return_request'=>$returnRequest,'return_policy'=>$this->service->returnPolicy(),
                 'is_modal'=>$request->getHeaderLine('X-Invoice-Modal')==='1','return_to_order'=>$returnToOrder,'return_to_orders'=>$returnToOrders];
             $data['product_options']=$editOrder && !$data['is_modal']?$this->repository->productChoices(null,0,0):[];
+            if($kind==='return-reconcile') {
+                $data['reconciliation']=null;
+                foreach((new OrderReturnWorkflow($this->repository))->missingDocuments($orderId) as $candidate) { if((int)$candidate['id']===(int)($request->getQueryParams()['return'] ?? 0)) { $data['reconciliation']=$candidate; } }
+                if(!$data['reconciliation']) { throw new InvoiceException('Returul nu mai necesită această acțiune.',409); }
+                $data['decision']=($request->getQueryParams()['decision'] ?? '')==='restore'?'restore':'invoice';
+            }
             if($kind==='order-edit' && $editOrder) { $data['back_url']=$this->config->path('admin/comenzi/'.$editOrder['id'].'/'); }
             if($returnToOrder) { $data['back_url']=$this->config->path('admin/comenzi/'.($invoice['order_id'] ?? $orderId).'/'); }
             if($returnToOrders) { $data['back_url']=$this->config->path('admin/comenzi/'); }
@@ -131,6 +137,7 @@ final class InvoiceController
             } elseif($kind==='dismiss') { $this->service->dismissReminders($actor); }
             elseif($kind==='policy') { $this->service->saveReturnPolicy($input,$actor); }
             elseif($kind==='order-edit') { $this->service->editOrder((int)($input['order_id'] ?? 0),$input,$actor); }
+            elseif($kind==='return-reconcile') { $this->service->reconcileReturn((int)($input['order_id'] ?? 0),(int)($input['return_id'] ?? 0),$input,$actor); }
             elseif($kind==='order-payment') { $this->service->setOrderPayment((int)($input['order_id'] ?? 0),$input,$actor); }
             elseif($kind==='request') { $this->service->requestReturn($id,$input,$actor); }
             else {
@@ -140,7 +147,7 @@ final class InvoiceController
             }
             $message=match($kind) { 'issue'=>'Factura a fost emisă.','return'=>'Factura de retur a fost emisă.','receive'=>'Primirea produselor a fost înregistrată.','email'=>'Emailul cu factura a fost pus în coada de trimitere.','delete'=>'Factura a fost eliminată, iar stocul a fost recalculat.','payment'=>'Înregistrarea a fost salvată.','correct'=>'Documentele de corecție au fost emise.',default=>'Modificările au fost salvate.' };
             if($kind==='issue' && ($result['email_state'] ?? '')==='queued') { $message='Factura a fost emisă. Emailul cu link privat și PDF este pregătit pentru trimitere.'; }
-            $redirect=in_array($kind,['order-edit','order-payment'],true)?$this->config->path('admin/comenzi/'.(int)$input['order_id'].'/'):$this->url($id>0?$id.'/':'');
+            $redirect=in_array($kind,['order-edit','order-payment','return-reconcile'],true)?$this->config->path('admin/comenzi/'.(int)$input['order_id'].'/'):$this->url($id>0?$id.'/':'');
             if(($input['return_to'] ?? '')==='order' && ($result || $sourceOrderId>0)) { $redirect=$this->config->path('admin/comenzi/'.(int)($result['order_id'] ?? $sourceOrderId).'/'); }
             if($kind==='issue' && ($input['return_to'] ?? '')==='orders') { $redirect=$this->config->path('admin/comenzi/'); }
             if($this->jsonWanted($request)) { return $this->json(['ok'=>true,'message'=>$message,'redirect'=>$redirect]); }

@@ -6,7 +6,7 @@ use PDO;
 
 final class InvoiceRepository
 {
-    private const TABLES = ['invoices','invoice_lines','invoice_actions','invoice_audit','invoice_public_links','invoice_receipts','invoice_receipt_allocations','invoice_return_requests','invoice_reminder_dismissals','invoice_refunds','invoice_automation_intents','outbox_messages','orders','order_items','users','company_warehouses','inventory_reservations','inventory_movements','audit_log','invoice_return_policy','invoice_fiscal_jobs','payments','order_document_operations','order_return_documents','order_returns','order_return_items'];
+    private const TABLES = ['invoices','invoice_lines','invoice_actions','invoice_audit','invoice_public_links','invoice_receipts','invoice_receipt_allocations','invoice_return_requests','invoice_reminder_dismissals','invoice_refunds','invoice_automation_intents','outbox_messages','orders','order_items','users','company_warehouses','inventory_reservations','inventory_movements','audit_log','invoice_return_policy','invoice_fiscal_jobs','payments','order_document_operations','order_return_documents','order_returns','order_return_items','order_return_requests'];
     public function __construct(private readonly PDO $pdo) {}
     public function pdo(): PDO { return $this->pdo; }
     public function now(): string { return gmdate('Y-m-d\TH:i:s\Z'); }
