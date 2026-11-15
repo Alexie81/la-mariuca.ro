@@ -1,32 +1,60 @@
 {% extends 'admin/layouts/base.twig' %}
 {% block title %}Recenzii{% endblock %}
 {% block content %}
-  <div class="admin-title">
-    <div><h1>Recenzii produse</h1><p>Verifică mesajele clienților înainte ca acestea să devină publice.</p></div>
-  </div>
-  <div class="panel table-wrap">
-    <table>
-      <thead><tr><th>Produs</th><th>Autor</th><th>Recenzie</th><th>Stare</th><th>Acțiuni</th></tr></thead>
-      <tbody>
-        {% for review in reviews %}
-          <tr>
-            <td><a href="{{ url('produs/' ~ review.product_slug ~ '/#recenzii-produs') }}">{{ review.product_name }}</a><br><small>{{ review.created_at|date('d.m.Y H:i') }}</small></td>
-            <td>{{ review.author_name }}<br><small>{{ review.author_email }}</small>{% if review.order_number %}<br><small>Comanda {{ review.order_number }}</small>{% endif %}{% if review.is_verified_purchase %}<br><small>Achiziție verificată</small>{% endif %}</td>
-            <td><strong>{{ review.rating }}/5 · {{ review.title ?: 'Fără titlu' }}</strong><br>{{ review.body }}{% if review.is_demo %}<br><small>Recenzie demonstrativă locală</small>{% endif %}</td>
-            <td>{{ review.status }}</td>
-            <td>
-              <form class="inline-form" action="{{ url('admin/recenzii/' ~ review.id ~ '/actiune/') }}" method="post">
-                <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-                <button name="action" value="approve">Aprobă</button>
-                <button name="action" value="reject">Respinge</button>
-                <button name="action" value="pending">În așteptare</button>
-              </form>
-            </td>
-          </tr>
-        {% else %}
-          <tr><td colspan="5">Nu există recenzii.</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
+{% set pending_count = 0 %}{% set approved_count = 0 %}{% set responded_count = 0 %}
+{% for review in reviews %}
+  {% if review.status == 'pending' %}{% set pending_count = pending_count + 1 %}{% endif %}
+  {% if review.status == 'approved' %}{% set approved_count = approved_count + 1 %}{% endif %}
+  {% if review.admin_response %}{% set responded_count = responded_count + 1 %}{% endif %}
+{% endfor %}
+<div class="review-workspace">
+  <header class="review-workspace__hero">
+    <div><span class="review-workspace__eyebrow">Vocea clienților</span><h1>Recenzii produse</h1><p>Aprobă conținutul verificat, răspunde public și păstrează o urmă completă a fiecărei decizii.</p></div>
+    <div class="review-workspace__summary" aria-label="Rezumat recenzii">
+      <div><span>De verificat</span><strong>{{ pending_count }}</strong></div>
+      <div><span>Publice</span><strong>{{ approved_count }}</strong></div>
+      <div><span>Cu răspuns</span><strong>{{ responded_count }}</strong></div>
+    </div>
+  </header>
+
+  <div class="review-workspace__guide"><span aria-hidden="true">✓</span><p><strong>Flux sigur de moderare.</strong> O recenzie devine publică numai după aprobare. Răspunsul magazinului se poate publica doar pentru o recenzie aprobată, iar retragerea este logică și rămâne în audit.</p></div>
+
+  <section class="review-list" aria-label="Recenzii de moderat">
+    {% for review in reviews %}
+      <article class="review-card is-{{ review.status }}" id="recenzie-{{ review.id }}">
+        <header class="review-card__header">
+          <div class="review-card__product"><span aria-hidden="true">{{ review.author_name|slice(0, 1)|upper }}</span><div><a href="{{ url('produs/' ~ review.product_slug ~ '/#recenzii-produs') }}">{{ review.product_name }}</a><small>{{ review.created_at|date('d.m.Y H:i') }} · #{{ review.id }}</small></div></div>
+          <span class="review-card__status is-{{ review.status }}">{{ review.status == 'pending' ? 'În verificare' : (review.status == 'approved' ? 'Publică' : 'Respinsă') }}</span>
+        </header>
+        <div class="review-card__grid">
+          <section class="review-card__content">
+            <div class="review-card__author"><strong>{{ review.author_name }}</strong><span>{{ review.rating }}/5 ★</span></div>
+            <p>{{ review.body }}</p>
+            <div class="review-card__evidence"><span>{{ review.author_email }}</span>{% if review.order_number %}<span>Comanda {{ review.order_number }}</span>{% endif %}{% if review.is_verified_purchase %}<strong>✓ Achiziție verificată</strong>{% endif %}{% if review.is_demo %}<span>Conținut demonstrativ</span>{% endif %}</div>
+            {% if review.admin_response %}<blockquote class="review-card__response"><span>Răspunsul magazinului</span><p>{{ review.admin_response }}</p><small>{{ review.responded_at|date('d.m.Y H:i') }}</small></blockquote>{% endif %}
+          </section>
+          <aside class="review-card__controls">
+            <form class="review-card__moderation" action="{{ url('admin/recenzii/' ~ review.id ~ '/actiune/') }}" method="post">
+              <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+              <span>Stare publicare</span>
+              <div><button class="is-approve" name="action" value="approve">Aprobă</button><button name="action" value="pending">În așteptare</button><button class="is-reject" name="action" value="reject">Respinge</button></div>
+            </form>
+            <form class="review-card__reply" action="{{ url('admin/recenzii/' ~ review.id ~ '/actiune/') }}" method="post">
+              <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+              <label for="review-response-{{ review.id }}">Răspuns public</label>
+              <textarea id="review-response-{{ review.id }}" name="admin_response" rows="4" maxlength="1500" placeholder="Un răspuns util și politicos…">{{ review.admin_response }}</textarea>
+              <button name="action" value="respond"{% if review.status != 'approved' %} disabled title="Aprobă mai întâi recenzia"{% endif %}>{{ review.admin_response ? 'Actualizează răspunsul' : 'Publică răspunsul' }}</button>
+            </form>
+          </aside>
+        </div>
+        <footer class="review-card__footer">
+          <details class="review-card__history"><summary>Istoric moderare ({{ review.moderation_history|length }})</summary>{% if review.moderation_history %}<ol>{% for event in review.moderation_history %}<li><strong>{{ event.action|replace({'review.':'','approved':'Aprobată','rejected':'Respinsă','pending':'În așteptare','responded':'Răspuns publicat','removed':'Retrasă'}) }}</strong><span>{{ (event.actor_first_name ~ ' ' ~ event.actor_last_name)|trim ?: 'Sistem' }} · {{ event.created_at|date('d.m.Y H:i') }}</span></li>{% endfor %}</ol>{% else %}<p>Nu există încă decizii înregistrate.</p>{% endif %}</details>
+          <form action="{{ url('admin/recenzii/' ~ review.id ~ '/actiune/') }}" method="post" onsubmit="return confirm('Retragi această recenzie? Conținutul nu va mai fi public, iar operațiunea rămâne în audit.');"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><button class="review-card__remove" name="action" value="remove">Retrage recenzia</button></form>
+        </footer>
+      </article>
+    {% else %}
+      <div class="review-workspace__empty"><strong>Nu există recenzii de moderat.</strong><p>Recenziile noi vor apărea aici după trimiterea lor din pagina produsului.</p></div>
+    {% endfor %}
+  </section>
+</div>
 {% endblock %}

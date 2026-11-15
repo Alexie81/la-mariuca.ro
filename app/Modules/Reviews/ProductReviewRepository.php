@@ -17,9 +17,9 @@ final class ProductReviewRepository
     public function approvedForProduct(int $productId): array
     {
         $statement = $this->pdo->prepare("SELECT id, author_name, rating, title, body,
-                is_verified_purchase, is_demo, created_at
+                admin_response, responded_at, is_verified_purchase, is_demo, created_at
             FROM product_reviews
-            WHERE product_id = :product AND status = 'approved'
+            WHERE product_id = :product AND status = 'approved' AND deleted_at IS NULL
             ORDER BY is_demo ASC, created_at DESC, id DESC");
         $statement->execute(['product' => $productId]);
 
@@ -33,14 +33,14 @@ final class ProductReviewRepository
                 COALESCE(AVG(rating), 0) AS average_rating,
                 COALESCE(SUM(CASE WHEN is_demo = 1 THEN 1 ELSE 0 END), 0) AS demo_count
             FROM product_reviews
-            WHERE product_id = :product AND status = 'approved'");
+            WHERE product_id = :product AND status = 'approved' AND deleted_at IS NULL");
         $statement->execute(['product' => $productId]);
         $summary = $statement->fetch() ?: [];
 
         $distribution = [5 => 0, 4 => 0, 3 => 0, 2 => 0, 1 => 0];
         $distributionStatement = $this->pdo->prepare("SELECT rating, COUNT(*) AS rating_count
             FROM product_reviews
-            WHERE product_id = :product AND status = 'approved'
+            WHERE product_id = :product AND status = 'approved' AND deleted_at IS NULL
             GROUP BY rating");
         $distributionStatement->execute(['product' => $productId]);
         foreach ($distributionStatement->fetchAll() as $row) {
@@ -59,16 +59,18 @@ final class ProductReviewRepository
     public function create(array $review): int
     {
         $statement = $this->pdo->prepare("INSERT INTO product_reviews
-            (product_id, customer_id, author_name, author_email, order_number, rating, title, body, status,
+            (product_id, customer_id, author_name, author_email, order_number, order_reference, rating, title, body, status,
              is_verified_purchase, is_demo, created_at, updated_at)
-            VALUES (:product, :customer, :name, :email, :order_number, :rating, :title, :body, :status,
+            VALUES (:product, :customer, :name, :email, :order_number, :order_reference, :rating, :title, :body, :status,
                     :verified, :demo, :created, :updated)");
+        $orderNumber = mb_strtoupper(trim((string) ($review['order_number'] ?? '')));
         $statement->execute([
             'product' => $review['product_id'],
             'customer' => $review['customer_id'],
             'name' => $review['author_name'],
             'email' => $review['author_email'],
-            'order_number' => $review['order_number'] ?? '',
+            'order_number' => $orderNumber,
+            'order_reference' => $orderNumber !== '' ? $orderNumber : null,
             'rating' => $review['rating'],
             'title' => $review['title'],
             'body' => $review['body'],
@@ -117,6 +119,7 @@ final class ProductReviewRepository
             FROM orders o
             JOIN order_items item ON item.order_id = o.id
             WHERE item.product_id = :product
+              AND o.status = 'delivered'
               AND UPPER(o.order_number) = UPPER(:order_number)
               AND (" . implode(' OR ', $conditions) . ")
             LIMIT 1");
@@ -125,23 +128,60 @@ final class ProductReviewRepository
         return $statement->fetchColumn() !== false;
     }
 
+    public function hasReviewForOrder(int $productId, string $orderNumber): bool
+    {
+        $statement = $this->pdo->prepare('SELECT 1 FROM product_reviews WHERE product_id=:product AND order_reference=:reference LIMIT 1');
+        $statement->execute([
+            'product' => $productId,
+            'reference' => mb_strtoupper(trim($orderNumber)),
+        ]);
+
+        return $statement->fetchColumn() !== false;
+    }
+
     /** @return list<array<string, mixed>> */
     public function forModeration(): array
     {
-        return $this->pdo->query("SELECT review.*, product.name AS product_name, product.slug AS product_slug,
+        $reviews = $this->pdo->query("SELECT review.*, product.name AS product_name, product.slug AS product_slug,
                 moderator.first_name AS moderator_first_name, moderator.last_name AS moderator_last_name
             FROM product_reviews review
             JOIN products product ON product.id = review.product_id
             LEFT JOIN users moderator ON moderator.id = review.moderated_by
+            WHERE review.deleted_at IS NULL
             ORDER BY CASE review.status WHEN 'pending' THEN 0 WHEN 'approved' THEN 1 ELSE 2 END,
                 review.created_at DESC, review.id DESC")->fetchAll();
+        if ($reviews === []) {
+            return [];
+        }
+        $byId = [];
+        foreach ($reviews as $index => $review) {
+            $reviews[$index]['moderation_history'] = [];
+            $byId[(int) $review['id']] = $index;
+        }
+        $history = $this->pdo->query("SELECT audit.*, actor.first_name AS actor_first_name, actor.last_name AS actor_last_name
+            FROM audit_log audit
+            LEFT JOIN users actor ON actor.id=audit.actor_user_id
+            WHERE audit.entity_type='product_review'
+            ORDER BY audit.created_at DESC,audit.id DESC")->fetchAll();
+        foreach ($history as $event) {
+            $reviewId = (int) ($event['entity_id'] ?? 0);
+            if (!isset($byId[$reviewId])) {
+                continue;
+            }
+            $context = json_decode((string) ($event['context_json'] ?? '{}'), true);
+            $event['context'] = is_array($context) ? $context : [];
+            $reviews[$byId[$reviewId]]['moderation_history'][] = $event;
+        }
+
+        return $reviews;
     }
 
     public function moderate(int $reviewId, string $status, int $moderatorId): void
     {
+        $previous = $this->reviewState($reviewId);
         $statement = $this->pdo->prepare("UPDATE product_reviews
             SET status = :status, moderated_at = :moderated, moderated_by = :moderator, updated_at = :updated
-            WHERE id = :id");
+            WHERE id = :id AND deleted_at IS NULL");
         $now = gmdate('c');
         $statement->execute([
             'status' => $status,
@@ -153,6 +193,68 @@ final class ProductReviewRepository
         if ($statement->rowCount() !== 1) {
             throw new RuntimeException('Recenzia nu există.');
         }
+        $this->audit($moderatorId, 'review.' . $status, $reviewId, [
+            'previous_status' => (string) ($previous['status'] ?? ''),
+            'status' => $status,
+        ], $now);
+    }
+
+    public function respond(int $reviewId, string $response, int $moderatorId): void
+    {
+        $previous = $this->reviewState($reviewId);
+        if ((string) ($previous['status'] ?? '') !== 'approved') {
+            throw new RuntimeException('Răspunsul poate fi publicat numai pentru o recenzie aprobată.');
+        }
+        $now = gmdate('c');
+        $statement = $this->pdo->prepare('UPDATE product_reviews SET admin_response=:response,responded_at=:responded,responded_by=:moderator,updated_at=:updated WHERE id=:id AND deleted_at IS NULL');
+        $statement->execute(['response' => $response, 'responded' => $now, 'moderator' => $moderatorId, 'updated' => $now, 'id' => $reviewId]);
+        if ($statement->rowCount() !== 1) {
+            throw new RuntimeException('Recenzia nu există.');
+        }
+        $this->audit($moderatorId, 'review.responded', $reviewId, [
+            'replaced_existing_response' => trim((string) ($previous['admin_response'] ?? '')) !== '',
+            'response_length' => mb_strlen($response),
+        ], $now);
+    }
+
+    public function remove(int $reviewId, int $moderatorId): void
+    {
+        $previous = $this->reviewState($reviewId);
+        $now = gmdate('c');
+        $statement = $this->pdo->prepare("UPDATE product_reviews SET status='rejected',deleted_at=:deleted,deleted_by=:moderator,updated_at=:updated WHERE id=:id AND deleted_at IS NULL");
+        $statement->execute(['deleted' => $now, 'moderator' => $moderatorId, 'updated' => $now, 'id' => $reviewId]);
+        if ($statement->rowCount() !== 1) {
+            throw new RuntimeException('Recenzia nu există.');
+        }
+        $this->audit($moderatorId, 'review.removed', $reviewId, [
+            'previous_status' => (string) ($previous['status'] ?? ''),
+            'retention' => 'soft_delete',
+        ], $now);
+    }
+
+    /** @return array<string,mixed> */
+    private function reviewState(int $reviewId): array
+    {
+        $statement = $this->pdo->prepare('SELECT status,admin_response,deleted_at FROM product_reviews WHERE id=:id');
+        $statement->execute(['id' => $reviewId]);
+        $review = $statement->fetch();
+        if (!is_array($review) || $review['deleted_at'] !== null) {
+            throw new RuntimeException('Recenzia nu există.');
+        }
+        return $review;
+    }
+
+    /** @param array<string,mixed> $context */
+    private function audit(int $actorId, string $action, int $reviewId, array $context, string $now): void
+    {
+        $statement = $this->pdo->prepare("INSERT INTO audit_log (actor_user_id,action,entity_type,entity_id,context_json,created_at) VALUES (:actor,:action,'product_review',:review,:context,:created)");
+        $statement->execute([
+            'actor' => $actorId,
+            'action' => $action,
+            'review' => $reviewId,
+            'context' => json_encode($context, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
+            'created' => $now,
+        ]);
     }
 
     public function ensureDemoForProductSlug(string $slug): int

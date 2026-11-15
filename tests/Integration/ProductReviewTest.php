@@ -9,6 +9,7 @@ use App\Modules\Catalog\CatalogRepository;
 use App\Modules\Catalog\ProductRecommendationService;
 use App\Modules\Reviews\ProductReviewRepository;
 use App\Modules\Reviews\ProductReviewService;
+use App\Modules\Reviews\ProductReviewValidationException;
 use Psr\Http\Message\ResponseInterface;
 use Slim\Psr7\Factory\ServerRequestFactory;
 use Tests\DatabaseTestCase;
@@ -133,8 +134,44 @@ final class ProductReviewTest extends DatabaseTestCase
         $payload = json_decode((string) $response->getBody(), true, 512, JSON_THROW_ON_ERROR);
         self::assertSame(false, $payload['ok']);
         self::assertSame('order_number', $payload['field']);
-        self::assertSame('Nu am putut găsi numărul comenzii.', $payload['message']);
+        self::assertSame('Comanda nu există, nu conține produsul sau nu este încă livrată.', $payload['message']);
         self::assertSame(0, (int) $this->pdo->query("SELECT COUNT(*) FROM product_reviews WHERE author_email = 'maria.necunoscuta@example.test'")->fetchColumn());
+    }
+
+    public function testReviewRequiresDeliveredOrderAndOnlyOneReviewPerOrderProduct(): void
+    {
+        $this->seed();
+        $productId = (int) $this->pdo->query("SELECT id FROM products WHERE slug = 'costumas-micul-gentleman'")->fetchColumn();
+        $service = new ProductReviewService(new ProductReviewRepository($this->pdo));
+        $data = [
+            'rating' => '5',
+            'author_name' => 'Maria Pop',
+            'author_email' => 'maria.unica@example.test',
+            'order_number' => 'LM-2026-000778',
+            'body' => 'Materialul este moale, iar produsul arată foarte atent lucrat.',
+            'review_consent' => '1',
+            'website' => '',
+        ];
+        $this->createOrderContainingProduct('LM-2026-000778', 'maria.unica@example.test', $productId, 'confirmed');
+
+        try {
+            $service->submit($productId, $data, null);
+            self::fail('Comanda nelivrată nu trebuie să permită recenzia.');
+        } catch (ProductReviewValidationException $exception) {
+            self::assertSame('order_number', $exception->field);
+        }
+
+        $this->pdo->exec("UPDATE orders SET status='delivered' WHERE order_number='LM-2026-000778'");
+        $service->submit($productId, $data, null);
+        self::assertSame(1, (int) $this->pdo->query("SELECT COUNT(*) FROM product_reviews WHERE order_reference='LM-2026-000778'")->fetchColumn());
+
+        try {
+            $service->submit($productId, $data, null);
+            self::fail('Aceeași comandă și același produs nu trebuie să accepte a doua recenzie.');
+        } catch (ProductReviewValidationException $exception) {
+            self::assertSame('order_number', $exception->field);
+            self::assertStringContainsString('deja trimisă', $exception->getMessage());
+        }
     }
 
     public function testModerationPublishesPendingReview(): void
@@ -169,6 +206,38 @@ final class ProductReviewTest extends DatabaseTestCase
         (new ProductReviewService($repository))->moderate($reviewId, 'approve', $adminId);
 
         self::assertSame('approved', $this->pdo->query("SELECT status FROM product_reviews WHERE id = {$reviewId}")->fetchColumn());
+    }
+
+    public function testModeratorCanRespondAndSoftRemoveWithCompleteAudit(): void
+    {
+        $this->seed();
+        $productId = (int) $this->pdo->query("SELECT id FROM products WHERE slug = 'costumas-micul-gentleman'")->fetchColumn();
+        $adminId = (int) $this->pdo->query("SELECT id FROM users WHERE role = 'administrator' LIMIT 1")->fetchColumn();
+        if ($adminId === 0) {
+            $now = gmdate('c');
+            $this->pdo->prepare("INSERT INTO users (email,password_hash,first_name,last_name,role,status,email_verified_at,created_at,updated_at) VALUES ('admin-review-audit@example.test','x','Admin','Audit','administrator','active',:now,:now,:now)")->execute(['now' => $now]);
+            $adminId = (int) $this->pdo->lastInsertId();
+        }
+        $repository = new ProductReviewRepository($this->pdo);
+        $now = gmdate('c');
+        $reviewId = $repository->create([
+            'product_id' => $productId, 'customer_id' => null, 'author_name' => 'Ioana',
+            'author_email' => 'ioana.audit@example.test', 'rating' => 5, 'title' => '',
+            'body' => 'O recenzie suficient de lungă pentru răspuns și audit.', 'status' => 'pending',
+            'is_verified_purchase' => true, 'is_demo' => false, 'created_at' => $now, 'updated_at' => $now,
+        ]);
+        $service = new ProductReviewService($repository);
+
+        $service->moderate($reviewId, 'approve', $adminId);
+        $service->moderate($reviewId, 'respond', $adminId, 'Îți mulțumim pentru feedback și pentru încredere!');
+        $public = $repository->approvedForProduct($productId);
+        self::assertSame('Îți mulțumim pentru feedback și pentru încredere!', $public[0]['admin_response']);
+        self::assertSame(2, (int) $this->pdo->query("SELECT COUNT(*) FROM audit_log WHERE entity_type='product_review' AND entity_id={$reviewId}")->fetchColumn());
+
+        $service->moderate($reviewId, 'remove', $adminId);
+        self::assertSame([], $repository->approvedForProduct($productId));
+        self::assertNotFalse($this->pdo->query("SELECT deleted_at FROM product_reviews WHERE id={$reviewId}")->fetchColumn());
+        self::assertSame(3, (int) $this->pdo->query("SELECT COUNT(*) FROM audit_log WHERE entity_type='product_review' AND entity_id={$reviewId}")->fetchColumn());
     }
 
     public function testDemoReviewPackAddsTenAdditionalReviewsIdempotently(): void

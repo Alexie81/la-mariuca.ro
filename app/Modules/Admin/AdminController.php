@@ -1584,7 +1584,11 @@ final class AdminController
 
     public function reviews(): ResponseInterface
     {
-        return $this->view->render('admin/pages/reviews.twig', ['reviews' => $this->reviews->forModeration()]);
+        return $this->view->render('admin/pages/reviews.twig', [
+            'admin_section' => 'reviews',
+            'admin_context' => 'Moderare și răspunsuri',
+            'reviews' => $this->reviews->forModeration(),
+        ]);
     }
 
     public function moderateReview(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
@@ -1592,8 +1596,18 @@ final class AdminController
         $data = (array) ($request->getParsedBody() ?? []);
         $user = $this->auth->user();
         try {
-            $this->reviews->moderate((int) $args['id'], (string) ($data['action'] ?? ''), (int) ($user['id'] ?? 0));
-            Flash::set('success', 'Starea recenziei a fost actualizată.');
+            $action = (string) ($data['action'] ?? '');
+            $this->reviews->moderate(
+                (int) $args['id'],
+                $action,
+                (int) ($user['id'] ?? 0),
+                (string) ($data['admin_response'] ?? ''),
+            );
+            Flash::set('success', match ($action) {
+                'respond' => 'Răspunsul public a fost salvat.',
+                'remove' => 'Recenzia a fost retrasă conform politicii de retenție.',
+                default => 'Starea recenziei a fost actualizată.',
+            });
         } catch (\Throwable $exception) {
             Flash::set('error', $exception->getMessage());
         }

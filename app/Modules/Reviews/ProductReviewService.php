@@ -43,7 +43,10 @@ final class ProductReviewService
         }
         $customerId = isset($customer['id']) ? (int) $customer['id'] : null;
         if (!$this->reviews->orderExistsForProduct($productId, $customerId, $email, $orderNumber)) {
-            throw new ProductReviewValidationException('order_number', 'Nu am putut găsi numărul comenzii.');
+            throw new ProductReviewValidationException('order_number', 'Comanda nu există, nu conține produsul sau nu este încă livrată.');
+        }
+        if ($this->reviews->hasReviewForOrder($productId, $orderNumber)) {
+            throw new ProductReviewValidationException('order_number', 'Pentru acest produs a fost deja trimisă o recenzie din comanda indicată.');
         }
         if (mb_strlen($body) < 20 || mb_strlen($body) > 1500) {
             throw new RuntimeException('Recenzia trebuie să aibă între 20 și 1.500 de caractere.');
@@ -96,8 +99,23 @@ final class ProductReviewService
         return $this->reviews->forModeration();
     }
 
-    public function moderate(int $reviewId, string $action, int $moderatorId): void
+    public function moderate(int $reviewId, string $action, int $moderatorId, string $response = ''): void
     {
+        if ($moderatorId < 1) {
+            throw new RuntimeException('Moderatorul nu este valid.');
+        }
+        if ($action === 'respond') {
+            $response = $this->plainText($response, 1500);
+            if (mb_strlen($response) < 2) {
+                throw new RuntimeException('Scrie răspunsul care va fi afișat public.');
+            }
+            $this->reviews->respond($reviewId, $response, $moderatorId);
+            return;
+        }
+        if ($action === 'remove') {
+            $this->reviews->remove($reviewId, $moderatorId);
+            return;
+        }
         $status = match ($action) {
             'approve' => 'approved',
             'reject' => 'rejected',

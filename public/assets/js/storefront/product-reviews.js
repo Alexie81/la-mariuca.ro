@@ -229,6 +229,8 @@ if (detailDialog instanceof HTMLDialogElement) {
   const demoBadge = detailDialog.querySelector('[data-review-detail-demo]');
   const title = detailDialog.querySelector('[data-review-detail-title]');
   const body = detailDialog.querySelector('[data-review-detail-body]');
+  const responseWrap = detailDialog.querySelector('[data-review-detail-response-wrap]');
+  const response = detailDialog.querySelector('[data-review-detail-response]');
   let returnFocus = null;
   let closingTimer = null;
 
@@ -277,6 +279,9 @@ if (detailDialog instanceof HTMLDialogElement) {
     if (demoBadge) demoBadge.hidden = opener.dataset.reviewDemo !== '1';
     if (title) title.textContent = opener.dataset.reviewTitle || `Părerea lui ${authorName}`;
     if (body) body.textContent = opener.dataset.reviewFull || '';
+    const responseText = (opener.dataset.reviewResponse || '').trim();
+    if (response) response.textContent = responseText;
+    if (responseWrap instanceof HTMLElement) responseWrap.hidden = responseText === '';
 
     detailDialog.classList.remove('is-closing');
     if (!detailDialog.open) detailDialog.showModal();

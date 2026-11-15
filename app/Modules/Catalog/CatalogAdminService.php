@@ -662,8 +662,8 @@ final class CatalogAdminService
             p.external_stock_quantity,
             COALESCE((SELECT SUM(oi.quantity) FROM order_items oi JOIN orders o ON o.id=oi.order_id WHERE oi.product_id=p.id AND o.status NOT IN ('cancelled')),0) AS sold_quantity,
             COALESCE((SELECT SUM(pv.views) FROM product_view_daily pv WHERE pv.product_id=p.id),0) AS view_count,
-            COALESCE((SELECT AVG(pr.rating) FROM product_reviews pr WHERE pr.product_id=p.id AND pr.status='approved'),0) AS rating_average,
-            COALESCE((SELECT COUNT(*) FROM product_reviews pr WHERE pr.product_id=p.id AND pr.status='approved'),0) AS review_count,
+            COALESCE((SELECT AVG(pr.rating) FROM product_reviews pr WHERE pr.product_id=p.id AND pr.status='approved' AND pr.deleted_at IS NULL),0) AS rating_average,
+            COALESCE((SELECT COUNT(*) FROM product_reviews pr WHERE pr.product_id=p.id AND pr.status='approved' AND pr.deleted_at IS NULL),0) AS review_count,
             (SELECT m.public_path FROM product_images pi JOIN media m ON m.id=pi.media_id WHERE pi.product_id=p.id AND m.public_path IS NOT NULL ORDER BY pi.position,pi.media_id LIMIT 1) AS image_path,
             COALESCE((SELECT m.alt_text FROM product_images pi JOIN media m ON m.id=pi.media_id WHERE pi.product_id=p.id AND m.public_path IS NOT NULL ORDER BY pi.position,pi.media_id LIMIT 1),p.name) AS image_alt
         FROM products p LEFT JOIN categories c ON c.id=p.primary_category_id LEFT JOIN suppliers s ON s.id=p.supplier_id";
@@ -885,7 +885,7 @@ final class CatalogAdminService
         $commercialMetrics = $commercial->fetch() ?: ['sold_quantity' => 0, 'revenue_bani' => 0];
         $views = $this->pdo->prepare('SELECT COALESCE(SUM(views),0) FROM product_view_daily WHERE product_id=:product');
         $views->execute(['product' => $id]);
-        $rating = $this->pdo->prepare("SELECT COALESCE(AVG(rating),0) AS average_rating,COUNT(*) AS review_count FROM product_reviews WHERE product_id=:product AND status='approved'");
+        $rating = $this->pdo->prepare("SELECT COALESCE(AVG(rating),0) AS average_rating,COUNT(*) AS review_count FROM product_reviews WHERE product_id=:product AND status='approved' AND deleted_at IS NULL");
         $rating->execute(['product' => $id]);
         $ratingMetrics = $rating->fetch() ?: ['average_rating' => 0, 'review_count' => 0];
 
@@ -909,7 +909,7 @@ final class CatalogAdminService
             ORDER BY document.nir_at DESC,document.id DESC,line.position LIMIT 50");
         $purchases->execute(['product' => $id]);
 
-        $reviews = $this->pdo->prepare('SELECT id,author_name,author_email,rating,title,body,status,is_verified_purchase,order_number,created_at,moderated_at FROM product_reviews WHERE product_id=:product ORDER BY created_at DESC,id DESC LIMIT 50');
+        $reviews = $this->pdo->prepare('SELECT id,author_name,author_email,rating,title,body,status,is_verified_purchase,order_number,admin_response,responded_at,created_at,moderated_at FROM product_reviews WHERE product_id=:product AND deleted_at IS NULL ORDER BY created_at DESC,id DESC LIMIT 50');
         $reviews->execute(['product' => $id]);
 
         $soldQuantity = (int) $commercialMetrics['sold_quantity'];

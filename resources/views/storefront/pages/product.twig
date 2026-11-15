@@ -406,10 +406,12 @@
                               data-review-rating="{{ review.rating }}"
                               data-review-demo="{{ review.is_demo ? '1' : '0' }}"
                               data-review-verified="{{ review.is_verified_purchase ? '1' : '0' }}"
+                              data-review-response="{{ review.admin_response|default('')|e('html_attr') }}"
                               aria-label="Citește recenzia completă scrisă de {{ review.author_name }}"
                               hidden
                             >Vezi tot <span aria-hidden="true">→</span></button>
                           </p>
+                          {% if review.admin_response %}<blockquote class="product-review-response"><span>Răspuns La Măriuca</span><p>{{ review.admin_response }}</p></blockquote>{% endif %}
                         </article>
                       </div>
                     {% endfor %}
@@ -465,6 +467,7 @@
                     </div>
                     <h3 data-review-detail-title></h3>
                     <p data-review-detail-body></p>
+                    <blockquote class="product-review-response product-review-response--detail" data-review-detail-response-wrap hidden><span>Răspuns La Măriuca</span><p data-review-detail-response></p></blockquote>
                   </article>
                 </div>
               </dialog>
