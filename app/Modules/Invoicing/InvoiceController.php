@@ -157,7 +157,7 @@ final class InvoiceController
                 $path=match($format) {'xlsx'=>$this->exports->registry($invoices),'zip'=>$this->exports->zip($invoices),default=>throw new InvoiceException('Format necunoscut.',404)}; $name='Registru-facturi-'.date('Y-m-d').'.'.$format;
             } else {
                 $invoice=$this->service->document((int)$args['id'],$this->actor());
-                $path=match($format) {'pdf'=>$this->exports->pdf($invoice),'xlsx'=>$this->exports->xlsx($invoice),'zip'=>$this->exports->zip([$invoice],false),default=>throw new InvoiceException('Format necunoscut.',404)};
+                $path=match($format) {'pdf'=>$this->exports->pdf($invoice),'xlsx'=>$this->exports->xlsx($invoice),'xml'=>$this->exports->xml($invoice),'zip'=>$this->exports->zip([$invoice],false),default=>throw new InvoiceException('Format necunoscut.',404)};
                 $name=$this->exports->filename($invoice).'.'.$format;
             }
             $inline = !$registry && $format === 'pdf' && ($request->getQueryParams()['view'] ?? '') === '1';
@@ -176,7 +176,7 @@ final class InvoiceController
     {
         $source=fopen($path,'rb'); $buffer=tmpfile(); if(!$source || !$buffer) { throw new InvoiceException('Documentul nu a putut fi pregătit.'); }
         stream_copy_to_stream($source,$buffer); fclose($source); rewind($buffer);
-        return (new Response())->withBody(new Stream($buffer))->withHeader('Content-Type',match($format){'pdf'=>'application/pdf','zip'=>'application/zip',default=>'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'})
+        return (new Response())->withBody(new Stream($buffer))->withHeader('Content-Type',match($format){'pdf'=>'application/pdf','xml'=>'application/xml; charset=utf-8','zip'=>'application/zip',default=>'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'})
             ->withHeader('Content-Disposition',($inline ? 'inline' : 'attachment').'; filename="'.$name.'"')->withHeader('Cache-Control','private, no-store')->withHeader('X-Content-Type-Options','nosniff')->withHeader('X-Robots-Tag','noindex, nofollow')->withHeader('Referrer-Policy','no-referrer');
     }
     /** @return array<string,mixed> */

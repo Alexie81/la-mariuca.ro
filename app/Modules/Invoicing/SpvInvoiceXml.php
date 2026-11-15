@@ -14,9 +14,10 @@ final class SpvInvoiceXml
     private const CBC='urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2';
     private const CAC='urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2';
     /** @param array<string,mixed> $invoice */
-    public function build(array $invoice): string
+    public function build(array $invoice,bool $forSubmission=true): string
     {
         $doc=new DOMDocument('1.0','UTF-8'); $doc->formatOutput=true;
+        if(!$forSubmission) { $doc->appendChild($doc->createComment(' Export local din datele facturii. Nu reprezintă validare sau transmitere ANAF. ')); }
         $root=$doc->createElementNS('urn:oasis:names:specification:ubl:schema:xsd:Invoice-2','Invoice'); $doc->appendChild($root);
         $root->setAttributeNS('http://www.w3.org/2000/xmlns/','xmlns:cac',self::CAC); $root->setAttributeNS('http://www.w3.org/2000/xmlns/','xmlns:cbc',self::CBC);
         $this->add($root,'cbc:CustomizationID','urn:cen.eu:en16931:2017#compliant#urn:efactura.mfinante.ro:CIUS-RO:1.0.1');
@@ -31,7 +32,7 @@ final class SpvInvoiceXml
             'name'=>$company['legal_name'],'id'=>$company['tax_id'],'vat'=>(bool)$company['is_vat_payer'],
             'street'=>$company['registered_address'],'city'=>$company['city'],'county'=>$company['county'] ?? '',
             'postal_code'=>$company['postal_code'] ?? '', 'country'=>$company['country'],'email'=>$company['email'] ?? '',
-        ]);
+        ],$forSubmission);
         $buyerCompany=$customer['company'] ?? []; $addr=$customer['address'];
         $this->party($root,'AccountingCustomerParty',[
             'name'=>$customer['type']==='company'?($buyerCompany['name'] ?? $buyerCompany['company_name'] ?? ''):$customer['name'],
@@ -39,7 +40,7 @@ final class SpvInvoiceXml
             'vat'=>$customer['type']==='company' && str_starts_with(strtoupper($buyerCompany['tax_id'] ?? $buyerCompany['cui'] ?? ''),'RO'),
             'street'=>$addr['address'] ?? $addr['street'] ?? '', 'city'=>$addr['city'] ?? '', 'county'=>$addr['county'] ?? '',
             'postal_code'=>$addr['postal_code'] ?? '', 'country'=>$addr['country'] ?? $addr['country_code'] ?? 'RO','email'=>$customer['email'],
-        ]);
+        ],$forSubmission);
         $means=$this->add($root,'cac:PaymentMeans'); $this->add($means,'cbc:PaymentMeansCode',$invoice['payment_method']==='stripe'?'48':'10');
         if($invoice['payment_method']!=='stripe' && !empty($company['iban'])) { $account=$this->add($means,'cac:PayeeFinancialAccount'); $this->add($account,'cbc:ID',preg_replace('/\s/','',$company['iban'])); }
         $vatPayer=(bool)$company['is_vat_payer']; $groups=[];
@@ -87,12 +88,16 @@ final class SpvInvoiceXml
         return array_values(array_unique($errors));
     }
     /** @param array<string,mixed> $data */
-    private function party(DOMElement $root,string $type,array $data): void
+    private function party(DOMElement $root,string $type,array $data,bool $forSubmission): void
     {
         $party=$this->add($this->add($root,'cac:'.$type),'cac:Party'); $address=$this->add($party,'cac:PostalAddress');
-        $country=self::country($data['country']); $this->add($address,'cbc:StreetName',$data['street']); $this->add($address,'cbc:CityName',$data['city']);
+        try { $country=self::country($data['country']); }
+        catch(InvoiceException $error) { if($forSubmission) { throw $error; } $country=$data['country']; }
+        $this->add($address,'cbc:StreetName',$data['street']); $this->add($address,'cbc:CityName',$data['city']);
         if($data['postal_code']!=='') { $this->add($address,'cbc:PostalZone',$data['postal_code']); }
-        $this->add($address,'cbc:CountrySubentity',$country==='RO'?self::county($data['county']):$data['county']); $this->add($this->add($address,'cac:Country'),'cbc:IdentificationCode',$country);
+        try { $county=$country==='RO'?self::county($data['county']):$data['county']; }
+        catch(InvoiceException $error) { if($forSubmission) { throw $error; } $county=$data['county']; }
+        $this->add($address,'cbc:CountrySubentity',$county); $this->add($this->add($address,'cac:Country'),'cbc:IdentificationCode',$country);
         if($data['vat']) { $scheme=$this->add($party,'cac:PartyTaxScheme'); $id=strtoupper(preg_replace('/\s/','',$data['id'])); $this->add($scheme,'cbc:CompanyID',str_starts_with($id,$country)?$id:$country.$id); $this->add($this->add($scheme,'cac:TaxScheme'),'cbc:ID','VAT'); }
         $entity=$this->add($party,'cac:PartyLegalEntity'); $this->add($entity,'cbc:RegistrationName',$data['name']); $this->add($entity,'cbc:CompanyID',preg_replace('/^RO/i','',preg_replace('/\s/','',$data['id'])));
         if($data['email']!=='') { $this->add($this->add($party,'cac:Contact'),'cbc:ElectronicMail',$data['email']); }

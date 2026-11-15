@@ -2,6 +2,12 @@
 
 Actualizat: 2026-11-15
 
+### 2026-11-15 — Status operațional liber și export XML
+- Operatorul poate alege direct orice pas normal (Nouă, Confirmată, În pregătire, Expediată, Livrată), inclusiv revenirea. Schimbarea este tranzacțională: trecerea la expediat/livrat consumă rezervările o singură dată, iar revenirea reface stocul fizic împreună cu rezervarea, fără creșterea disponibilului online și fără modificări contabile. Repetarea aceleiași stări nu dublează emailul/auditul. Formularul detectează versiunea depășită.
+- Istoricul livrării păstrează blocarea comercială a produselor chiar dacă statusul revine la un pas anterior. Anularea/returul nu sunt inversate prin selectorul normal; nici blocările SPV nu sunt ocolite.
+- Fișa facturii oferă XML alături de PDF/Excel/ZIP, iar dosarul ZIP include XML. Exportul reproduce snapshotul și este read-only. Datele istorice incomplete rămân vizibile în exportul local; comentariul XML precizează lipsa validării/transmiterii ANAF. Gateway-ul de transmitere păstrează validările stricte pentru țară/județ.
+- Verificări: **71 teste / 877 aserțiuni**, incluzând toate perechile de stări normale, reîncercări, stoc, concurență, blocarea produselor după livrare și XML în descărcare/ZIP. PHPStan fără erori. Verificarea vizuală finală continuă împreună cu remedierea retururilor cerută ulterior. Fără deploy sau transmitere SPV.
+
 ### 2026-11-15 — Documentele comenzii și editor cu confirmare/email
 - Facturarea are un panou compact cu un singur sumar pentru fiecare document, acțiuni de vizualizare/email și aviz separat, cu butoane contrastante. Generarea avizului oferă feedback JSON și păstrează formularul POST fără JS.
 - Editarea pornește din creionul secțiunilor Produse sau Contact. Administratorul poate renegocia explicit prețul cu motiv, schimba produsul, cantitatea, adăuga sau elimina poziții. Factura netransmisă păstrează seria/numărul și reface stocul contabil; avizul modificabil se actualizează. Eliminarea eliberează rezervarea păstrând cantitatea sa istorică pozitivă. Versiunea formularului detectează inclusiv modificări în aceeași secundă.

@@ -168,6 +168,55 @@ final class OrderEditWorkspaceTest extends DatabaseTestCase
         unset($app);gc_collect_cycles();
     }
 
+    public function testEveryNormalStatusCanBeSelectedWithoutDuplicatingStockOrNotifications(): void
+    {
+        $id=$this->order();$service=new OrderService($this->pdo);
+        $invoice=$this->service->issue($id,['request_key'=>'free-status-invoice'],$this->actor);
+        $base=$this->pdo->query('SELECT * FROM inventory WHERE variant_id='.(int)$this->variant['id'])->fetch();
+        $accounting=$this->pdo->query('SELECT * FROM accounting_stock_movements ORDER BY id')->fetchAll();
+        $actions=['new'=>'reset','confirmed'=>'confirm','preparing'=>'prepare','shipped'=>'ship','delivered'=>'deliver'];
+        foreach($actions as $from=>$fromAction) {
+            $service->transition($id,$fromAction,null,$this->actor['id']);
+            foreach($actions as $to=>$action) {
+                $version=$service->statusVersion($id);
+                $service->transition($id,$action,null,$this->actor['id'],'Actualizare pas',true,$version);
+                $stock=$this->pdo->query('SELECT * FROM inventory WHERE variant_id='.(int)$this->variant['id'])->fetch();
+                $out=in_array($to,['shipped','delivered'],true)?2:0;
+                self::assertSame((int)$base['physical_quantity']-$out,(int)$stock['physical_quantity']);
+                self::assertSame((int)$base['reserved_quantity']-$out,(int)$stock['reserved_quantity']);
+                self::assertSame($to,$this->repo->one('orders',['id'=>$id])['status']);
+                $state=$this->state();$service->transition($id,$action,null,$this->actor['id'],'Reîncercare',true,$version);self::assertSame($state,$this->state());
+                $service->transition($id,$fromAction,null,$this->actor['id']);
+            }
+        }
+        self::assertSame($accounting,$this->pdo->query('SELECT * FROM accounting_stock_movements ORDER BY id')->fetchAll());
+        self::assertSame(1,(int)$this->service->load((int)$invoice['id'])['row_version']);
+        // Returning to a preparation state must not bypass the delivered-product lock.
+        $service->transition($id,'reset',null,$this->actor['id']);$item=$this->repo->all('order_items',['order_id'=>$id])[0];
+        $this->reject($id,$this->input($id)+['version'=>1,'items'=>[['id'=>$item['id'],'quantity'=>'1']]],409);
+        $old=$service->statusVersion($id);$service->transition($id,'confirm',null,$this->actor['id']);$before=$this->state();
+        try{$service->transition($id,'ship',null,$this->actor['id'],'',false,$old);self::fail('Stale status accepted');}catch(\RuntimeException $e){self::assertStringContainsString('între timp',$e->getMessage());}
+        self::assertSame($before,$this->state());
+        $this->repo->update('orders',['status'=>'cancelled'],['id'=>$id]);
+        try{$service->transition($id,'reset',null,$this->actor['id']);self::fail('Cancellation bypassed');}catch(\RuntimeException $e){self::assertStringContainsString('nu este permisă',$e->getMessage());}
+    }
+
+    public function testXmlDownloadAndZipKeepFiscalStateUntouched(): void
+    {
+        $id=$this->order();$invoice=$this->service->issue($id,['request_key'=>'xml-export-invoice'],$this->actor);$_SESSION['user_id']=$this->actor['id'];
+        $app=AppFactory::create($this->root);$factory=new ServerRequestFactory();$before=$this->state();
+        $response=$app->handle($factory->createServerRequest('GET','http://localhost/admin/facturi/'.$invoice['id'].'/xml/'));
+        self::assertSame(200,$response->getStatusCode());self::assertSame('application/xml; charset=utf-8',$response->getHeaderLine('Content-Type'));
+        self::assertStringContainsString('attachment;',$response->getHeaderLine('Content-Disposition'));self::assertStringContainsString('.xml',$response->getHeaderLine('Content-Disposition'));self::assertSame('private, no-store',$response->getHeaderLine('Cache-Control'));
+        $doc=new \DOMDocument();self::assertTrue($doc->loadXML((string)$response->getBody(),LIBXML_NONET));$xpath=new \DOMXPath($doc);$xpath->registerNamespace('cbc','urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2');
+        self::assertSame($invoice['series_code'].' '.$invoice['number'],$xpath->evaluate('string(/*/cbc:ID)'));
+        self::assertSame($before,$this->state());
+        $exports=new \App\Modules\Invoicing\InvoiceExportService($this->repo,$this->root);$path=$exports->zip([$invoice],false);$zip=new \ZipArchive();self::assertTrue($zip->open($path));
+        self::assertSame(3,$zip->numFiles);$xml=$zip->getFromName($exports->filename($invoice).'.xml');self::assertIsString($xml);self::assertSame((string)$response->getBody(),$xml);$zip->close();
+        unset($_SESSION['user_id']);self::assertSame(303,$app->handle($factory->createServerRequest('GET','http://localhost/admin/facturi/'.$invoice['id'].'/xml/'))->getStatusCode());
+        unset($app,$exports,$response);gc_collect_cycles();
+    }
+
     private function input(int $id): array {return ['request_key'=>bin2hex(random_bytes(16)),'order_version'=>$this->repo->editVersion($id),'reason'=>'motiv intern confidențial'];}
     private function reject(int $id,array $input,?int $code=null): void {try{$this->service->editOrder($id,$input,$this->actor);self::fail('Edit should be rejected');}catch(InvoiceException $e){if($code!==null)self::assertSame($code,$e->getCode());else self::assertNotSame('',$e->getMessage());}}
     private function state(): array {$result=[];foreach(['orders','order_items','invoices','invoice_lines','inventory','inventory_reservations','accounting_stock_movements','outbox_messages','audit_log'] as $table){$result[$table]=$this->pdo->query('SELECT * FROM '.$table.' ORDER BY '.($table==='inventory'?'variant_id':'id'))->fetchAll();}return $result;}

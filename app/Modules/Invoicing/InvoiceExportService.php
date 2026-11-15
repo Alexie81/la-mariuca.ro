@@ -115,6 +115,15 @@ final class InvoiceExportService
         $sheet->freezePane('G6')->setAutoFilter('A5:AL'.max(5,$row-1)); $sheet->getPageSetup()->setRowsToRepeatAtTopByStartAndEnd(5,5)->setFitToWidth(4);
         $path=$this->temporary('Registru-facturi','xlsx'); (new Xlsx($book))->save($path); $book->disconnectWorksheets(); return $path;
     }
+    /** Exporting the snapshot does not submit it or mark it as validated by ANAF.
+     * @param array<string,mixed> $invoice
+     */
+    public function xml(array $invoice): string
+    {
+        $path=$this->path($invoice,'xml');
+        if(file_put_contents($path,(new SpvInvoiceXml())->build($invoice,false),LOCK_EX)===false) { throw new InvoiceException('XML-ul facturii nu a putut fi pregătit.'); }
+        return $path;
+    }
     /** @param list<array<string,mixed>> $invoices */
     public function zip(array $invoices,bool $registry=true): string
     {
@@ -123,7 +132,7 @@ final class InvoiceExportService
         $registryPath=null;
         try {
             if($registry) { $registryPath=$this->registry($invoices); $zip->addFile($registryPath,'Registru-facturi.xlsx'); }
-            foreach($invoices as $invoice) { $name=$this->filename($invoice); $prefix=$registry?$name.'/':''; $zip->addFile($this->pdf($invoice),$prefix.$name.'.pdf'); $zip->addFile($this->xlsx($invoice),$prefix.$name.'.xlsx'); }
+            foreach($invoices as $invoice) { $name=$this->filename($invoice); $prefix=$registry?$name.'/':''; $zip->addFile($this->pdf($invoice),$prefix.$name.'.pdf'); $zip->addFile($this->xlsx($invoice),$prefix.$name.'.xlsx'); $zip->addFile($this->xml($invoice),$prefix.$name.'.xml'); }
             if(!$zip->close()) { throw new InvoiceException('Dosarul ZIP nu a putut fi finalizat.'); }
         } finally { if($registryPath && is_file($registryPath)) { unlink($registryPath); } }
         return $path;

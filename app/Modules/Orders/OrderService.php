@@ -263,6 +263,7 @@ final class OrderService
         }
         unset($event);
         $order['available_actions'] = $this->availableActions((string) $order['status']);
+        $order['status_version'] = $this->statusVersion($orderId);
         $cancellation = $this->pdo->prepare('SELECT cr.id,cr.order_id,cr.reason,cr.order_status_at_request,cr.created_at,cr.status,cr.decision_reason,cr.resolved_at,cr.resolved_by,u.first_name AS resolver_first_name,u.last_name AS resolver_last_name FROM order_cancellation_requests cr LEFT JOIN users u ON u.id=cr.resolved_by WHERE cr.order_id=:id');
         $cancellation->execute(['id'=>$orderId]);
         $order['cancellation_request'] = $cancellation->fetch() ?: null;
@@ -359,13 +360,15 @@ final class OrderService
         return $order;
     }
 
-    public function transition(int $orderId, string $action, ?string $awb, int $actorId, string $reason = '', bool $notifyCustomer = false): void
+    public function transition(int $orderId, string $action, ?string $awb, int $actorId, string $reason = '', bool $notifyCustomer = false, ?string $expectedVersion = null): void
     {
+        $normal = ['new','confirmed','preparing','shipped','delivered'];
         $allowed = [
-            'confirm' => ['from' => ['new'], 'to' => 'confirmed'],
-            'prepare' => ['from' => ['confirmed'], 'to' => 'preparing'],
-            'ship' => ['from' => ['confirmed', 'preparing'], 'to' => 'shipped'],
-            'deliver' => ['from' => ['shipped'], 'to' => 'delivered'],
+            'reset' => ['from' => $normal, 'to' => 'new'],
+            'confirm' => ['from' => $normal, 'to' => 'confirmed'],
+            'prepare' => ['from' => $normal, 'to' => 'preparing'],
+            'ship' => ['from' => $normal, 'to' => 'shipped'],
+            'deliver' => ['from' => $normal, 'to' => 'delivered'],
             'cancel' => ['from' => ['new', 'confirmed', 'preparing', 'shipped'], 'to' => 'cancelled'],
         ];
         if (!isset($allowed[$action])) {
@@ -382,8 +385,12 @@ final class OrderService
             if (!is_array($order) || !in_array($order['status'], $allowed[$action]['from'], true)) {
                 throw new RuntimeException('Tranziția nu este permisă din starea curentă.');
             }
+            if ($order['status'] === $allowed[$action]['to']) { if($ownsTransaction) { $this->pdo->commit(); } return; }
+            if ($expectedVersion !== null && !hash_equals($this->statusVersion($orderId),$expectedVersion)) { throw new RuntimeException('Statusul s-a modificat între timp. Redeschide formularul.'); }
             $now = gmdate('c');
-            if ($action === 'ship') {
+            $wasDispatched=in_array($order['status'],['shipped','delivered'],true);
+            $willBeDispatched=in_array($allowed[$action]['to'],['shipped','delivered'],true);
+            if ($willBeDispatched && !$wasDispatched) {
                 $reservations = $this->pdo->prepare("SELECT * FROM inventory_reservations WHERE order_id = :id AND status = 'active'");
                 $reservations->execute(['id' => $orderId]);
                 foreach ($reservations->fetchAll() as $reservation) {
@@ -402,6 +409,18 @@ final class OrderService
                     $this->pdo->prepare("INSERT INTO inventory_movements (variant_id, type, physical_delta, reserved_delta, reason, reference_type, reference_id, actor_user_id, created_at) VALUES (:variant, 'ship', :physical, :reserved, 'Expediere comandă', 'order', :order, :actor, :now)")->execute([
                         'variant' => $reservation['variant_id'], 'physical' => -((int) $reservation['quantity']), 'reserved' => -((int) $reservation['quantity']), 'order' => $orderId, 'actor' => $actorId, 'now' => $now,
                     ]);
+                }
+            } elseif ($wasDispatched && !$willBeDispatched && $action !== 'cancel') {
+                // Undo the operational shipment, while keeping the products reserved for this order.
+                // Accounting movements remain attached to invoices, never to a status label.
+                $reservations=$this->pdo->prepare("SELECT * FROM inventory_reservations WHERE order_id=:id AND status='consumed'");
+                $reservations->execute(['id'=>$orderId]);
+                foreach($reservations->fetchAll() as $reservation) {
+                    $update=$this->pdo->prepare('UPDATE inventory SET physical_quantity=physical_quantity+:physical,reserved_quantity=reserved_quantity+:reserved,updated_at=:now WHERE variant_id=:variant');
+                    $update->execute(['physical'=>$reservation['quantity'],'reserved'=>$reservation['quantity'],'now'=>$now,'variant'=>$reservation['variant_id']]);
+                    if($update->rowCount()!==1) { throw new RuntimeException('Stoc inconsistent; revenirea necesită verificarea rezervărilor.'); }
+                    $this->pdo->prepare("UPDATE inventory_reservations SET status='active',updated_at=:now WHERE id=:id AND status='consumed'")->execute(['now'=>$now,'id'=>$reservation['id']]);
+                    $this->pdo->prepare("INSERT INTO inventory_movements (variant_id,type,physical_delta,reserved_delta,reason,reference_type,reference_id,actor_user_id,created_at) VALUES (:variant,'reserve',:physical,:reserved,'Revenire la pregătirea comenzii','order',:order,:actor,:now)")->execute(['variant'=>$reservation['variant_id'],'physical'=>$reservation['quantity'],'reserved'=>$reservation['quantity'],'order'=>$orderId,'actor'=>$actorId,'now'=>$now]);
                 }
             } elseif ($action === 'cancel') {
                 $actorQuery=$this->pdo->prepare('SELECT id,role FROM users WHERE id=:id'); $actorQuery->execute(['id'=>$actorId]);
@@ -425,18 +444,20 @@ final class OrderService
                     ]);
                 }
             }
-            $extra = $action === 'ship' ? ', shipped_at = :now2, awb = :awb' : ($action === 'cancel' ? ', cancelled_at = :now2' : '');
+            $extra = $willBeDispatched && !$wasDispatched ? ', shipped_at = COALESCE(shipped_at,:now2), awb = COALESCE(:awb,awb)' : ($action === 'cancel' ? ', cancelled_at = :now2' : '');
             $params = ['status' => $allowed[$action]['to'], 'now' => $now, 'id' => $orderId];
-            if ($action === 'ship') {
+            if ($willBeDispatched && !$wasDispatched) {
                 $params['now2'] = $now;
                 $params['awb'] = trim((string) $awb) ?: null;
             } elseif ($action === 'cancel') {
                 $params['now2'] = $now;
             }
             $this->pdo->prepare("UPDATE orders SET status = :status, updated_at = :now{$extra} WHERE id = :id")->execute($params);
-            if ($action === 'confirm') {
+            if ($action !== 'cancel' && $action !== 'reset') {
                 $this->pdo->prepare("UPDATE coupon_redemptions SET status='confirmed',updated_at=:now WHERE order_id=:order AND status='reserved'")
                     ->execute(['now' => $now, 'order' => $orderId]);
+            } elseif ($action === 'reset') {
+                $this->pdo->prepare("UPDATE coupon_redemptions SET status='reserved',updated_at=:now WHERE order_id=:order AND status='confirmed'")->execute(['now'=>$now,'order'=>$orderId]);
             } elseif ($action === 'cancel') {
                 $this->pdo->prepare("UPDATE coupon_redemptions SET status='released',updated_at=:now WHERE order_id=:order AND status IN ('reserved','confirmed')")
                     ->execute(['now' => $now, 'order' => $orderId]);
@@ -681,14 +702,20 @@ final class OrderService
     /** @return list<array{action:string,status:string}> */
     private function availableActions(string $status): array
     {
-        $actions = [
-            'new' => [['action' => 'confirm', 'status' => 'confirmed'], ['action' => 'cancel', 'status' => 'cancelled']],
-            'confirmed' => [['action' => 'prepare', 'status' => 'preparing'], ['action' => 'ship', 'status' => 'shipped'], ['action' => 'cancel', 'status' => 'cancelled']],
-            'preparing' => [['action' => 'ship', 'status' => 'shipped'], ['action' => 'cancel', 'status' => 'cancelled']],
-            'shipped' => [['action' => 'deliver', 'status' => 'delivered'], ['action' => 'cancel', 'status' => 'cancelled']],
-        ];
+        $states=['reset'=>'new','confirm'=>'confirmed','prepare'=>'preparing','ship'=>'shipped','deliver'=>'delivered'];
+        if(!in_array($status,$states,true)) { return []; }
+        $actions=[];
+        foreach($states as $action=>$target) { if($target!==$status) { $actions[]=['action'=>$action,'status'=>$target]; } }
+        if($status!=='delivered') { $actions[]=['action'=>'cancel','status'=>'cancelled']; }
+        return $actions;
+    }
 
-        return $actions[$status] ?? [];
+    /** Detect concurrent status changes, including changes in the same second. */
+    public function statusVersion(int $orderId): string
+    {
+        $query=$this->pdo->prepare("SELECT o.status,o.updated_at,(SELECT COALESCE(MAX(a.id),0) FROM audit_log a WHERE a.entity_type='order' AND a.entity_id=o.id) AS event_id FROM orders o WHERE o.id=:id");
+        $query->execute(['id'=>$orderId]);
+        return hash('sha256',json_encode($query->fetch(),JSON_THROW_ON_ERROR));
     }
 
     /** @param array<string,mixed> $order */

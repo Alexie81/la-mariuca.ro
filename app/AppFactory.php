@@ -278,7 +278,7 @@ final class AppFactory
             $group->post('/facturi/emite/', [$invoiceController, 'action']);
             $group->get('/facturi/export/{format:xlsx|zip}/', [$invoiceController, 'export']);
             $group->get('/facturi/{id:[0-9]+}/', [$invoiceController, 'detail']);
-            $group->get('/facturi/{id:[0-9]+}/{format:pdf|xlsx|zip}/', [$invoiceController, 'export']);
+            $group->get('/facturi/{id:[0-9]+}/{format:pdf|xlsx|xml|zip}/', [$invoiceController, 'export']);
             $group->post('/comenzi/{id:[0-9]+}/aviz/', [$dispatchNoteController, 'issue']);
             $group->post('/comenzi/{id:[0-9]+}/aviz/sterge/', [$dispatchNoteController, 'delete']);
             $group->get('/comenzi/{id:[0-9]+}/aviz/pdf/', [$dispatchNoteController, 'pdf']);

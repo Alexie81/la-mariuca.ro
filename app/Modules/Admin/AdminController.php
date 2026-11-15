@@ -1356,6 +1356,7 @@ final class AdminController
                 (int) $user['id'],
                 (string) ($data['reason'] ?? ''),
                 (string) ($data['notify_customer'] ?? '') === '1',
+                isset($data['status_version']) ? (string)$data['status_version'] : null,
             );
             return $this->orderMutationResponse($request, (int) $args['id'], 'Starea comenzii a fost actualizată.');
         } catch (\Throwable $exception) {
@@ -1441,6 +1442,7 @@ final class AdminController
             'partial' => 'Plătită parțial', 'partially_refunded' => 'Rambursată parțial', 'refunded' => 'Rambursată',
         ];
         $actionCopy = [
+            'reset' => ['Marchează nouă', 'Revino la începutul pregătirii, păstrând istoricul comenzii.'],
             'confirm' => ['Confirmă comanda', 'Comanda a fost verificată și poate intra în pregătire.'],
             'prepare' => ['Începe pregătirea', 'Produsele sunt culese și pregătite pentru colet.'],
             'ship' => ['Marchează expediată', 'Produsele rezervate sunt marcate ca expediate. Stocul contabil se scade numai prin factură.'],
@@ -1468,6 +1470,10 @@ final class AdminController
         }
         unset($return);
         $historyPresentation = [
+            'order.reset' => ['Comandă readusă la Nouă', 'package', 'amber'],
+            'order.details_edited' => ['Detaliile comenzii actualizate', 'edit', 'violet'],
+            'order.details_email_queued' => ['Actualizarea comenzii pregătită pentru email', 'mail', 'blue'],
+            'order.invoice_edit' => ['Produsele și valorile comenzii actualizate', 'package', 'violet'],
             'order.confirm' => ['Comandă confirmată', 'check', 'sage'],
             'order.prepare' => ['Pregătire începută', 'package', 'amber'],
             'order.ship' => ['Comandă expediată', 'truck', 'blue'],
