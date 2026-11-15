@@ -6,6 +6,7 @@ namespace Tests\Integration;
 
 use App\AppFactory;
 use App\Shared\Security\AdminRememberMe;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 use PDO;
 use Psr\Http\Message\ResponseInterface;
 use Slim\Psr7\Factory\ServerRequestFactory;
@@ -147,12 +148,36 @@ final class AdminPanelTest extends DatabaseTestCase
         self::assertStringContainsString('data-admin-product-discard-leave', $body);
         self::assertStringContainsString('data-admin-product-editor-trigger', $body);
         self::assertStringContainsString('/editare/modal/', $body);
+        self::assertStringContainsString('/admin/produse/export/xlsx/', $body);
+        self::assertStringContainsString('name="categorie"', $body);
+        self::assertStringContainsString('name="producator"', $body);
+        self::assertStringContainsString('name="contabil"', $body);
         self::assertStringNotContainsString('1 variantă', $body);
 
         $search = (string) $this->get('/admin/produse/?cautare=LM-SH-002')->getBody();
         self::assertStringContainsString('Ghete „Explorator”', $search);
         self::assertStringNotContainsString('Set nou-născut „Primul dar”', $search);
         self::assertStringContainsString('1 produs relevant', $search);
+
+        $export = $this->get('/admin/produse/export/xlsx/?cautare=LM-SH-002');
+        self::assertSame(200, $export->getStatusCode());
+        self::assertSame('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', $export->getHeaderLine('Content-Type'));
+        self::assertStringStartsWith('attachment;', $export->getHeaderLine('Content-Disposition'));
+        $exportPath = tempnam(sys_get_temp_dir(), 'catalog-export-');
+        self::assertIsString($exportPath);
+        file_put_contents($exportPath, (string) $export->getBody());
+        $book = IOFactory::load($exportPath);
+        try {
+            $sheet = $book->getActiveSheet();
+            self::assertSame('Catalog produse', $sheet->getTitle());
+            self::assertSame('Ghete „Explorator”', $sheet->getCell('B7')->getValue());
+            self::assertIsNumeric($sheet->getCell('D7')->getValue());
+            self::assertSame('Nume produs', $sheet->getCell('B6')->getValue());
+            self::assertSame('Număr recenzii', $sheet->getCell('Q6')->getValue());
+        } finally {
+            $book->disconnectWorksheets();
+            @unlink($exportPath);
+        }
 
         $form = (string) $this->get('/admin/produse/nou/')->getBody();
         self::assertStringContainsString('href="/admin/produse/" aria-current="page"', $form);

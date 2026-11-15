@@ -552,115 +552,21 @@ final class CatalogAdminService
      *     to:int
      * }
      */
-    public function paginateProductsForAdmin(int $page, int $perPage = 15, string $search = ''): array
+    public function paginateProductsForAdmin(int $page, int $perPage = 15, string $search = '', array $filters = []): array
     {
         $perPage = max(1, min(50, $perPage));
         $search = trim($search);
-        $where = " WHERE p.status <> 'archived'";
-        $parameters = [];
-
-        if ($search !== '') {
-            $needle = '%' . mb_strtolower($search) . '%';
-            $where .= " AND (LOWER(p.name) LIKE :name_search
-                OR LOWER(p.slug) LIKE :slug_search
-                OR LOWER(COALESCE(p.primary_sku, '')) LIKE :primary_sku_search
-                OR LOWER(COALESCE(c.name, '')) LIKE :category_search
-                OR LOWER(p.status) LIKE :status_search
-                OR EXISTS (
-                    SELECT 1 FROM product_variants search_variant
-                    WHERE search_variant.product_id = p.id
-                    AND (LOWER(search_variant.sku) LIKE :sku_search
-                        OR LOWER(search_variant.option_summary) LIKE :variant_search)
-                ))";
-            $parameters = [
-                ':name_search' => $needle,
-                ':slug_search' => $needle,
-                ':primary_sku_search' => $needle,
-                ':category_search' => $needle,
-                ':status_search' => $needle,
-                ':sku_search' => $needle,
-                ':variant_search' => $needle,
-            ];
-        }
-
-        $count = $this->pdo->prepare('SELECT COUNT(*) FROM products p LEFT JOIN categories c ON c.id = p.primary_category_id' . $where);
+        [$where, $parameters] = $this->adminProductWhere($search, $filters);
+        $baseSql = $this->adminProductBaseSql();
+        $count = $this->pdo->prepare('SELECT COUNT(*) FROM (' . $baseSql . ') admin_product' . $where);
         $count->execute($parameters);
         $total = (int) $count->fetchColumn();
         $totalPages = max(1, (int) ceil($total / $perPage));
         $page = max(1, min($page, $totalPages));
         $offset = ($page - 1) * $perPage;
 
-        $statement = $this->pdo->prepare("SELECT
-                p.id,p.name,p.slug,p.status,p.featured,p.updated_at,
-                COALESCE(c.name, 'Fără categorie') AS category_name,
-                COALESCE(p.primary_sku, (
-                    SELECT default_variant.sku FROM product_variants default_variant
-                    WHERE default_variant.product_id = p.id
-                    ORDER BY default_variant.is_default DESC, default_variant.id ASC LIMIT 1
-                ), '') AS sku,
-                COALESCE((
-                    SELECT default_variant.price_bani FROM product_variants default_variant
-                    WHERE default_variant.product_id = p.id
-                    ORDER BY default_variant.is_default DESC, default_variant.id ASC LIMIT 1
-                ), 0) AS price_bani,
-                COALESCE((
-                    SELECT default_variant.compare_price_bani FROM product_variants default_variant
-                    WHERE default_variant.product_id = p.id
-                    ORDER BY default_variant.is_default DESC, default_variant.id ASC LIMIT 1
-                ), 0) AS compare_price_bani,
-                (SELECT default_variant.discount_type FROM product_variants default_variant
-                    WHERE default_variant.product_id = p.id
-                    ORDER BY default_variant.is_default DESC, default_variant.id ASC LIMIT 1
-                ) AS discount_type,
-                COALESCE((
-                    SELECT default_variant.discount_value FROM product_variants default_variant
-                    WHERE default_variant.product_id = p.id
-                    ORDER BY default_variant.is_default DESC, default_variant.id ASC LIMIT 1
-                ), 0) AS discount_value,
-                COALESCE((
-                    SELECT SUM(stock.physical_quantity - stock.reserved_quantity)
-                    FROM product_variants stock_variant
-                    LEFT JOIN inventory stock ON stock.variant_id = stock_variant.id
-                    WHERE stock_variant.product_id = p.id AND stock_variant.status = 'active'
-                ), 0) AS online_quantity,
-                CASE WHEN EXISTS (
-                    SELECT 1 FROM product_variants unlimited_variant
-                    WHERE unlimited_variant.product_id=p.id
-                      AND unlimited_variant.status='active'
-                      AND unlimited_variant.stock_unlimited=1
-                ) THEN 1 ELSE 0 END AS has_unlimited_stock,
-                COALESCE((
-                    SELECT SUM(accounting_balance.quantity)
-                    FROM accounting_stock_balances accounting_balance
-                    WHERE accounting_balance.product_id = p.id
-                ), (
-                    SELECT SUM(stock.physical_quantity)
-                    FROM product_variants stock_variant
-                    LEFT JOIN inventory stock ON stock.variant_id = stock_variant.id
-                    WHERE stock_variant.product_id = p.id
-                ), 0) AS physical_quantity,
-                COALESCE((
-                    SELECT SUM(stock.reserved_quantity)
-                    FROM product_variants stock_variant
-                    LEFT JOIN inventory stock ON stock.variant_id = stock_variant.id
-                    WHERE stock_variant.product_id = p.id
-                ), 0) AS reserved_quantity,
-                (SELECT product_media.public_path
-                    FROM product_images product_image
-                    JOIN media product_media ON product_media.id = product_image.media_id
-                    WHERE product_image.product_id = p.id AND product_media.public_path IS NOT NULL
-                    ORDER BY product_image.position, product_image.media_id LIMIT 1
-                ) AS image_path,
-                COALESCE((SELECT product_media.alt_text
-                    FROM product_images product_image
-                    JOIN media product_media ON product_media.id = product_image.media_id
-                    WHERE product_image.product_id = p.id AND product_media.public_path IS NOT NULL
-                    ORDER BY product_image.position, product_image.media_id LIMIT 1
-                ), p.name) AS image_alt
-            FROM products p
-            LEFT JOIN categories c ON c.id = p.primary_category_id"
-            . $where
-            . ' ORDER BY p.updated_at DESC,p.id DESC LIMIT :limit OFFSET :offset');
+        $statement = $this->pdo->prepare('SELECT * FROM (' . $baseSql . ') admin_product'
+            . $where . ' ORDER BY updated_at DESC,id DESC LIMIT :limit OFFSET :offset');
         foreach ($parameters as $name => $value) {
             $statement->bindValue($name, $value);
         }
@@ -686,6 +592,119 @@ final class CatalogAdminService
             'from' => $total === 0 ? 0 : $offset + 1,
             'to' => min($offset + $perPage, $total),
         ];
+    }
+
+    /** @param array<string,mixed> $filters @return list<array<string,mixed>> */
+    public function productsForAdminExport(string $search = '', array $filters = []): array
+    {
+        [$where, $parameters] = $this->adminProductWhere(trim($search), $filters);
+        $statement = $this->pdo->prepare('SELECT * FROM (' . $this->adminProductBaseSql() . ') admin_product'
+            . $where . ' ORDER BY name,id');
+        $statement->execute($parameters);
+        $items = $statement->fetchAll();
+        $accountingQuantities = (new AccountingStockReadModel($this->pdo))->quantities(array_map(static fn(array $item): int => (int) $item['id'], $items));
+        foreach ($items as &$item) {
+            if (array_key_exists((int) $item['id'], $accountingQuantities)) {
+                $item['physical_quantity'] = $accountingQuantities[(int) $item['id']];
+            }
+        }
+        unset($item);
+        return $items;
+    }
+
+    /** @return list<string> */
+    public function productBrandsForAdmin(): array
+    {
+        $rows = $this->pdo->query("SELECT DISTINCT brand FROM products WHERE brand IS NOT NULL AND TRIM(brand) <> '' ORDER BY brand")->fetchAll(PDO::FETCH_COLUMN);
+        return array_values(array_map('strval', $rows));
+    }
+
+    private function adminProductBaseSql(): string
+    {
+        return "SELECT
+            p.id,p.name,p.slug,p.status,p.featured,p.updated_at,p.primary_category_id,p.track_in_conta,p.brand,p.description,
+            p.accounting_minimum_units,p.supplier_id,
+            COALESCE(c.name, 'Fără categorie') AS category_name,
+            COALESCE(s.alias, '') AS supplier_alias,COALESCE(s.company_name, '') AS supplier_name,
+            COALESCE(p.primary_sku, (SELECT dv.sku FROM product_variants dv WHERE dv.product_id=p.id ORDER BY dv.is_default DESC,dv.id LIMIT 1), '') AS sku,
+            COALESCE((SELECT dv.ean FROM product_variants dv WHERE dv.product_id=p.id ORDER BY dv.is_default DESC,dv.id LIMIT 1), '') AS ean,
+            COALESCE((SELECT dv.price_bani FROM product_variants dv WHERE dv.product_id=p.id ORDER BY dv.is_default DESC,dv.id LIMIT 1), 0) AS price_bani,
+            COALESCE((SELECT dv.compare_price_bani FROM product_variants dv WHERE dv.product_id=p.id ORDER BY dv.is_default DESC,dv.id LIMIT 1), 0) AS compare_price_bani,
+            (SELECT dv.discount_type FROM product_variants dv WHERE dv.product_id=p.id ORDER BY dv.is_default DESC,dv.id LIMIT 1) AS discount_type,
+            COALESCE((SELECT dv.discount_value FROM product_variants dv WHERE dv.product_id=p.id ORDER BY dv.is_default DESC,dv.id LIMIT 1), 0) AS discount_value,
+            COALESCE((SELECT SUM(i.physical_quantity-i.reserved_quantity) FROM product_variants sv LEFT JOIN inventory i ON i.variant_id=sv.id WHERE sv.product_id=p.id AND sv.status='active'),0) AS online_quantity,
+            CASE WHEN EXISTS (SELECT 1 FROM product_variants uv WHERE uv.product_id=p.id AND uv.status='active' AND uv.stock_unlimited=1) THEN 1 ELSE 0 END AS has_unlimited_stock,
+            COALESCE((SELECT SUM(ab.quantity) FROM accounting_stock_balances ab WHERE ab.product_id=p.id),(SELECT SUM(i.physical_quantity) FROM product_variants sv LEFT JOIN inventory i ON i.variant_id=sv.id WHERE sv.product_id=p.id),0) AS physical_quantity,
+            COALESCE((SELECT SUM(i.reserved_quantity) FROM product_variants sv LEFT JOIN inventory i ON i.variant_id=sv.id WHERE sv.product_id=p.id),0) AS reserved_quantity,
+            COALESCE((SELECT sr.supplier_code FROM nir_supplier_references sr WHERE sr.product_id=p.id ORDER BY sr.is_primary DESC,sr.updated_at DESC,sr.id DESC LIMIT 1),'') AS supplier_code,
+            COALESCE((SELECT sr.last_price FROM nir_supplier_references sr WHERE sr.product_id=p.id ORDER BY sr.is_primary DESC,sr.updated_at DESC,sr.id DESC LIMIT 1),'') AS source_price,
+            COALESCE((SELECT sr.last_currency FROM nir_supplier_references sr WHERE sr.product_id=p.id ORDER BY sr.is_primary DESC,sr.updated_at DESC,sr.id DESC LIMIT 1),'') AS source_currency,
+            COALESCE((SELECT SUM(oi.quantity) FROM order_items oi JOIN orders o ON o.id=oi.order_id WHERE oi.product_id=p.id AND o.status NOT IN ('cancelled')),0) AS sold_quantity,
+            COALESCE((SELECT AVG(pr.rating) FROM product_reviews pr WHERE pr.product_id=p.id AND pr.status='approved'),0) AS rating_average,
+            COALESCE((SELECT COUNT(*) FROM product_reviews pr WHERE pr.product_id=p.id AND pr.status='approved'),0) AS review_count,
+            (SELECT m.public_path FROM product_images pi JOIN media m ON m.id=pi.media_id WHERE pi.product_id=p.id AND m.public_path IS NOT NULL ORDER BY pi.position,pi.media_id LIMIT 1) AS image_path,
+            COALESCE((SELECT m.alt_text FROM product_images pi JOIN media m ON m.id=pi.media_id WHERE pi.product_id=p.id AND m.public_path IS NOT NULL ORDER BY pi.position,pi.media_id LIMIT 1),p.name) AS image_alt
+        FROM products p LEFT JOIN categories c ON c.id=p.primary_category_id LEFT JOIN suppliers s ON s.id=p.supplier_id";
+    }
+
+    /** @param array<string,mixed> $filters @return array{0:string,1:array<string,mixed>} */
+    private function adminProductWhere(string $search, array $filters): array
+    {
+        $conditions = [];
+        $parameters = [];
+        $status = (string) ($filters['status'] ?? 'active');
+        if (in_array($status, ['published', 'draft', 'archived'], true)) {
+            $conditions[] = 'status = :filter_status';
+            $parameters[':filter_status'] = $status;
+        } elseif ($status !== 'all') {
+            $conditions[] = "status <> 'archived'";
+        }
+        $category = (int) ($filters['category_id'] ?? 0);
+        if ($category > 0) {
+            $conditions[] = 'EXISTS (SELECT 1 FROM product_categories filter_category WHERE filter_category.product_id=admin_product.id AND filter_category.category_id=:filter_category)';
+            $parameters[':filter_category'] = $category;
+        }
+        $brand = trim((string) ($filters['brand'] ?? ''));
+        if ($brand !== '') {
+            $conditions[] = 'LOWER(COALESCE(brand,\'\')) = :filter_brand';
+            $parameters[':filter_brand'] = mb_strtolower($brand);
+        }
+        $supplier = (int) ($filters['supplier_id'] ?? 0);
+        if ($supplier > 0) {
+            $conditions[] = 'supplier_id = :filter_supplier';
+            $parameters[':filter_supplier'] = $supplier;
+        }
+        $accounting = (string) ($filters['accounting'] ?? '');
+        if (in_array($accounting, ['tracked', 'untracked'], true)) {
+            $conditions[] = 'track_in_conta = :filter_accounting';
+            $parameters[':filter_accounting'] = $accounting === 'tracked' ? 1 : 0;
+        }
+        $stock = (string) ($filters['stock'] ?? '');
+        if ($stock === 'available') {
+            $conditions[] = '(has_unlimited_stock=1 OR online_quantity>0)';
+        } elseif ($stock === 'out') {
+            $conditions[] = 'has_unlimited_stock=0 AND online_quantity<=0';
+        } elseif ($stock === 'low') {
+            $conditions[] = 'has_unlimited_stock=0 AND online_quantity>0 AND online_quantity<=3';
+        } elseif ($stock === 'accounting_negative') {
+            $conditions[] = 'physical_quantity<0';
+        }
+        if ($search !== '') {
+            $needle = '%' . mb_strtolower($search) . '%';
+            $fields = ['name','slug','sku','ean','category_name','status','brand','supplier_alias','supplier_name','supplier_code','description'];
+            $searchParts = [];
+            foreach ($fields as $index => $field) {
+                $key = ':admin_search_' . $index;
+                $searchParts[] = 'LOWER(COALESCE(' . $field . ',\'\')) LIKE ' . $key;
+                $parameters[$key] = $needle;
+            }
+            $searchParts[] = "EXISTS (SELECT 1 FROM product_variants search_variant WHERE search_variant.product_id=admin_product.id AND (LOWER(search_variant.sku) LIKE :admin_search_variant OR LOWER(COALESCE(search_variant.ean,'')) LIKE :admin_search_variant_ean OR LOWER(search_variant.option_summary) LIKE :admin_search_variant_option))";
+            $parameters[':admin_search_variant'] = $needle;
+            $parameters[':admin_search_variant_ean'] = $needle;
+            $parameters[':admin_search_variant_option'] = $needle;
+            $conditions[] = '(' . implode(' OR ', $searchParts) . ')';
+        }
+        return [$conditions === [] ? '' : ' WHERE ' . implode(' AND ', $conditions), $parameters];
     }
 
     /** @return array<string,mixed>|null */

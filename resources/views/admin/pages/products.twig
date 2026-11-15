@@ -1,5 +1,34 @@
 {% extends 'admin/layouts/base.twig' %}
 
+{% macro category_options(nodes, selected, depth) %}
+  {% for category in nodes %}
+    <option value="{{ category.id }}" {{ selected == category.id ? 'selected' }}>{{ depth == 1 ? '— ' : (depth > 1 ? '—— ' : '') }}{{ category.name }}</option>
+    {% if category.children is not empty %}{{ _self.category_options(category.children, selected, depth + 1) }}{% endif %}
+  {% endfor %}
+{% endmacro %}
+
+{% macro pagination_nav(pagination, filters_query, position) %}
+  {% if pagination.total_pages > 1 %}
+    <nav class="admin-pagination admin-pagination--{{ position }}" aria-label="Paginarea produselor {{ position == 'top' ? 'deasupra tabelului' : 'sub tabel' }}">
+      {% if pagination.page > 1 %}
+        <a class="admin-pagination__arrow" href="{{ url('admin/produse/?pagina=' ~ (pagination.page - 1) ~ (filters_query ? '&' ~ filters_query : '')) }}" aria-label="Pagina anterioară"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg></a>
+      {% else %}
+        <span class="admin-pagination__arrow is-disabled" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></svg></span>
+      {% endif %}
+      <div class="admin-pagination__pages">
+        {% for page_number in pagination.page_numbers %}
+          <a href="{{ url('admin/produse/?pagina=' ~ page_number ~ (filters_query ? '&' ~ filters_query : '')) }}" class="{{ pagination.page == page_number ? 'is-active' : '' }}"{% if pagination.page == page_number %} aria-current="page"{% endif %}>{{ page_number }}</a>
+        {% endfor %}
+      </div>
+      {% if pagination.page < pagination.total_pages %}
+        <a class="admin-pagination__arrow" href="{{ url('admin/produse/?pagina=' ~ (pagination.page + 1) ~ (filters_query ? '&' ~ filters_query : '')) }}" aria-label="Pagina următoare"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a>
+      {% else %}
+        <span class="admin-pagination__arrow is-disabled" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></span>
+      {% endif %}
+    </nav>
+  {% endif %}
+{% endmacro %}
+
 {% block title %}Produse{% endblock %}
 
 {% block content %}
@@ -15,10 +44,13 @@
         {% endif %}
       </p>
     </div>
-    <a class="admin-products-add" href="{{ url('admin/produse/nou/') }}" data-admin-product-editor-trigger data-modal-url="{{ url('admin/produse/nou/modal/') }}">
-      <span>Adaugă produs</span>
-      <i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></i>
-    </a>
+    <div class="admin-products-hero__actions">
+      <a class="admin-products-export" href="{{ url('admin/produse/export/xlsx/' ~ (export_query ? '?' ~ export_query : '')) }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M8 11l4 4 4-4M5 19h14"/></svg><span>Exportă Excel</span></a>
+      <a class="admin-products-add" href="{{ url('admin/produse/nou/') }}" data-admin-product-editor-trigger data-modal-url="{{ url('admin/produse/nou/modal/') }}">
+        <span>Adaugă produs</span>
+        <i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></i>
+      </a>
+    </div>
   </section>
 
   <section class="admin-products-card" aria-labelledby="admin-products-table-title">
@@ -33,7 +65,7 @@
     </header>
 
     <form class="admin-products-search" action="{{ url('admin/produse/') }}" method="get" role="search">
-      <label>
+      <label class="admin-products-search__query">
         <span class="sr-only">Caută în produse</span>
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m16.5 16.5 4 4"/></svg>
         <input type="search" name="cautare" value="{{ search }}" placeholder="Caută produs, SKU, categorie sau variantă…" autocomplete="off">
@@ -42,13 +74,22 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m16.5 16.5 4 4"/></svg>
       </button>
       {% if has_filters %}
-        <a href="{{ url('admin/produse/') }}" aria-label="Șterge căutarea">
+        <a href="{{ url('admin/produse/') }}" aria-label="Șterge căutarea și filtrele">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7l-10 10"/></svg>
         </a>
       {% endif %}
+      <div class="admin-products-filters" aria-label="Filtre catalog">
+        <label><span>Stare</span><select name="status"><option value="active" {{ filters.status == 'active' ? 'selected' }}>Produse active</option><option value="published" {{ filters.status == 'published' ? 'selected' }}>Publicate</option><option value="draft" {{ filters.status == 'draft' ? 'selected' }}>Draft</option><option value="archived" {{ filters.status == 'archived' ? 'selected' }}>Arhivate</option><option value="all" {{ filters.status == 'all' ? 'selected' }}>Toate stările</option></select></label>
+        <label><span>Categorie</span><select name="categorie"><option value="">Toate categoriile</option>{{ _self.category_options(category_tree, filters.category_id, 0) }}</select></label>
+        <label><span>Producător</span><select name="producator"><option value="">Toți producătorii</option>{% for brand in product_brands %}<option value="{{ brand }}" {{ filters.brand == brand ? 'selected' }}>{{ brand }}</option>{% endfor %}</select></label>
+        <label><span>Stoc</span><select name="stoc"><option value="">Orice stoc</option><option value="available" {{ filters.stock == 'available' ? 'selected' }}>Disponibil online</option><option value="low" {{ filters.stock == 'low' ? 'selected' }}>Stoc online scăzut</option><option value="out" {{ filters.stock == 'out' ? 'selected' }}>Stoc online epuizat</option><option value="accounting_negative" {{ filters.stock == 'accounting_negative' ? 'selected' }}>Sold contabil negativ</option></select></label>
+        <label><span>Contabilitate</span><select name="contabil"><option value="">Toate</option><option value="tracked" {{ filters.accounting == 'tracked' ? 'selected' }}>Urmărit contabil</option><option value="untracked" {{ filters.accounting == 'untracked' ? 'selected' }}>Neurmărit contabil</option></select></label>
+        <label><span>Sursă / furnizor</span><select name="furnizor"><option value="">Toate sursele</option>{% for supplier in product_suppliers %}<option value="{{ supplier.id }}" {{ filters.supplier_id == supplier.id ? 'selected' }}>{{ supplier.alias }}{{ supplier.company_name ? ' — ' ~ supplier.company_name : '' }}</option>{% endfor %}</select></label>
+      </div>
     </form>
 
     {% if products %}
+      {{ _self.pagination_nav(pagination, filters_query, 'top') }}
       <div class="admin-products-table-wrap">
         <table class="admin-products-table">
           <thead>
@@ -76,6 +117,7 @@
                   {% endif %}
                   <span>
                     <strong>{{ product.name }}</strong>
+                    <small>/produs/{{ product.slug }}/</small>
                     <span class="admin-products-phone-meta">
                       <span>{{ product.category_name }}</span>
                       <span class="admin-products-phone-meta__sku">SKU <code>{{ product.sku ?: '—' }}</code></span>
@@ -126,6 +168,7 @@
                 </td>
                 <td data-label="Status"><span class="admin-product-status admin-product-status--{{ product.status }}">{{ product.status_label }}</span></td>
                 <td data-label="Acțiuni" class="admin-products-table__actions">
+                  {% if product.status == 'published' %}<a href="{{ url('produs/' ~ product.slug ~ '/') }}" target="_blank" rel="noopener" aria-label="Deschide pagina publică pentru {{ product.name }}" title="Deschide pagina publică"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 5h5v5M19 5l-8 8"/><path d="M18 13v6H5V6h6"/></svg><span class="admin-products-phone-label">Deschide</span></a>{% endif %}
                   <a href="{{ url('admin/produse/' ~ product.id ~ '/editare/') }}" data-admin-product-editor-trigger data-modal-url="{{ url('admin/produse/' ~ product.id ~ '/editare/modal/') }}" aria-label="Editează {{ product.name }}" title="Editează">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 20 4.2-1 10.4-10.4a2 2 0 0 0-2.8-2.8L5.4 16.2 4 20Z"/><path d="m14.5 7.1 2.8 2.8"/></svg>
                     <span class="admin-products-phone-label">Editează</span>
@@ -144,25 +187,7 @@
         </table>
       </div>
 
-      {% if pagination.total_pages > 1 %}
-        <nav class="admin-pagination" aria-label="Paginarea produselor">
-          {% if pagination.page > 1 %}
-            <a class="admin-pagination__arrow" href="{{ url('admin/produse/?pagina=' ~ (pagination.page - 1) ~ (filters_query ? '&' ~ filters_query : '')) }}" aria-label="Pagina anterioară"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg></a>
-          {% else %}
-            <span class="admin-pagination__arrow is-disabled" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></svg></span>
-          {% endif %}
-          <div class="admin-pagination__pages">
-            {% for page_number in pagination.page_numbers %}
-              <a href="{{ url('admin/produse/?pagina=' ~ page_number ~ (filters_query ? '&' ~ filters_query : '')) }}" class="{{ pagination.page == page_number ? 'is-active' : '' }}"{% if pagination.page == page_number %} aria-current="page"{% endif %}>{{ page_number }}</a>
-            {% endfor %}
-          </div>
-          {% if pagination.page < pagination.total_pages %}
-            <a class="admin-pagination__arrow" href="{{ url('admin/produse/?pagina=' ~ (pagination.page + 1) ~ (filters_query ? '&' ~ filters_query : '')) }}" aria-label="Pagina următoare"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a>
-          {% else %}
-            <span class="admin-pagination__arrow is-disabled" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></span>
-          {% endif %}
-        </nav>
-      {% endif %}
+      {{ _self.pagination_nav(pagination, filters_query, 'bottom') }}
     {% else %}
       <div class="admin-products-empty">
         <span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4.5 7.5 7.5-4 7.5 4v9L12 21l-7.5-4.5v-9Z"/><path d="m4.8 7.7 7.2 4.1 7.2-4.1M12 11.8V21"/></svg></span>

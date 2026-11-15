@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Admin;
 
 use App\Modules\Catalog\CatalogAdminService;
+use App\Modules\Catalog\CatalogExportService;
 use App\Modules\Catalog\CatalogRepository;
 use App\Modules\Media\MediaService;
 use App\Modules\Orders\OrderService;
@@ -27,10 +28,12 @@ use App\Shared\Support\Money;
 use PDO;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
+use Slim\Psr7\Response;
+use Slim\Psr7\Stream;
 
 final class AdminController
 {
-    public function __construct(private readonly PDO $pdo, private readonly AdminDashboardService $dashboardService, private readonly AdminNotificationService $notificationService, private readonly AdminPushService $push, private readonly CatalogRepository $catalog, private readonly CatalogAdminService $catalogAdmin, private readonly CustomerAdminService $customers, private readonly NewsletterAdminService $newsletter, private readonly PromotionAdminService $promotions, private readonly ShippingMethodService $shippingMethods, private readonly SupplierAdminService $suppliers, private readonly OrderService $orders, private readonly ProductReviewService $reviews, private readonly MediaService $media, private readonly ContentAdminService $contentAdmin, private readonly Auth $auth, private readonly AdminRememberMe $rememberMe, private readonly RateLimiter $limiter, private readonly View $view, private readonly Config $config, private readonly OrderCancellationService $cancellations, private readonly \App\Modules\Orders\OrderNoteService $orderNotes)
+    public function __construct(private readonly PDO $pdo, private readonly AdminDashboardService $dashboardService, private readonly AdminNotificationService $notificationService, private readonly AdminPushService $push, private readonly CatalogRepository $catalog, private readonly CatalogAdminService $catalogAdmin, private readonly CatalogExportService $catalogExports, private readonly CustomerAdminService $customers, private readonly NewsletterAdminService $newsletter, private readonly PromotionAdminService $promotions, private readonly ShippingMethodService $shippingMethods, private readonly SupplierAdminService $suppliers, private readonly OrderService $orders, private readonly ProductReviewService $reviews, private readonly MediaService $media, private readonly ContentAdminService $contentAdmin, private readonly Auth $auth, private readonly AdminRememberMe $rememberMe, private readonly RateLimiter $limiter, private readonly View $view, private readonly Config $config, private readonly OrderCancellationService $cancellations, private readonly \App\Modules\Orders\OrderNoteService $orderNotes)
     {
     }
 
@@ -232,10 +235,12 @@ final class AdminController
     {
         $query = $request->getQueryParams();
         $search = trim(mb_substr((string) ($query['cautare'] ?? ''), 0, 120));
+        $filters = $this->productFilters($query);
         $pagination = $this->catalogAdmin->paginateProductsForAdmin(
             max(1, (int) ($query['pagina'] ?? 1)),
             15,
             $search,
+            $filters,
         );
         $statusLabels = ['published' => 'Publicat', 'draft' => 'Draft', 'archived' => 'Arhivat'];
         foreach ($pagination['items'] as &$product) {
@@ -247,16 +252,62 @@ final class AdminController
         $lastPage = min($pagination['total_pages'], $pagination['page'] + 2);
         $pagination['page_numbers'] = range($firstPage, $lastPage);
 
+        $filterQuery = array_filter([
+            'cautare' => $search,
+            'status' => $filters['status'] === 'active' ? '' : $filters['status'],
+            'categorie' => $filters['category_id'] ?: '',
+            'producator' => $filters['brand'],
+            'stoc' => $filters['stock'],
+            'contabil' => $filters['accounting'],
+            'furnizor' => $filters['supplier_id'] ?: '',
+        ], static fn(mixed $value): bool => $value !== '' && $value !== null);
         return $this->view->render('admin/pages/products.twig', [
             'products' => $pagination['items'],
             'pagination' => $pagination,
             'search' => $search,
-            'filters_query' => $search !== '' ? http_build_query(['cautare' => $search]) : '',
-            'has_filters' => $search !== '',
+            'filters' => $filters,
+            'filters_query' => http_build_query($filterQuery),
+            'export_query' => http_build_query($filterQuery),
+            'has_filters' => $filterQuery !== [],
+            'category_tree' => $this->catalog->allCategoryTree(true),
+            'product_brands' => $this->catalogAdmin->productBrandsForAdmin(),
+            'product_suppliers' => $this->suppliers->allForSelect(),
             'admin_section' => 'products',
             'admin_context' => 'Produse',
             'admin_unread_count' => $this->notificationService->unreadCount((int) ($this->auth->user()['id'] ?? 0)),
         ]);
+    }
+
+    public function exportProducts(ServerRequestInterface $request): ResponseInterface
+    {
+        $query = $request->getQueryParams();
+        $search = trim(mb_substr((string) ($query['cautare'] ?? ''), 0, 120));
+        $file = null;
+        try {
+            $file = $this->catalogExports->export($this->catalogAdmin->productsForAdminExport($search, $this->productFilters($query)));
+            $source = fopen($file['path'], 'rb');
+            $buffer = tmpfile();
+            if ($source === false || $buffer === false) {
+                throw new \RuntimeException('Exportul catalogului nu a putut fi deschis.');
+            }
+            stream_copy_to_stream($source, $buffer);
+            fclose($source);
+            rewind($buffer);
+            $this->catalogExports->cleanup($file['path']);
+            $file = null;
+            return (new Response())->withBody(new Stream($buffer))
+                ->withHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+                ->withHeader('Content-Disposition', 'attachment; filename="Catalog-produse-' . date('Y-m-d') . '.xlsx"')
+                ->withHeader('Cache-Control', 'private, no-store')
+                ->withHeader('X-Content-Type-Options', 'nosniff')
+                ->withHeader('X-Robots-Tag', 'noindex, nofollow');
+        } catch (\Throwable $exception) {
+            if ($file !== null) {
+                $this->catalogExports->cleanup($file['path']);
+            }
+            Flash::set('error', $exception->getMessage());
+            return $this->view->redirect($this->config->path('admin/produse/?' . http_build_query($query)));
+        }
     }
 
     public function customers(ServerRequestInterface $request): ResponseInterface
@@ -1793,6 +1844,22 @@ final class AdminController
             ['value' => 'locker', 'label' => 'Easybox / locker', 'description' => 'Clientul ridică pachetul dintr-un locker.'],
             ['value' => 'pickup', 'label' => 'Ridicare personală', 'description' => 'Comanda este ridicată dintr-un punct stabilit.'],
             ['value' => 'other', 'label' => 'Altă metodă', 'description' => 'O opțiune de livrare configurată manual.'],
+        ];
+    }
+
+    /** @param array<string,mixed> $query @return array{status:string,category_id:int,brand:string,stock:string,accounting:string,supplier_id:int} */
+    private function productFilters(array $query): array
+    {
+        $status = (string) ($query['status'] ?? 'active');
+        $stock = (string) ($query['stoc'] ?? '');
+        $accounting = (string) ($query['contabil'] ?? '');
+        return [
+            'status' => in_array($status, ['active', 'all', 'published', 'draft', 'archived'], true) ? $status : 'active',
+            'category_id' => max(0, (int) ($query['categorie'] ?? 0)),
+            'brand' => trim(mb_substr((string) ($query['producator'] ?? ''), 0, 190)),
+            'stock' => in_array($stock, ['', 'available', 'out', 'low', 'accounting_negative'], true) ? $stock : '',
+            'accounting' => in_array($accounting, ['', 'tracked', 'untracked'], true) ? $accounting : '',
+            'supplier_id' => max(0, (int) ($query['furnizor'] ?? 0)),
         ];
     }
 
