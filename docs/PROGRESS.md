@@ -1,5 +1,19 @@
 # Progres
 
+### TODO pentru 2026-11-16
+
+La revenirea la PC, începem în ordinea cerută explicit de utilizator la 2026-11-15. Această listă are prioritate față de ordinea generală a modulelor; toate punctele sunt de făcut și se bifează numai după confirmarea utilizatorului.
+
+1. [ ] **Corectarea datelor folosite la exporturi:** exportul NIR-urilor după **data înregistrării NIR-urilor**; la stocuri, aceeași regulă pentru intrări și **data vânzării** pentru ieșiri; la facturile emise, **data vânzării**. Verificăm selecția perioadei și documentele incluse, cu datele afișate în ora României.
+2. [ ] **Rezolvarea trimiterii în SPV**, rămasă nerezolvată: identificăm blocajul, corectăm fluxul și verificăm rezultatul real al trimiterii și starea documentului.
+3. [ ] **Completarea golurilor din pagina facturii**, identificate împreună cu utilizatorul la reluare.
+4. [ ] **Pagina de stocuri — urgent**, imediat după punctele de mai sus.
+5. [ ] **Reverificarea automatizărilor**, inclusiv emiterea și trimiterea facturilor pentru card/ramburs și evitarea dublărilor.
+6. [ ] **Rezolvarea stocului contabil din produse**, cu verificarea concordanței cu intrările, ieșirile și retururile din evidența contabilă.
+7. [ ] **Uniformizarea designului exporturilor din toate paginile**, folosind modalul de export aprobat ca reper. Acest ultim punct privește **doar designul**; corectarea regulilor de dată este la punctul 1.
+
+Lista este salvată pentru reluarea lucrului, fără pornirea implementării în această sesiune. Modificare numai de documentație; verificare prin diff, fără teste de aplicație necesare.
+
 ### 2026-11-15 — Popup de export contabil pentru facturile emise
 - Butonul **Exportă facturile** deschide modalul cerut după referința utilizatorului, în tema prună/roz și verde discret a aplicației: **Doar centralizatorul** sau **Centralizator + toate facturile**, șapte perioade rapide/personalizate, rezumat și descărcare. Fișa facturii rămâne pagină completă.
 - Perioade: toate documentele, anul curent, ultimele șase/trei luni, luna calendaristică anterioară, luna curentă și interval exact. Serverul calculează limitele în Europe/Bucharest, inclusiv trecerea anului și sfârșitul lunilor; filtrele existente pot fi păstrate sau eliminate. Filtrele cu o singură dată sunt completate pentru modal folosind prima emitere/data curentă, iar exportul include toate rezultatele, indiferent de paginare.
@@ -1545,7 +1559,9 @@ atribute și filtre fără schimbarea contractelor existente.
 - Au trecut **8 teste / 366 aserțiuni**, lintul fișierelor PHP modificate, sintaxa JS și compilarea celor **99 template-uri Twig**. Verificat în browser: cotă ascunsă la pornire, afișată/editabilă la activare și ascunsă la dezactivare. Pagina completă, cu date demonstrative exclusiv QA, a fost inspectată pe 390/768/1280 px; formularul și acțiunile au fost verificate și la 320 px. Fișa, contactul, banca, ștampila și gestiunile păstrează marginile ecranului, iar headerul/footerul modalului rămân fixe. Sesiunea principală Paula rămâne deschisă pentru completarea datelor reale.
 
 ### 2026-11-08 — Ordinea următoarelor module
-Priorități cerute de utilizator pentru reluarea lucrului, actualizate cu clarificările despre NIR-uri, reverificarea fiscală, SEO și cataloage. Lista nu pornește implementarea automat; următoarea etapă este **emiterea facturilor de ieșire și finalizarea traseului unic achiziție–vânzare**. Un punct se bifează numai după confirmarea explicită a utilizatorului că este gata, nu doar pentru că implementarea sau verificările au fost încheiate.
+**Prioritate actualizată explicit la 2026-11-15:** la următoarea reluare se urmează întâi [TODO pentru 2026-11-16](#todo-pentru-2026-11-16), în ordinea sa, inclusiv în reamintirile despre lucrul rămas. După această listă, se continuă roadmapul general de mai jos.
+
+Priorități generale cerute de utilizator, actualizate cu clarificările despre NIR-uri, reverificarea fiscală, SEO și cataloage. Lista nu pornește implementarea automat. Un punct se bifează numai după confirmarea explicită a utilizatorului că este gata, nu doar pentru că implementarea sau verificările au fost încheiate.
 
 1. [x] **Facturi de achiziție + NIR-uri (note de intrare-recepție) + întregul sistem de intrare în stoc**, într-o singură etapă, asociată gestiunilor. Finalizarea și bifarea au fost confirmate explicit de utilizator la **2026-11-13**. Integrarea completă a traseului achiziție–vânzare rămâne la punctul 2.
 2. [ ] **Facturi de ieșire / emitere facturi și finalizarea traseului complet, precis și unic achiziție–vânzare pentru produs**: legare automată a fiecărei cantități vândute de intrarea/lotul identificat unic, furnizorul și factura/NIR-ul de achiziție, costul istoric exact, factura de ieșire și prețul efectiv de vânzare. Include vânzările înregistrate înaintea NIR-ului și reconcilierea lor ulterioară fără consum dublu; stocul contabil rămâne independent de disponibilitatea online. Verificăm cap-coadă checklistul intern de trasabilitate de mai jos. Conform clarificării din 2026-11-14, nu sunt necesare ecrane sau exporturi dedicate traseului complet.
