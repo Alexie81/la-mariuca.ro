@@ -101,19 +101,38 @@ final class InvoiceExportService
     /** @param list<array<string,mixed>> $invoices */
     public function registry(array $invoices): string
     {
-        $book=$this->workbook(); $sheet=$book->getActiveSheet()->setTitle('Registru facturi'); $sheet->mergeCells('A1:H3'); $sheet->setCellValue('A1','La Măriuca · Registru facturi'); $sheet->getStyle('A1:H3')->getFont()->setSize(22)->setBold(true)->getColor()->setRGB('60445C');
-        $headers=['Factură','Tip','Emisă la','Scadență','Comandă','Client','Tip client','CUI client','Email','Telefon','Adresă facturare','Monedă','Fără TVA','TVA','Total','Reducere','Încasat','Rest de plată','Metodă plată','Stare plată','Email','Stare fiscală','Referință fiscală','Document original','Motiv','Note','Articole','Cantități','SKU','Furnizor legal','CUI emitent','Sediu emitent','Bancă','IBAN','TVA emitent','Creat de','Versiune','Primire retur'];
-        $sheet->fromArray($headers,null,'A5'); $this->header($sheet,'A5:AL5'); $row=6;
+        $book=$this->workbook(); $sheet=$book->getActiveSheet()->setTitle('Registru facturi');
+        $sheet->mergeCells('A1:H3'); $sheet->setCellValue('A1','La Măriuca · Centralizator facturi');
+        $sheet->getStyle('A1:H3')->getFont()->setSize(22)->setBold(true)->getColor()->setRGB('60445C');
+        $sheet->mergeCells('A4:H4'); $this->text($sheet,'A4',count($invoices).' documente · Starea SPV și recepțiile la momentul exportului');
+        $headers=['Factură','Stare SPV','Tip','Emisă la','Scadență','Comandă','Client','Tip client','CUI client','Email client','Telefon','Adresă facturare','Monedă','Fără TVA','TVA','Total','Reducere','Încasat','Rest de plată','Metodă plată','Stare plată','Stare email','Referință ANAF','Document original','Motiv','Note','Articole','Cantități','SKU','Furnizor legal','CUI emitent','Sediu emitent','Bancă','IBAN','TVA emitent','Creat de','Versiune','Primire retur','NIR de retur','Data recepției','Mediu SPV'];
+        $last=\PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(count($headers));
+        $sheet->fromArray($headers,null,'A5'); $this->header($sheet,'A5:'.$last.'5'); $sheet->getRowDimension(5)->setRowHeight(32); $row=6;
+        $links=new \App\Modules\Inventory\ReturnStockLinks($this->repository->pdo());
         foreach($invoices as $invoice) {
-            $data=$this->pdfData($invoice); $snapshot=$invoice['snapshot'];
-            $values=[$data['number'],InvoiceService::KINDS[$invoice['kind']],$data['date'],$data['due_date'],$snapshot['order_number'],$data['customer']['name'],$data['customer']['type_label'],$data['customer']['tax_id'],$data['customer']['email'],$data['customer']['phone'],$data['customer']['address'],$invoice['currency'],
-                $invoice['net_bani']/100,$invoice['tax_bani']/100,$invoice['gross_bani']/100,$invoice['discount_bani']/100,$invoice['paid_bani']/100,max(0,$invoice['gross_bani']-$invoice['paid_bani'])/100,$data['payment_method_label'],$data['payment_label'],$invoice['email_state'],$invoice['fiscal_state'],$invoice['fiscal_reference'] ?? '',$snapshot['original_number'] ?? '',$invoice['reason'],$invoice['notes'],implode('; ',array_column($invoice['lines'],'name')),implode('; ',array_column($data['lines'],'quantity')),implode('; ',array_column($invoice['lines'],'sku')),$data['company']['legal_name'],$data['company']['tax_id'],self::address($snapshot['company']),$data['company']['bank_name'],$data['company']['iban'],$data['company']['is_vat_payer']?'Da':'Nu',(string)$invoice['created_by'],(string)$invoice['row_version'],$this->repository->one('invoice_receipts',['invoice_id'=>$invoice['id']])?'Înregistrată':''];
-            foreach($values as $column=>$value) { $cell=\PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($column+1).$row; if($column>=12 && $column<=17) { $sheet->setCellValue($cell,$value); $sheet->getStyle($cell)->getNumberFormat()->setFormatCode('#,##0.00'); } else { $this->text($sheet,$cell,(string)$value); } }
-            $sheet->getStyle('A'.$row.':AL'.$row)->getFill()->setFillType('solid')->getStartColor()->setRGB($row%2?'FBF5F8':'FFFFFF'); $row++;
+            $data=$this->pdfData($invoice); $snapshot=$invoice['snapshot']; $fiscal=InvoicePresentation::fiscal((string)$invoice['fiscal_state']);
+            $nir=$links->nirForInvoice((int)$invoice['id']);
+            $receipt=$this->repository->one('invoice_receipts',['invoice_id'=>$invoice['id'],'reversed_at'=>null]);
+            $expectsNir=in_array($invoice['kind'],['return','correction_negative'],true) && count(array_filter($invoice['lines'],static fn(array $line):bool=>$line['kind']==='product' && (int)$line['quantity_units']<0))>0;
+            $job=$this->repository->one('invoice_fiscal_jobs',['invoice_id'=>$invoice['id']]);
+            $values=[$data['number'],$fiscal['label'],InvoiceService::KINDS[$invoice['kind']],$data['date'],$data['due_date'],$snapshot['order_number'],$data['customer']['name'],$data['customer']['type_label'],$data['customer']['tax_id'],$data['customer']['email'],$data['customer']['phone'],$data['customer']['address'],$invoice['currency'],
+                $invoice['net_bani']/100,$invoice['tax_bani']/100,$invoice['gross_bani']/100,$invoice['discount_bani']/100,$invoice['paid_bani']/100,max(0,$invoice['gross_bani']-$invoice['paid_bani'])/100,$data['payment_method_label'],$data['payment_label'],InvoicePresentation::email((string)$invoice['email_state'])['label'],$invoice['fiscal_reference'] ?? '',$snapshot['original_number'] ?? '',$invoice['reason'],$invoice['notes'],implode('; ',array_column($invoice['lines'],'name')),implode('; ',array_column($data['lines'],'quantity')),implode('; ',array_column($invoice['lines'],'sku')),$data['company']['legal_name'],$data['company']['tax_id'],self::address($snapshot['company']),$data['company']['bank_name'],$data['company']['iban'],$data['company']['is_vat_payer']?'Da':'Nu',(string)$invoice['created_by'],(string)$invoice['row_version'],
+                $expectsNir?($nir?'NIR înregistrat':($receipt?'Verificat · NIR lipsă':'NIR lipsă')):'Nu se aplică',$nir['number'] ?? '',$nir?(new DateTimeImmutable($nir['received_at']))->setTimezone(new DateTimeZone('Europe/Bucharest'))->format('d.m.Y, H:i'):'',$job?($job['environment']==='test'?'Test ANAF':'Producție'):''];
+            foreach($values as $column=>$value) {
+                $cell=\PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($column+1).$row;
+                if($column>=13 && $column<=18) { $sheet->setCellValue($cell,$value); $sheet->getStyle($cell)->getNumberFormat()->setFormatCode('#,##0.00'); }
+                else { $this->text($sheet,$cell,(string)$value); }
+            }
+            $sheet->getStyle('A'.$row.':'.$last.$row)->getFill()->setFillType('solid')->getStartColor()->setRGB($row%2?'FBF5F8':'FFFFFF');
+            $sheet->getStyle('B'.$row)->getFont()->setBold(true)->getColor()->setRGB(match($fiscal['tone']) {'green'=>'26846D','rose'=>'B94D6E','gold'=>'947036',default=>'62465E'});
+            $sheet->getRowDimension($row)->setRowHeight(36); $row++;
         }
-        foreach(range(1,38) as $c) { $sheet->getColumnDimension(\PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($c))->setWidth(in_array($c,[6,9,11,25,26,27],true)?35:18); }
-        $sheet->freezePane('G6')->setAutoFilter('A5:AL'.max(5,$row-1)); $sheet->getPageSetup()->setRowsToRepeatAtTopByStartAndEnd(5,5)->setFitToWidth(4);
-        $path=$this->temporary('Registru-facturi','xlsx'); (new Xlsx($book))->save($path); $book->disconnectWorksheets(); return $path;
+        foreach($headers as $index=>$label) { $sheet->getColumnDimension(\PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($index+1))->setWidth(in_array($label,['Client','Email client','Adresă facturare','Motiv','Note','Articole'],true)?35:($label==='Stare SPV'?27:18)); }
+        $sheet->getStyle('A5:'.$last.max(5,$row-1))->getAlignment()->setVertical('center')->setWrapText(true);
+        $sheet->freezePane('C6')->setAutoFilter('A5:'.$last.max(5,$row-1)); $sheet->getPageSetup()->setRowsToRepeatAtTopByStartAndEnd(5,5)->setFitToWidth(4);
+        $path=$this->temporary('Registru-facturi','xlsx');
+        try { (new Xlsx($book))->save($path); } finally { $book->disconnectWorksheets(); }
+        return $path;
     }
     /** Exporting the snapshot does not submit it or mark it as validated by ANAF.
      * @param array<string,mixed> $invoice
@@ -132,7 +151,7 @@ final class InvoiceExportService
         $registryPath=null;
         try {
             if($registry) { $registryPath=$this->registry($invoices); $zip->addFile($registryPath,'Registru-facturi.xlsx'); }
-            foreach($invoices as $invoice) { $name=$this->filename($invoice); $prefix=$registry?$name.'/':''; $zip->addFile($this->pdf($invoice),$prefix.$name.'.pdf'); $zip->addFile($this->xlsx($invoice),$prefix.$name.'.xlsx'); $zip->addFile($this->xml($invoice),$prefix.$name.'.xml'); }
+            foreach($invoices as $invoice) { $name=$this->filename($invoice); $prefix=$registry?(preg_replace('/[^a-zA-Z0-9 _-]/','-',$invoice['series_code']) ?: 'LM').'-'.(int)$invoice['number'].'/':''; $zip->addFile($this->pdf($invoice),$prefix.$name.'.pdf'); $zip->addFile($this->xlsx($invoice),$prefix.$name.'.xlsx'); $zip->addFile($this->xml($invoice),$prefix.$name.'.xml'); }
             if(!$zip->close()) { throw new InvoiceException('Dosarul ZIP nu a putut fi finalizat.'); }
         } finally { if($registryPath && is_file($registryPath)) { unlink($registryPath); } }
         return $path;
