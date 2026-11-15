@@ -422,3 +422,292 @@ body:has(.iv-dialog[open]),body:has(.iv-lightbox[open]){overflow:hidden}
 .iv-receive-date{display:grid;gap:12px}.iv-receive-date h3{margin:4px 0}.iv-receive-date p{margin:0}.iv-receive-date>label{font-size:12px;font-weight:700;color:#6b5874}.iv-receive-date__field{display:flex;gap:10px;align-items:center}.iv-receive-date__field input{min-width:0;flex:1;min-height:44px;width:100%;border:1px solid #e4d5e9;border-radius:12px;background:#fff;padding:10px 13px;color:#40344b;font:inherit;font-size:14px;outline:none}.iv-receive-date__field input:focus{border-color:#af82b1;box-shadow:0 0 0 3px #f3eaf5}.iv-receive-date__field .iv-btn{flex-shrink:0}.iv-receive-reference{display:flex;gap:10px;align-items:flex-start;padding-top:14px;border-top:1px solid #eddfef;font-size:12px;color:#7a6784;line-height:1.6}.iv-receive-reference>svg{width:18px;height:18px;flex-shrink:0}.iv-receive-reference small{display:block;margin-top:3px}.iv-receive-date [hidden]{display:none!important}
 
 .iv-form[data-kind="receive"] .iv-form-body{grid-template-columns:minmax(0,1fr)}.iv-form[data-kind="receive"] .iv-form-body>*{min-width:0}.iv-receive-date{grid-template-columns:minmax(0,1fr)}.iv-receive-date__field input{width:0}.iv-receive-reference span{min-width:0;overflow-wrap:anywhere}@media(max-width:540px){.iv-receive-date__field{gap:7px}.iv-receive-date__field input{font-size:13px;padding:10px}.iv-receive-date__field .iv-btn{padding:10px}}
+
+/* Outgoing invoice register and full-page document sheet. */
+.iv-register-hero{display:flex;align-items:center;justify-content:space-between;gap:28px;padding:30px 34px;border:1px solid #d9c5d6;border-radius:25px;background:radial-gradient(ellipse at 100% 0,#93617d60,transparent 65%),linear-gradient(120deg,#453349,#68495f);color:#fff;overflow:hidden}
+
+.iv-register-hero h1{color:#fff;font-size:34px;margin:9px 0 10px;font-weight:650}
+.iv-register-hero .iv-eyebrow{color:#f3c6d9}
+.iv-register-hero p{color:#e1d3e1;max-width:620px;font-size:14px}
+.iv-register-hero .iv-actions{margin-top:21px}
+.iv-register-hero .iv-btn{background:#ffffff0e;border-color:#ffffff30;color:#fff!important;box-shadow:none;font-size:12px}
+.iv-register-hero .iv-btn--primary{background:#fff;color:#62465e!important;border-color:white}
+.iv-register-seal{display:grid;place-items:center;width:106px;height:106px;border:1px solid #ffffff30;border-radius:28px;background:#ffffff0a;transform:rotate(-8deg);margin-right:15px;flex:none}
+.iv-register-seal svg{width:46px;height:46px;stroke-width:1.15}
+
+.iv-register-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin:20px 0}
+.iv-register-metrics article{display:flex;align-items:center;gap:16px;padding:20px 23px;border:1px solid var(--iv-line);border-radius:20px;background:#fff;box-shadow:0 4px 15px #4e294203}
+.iv-register-metrics article>div{display:grid;gap:3px;min-width:0}
+.iv-register-metrics small{font-size:12px;color:var(--iv-muted)}
+.iv-register-metrics strong{font-size:25px;font-weight:650;letter-spacing:-.035em;font-variant-numeric:tabular-nums}
+.iv-register-metrics strong em{font-size:13px;font-style:normal;font-weight:500;color:var(--iv-muted)}
+.iv-register-metrics article>div>span{font-size:11px;color:var(--iv-muted)}
+
+.iv-register-tools{border:1px solid var(--iv-line);border-radius:21px;background:white;overflow:hidden}
+.iv-register-tools .iv-search-form{padding:18px 20px 0}
+.iv-register-tools .iv-search{background:#fcfafc;min-width:0}
+.iv-register-tools .iv-search input{background:transparent}
+.iv-register-tools .iv-filter-details{margin-top:14px}
+.iv-register-tools .iv-filter-details>summary{width:max-content;max-width:100%;font-size:12px;border-color:transparent;background:transparent;padding-left:0}
+.iv-register-tools .iv-filters{grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;padding:13px 0}
+.iv-register-quick{display:flex;flex-wrap:wrap;gap:7px;margin-top:15px}
+.iv-register-quick a{display:inline-flex;align-items:center;min-height:35px;border:1px solid var(--iv-line);border-radius:10px;padding:7px 14px;font-size:12px;font-weight:650;color:#79667e;background:#fff;transition:background .18s,border-color .18s}
+.iv-register-quick a:hover{border-color:#b896b4;background:#fbf5fa}
+.iv-register-quick a.is-active{background:#62465e;color:#fff;border-color:#62465e;box-shadow:0 3px 8px #62465e12}
+.iv-register-controls{display:flex;align-items:center;justify-content:space-between;gap:12px;border-top:1px solid #f2ecf2;padding:12px 20px}
+.iv-register-controls>span{font-size:12px;color:var(--iv-muted)}
+
+.iv-register-pager{display:flex;align-items:center;justify-content:space-between;gap:15px;padding:14px 4px}
+.iv-page-size{display:flex;align-items:center;gap:9px;font-size:12px;color:var(--iv-muted)}
+.iv-page-size label{white-space:nowrap}
+.iv-page-size select{padding:7px 28px 7px 10px!important;min-height:36px!important;width:72px!important;border:1px solid var(--iv-line);border-radius:10px;background:#fff;font:inherit;color:var(--iv-ink)}
+.iv-register-pager .iv-pagination{padding:0;border:0;gap:25px}
+.iv-register>.iv-pagination{border:0;padding:18px 4px}
+.iv-register-list{display:grid;gap:12px}
+
+.iv-register-row{position:relative;display:grid;grid-template-columns:52px minmax(0,1fr) 206px;align-items:center;gap:20px;background:linear-gradient(110deg,#fff,#fdfbfe);border:1px solid #e5dce8;border-radius:21px;padding:22px 24px;box-shadow:0 4px 15px #4c2e4704;transition:border-color .2s,box-shadow .2s}
+.iv-register-row:hover{border-color:#c5a9c4;box-shadow:0 6px 20px #62465e0b}
+.iv-register-row:before{content:'';position:absolute;left:0;top:28px;bottom:28px;width:3px;border-radius:5px;background:#9e7b9d}
+.iv-register-row.is-credit{background:linear-gradient(110deg,#fffafb,#fff);border-color:#ead5df}
+.iv-register-row.is-credit:before{background:#c47b98}
+.iv-register-symbol{display:grid;place-items:center;width:52px;height:58px;border:1px solid #e6d6e5;border-radius:16px;background:linear-gradient(135deg,#fcf6fc,#f2e6f2);color:#936b92;flex:none}
+.iv-register-symbol svg{width:25px;height:25px}
+.is-credit .iv-register-symbol{background:#faedf2;border-color:#f0d4e0;color:#b55d7d}
+.iv-register-info{min-width:0}
+.iv-register-badges{display:flex;align-items:center;flex-wrap:wrap;gap:7px;margin-bottom:9px}
+.iv-register-number{font-size:18px;font-weight:750;color:#513c55;letter-spacing:-.02em;margin-right:3px}
+.iv-register-number:hover{text-decoration:underline}
+.iv-register-info h2{font-size:15px;font-weight:700;letter-spacing:-.01em;margin-bottom:4px}
+.iv-register-info p{font-size:12px;color:var(--iv-muted);margin:0;line-height:1.8}
+.iv-register-info p a{color:#765c7c}
+.iv-register-email{display:flex;align-items:center;gap:7px;margin-top:7px;color:#83718a;font-size:11px;overflow-wrap:anywhere}
+.iv-register-email svg{width:14px;height:14px}
+.iv-register-email.is-green{color:#2d806b}
+.iv-register-email.is-rose{color:#ac4966}
+.iv-register-email.is-gold{color:#926d33}
+.iv-register-value{display:grid;justify-items:end;gap:7px;border-left:1px solid var(--iv-line);padding-left:24px}
+.iv-register-value>small{text-transform:uppercase;letter-spacing:.075em;font-size:10px;color:var(--iv-muted);font-weight:700}
+.iv-register-value>strong{font-size:25px;color:#62465e;letter-spacing:-.04em;font-weight:700;white-space:nowrap;font-variant-numeric:tabular-nums}
+.is-credit .iv-register-value>strong{color:#aa5676}
+.iv-register-value>div{display:flex;gap:7px;margin-top:3px}
+.iv-register-value .iv-btn{font-size:12px;padding:9px 12px;min-height:38px}
+.iv-register-value .iv-icon{width:38px;height:38px}
+
+.iv-register .iv-status,.iv-document-sheet .iv-status{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:700;padding:5px 8px;line-height:1.4;border:1px solid transparent;letter-spacing:0}
+.iv-status svg{width:13px;height:13px}
+.iv-status.is-neutral{background:#f3eff5;color:#806e8a;border-color:#e5dce9}
+.iv-status.is-blue{background:#edf3f9;color:#54799a;border-color:#d8e5f1}
+.iv-status.is-reference{background:#f6f0fb;color:#87709e;border-color:#e8dcf1}
+.iv-status.is-green{border-color:#d1e8de}
+.iv-status.is-gold{border-color:#eedfc7}
+.iv-status.is-rose{border-color:#f1d7e1}
+
+.iv-sheet-hero{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:26px 28px;border-radius:23px;border:1px solid #dfcfe0;background:radial-gradient(ellipse at 100% 0,#f2dfe9a0,transparent 65%),linear-gradient(110deg,#fff,#faf4fb);margin-bottom:16px}
+.iv-sheet-title{display:flex;align-items:center;gap:19px;min-width:0}
+.iv-sheet-title>div{min-width:0}
+.iv-sheet-title .iv-register-symbol{width:62px;height:68px}
+.iv-sheet-title h1{display:flex;align-items:center;gap:10px;font-size:34px;margin:6px 0 8px}
+.iv-sheet-title .iv-icon{width:29px;height:29px;background:transparent;border:0;color:#9a7ca0}
+.iv-sheet-title p{font-size:12px;line-height:1.7}
+.iv-sheet-title p a{color:#77517e;font-weight:650}
+.iv-sheet-title .iv-original-reference{margin-top:7px}
+.iv-sheet-total{display:grid;justify-items:end;gap:8px;flex:none}
+.iv-sheet-total>small{font-size:11px;color:var(--iv-muted)}
+.iv-sheet-total>strong{font-size:30px;font-weight:700;letter-spacing:-.04em;color:#62465e;font-variant-numeric:tabular-nums}
+
+.iv-document-states{display:grid;grid-template-columns:1.3fr 1fr;gap:14px;margin-bottom:16px}
+.iv-document-states>section{display:flex;align-items:flex-start;gap:13px;padding:19px 20px;border:1px solid #e5dce9;border-radius:19px;background:#f9f6fb}
+.iv-document-states section>div{flex:1;min-width:0}
+.iv-document-states h2{font-size:15px;margin:3px 0 6px}
+.iv-document-states p{font-size:12px;overflow-wrap:anywhere}
+.iv-document-states small{font-size:11px;color:var(--iv-muted)}
+.iv-state-caption{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#89738d}
+.iv-state-icon{display:grid;place-items:center;width:36px;height:38px;flex:none;border-radius:12px;background:#eee5f0;color:#96779b}
+.iv-document-states .iv-icon{width:29px;height:29px;border-radius:9px;flex:none}
+.iv-document-states .is-green{background:#f1f9f5;border-color:#d4e7df}
+.iv-document-states .is-green .iv-state-icon{color:#44836c;background:#e0efe7}
+.iv-document-states .is-rose{background:#fdf3f6;border-color:#eed6df}
+.iv-document-states .is-gold{background:#fffbf2;border-color:#eee0c9}
+.iv-document-states .is-blue{background:#f3f8fc;border-color:#dae6f0}
+.iv-fiscal-reference{display:flex;align-items:center;flex-wrap:wrap;gap:6px;font-size:11px;margin-top:8px;color:#826589}
+.iv-document-states details{margin-top:8px;font-size:12px}
+.iv-document-states summary{cursor:pointer;color:#9b5d6f}
+
+.iv-receipt-banner{display:flex;align-items:center;gap:16px;padding:20px 23px;border:1px solid #e9d3ad;border-radius:20px;background:linear-gradient(100deg,#fff8ed,#fffdf9);margin-bottom:20px}
+.iv-receipt-banner>div{flex:1;min-width:0}
+.iv-receipt-banner .iv-mark{color:#aa7b42;background:#f5e8d6;border-color:#efdab8}
+.iv-receipt-banner h2{font-size:18px;margin:4px 0 6px}
+.iv-receipt-banner p{font-size:12px;max-width:690px}
+.iv-receipt-banner small{display:block;font-size:12px;color:#47846e;margin-top:7px}
+.iv-receipt-banner .iv-eyebrow{color:#ae8047;font-size:10px}
+.iv-receipt-banner .iv-btn{font-size:12px;white-space:nowrap;flex:none}
+.iv-receipt-banner.is-received{background:linear-gradient(100deg,#f1f9f5,#fcfffd);border-color:#d2e5db}
+.iv-receipt-banner.is-received .iv-eyebrow{color:#47846e}
+.iv-receipt-banner.is-received .iv-mark{background:#e4f1e9;border-color:#d2e5db;color:#47846e}
+
+.iv-document-sheet .iv-detail-grid{gap:20px}
+.iv-document-sheet .iv-section-head{padding:19px 22px}
+.iv-document-sheet .iv-section-head h2{font-size:20px}
+.iv-document-sheet .iv-parties{padding:16px;gap:12px}
+.iv-document-sheet .iv-parties article{padding:17px}
+.iv-document-sheet .iv-parties h3{font-size:17px}
+.iv-document-sheet .iv-line{padding:18px 22px}
+.iv-document-sheet .iv-line h3{font-size:15px}
+.iv-document-sheet .iv-line-price strong{font-size:20px}
+.iv-document-sheet .iv-section-nav{margin:0 0 16px}
+.iv-document-sheet .iv-section-nav a{font-size:12px;padding:8px 12px}
+.iv-document-sheet .iv-detail-aside{min-width:0}
+.iv-document-sheet .iv-summary>header>strong{font-size:30px}
+.iv-document-sheet .iv-assurance{font-size:12px}
+
+.iv-sheet-actions{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;padding:18px 20px;border:1px solid var(--iv-line);border-radius:20px;background:#fff;margin-top:20px;box-shadow:0 4px 18px #62465e05}
+.iv-sheet-actions>div{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+.iv-sheet-actions .iv-btn{font-size:12px;min-height:39px;padding:9px 12px}
+.iv-sheet-actions .iv-exports{margin:0}
+.iv-btn--link{color:#6376a0!important;background:#f1f4fb;border-color:#dee4f2}
+.iv-btn--email{color:#92623f!important;background:#fdf4ec;border-color:#efdfcf}
+
+@media(min-width:1000px){.iv-document-sheet .iv-detail-grid{grid-template-columns:minmax(0,1fr) 300px}
+}
+
+@media(max-width:1100px){.iv-register-row{grid-template-columns:44px minmax(0,1fr) 182px;gap:15px;padding:20px}
+.iv-register-row>.iv-register-symbol{width:44px;height:50px}
+.iv-register-value{padding-left:18px}
+.iv-register-value>strong{font-size:22px}
+.iv-register-tools .iv-filters{grid-template-columns:repeat(3,minmax(0,1fr))}
+.iv-register-metrics article{padding:16px;gap:12px}
+.iv-register-metrics strong{font-size:22px}
+.iv-register-metrics .iv-mark{width:42px;height:44px}
+.iv-receipt-banner{flex-wrap:wrap}
+.iv-receipt-banner>.iv-btn{margin-left:68px}
+}
+
+@media(max-width:760px){.iv-register-hero{padding:25px}
+.iv-register-hero h1{font-size:30px}
+.iv-register-seal{display:none}
+.iv-register-metrics{gap:10px}
+.iv-register-metrics article{padding:15px 12px;align-items:flex-start}
+.iv-register-metrics .iv-mark{display:none}
+.iv-register-metrics strong{font-size:21px}
+.iv-register-metrics article>div>span{font-size:10px}
+.iv-register-row{grid-template-columns:minmax(0,1fr) 172px;gap:14px}
+.iv-register-row>.iv-register-symbol{display:none}
+.iv-register-badges{gap:5px}
+.iv-register-number{width:100%;margin-bottom:4px}
+.iv-register-value{padding-left:14px}
+.iv-register-value .iv-btn{padding:8px 9px;font-size:11px}
+.iv-register-value .iv-icon{width:32px}
+.iv-register-email{font-size:11px}
+.iv-register-pager{gap:10px}
+.iv-register-pager .iv-pagination{gap:12px;font-size:11px}
+.iv-register-pager .iv-pagination>div{gap:8px}
+.iv-document-states{grid-template-columns:1fr}
+.iv-sheet-hero{padding:22px;align-items:flex-start}
+.iv-sheet-title{gap:13px}
+.iv-sheet-title .iv-register-symbol{width:48px;height:54px}
+.iv-sheet-title h1{font-size:28px}
+.iv-sheet-total>strong{font-size:26px}
+.iv-document-sheet .iv-detail-grid{grid-template-columns:minmax(0,1fr)}
+.iv-sheet-actions>div{justify-content:flex-start}
+}
+
+@media(max-width:540px){.iv-register-hero{padding:22px 19px;border-radius:21px}
+.iv-register-hero h1{font-size:28px}
+.iv-register-hero p{font-size:12px}
+.iv-register-hero .iv-actions{gap:7px;margin-top:17px}
+.iv-register-hero .iv-btn{padding:9px 10px;min-height:38px;font-size:11px}
+.iv-register-hero .iv-btn svg{width:16px;height:16px}
+.iv-register-metrics{grid-template-columns:1fr 1fr;margin:14px 0}
+.iv-register-metrics article:first-child{grid-column:1/-1;align-items:center;padding:14px 16px}
+.iv-register-metrics article:first-child>.iv-mark{display:grid}
+.iv-register-metrics article:first-child>div{grid-template-columns:1fr auto;flex:1;column-gap:15px}
+.iv-register-metrics article:first-child strong{grid-column:2;grid-row:1/3;font-size:28px;align-self:center}
+.iv-register-metrics article:first-child>div>span{grid-column:1}
+.iv-register-metrics strong{font-size:21px}
+.iv-register-metrics small{font-size:11px}
+.iv-register-tools .iv-search-form{padding:14px 14px 0}
+.iv-register-tools .iv-search{gap:8px;padding:9px 11px;flex-wrap:wrap}
+.iv-register-tools .iv-search input{font-size:13px}
+.iv-register-tools .iv-search>.iv-btn{width:100%;justify-content:center;min-height:34px;padding:6px}
+.iv-register-tools .iv-filters{grid-template-columns:1fr 1fr}
+.iv-register-quick{gap:6px}
+.iv-register-quick a{font-size:11px;min-height:32px;padding:6px 10px}
+.iv-register-controls{padding:11px 14px;gap:8px}
+.iv-register-controls .iv-exports a{font-size:11px;padding:7px}
+.iv-register-controls .iv-exports svg{width:15px}
+.iv-register-pager{flex-wrap:wrap;padding:12px 2px}
+.iv-register-pager .iv-pagination{width:100%;justify-content:space-between}
+.iv-register-row{grid-template-columns:minmax(0,1fr);padding:18px;gap:15px;border-radius:19px}
+.iv-register-value{border-left:0;border-top:1px solid var(--iv-line);padding:13px 0 0;grid-template-columns:1fr auto;justify-items:start;gap:3px}
+.iv-register-value>strong{grid-column:1;font-size:24px}
+.iv-register-value>div{grid-column:2;grid-row:1/3;align-self:center}
+.iv-register-value .iv-btn{font-size:11px;min-height:36px}
+.iv-register-value .iv-icon{height:36px}
+.iv-register-number{width:auto;margin-bottom:0;margin-right:6px}
+.iv-register-info p{font-size:11px}
+.iv-register .iv-status{font-size:9px;padding:4px 6px}
+.iv-register-recipient{display:block;margin-top:2px}
+.iv-register-email{align-items:flex-start}
+.iv-register-email svg{margin-top:2px}
+.iv-sheet-hero{display:grid;padding:19px;gap:18px}
+.iv-sheet-title{align-items:flex-start}
+.iv-sheet-title h1{font-size:27px}
+.iv-sheet-title p{font-size:11px}
+.iv-sheet-total{border-top:1px solid #e5d8e6;padding-top:14px;grid-template-columns:1fr auto;justify-items:start;gap:4px}
+.iv-sheet-total>.iv-status{grid-column:1;grid-row:1/3;align-self:center}
+.iv-sheet-total>small{grid-column:2;font-size:10px}
+.iv-sheet-total>strong{grid-column:2;font-size:27px}
+.iv-document-states>section{padding:16px;gap:10px}
+.iv-state-icon{width:31px;height:33px}
+.iv-document-states h2{font-size:14px}
+.iv-document-states p{font-size:11px}
+.iv-receipt-banner{padding:17px;gap:12px}
+.iv-receipt-banner .iv-mark{width:39px;height:43px}
+.iv-receipt-banner h2{font-size:16px}
+.iv-receipt-banner>.iv-btn{width:100%;margin:0;justify-content:center}
+.iv-document-sheet .iv-parties{grid-template-columns:1fr;padding:12px}
+.iv-document-sheet .iv-line{padding:16px}
+.iv-document-sheet .iv-line-price strong{font-size:18px}
+.iv-document-sheet .iv-line-breakdown{grid-template-columns:1fr}
+.iv-sheet-actions{padding:15px}
+.iv-sheet-actions>div{gap:7px}
+.iv-sheet-actions .iv-exports{flex-wrap:wrap}
+.iv-sheet-actions .iv-exports a{font-size:11px}
+.iv-document-sheet .iv-section-head{padding:17px}
+.iv-document-sheet .iv-section-head h2{font-size:18px}
+}
+
+
+.iv-document-sheet .iv-sheet-actions{margin:0 0 20px}
+
+.iv-register-hero{padding:24px 28px}
+.iv-register-hero h1{font-size:31px;margin:6px 0 8px}
+.iv-register-hero .iv-actions{margin-top:16px}
+.iv-register-hero p{font-size:13px}
+.iv-register-seal{width:86px;height:86px;border-radius:24px}
+.iv-register-metrics{margin:16px 0}
+.iv-register-metrics article{padding:16px 20px}
+.iv-register-tools .iv-search label>span{position:absolute;width:1px;height:1px;padding:0;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.iv-register-tools .iv-search input{min-height:34px!important;height:34px!important}
+.iv-register-tools .iv-search{padding:7px 8px 7px 14px}
+.iv-register-tools .iv-search>.iv-btn{min-height:36px;padding:8px 15px}
+.iv-register-tools .iv-search-form{padding-top:14px}
+.iv-register-controls{padding-block:10px}
+
+@media(min-width:761px){.iv-register-tools .iv-search-form{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:0 14px}
+.iv-register-tools .iv-search{grid-column:1/-1}
+.iv-register-quick{grid-row:2;grid-column:1;margin:12px 0}
+.iv-register-tools .iv-filter-details{grid-row:2;grid-column:2;margin:12px 0;align-self:start}
+.iv-register-tools .iv-filter-details[open]{grid-column:1/-1;grid-row:3;margin-top:0}
+.iv-register-tools .iv-filter-details>summary{padding:7px 0;margin:0;min-height:35px}
+}
+
+@media(max-width:540px){.iv-register-hero{padding:22px 19px}
+.iv-register-hero h1{font-size:28px}
+.iv-register-metrics article{padding:15px 12px}
+.iv-register-tools .iv-search>.iv-btn{width:38px;min-height:34px;padding:6px;font-size:0}
+.iv-register-tools .iv-search{flex-wrap:nowrap}
+.iv-register-tools .iv-search input{font-size:12px!important}
+.iv-register-tools .iv-search>.iv-icon{flex:none}
+.iv-register-tools .iv-search>svg{display:none}
+}

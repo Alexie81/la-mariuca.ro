@@ -706,6 +706,63 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         self::assertSame(0,(int)$this->pdo->query('SELECT COUNT(*) FROM invoice_fiscal_jobs')->fetchColumn());
     }
 
+    public function testRegisterPaginationFiscalGroupsAndFullPageStatuses(): void
+    {
+        $repo=new InvoiceRepository($this->pdo); $ids=[];
+        $this->pdo->exec('UPDATE product_variants SET stock_unlimited=1 WHERE id='.(int)$this->variant['id']);
+        foreach(['not_sent','accepted','submitted','queued','scheduled','awaiting_configuration','unconfigured','processing','rejected','transient_error','uncertain','not_sent'] as $index=>$state) {
+            $invoice=$this->service->issue($this->order(1),['request_key'=>'register-page-'.$index],$this->actor);
+            $ids[]=(int)$invoice['id'];
+            $repo->update('invoices',['fiscal_state'=>$state,'fiscal_reference'=>$index===1?'QA-ANAF-321':null,'email_state'=>$index===1?'previewed':'not_sent'],['id'=>$invoice['id']]);
+        }
+        $first=$repo->registry(['per_page'=>10]); $second=$repo->registry(['per_page'=>10,'page'=>2]);
+        self::assertSame(12,$first['total']); self::assertSame(2,$first['pages']); self::assertCount(10,$first['items']); self::assertCount(2,$second['items']);
+        self::assertSame(11,$second['from']); self::assertSame(12,$second['to']); self::assertSame([] ,array_intersect(array_column($first['items'],'id'),array_column($second['items'],'id')));
+        self::assertCount(12,$repo->registry(['per_page'=>10,'page'=>2],true)['items']);
+        self::assertSame(15,$repo->registry(['per_page'=>99999])['per_page']); self::assertSame(2,$repo->registry(['per_page'=>10,'page'=>999])['page']);
+        self::assertSame(1,$repo->registry(['spv_group'=>'not_sent','fiscal_state'=>'accepted'])['total']);
+        self::assertSame(6,$repo->registry(['spv_group'=>'not_sent'])['total']); self::assertSame(2,$repo->registry(['spv_group'=>'sent'])['total']); self::assertSame(3,$repo->registry(['spv_group'=>'attention'])['total']);
+        self::assertSame($ids[1],(int)$repo->registry(['cautare'=>'QA-ANAF-321'])['items'][0]['id']);
+        $_SESSION['user_id']=$this->actor['id']; $app=\App\AppFactory::create($this->root); $factory=new \Slim\Psr7\Factory\ServerRequestFactory();
+        $get=static fn(string $path,array $query=[])=>$app->handle($factory->createServerRequest('GET','http://localhost'.$path)->withQueryParams($query));
+        $response=$get('/admin/facturi/',['per_page'=>10,'page'=>2]); self::assertSame(200,$response->getStatusCode()); $html=(string)$response->getBody();
+        self::assertStringContainsString('Acceptată de ANAF',$html); self::assertStringContainsString('QA-ANAF-321',$html); self::assertStringContainsString('Previzualizat local · netrimis',$html);
+        self::assertStringContainsString('per_page=10&amp;page=1',$html);
+        self::assertStringNotContainsString("/admin/facturi/".$ids[1]."/\" data-iv-modal",$html);
+        $detail=$get('/admin/facturi/'.$ids[1].'/'); self::assertSame(200,$detail->getStatusCode()); $html=(string)$detail->getBody();
+        self::assertStringContainsString('Factura a fost transmisă în SPV și acceptată de ANAF.',$html);
+        self::assertStringContainsString('Link client',$html); self::assertStringContainsString('/xml/',$html);
+        self::assertStringNotContainsString('Integrarea fiscală electronică nu este configurată.',$html);
+        $repo->update('users',['role'=>'operator'],['id'=>$this->actor['id']]);
+        $html=(string)$get('/admin/facturi/'.$ids[1].'/')->getBody();
+        self::assertStringNotContainsString('Gestionează transmiterea SPV',$html); self::assertStringNotContainsString('Link client',$html);
+        unset($_SESSION['user_id']);
+    }
+
+    public function testRegisterRequiresConfirmedNirEvenForPreviouslyVerifiedReturn(): void
+    {
+        $repo=new InvoiceRepository($this->pdo);
+        $invoice=$this->service->issue($this->order(1),['request_key'=>'register-nir-sale'],$this->actor);
+        $credit=$this->service->credit($invoice['id'],['request_key'=>'register-nir-credit','version'=>1,'reason'=>'Retur','quantities'=>[$invoice['lines'][0]['id']=>'1'],'notify_customer'=>'0'],$this->actor);
+        self::assertSame(1,$repo->registry(['receipt'=>'pending'])['total']);
+        $line=$credit['lines'][0]['id'];
+        $received=$this->service->receive($credit['id'],['request_key'=>'register-nir-receive','version'=>1,'received'=>[$line=>'1'],'restock'=>[$line=>'1']],$this->actor);
+        $nir=$received['receipt_nir'];
+        self::assertSame(0,$repo->registry(['receipt'=>'pending'])['total']);
+        $rows=$repo->registry(['receipt'=>'received']); self::assertSame(1,$rows['total']); self::assertSame($nir['id'],(int)$rows['items'][0]['receipt_nir_id']); self::assertSame($nir['number'],$rows['items'][0]['receipt_nir_number']);
+        // A historical receipt can exist without its NIR: verification alone is not reception.
+        $this->pdo->exec('UPDATE nir_documents SET invoice_receipt_id=NULL WHERE id='.(int)$nir['id']);
+        self::assertSame(1,$repo->registry(['receipt'=>'pending'])['total']); self::assertSame(0,$repo->registry(['receipt'=>'received'])['total']);
+        $_SESSION['user_id']=$this->actor['id']; $factory=new \Slim\Psr7\Factory\ServerRequestFactory(); $app=\App\AppFactory::create($this->root);
+        $html=(string)$app->handle($factory->createServerRequest('GET','http://localhost/admin/facturi/'.$credit['id'].'/'))->getBody();
+        self::assertStringContainsString('Lipsește NIR-ul de retur',$html); self::assertStringContainsString('Produsele au fost verificate, dar documentul de recepție lipsește.',$html); self::assertStringContainsString('Generează NIR-ul',$html);
+        // The older order-return association remains recognized too.
+        $return=(int)$repo->one('order_return_documents',['invoice_id'=>$credit['id']])['return_id'];
+        $this->pdo->exec('UPDATE nir_documents SET return_id='.(int)$return.' WHERE id='.(int)$nir['id']);
+        self::assertSame(1,$repo->registry(['receipt'=>'received'])['total']); self::assertSame(0,$repo->registry(['receipt'=>'pending'])['total']);
+        unset($_SESSION['user_id']);
+    }
+
     public function testAllAdminFormsAndPrivateExportsHaveWorkingHttpResponses(): void
     {
         $invoice=$this->service->issue($this->order(2),['request_key'=>'http-forms-document'],$this->actor);

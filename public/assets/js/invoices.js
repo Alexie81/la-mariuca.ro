@@ -77,6 +77,7 @@
     finally{submit.disabled=false;busy=false;}
   };
   const init=scope=>{
+    scope.querySelectorAll('.iv-page-size-apply').forEach(button=>button.hidden=true);
     scope.querySelectorAll('[data-iv-received-now]').forEach(button=>{
       button.hidden=false;
       button.addEventListener('click',()=>{
@@ -170,6 +171,7 @@
   discard?.querySelector('[data-iv-abandon]')?.addEventListener('click',()=>{discard.close();finishClose();});
   loader?.addEventListener('cancel',e=>e.preventDefault());
   root.addEventListener('change',e=>{
+    if(e.target.matches('[data-iv-page-size]')){e.target.form.requestSubmit();return;}
     const toggle=e.target.closest('[data-iv-select]');if(toggle){const row=toggle.closest('.iv-select-line'),q=row.querySelector('[data-iv-quantity]');q.disabled=!toggle.checked;row.classList.toggle('is-selected',toggle.checked);q.value=toggle.checked?q.dataset.default:'0';if(toggle.checked)q.focus();}
     if(e.target.matches('[data-iv-customer-type]')){const fields=e.target.form.querySelector('[data-iv-company-fields]');if(fields)fields.hidden=e.target.value!=='company';}
     if(e.target.matches('[data-iv-order]') && e.target.value){const url=new URL(e.target.dataset.previewUrl,location.href);url.searchParams.set('order',e.target.value);const warehouse=e.target.form.querySelector('[name="warehouse_id"]');if(warehouse?.value)url.searchParams.set('warehouse_id',warehouse.value);if(dialog?.open)open(url.href);else location.href=url.href;}
@@ -180,7 +182,7 @@
     const addItem=e.target.closest('[data-iv-add-item]');if(addItem){openPicker(addItem);return;}
     const changeItem=e.target.closest('[data-iv-change-product]');if(changeItem){openPicker(changeItem,changeItem.closest('.iv-edit-item'));return;}
     const removeItem=e.target.closest('[data-iv-remove-item]');if(removeItem){const form=removeItem.closest('form');if(form.querySelectorAll('.iv-edit-item').length===1){error(form,'Păstrează cel puțin un produs. Poți înlocui această poziție cu alt produs.');return;}removeItem.closest('.iv-edit-item').remove();form.querySelector('[data-iv-add-item]')?.focus();return;}
-    const trigger=e.target.closest('[data-iv-modal]');if(trigger){e.preventDefault();open(trigger.href,trigger);return;}
+    const trigger=e.target.closest('[data-iv-modal]');if(trigger){if(e.ctrlKey||e.metaKey||e.shiftKey||e.altKey)return;e.preventDefault();open(trigger.href,trigger);return;}
     const closeButton=e.target.closest('[data-iv-close]');if(closeButton && dialog?.open){e.preventDefault();close();return;}
     const copyButton=e.target.closest('[data-iv-copy]');if(copyButton){copy(copyButton.dataset.ivCopy);return;}
     if(e.target.closest('[data-iv-copy-link]')){copy(e.target.closest('form').querySelector('[data-iv-public-link]').value);return;}
