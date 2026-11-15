@@ -35,9 +35,24 @@ final class StockLedgerController
             $entries=array_values(array_filter($data['movements'],static fn(array $m):bool=>!empty($m['nir_id']) && $m['quantity_units']>0));
             $data['entries']=$this->pageRows(array_reverse($entries),'entries_page',$query,(int)$args['id']);
             $data['journal']=$this->pageRows(array_reverse($data['movements']),'journal_page',$query,(int)$args['id']);
+            $data['adjustment_request_key']=bin2hex(random_bytes(24));
             return $this->render('admin/pages/stock-ledger-detail.twig',$data);
         }
         catch(\Throwable $e) { return $this->failure($e); }
+    }
+
+    /** @param array<string,string> $args */
+    public function adjustOnline(ServerRequestInterface $request,ResponseInterface $response,array $args): ResponseInterface
+    {
+        try {
+            $data=(array)($request->getParsedBody() ?? []);
+            $result=$this->service->adjustOnline(
+                (int)$args['id'],(int)($data['variant_id'] ?? 0),(string)($data['direction'] ?? ''),
+                (string)($data['quantity'] ?? ''),(string)($data['reason'] ?? ''),(string)($data['request_key'] ?? ''),$this->actor()
+            );
+            Flash::set('success',$result['duplicate']?'Ajustarea fusese deja înregistrată; stocul nu a fost modificat din nou.':'Disponibilitatea online a fost ajustată și operațiunea a fost auditată.');
+        } catch(\Throwable $e) { Flash::set('error',$e->getMessage()); }
+        return $this->view->redirect($this->url((int)$args['id'].'/'));
     }
 
     /** @param array<string,string> $args */

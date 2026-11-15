@@ -117,6 +117,13 @@ final class StockLedgerRepository
         $q->execute(['id'=>$id]); return $q->fetchAll();
     }
 
+    /** @return list<array<string,mixed>> */
+    public function onlineAdjustments(int $productId): array
+    {
+        $q=$this->pdo->prepare('SELECT adjustment.*,variant.sku,variant.option_summary,actor.first_name,actor.last_name FROM stock_online_adjustments adjustment JOIN product_variants variant ON variant.id=adjustment.variant_id LEFT JOIN users actor ON actor.id=adjustment.actor_user_id WHERE adjustment.product_id=:product ORDER BY adjustment.created_at DESC,adjustment.id DESC LIMIT 20');
+        $q->execute(['product'=>$productId]); return $q->fetchAll();
+    }
+
     private function normalSql(string $field): string
     {
         $sql="LOWER(COALESCE($field,''))";

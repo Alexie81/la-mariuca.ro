@@ -269,6 +269,7 @@ final class AppFactory
             $group->get('/stoc/export/xlsx/', [$stockController, 'export']);
             $group->get('/stoc/{id:[0-9]+}/', [$stockController, 'detail']);
             $group->post('/stoc/{id:[0-9]+}/prag/', [$stockController, 'threshold']);
+            $group->post('/stoc/{id:[0-9]+}/ajustare-online/', [$stockController, 'adjustOnline']);
             $group->get('/stoc/{id:[0-9]+}/export/xlsx/', [$stockController, 'export']);
             $group->get('/facturi/', [$invoiceController, 'index']);
             $group->get('/facturi/produs/', [$invoiceController, 'productPreview']);

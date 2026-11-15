@@ -71,7 +71,12 @@ final class StockLedgerService
             $journal[]=$row;
         }
         $current=array_sum(array_column($scopes,'quantity_units'));
-        return ['product'=>$product,'scopes'=>$scopes,'variants'=>$variants,'movements'=>$journal,'opening_units'=>$opening,'incoming_units'=>$incoming,'outgoing_units'=>$outgoing,
+        $onlineAdjustments=$this->repository->onlineAdjustments($id);
+        foreach($onlineAdjustments as &$adjustment) {
+            $adjustment['operator']=trim((string)$adjustment['first_name'].' '.(string)$adjustment['last_name']) ?: 'Sistem';
+            $adjustment['date_display']=(new \DateTimeImmutable((string)$adjustment['created_at']))->setTimezone(new \DateTimeZone('Europe/Bucharest'))->format('d.m.Y, H:i');
+        } unset($adjustment);
+        return ['product'=>$product,'scopes'=>$scopes,'variants'=>$variants,'movements'=>$journal,'online_adjustments'=>$onlineAdjustments,'opening_units'=>$opening,'incoming_units'=>$incoming,'outgoing_units'=>$outgoing,
             'closing_units'=>$opening+$incoming-$outgoing,'current_units'=>$current,'consistent'=>$balance===$current,'minimum'=>InvoiceCalculator::quantity((int)$product['accounting_minimum_units']),
             'online'=>array_sum(array_column(array_filter($variants,static fn(array $v):bool=>$v['status']==='active'),'online_quantity')),
             'opening_value_bani'=>$openingValue,'incoming_value_bani'=>$incomingValue,'outgoing_value_bani'=>$outgoingValue,'closing_value_bani'=>$openingValue+$incomingValue-$outgoingValue,
@@ -130,6 +135,51 @@ final class StockLedgerService
             }
             $pdo->commit();
         } catch(\Throwable $e) { if($pdo->inTransaction()) { $pdo->rollBack(); } throw $e; }
+    }
+
+    /** @param array<string,mixed> $actor @return array{before:int,after:int,delta:int,duplicate:bool} */
+    public function adjustOnline(int $productId,int $variantId,string $direction,string $quantity,string $reason,string $requestKey,array $actor): array
+    {
+        $this->allow($actor,true);
+        $amount=filter_var($quantity,FILTER_VALIDATE_INT,['options'=>['min_range'=>1,'max_range'=>1000000]]);
+        if($amount===false) { throw new InvoiceException('Cantitatea ajustării trebuie să fie un număr întreg între 1 și 1.000.000.'); }
+        if(!in_array($direction,['increase','decrease'],true)) { throw new InvoiceException('Alege dacă stocul online crește sau scade.'); }
+        $reason=trim((string)preg_replace('/\s+/u',' ',strip_tags($reason)));
+        if(mb_strlen($reason)<3 || mb_strlen($reason)>500) { throw new InvoiceException('Motivul ajustării trebuie să aibă între 3 și 500 de caractere.'); }
+        $requestKey=trim($requestKey);
+        if($requestKey==='' || mb_strlen($requestKey)>200) { throw new InvoiceException('Cheia operațiunii nu este validă. Reîncarcă pagina și încearcă din nou.'); }
+        $requestHash=hash('sha256',$requestKey);
+        $delta=($direction==='increase'?1:-1)*(int)$amount;
+        $pdo=$this->repository->pdo(); $own=!$pdo->inTransaction(); if($own) { $pdo->beginTransaction(); }
+        try {
+            $pdo->exec('UPDATE nir_write_lock SET revision=revision+1 WHERE id=1');
+            $existing=$pdo->prepare('SELECT product_id,variant_id,before_quantity,after_quantity,physical_delta,reason FROM stock_online_adjustments WHERE request_key=:key');
+            $existing->execute(['key'=>$requestHash]); $done=$existing->fetch();
+            if(is_array($done)) {
+                if((int)$done['product_id']!==$productId || (int)$done['variant_id']!==$variantId || (int)$done['physical_delta']!==$delta || (string)$done['reason']!==$reason) {
+                    throw new InvoiceException('Cheia operațiunii a fost deja folosită pentru altă ajustare.',409);
+                }
+                if($own) { $pdo->commit(); }
+                return ['before'=>(int)$done['before_quantity'],'after'=>(int)$done['after_quantity'],'delta'=>(int)$done['physical_delta'],'duplicate'=>true];
+            }
+            $suffix=$pdo->getAttribute(\PDO::ATTR_DRIVER_NAME)==='mysql'?' FOR UPDATE':'';
+            $query=$pdo->prepare('SELECT v.id,v.product_id,v.stock_unlimited,i.physical_quantity,i.reserved_quantity FROM product_variants v JOIN inventory i ON i.variant_id=v.id WHERE v.id=:variant AND v.product_id=:product'.$suffix);
+            $query->execute(['variant'=>$variantId,'product'=>$productId]); $variant=$query->fetch();
+            if(!is_array($variant)) { throw new InvoiceException('Varianta nu aparține produsului selectat.',404); }
+            if((int)$variant['stock_unlimited']===1) { throw new InvoiceException('O variantă cu stoc nelimitat nu folosește ajustări numerice online.'); }
+            $before=(int)$variant['physical_quantity']; $after=$before+$delta;
+            if($after<0) { throw new InvoiceException('Stocul fizic online nu poate deveni negativ.'); }
+            if($after<(int)$variant['reserved_quantity']) { throw new InvoiceException('Ajustarea ar coborî stocul sub cantitatea deja rezervată.'); }
+            $now=gmdate('c');
+            $insert=$pdo->prepare('INSERT INTO stock_online_adjustments(request_key,product_id,variant_id,physical_delta,before_quantity,after_quantity,reason,actor_user_id,created_at) VALUES(:key,:product,:variant,:delta,:before,:after,:reason,:actor,:now)');
+            $insert->execute(['key'=>$requestHash,'product'=>$productId,'variant'=>$variantId,'delta'=>$delta,'before'=>$before,'after'=>$after,'reason'=>$reason,'actor'=>$actor['id'],'now'=>$now]);
+            $pdo->prepare('UPDATE inventory SET physical_quantity=:quantity,updated_at=:now WHERE variant_id=:variant')->execute(['quantity'=>$after,'now'=>$now,'variant'=>$variantId]);
+            $adjustmentId=(int)$pdo->lastInsertId();
+            $pdo->prepare("INSERT INTO inventory_movements(variant_id,type,physical_delta,reserved_delta,reason,reference_type,reference_id,actor_user_id,created_at) VALUES(:variant,'adjust',:delta,0,:reason,'manual_online_adjustment',:reference,:actor,:now)")->execute(['variant'=>$variantId,'delta'=>$delta,'reason'=>$reason,'reference'=>$adjustmentId,'actor'=>$actor['id'],'now'=>$now]);
+            $pdo->prepare("INSERT INTO audit_log(actor_user_id,action,entity_type,entity_id,context_json,created_at) VALUES(:actor,'stock.online_adjusted','product',:product,:context,:now)")->execute(['actor'=>$actor['id'],'product'=>$productId,'context'=>json_encode(['variant_id'=>$variantId,'before'=>$before,'after'=>$after,'delta'=>$delta,'reason'=>$reason,'accounting_stock_changed'=>false],JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR),'now'=>$now]);
+            if($own) { $pdo->commit(); }
+            return ['before'=>$before,'after'=>$after,'delta'=>$delta,'duplicate'=>false];
+        } catch(\Throwable $error) { if($own && $pdo->inTransaction()) { $pdo->rollBack(); } throw $error; }
     }
 
     private function date(string $value): string
