@@ -35,6 +35,8 @@ final class Config
             'SESSION_SECURE' => 'false',
             'TAX_RATE_BASIS_POINTS' => '0',
             'PRICES_INCLUDE_TAX' => 'true',
+            'CART_MAX_QUANTITY' => '20',
+            'CART_MAX_DISTINCT_PRODUCTS' => '50',
             'STRIPE_ENABLED' => 'false',
             'ANAF_ALLOW_PRODUCTION' => 'false',
             'ANAF_CLIENT_ID' => '',

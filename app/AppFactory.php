@@ -92,7 +92,7 @@ final class AppFactory
         $categoryPaths = new CategoryPathRepository($pdo);
         $push = new AdminPushService($pdo, $config);
         $reviews = new ProductReviewService(new ProductReviewRepository($pdo), $push);
-        $cart = new CartService($pdo);
+        $cart = new CartService($pdo, $config->int('CART_MAX_QUANTITY', 20), $config->int('CART_MAX_DISTINCT_PRODUCTS', 50));
         $contactWhatsApp = new ContactWhatsAppService($config);
         $newsletterSubscriptions = new NewsletterSubscriptionService($pdo);
         $promotions = new PromotionAdminService($pdo);
@@ -127,6 +127,7 @@ final class AppFactory
         $twig->addFunction(new TwigFunction('current_user', static fn(): ?array => $auth->user()));
         $twig->addFunction(new TwigFunction('navigation_categories', static fn(): array => $categoryPaths->addPathsToTree($catalog->navigationCategories())));
         $twig->addFunction(new TwigFunction('cart_summary', static fn(): array => $cart->summary()));
+        $twig->addFunction(new TwigFunction('cart_max_quantity', static fn(): int => $cart->maxQuantity()));
         $twig->addGlobal('active_promotion_banner', $promotions->activeTopbarOffer());
         $cartVariantIds = null;
         $twig->addFunction(new TwigFunction('is_variant_in_cart', static function (int|string|null $variantId) use ($cart, &$cartVariantIds): bool {

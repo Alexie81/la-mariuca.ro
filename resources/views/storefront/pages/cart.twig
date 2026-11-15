@@ -34,7 +34,7 @@
 
             <div class="cart-list">
               {% for item in cart.items %}
-                {% set maximum_quantity = item.available_quantity < 20 ? item.available_quantity : 20 %}
+                {% set maximum_quantity = item.available_quantity < cart_max_quantity() ? item.available_quantity : cart_max_quantity() %}
                 <article class="cart-item" data-cart-item="{{ item.id }}">
                   <a class="cart-item__media" href="{{ url('produs/' ~ item.slug ~ '/') }}" aria-label="Vezi {{ item.name }}">
                     {% if item.image_path %}

@@ -207,7 +207,7 @@
               <label class="product-quantity-label" for="quantity">Cantitate</label>
               <div class="product-quantity" data-product-quantity>
                 <button type="button" data-quantity-decrease aria-label="Scade cantitatea">−</button>
-                <input id="quantity" name="quantity" type="number" min="1" max="20" value="1" inputmode="numeric">
+                <input id="quantity" name="quantity" type="number" min="1" max="{{ cart_max_quantity() }}" value="1" inputmode="numeric">
                 <button type="button" data-quantity-increase aria-label="Crește cantitatea">+</button>
               </div>
               <button class="product-add-button" type="submit" aria-pressed="{{ product_initially_in_cart ? 'true' : 'false' }}" aria-label="{{ product_initially_in_cart ? 'Scoate ' ~ product.name ~ ' din coș' : 'Adaugă ' ~ product.name ~ ' în coș' }}"{{ product.variants|length == 1 and default_variant.available_quantity <= 0 ? ' disabled' : '' }}>
@@ -232,6 +232,10 @@
           <li><span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 20s7-3.7 7-10V5.5L12 3 5 5.5V10c0 6.3 7 10 7 10Z"></path><path d="m8.8 11.5 2.1 2.1 4.5-4.5"></path></svg></span><div><strong>Ales cu atenție</strong><small>Pentru cei mici</small></div></li>
           <li><span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 11.5a8 8 0 1 1 2.3 5.7L4 20v-8.5Z"></path><path d="M8.5 11.5h7M12 8v7"></path></svg></span><div><strong>Ai nevoie de ajutor?</strong><small>Îți răspundem cu drag</small></div></li>
         </ul>
+        <section class="product-delivery-return" aria-label="Livrare și retur">
+          <a href="{{ url('pagina/livrare-si-retur/') }}"><span>Livrare</span><strong>Costul și termenul exact apar în checkout înainte să trimiți comanda.</strong><small>Vezi metodele și condițiile →</small></a>
+          <a href="{{ url('pagina/livrare-si-retur/') }}"><span>Retur</span><strong>Pentru produsele eligibile, cererea pornește din linkul securizat al comenzii.</strong><small>Vezi pașii și condițiile →</small></a>
+        </section>
       </section>
     </div>
 

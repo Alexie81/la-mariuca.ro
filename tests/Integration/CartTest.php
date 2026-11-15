@@ -121,7 +121,9 @@ final class CartTest extends DatabaseTestCase
         self::assertSame(2, (int) $item['quantity']);
         self::assertSame(999999, (int) $item['available_quantity']);
         self::assertSame(1, (int) $item['stock_unlimited']);
-        self::assertStringContainsString('Disponibil pentru precomandă', (string) $this->get('/produs/' . $row['slug'] . '/')->getBody());
+        $productPage = (string) $this->get('/produs/' . $row['slug'] . '/')->getBody();
+        self::assertStringContainsString('Disponibil pentru precomandă', $productPage);
+        self::assertStringContainsString('/pagina/livrare-si-retur/', $productPage);
     }
 
     public function testOnRequestAndUnavailableProductsCannotBeAddedDirectly(): void
@@ -141,6 +143,36 @@ final class CartTest extends DatabaseTestCase
                 self::assertSame('Varianta nu este disponibilă.', $exception->getMessage());
             }
         }
+    }
+
+    public function testCartLimitsAreConfigurableAndCountDistinctProducts(): void
+    {
+        $this->seed();
+        $variants = $this->pdo->query('SELECT v.id,v.product_id FROM product_variants v JOIN inventory i ON i.variant_id=v.id WHERE v.status=\'active\' AND i.physical_quantity-i.reserved_quantity>=5 ORDER BY v.product_id,v.id')->fetchAll();
+        $byProduct = [];
+        foreach ($variants as $variant) {
+            $byProduct[(int) $variant['product_id']] ??= (int) $variant['id'];
+        }
+        self::assertGreaterThanOrEqual(2, count($byProduct));
+        $variantIds = array_values($byProduct);
+        $cart = new CartService($this->pdo, 3, 1);
+
+        try {
+            $cart->add($variantIds[0], 4);
+            self::fail('Limita configurată de cantitate trebuie aplicată.');
+        } catch (RuntimeException $exception) {
+            self::assertSame('Cantitatea trebuie să fie între 1 și 3.', $exception->getMessage());
+        }
+
+        $cart->add($variantIds[0], 1);
+        try {
+            $cart->add($variantIds[1], 1);
+            self::fail('Limita configurată de produse distincte trebuie aplicată.');
+        } catch (RuntimeException $exception) {
+            self::assertStringContainsString('maximum 1 produse distincte', $exception->getMessage());
+        }
+        $cart->add($variantIds[0], 1);
+        self::assertSame(2, $cart->summary()['count']);
     }
 
     private function get(string $path): ResponseInterface

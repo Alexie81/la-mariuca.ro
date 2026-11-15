@@ -9,9 +9,17 @@ use RuntimeException;
 
 final class CartService
 {
-    public function __construct(private readonly PDO $pdo)
+    private readonly int $maxQuantity;
+    private readonly int $maxDistinctProducts;
+
+    public function __construct(private readonly PDO $pdo, int $maxQuantity = 20, int $maxDistinctProducts = 50)
     {
+        $this->maxQuantity = max(1, min(999, $maxQuantity));
+        $this->maxDistinctProducts = max(1, min(500, $maxDistinctProducts));
     }
+
+    public function maxQuantity(): int { return $this->maxQuantity; }
+    public function maxDistinctProducts(): int { return $this->maxDistinctProducts; }
 
     /**
      * @template T
@@ -81,8 +89,8 @@ final class CartService
     /** @param array<string,string> $personalization */
     private function addUnlocked(int $variantId, int $quantity, array $personalization): void
     {
-        if ($quantity < 1 || $quantity > 20) {
-            throw new RuntimeException('Cantitatea trebuie să fie între 1 și 20.');
+        if ($quantity < 1 || $quantity > $this->maxQuantity) {
+            throw new RuntimeException('Cantitatea trebuie să fie între 1 și ' . $this->maxQuantity . '.');
         }
         $variant = $this->variant($variantId);
         if ($variant === null || $variant['product_status'] !== 'published' || $variant['status'] !== 'active' || !$this->isPubliclyOrderable((string) $variant['public_availability'])) {
@@ -91,6 +99,7 @@ final class CartService
         $this->validatePersonalization((int) $variant['product_id'], $personalization);
         $key = hash('sha256', json_encode($personalization, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
         $cartId = $this->cartId();
+        $this->assertDistinctProductLimit($cartId, (int) $variant['product_id']);
         $statement = $this->pdo->prepare('SELECT id, quantity FROM cart_items WHERE cart_id = :cart AND variant_id = :variant AND personalization_key = :key');
         $statement->execute(['cart' => $cartId, 'variant' => $variantId, 'key' => $key]);
         $existing = $statement->fetch();
@@ -152,8 +161,8 @@ final class CartService
             $this->pdo->prepare('DELETE FROM cart_items WHERE id = :id AND cart_id = :cart')->execute(['id' => $itemId, 'cart' => $cartId]);
             return;
         }
-        if ($quantity > 20) {
-            throw new RuntimeException('Cantitatea maximă pe linie este 20.');
+        if ($quantity > $this->maxQuantity) {
+            throw new RuntimeException('Cantitatea maximă pe linie este ' . $this->maxQuantity . '.');
         }
         $statement = $this->pdo->prepare("SELECT ci.variant_id, p.status AS product_status, v.status AS variant_status, p.public_availability,
                 CASE WHEN v.stock_unlimited=1 OR p.backorder_policy='allow' THEN 999999 ELSE COALESCE(i.physical_quantity - i.reserved_quantity, 0) END AS available_quantity
@@ -476,6 +485,16 @@ final class CartService
     private function isPubliclyOrderable(string $availability): bool
     {
         return !in_array($availability, ['on_request', 'unavailable'], true);
+    }
+
+    private function assertDistinctProductLimit(int $cartId, int $productId): void
+    {
+        $statement = $this->pdo->prepare('SELECT COUNT(DISTINCT variant.product_id) AS product_count,MAX(CASE WHEN variant.product_id=:product THEN 1 ELSE 0 END) AS already_present FROM cart_items item JOIN product_variants variant ON variant.id=item.variant_id WHERE item.cart_id=:cart');
+        $statement->execute(['product' => $productId, 'cart' => $cartId]);
+        $row = $statement->fetch();
+        if (is_array($row) && (int) $row['product_count'] >= $this->maxDistinctProducts && (int) $row['already_present'] !== 1) {
+            throw new RuntimeException('Coșul poate conține maximum ' . $this->maxDistinctProducts . ' produse distincte. Finalizează comanda sau elimină un produs pentru a continua.');
+        }
     }
 
     /** @param array<string, string> $values */
