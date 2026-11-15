@@ -27,7 +27,7 @@
               {% if document.gross_bani < 0 and not document.receipt and not document.receipt_nir %}{% if document.order_return and document.requires_nir %}<a href="{{ url('admin/nir-uri/retururi/' ~ document.order_return.return_id ~ '/receptie/?return_to=order') }}">{{ n.icon('box') }}Verifică produsele și creează NIR</a>{% else %}<a href="{{ url('admin/facturi/' ~ document.id ~ '/receive/?return_to=order') }}" data-iv-modal>{{ n.icon('box') }}Înregistrează primirea produselor</a>{% endif %}{% endif %}
               {% if document.gross_bani < 0 or (document.payment_method == 'cod' and document.payment_state != 'paid') %}<a href="{{ url('admin/facturi/' ~ document.id ~ '/payment/?return_to=order') }}" data-iv-modal>{{ n.icon('money') }}{{ document.gross_bani < 0 ? 'Înregistrează restituirea' : 'Înregistrează încasarea' }}</a>{% endif %}
               <a href="{{ url('admin/facturi/' ~ document.id ~ '/link/?return_to=order') }}" data-iv-modal>{{ n.icon('link') }}Link privat pentru client</a>
-              {% if can_delete_documents and not document.delete_blocker %}<a class="is-danger" href="{{ url('admin/facturi/' ~ document.id ~ '/delete/?return_to=order') }}" data-iv-modal>{{ n.icon('trash') }}Șterge ultimul document</a>{% endif %}
+              {% if can_delete_documents and not document.delete_blocker %}<a class="is-danger" href="{{ url('admin/facturi/' ~ document.id ~ '/delete/?return_to=order') }}" data-iv-modal>{{ n.icon('trash') }}Șterge document</a>{% endif %}
             </div>
           </details>{% endif %}
         </div>

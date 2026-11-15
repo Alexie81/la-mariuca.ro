@@ -1,5 +1,10 @@
 # Progres
 
+### 2026-11-15 — Etichete simple pentru ștergerea documentelor
+- Factura folosește **Șterge document**, iar avizul **Șterge avizul**, inclusiv în butoanele de confirmare. Eliminată formularea „ultimul document” din eticheta acțiunii și simplificate mesajele pozitive din confirmare.
+- Butoanele din comandă rămân afișate numai când documentul este ultimul eligibil, conform aceleiași reguli verificate la salvare; documentele anterioare nu primesc buton de ștergere. Protecțiile SPV și celelalte blocaje se păstrează.
+- Verificări: **181 template-uri Twig** compilate, **3 teste / 44 aserțiuni** pentru ultimul document, respingerea ștergerii celui anterior, acces/CSRF și confirmarea avizului; diff check trecut. Fără ștergeri ale documentelor principale sau emailuri.
+
 ### 2026-11-15 — Editarea produselor urmărește statusul actual
 - Conform clarificării utilizatorului, istoricul unei livrări nu mai blochează permanent produsele după revenirea comenzii la Nouă sau alt pas anterior. Avertismentul „Comanda este livrată” și blocarea aferentă se aplică numai stării actuale Livrată. Această regulă înlocuiește interpretarea anterioară bazată pe audit; auditul livrării rămâne intact.
 - Regula comună controlează atât butonul din comandă, cât și salvarea pe server. Protecțiile SPV, documentele dependente, stările închise/retur și validarea stocului rămân aplicabile.

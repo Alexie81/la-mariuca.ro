@@ -140,7 +140,7 @@ final class DispatchNoteWorkflowTest extends DatabaseTestCase
         $delivered=$app->handle($factory->createServerRequest('GET','http://localhost/admin/comenzi/'.$order.'/'));
         self::assertStringContainsString('Șterge avizul',(string)$delivered->getBody());
         $confirmation=$factory->createServerRequest('GET','http://localhost/admin/comenzi/'.$order.'/aviz/sterge/confirmare/');
-        $form=$app->handle($confirmation->withHeader('X-Invoice-Modal','1'));self::assertSame(200,$form->getStatusCode());self::assertStringContainsString('Da, șterge avizul',(string)$form->getBody());self::assertStringNotContainsString('name="reason"',(string)$form->getBody());
+        $form=$app->handle($confirmation->withHeader('X-Invoice-Modal','1'));self::assertSame(200,$form->getStatusCode());self::assertStringContainsString('Șterge avizul',(string)$form->getBody());self::assertStringNotContainsString('name="reason"',(string)$form->getBody());
         $standalone=$app->handle($confirmation);self::assertSame(200,$standalone->getStatusCode());self::assertStringContainsString('Înapoi la comandă',(string)$standalone->getBody());
         $note=$this->service->forOrder($order,$this->actor);$input=['request_key'=>str_repeat('4',32),'dispatch_note_id'=>$note['id'],'version'=>$note['row_version']];
         $delete=$factory->createServerRequest('POST','http://localhost/admin/comenzi/'.$order.'/aviz/sterge/');
