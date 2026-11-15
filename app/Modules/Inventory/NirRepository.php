@@ -206,7 +206,7 @@ final class NirRepository
     /** @return list<array<string,mixed>> */
     public function pendingReturnNotifications(int $actorId,string $localDate): array
     {
-        $query=$this->pdo->prepare("SELECT r.id AS return_id,r.order_id,r.created_at,o.order_number FROM order_returns r JOIN orders o ON o.id=r.order_id WHERE NOT EXISTS (SELECT 1 FROM nir_documents n WHERE n.return_id=r.id AND n.status='confirmed') AND EXISTS (SELECT 1 FROM order_return_items ri JOIN order_items oi ON oi.id=ri.order_item_id WHERE ri.return_id=r.id AND oi.accounting_scope_type IS NOT NULL) AND NOT EXISTS (SELECT 1 FROM nir_return_reminders d WHERE d.return_id=r.id AND d.actor_id=:actor AND d.dismissed_on=:today) ORDER BY r.created_at DESC,r.id DESC LIMIT 200");
+        $query=$this->pdo->prepare("SELECT r.id AS return_id,r.order_id,r.created_at,o.order_number FROM order_returns r JOIN orders o ON o.id=r.order_id WHERE NOT EXISTS (SELECT 1 FROM nir_documents n WHERE n.return_id=r.id AND n.status='confirmed') AND NOT EXISTS (SELECT 1 FROM order_return_documents d JOIN invoice_receipts ir ON ir.invoice_id=d.invoice_id WHERE d.return_id=r.id AND ir.reversed_at IS NULL) AND EXISTS (SELECT 1 FROM order_return_items ri JOIN order_items oi ON oi.id=ri.order_item_id WHERE ri.return_id=r.id AND oi.accounting_scope_type IS NOT NULL) AND NOT EXISTS (SELECT 1 FROM nir_return_reminders d WHERE d.return_id=r.id AND d.actor_id=:actor AND d.dismissed_on=:today) ORDER BY r.created_at DESC,r.id DESC LIMIT 200");
         $query->execute(['actor'=>$actorId,'today'=>$localDate]); return $query->fetchAll();
     }
 

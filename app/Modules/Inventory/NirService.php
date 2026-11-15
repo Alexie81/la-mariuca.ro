@@ -11,11 +11,12 @@ use PDO;
 final class NirService
 {
     private readonly NirRepository $repository;
+    private readonly ReturnStockLinks $returnLinks;
     private readonly \App\Modules\Catalog\CatalogSearchService $search;
     private readonly \App\Modules\Companies\ReceiptLocationService $locations;
     private const MONEY=['net_bani','tax_bani','total_bani','discount_bani','net_ron_bani','tax_ron_bani','total_ron_bani','inventory_bani'];
     private const COSTS=['unit_price','discount_percent','vat_percent','extra_cost_ron','net_override','tax_override','gross_override','unit_cost_ron','last_price','initial_value_bani','remaining_value_bani','value_bani','price_history'];
-    public function __construct(PDO $pdo) { $this->repository=new NirRepository($pdo); $this->locations=new \App\Modules\Companies\ReceiptLocationService(new \App\Modules\Companies\CompanyRepository($pdo)); $this->search=new \App\Modules\Catalog\CatalogSearchService(new \App\Modules\Catalog\CatalogRepository($pdo)); }
+    public function __construct(PDO $pdo) { $this->repository=new NirRepository($pdo); $this->returnLinks=new ReturnStockLinks($pdo); $this->locations=new \App\Modules\Companies\ReceiptLocationService(new \App\Modules\Companies\CompanyRepository($pdo)); $this->search=new \App\Modules\Catalog\CatalogSearchService(new \App\Modules\Catalog\CatalogRepository($pdo)); }
 
     /** @param array<string,mixed> $actor @return array<string,bool> */
     public function permissions(array $actor): array
@@ -202,7 +203,7 @@ final class NirService
         $item=$this->repository->one('order_return_items',['id'=>$line['return_item_id']]);
         if($item===null) { throw new NirConflictException('Lipsește legătura cu returul clientului.'); }
         $units=(int)$layer['initial_units']; $value=(int)$layer['initial_value_bani'];
-        foreach($this->repository->all('nir_fifo_consumptions',['layer_id'=>$layer['original_layer_id'],'source_type'=>'order_item','source_id'=>$item['order_item_id']],'id DESC') as $part) {
+        foreach(array_reverse($this->returnLinks->consumptions((int)$item['order_item_id'],(int)$item['return_id'],(int)$layer['original_layer_id'])) as $part) {
             $take=min($units,(int)$part['returned_units']); if($take<=0) { continue; }
             $takeValue=$take===$units?$value:BigDecimal::of($value)->multipliedBy($take)->dividedBy($units,0,RoundingMode::HalfUp)->toInt();
             if($takeValue>(int)$part['returned_value_bani']) { throw new NirConflictException('Valorile returului trebuie reconciliate înainte de ștergere.'); }
@@ -531,12 +532,12 @@ final class NirService
     {
         $this->allow($actor,'view'); $today=(new DateTimeImmutable('now',new DateTimeZone('Europe/Bucharest')))->format('Y-m-d'); $pending=[];
         foreach($this->repository->all('order_returns',[],'id DESC') as $return) {
-            if($this->repository->one('nir_documents',['return_id'=>$return['id']])!==null) { continue; }
+            if($this->repository->one('nir_documents',['return_id'=>$return['id']])!==null || $this->returnLinks->hasInvoiceReceipt((int)$return['id'])) { continue; }
             $reminder=$this->repository->one('nir_return_reminders',['return_id'=>$return['id'],'actor_id'=>$this->actorId($actor)]);
             $order=$this->repository->one('orders',['id'=>$return['order_id']]) ?? []; $items=[];
             foreach($this->repository->all('order_return_items',['return_id'=>$return['id']]) as $item) {
                 $ordered=$this->repository->one('order_items',['id'=>$item['order_item_id']]); if($ordered===null || $ordered['accounting_scope_type']===null) { continue; }
-                $consumptions=$this->repository->all('nir_fifo_consumptions',['source_type'=>'order_item','source_id'=>$item['order_item_id']]);
+                $consumptions=$this->returnLinks->consumptions((int)$item['order_item_id'],(int)$return['id']);
                 $traceable=NirDecimal::sum(array_map(static fn(array $row):int=>(int)$row['quantity_units']-(int)$row['returned_units'],$consumptions));
                 $items[]=array_replace($ordered,$item,['product_name'=>$ordered['product_name'] ?? $ordered['name'] ?? '', 'traceable_quantity'=>NirDecimal::quantity($traceable),'eligible'=>$traceable>=(int)$item['quantity']*10000]);
             }
@@ -564,7 +565,12 @@ final class NirService
         return $this->repository->transaction(function()use($returnId,$input,$key,$actor):array {
             $hash=$this->requestHash('customer_return',[$returnId,$input]); if(($previous=$this->retry($key,'customer_return',$hash))!==null) { return $this->document($previous,$actor); }
             $return=$this->repository->one('order_returns',['id'=>$returnId]); if($return===null) { throw new NirNotFoundException('Returul nu există.'); }
-            if($this->repository->one('nir_documents',['return_id'=>$returnId])!==null) { throw new NirConflictException('Returul are deja un NIR de recepție.'); }
+            if($this->repository->one('nir_documents',['return_id'=>$returnId])!==null || $this->returnLinks->hasInvoiceReceipt($returnId)) { throw new NirConflictException('Primirea produselor acestui retur este deja înregistrată.'); }
+            $linkedInvoices=$this->returnLinks->invoicesForReturn($returnId);
+            if($linkedInvoices!==[]) {
+                $input['invoice_number']=implode(', ',array_map(static fn(array $invoice):string=>$invoice['series_code'].' '.$invoice['number'],$linkedInvoices));
+                $input['invoice_date']=substr($linkedInvoices[0]['issued_at'],0,10);
+            }
             if(!$this->truth($input['physically_received'] ?? false)) { throw new NirValidationException(['physically_received'=>'Confirmă recepția fizică a produselor.']); }
             $invoice=trim((string)($input['invoice_number'] ?? '')); if($invoice==='') { throw new NirValidationException(['invoice_number'=>'Completează numărul facturii de retur emise.']); }
             $invoiceDate=$this->date((string)($input['invoice_date'] ?? ''),'invoice_date');
@@ -573,7 +579,7 @@ final class NirService
             foreach($this->repository->all('order_return_items',['return_id'=>$returnId]) as $item) {
                 $ordered=$this->repository->one('order_items',['id'=>$item['order_item_id']]); if($ordered===null||$ordered['accounting_scope_type']===null) { continue; }
                 $remaining=(int)$item['quantity']*10000; $cost=0; $parts=[]; $originalLine=null;
-                foreach($this->repository->all('nir_fifo_consumptions',['source_type'=>'order_item','source_id'=>$item['order_item_id']],'id') as $consumption) {
+                foreach($this->returnLinks->consumptions((int)$item['order_item_id'],$returnId) as $consumption) {
                     if($remaining<=0) { break; } $available=(int)$consumption['quantity_units']-(int)$consumption['returned_units']; $take=min($remaining,$available); if($take<=0) { continue; }
                     $layer=$this->repository->one('nir_fifo_layers',['id'=>$consumption['layer_id']]); if($layer===null) { throw new NirConflictException('Lipsește lotul de stoc original.'); }
                     $originalLine ??= $this->repository->one('nir_lines',['id'=>$layer['line_id']]);

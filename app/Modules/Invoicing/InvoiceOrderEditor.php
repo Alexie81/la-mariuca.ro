@@ -31,16 +31,19 @@ final class InvoiceOrderEditor
             if($id>0) {
                 $row=$byId[$id] ?? throw new InvoiceException('Produsul nu aparține comenzii.');
                 if(isset($seen[$id])) { throw new InvoiceException('Aceeași poziție este introdusă de două ori.'); } $seen[$id]=true;
+                if(isset($item['unit_price']) && InvoiceCalculator::bani((string)$item['unit_price'])!==InvoiceCalculator::ratio($row['agreed_total'],1,(int)$row['quantity'])) { throw new InvoiceException('Prețul produsului existent se păstrează. Un preț nou poate fi stabilit când adaugi sau înlocuiești produsul.'); }
                 $row['line_total_bani']=InvoiceCalculator::ratio($row['agreed_total'],$quantity,(int)$row['quantity']);
                 $row['unit_price_bani']=InvoiceCalculator::ratio($row['line_total_bani'],1,$quantity); $row['quantity']=$quantity; unset($row['agreed_total']);
             } else {
                 $sku=trim((string)($item['sku'] ?? '')); if($sku==='') { throw new InvoiceException('Scrie SKU-ul exact al produsului nou.'); }
                 $q=$this->pdo->prepare("SELECT v.*,p.name,p.primary_sku,p.track_in_conta AS product_track,p.status AS product_status FROM product_variants v JOIN products p ON p.id=v.product_id WHERE v.sku=:sku"); $q->execute(['sku'=>$sku]); $v=$q->fetch();
                 if(!$v || $v['status']!=='active' || $v['product_status']!=='published' || (int)$v['price_bani']<=0) { throw new InvoiceException('SKU-ul nu corespunde unui produs activ cu preț valid.'); }
+                $price=isset($item['unit_price'])?InvoiceCalculator::bani((string)$item['unit_price']):(int)$v['price_bani'];
+                if($price<=0 || $price>99999999) { throw new InvoiceException('Prețul convenit trebuie să fie mai mare de 0 și de cel mult 999.999,99 Lei.'); }
                 $variantScope=(int)$v['track_in_conta']===1 && json_decode($v['options_json'],true)!==[];
                 $scope=$variantScope?'variant':((int)$v['product_track']===1?'product':null);
                 $row=['id'=>0,'order_id'=>$orderId,'product_id'=>$v['product_id'],'variant_id'=>$v['id'],'product_name'=>$v['name'],'variant_summary'=>$v['option_summary'],'sku'=>$v['sku'],
-                    'quantity'=>$quantity,'unit_price_bani'=>$v['price_bani'],'personalization_bani'=>0,'line_total_bani'=>(int)$v['price_bani']*$quantity,'tax_bani'=>0,'personalization_json'=>'{}',
+                    'quantity'=>$quantity,'unit_price_bani'=>$price,'personalization_bani'=>0,'line_total_bani'=>$price*$quantity,'tax_bani'=>0,'personalization_json'=>'{}',
                     'accounting_scope_type'=>$scope,'accounting_scope_id'=>$scope==='variant'?$v['id']:($scope==='product'?$v['product_id']:null),'accounting_sku'=>$scope==='variant'?$v['sku']:($scope==='product'?$v['primary_sku']:null)];
             }
             $variant=(int)$row['variant_id']; if(isset($after[$variant])) { throw new InvoiceException('Păstrează o singură poziție pentru fiecare variantă.'); }
@@ -77,7 +80,8 @@ final class InvoiceOrderEditor
             if($id>0) { $repo->update('order_items',$row,['id'=>$id]); } else { $repo->insert('order_items',$row); }
         }
         foreach($byId as $id=>$row) { if(!isset($seen[$id])) { $q=$this->pdo->prepare('DELETE FROM order_items WHERE id=:id'); $q->execute(['id'=>$id]); } }
-        $repo->update('orders',['subtotal_bani'=>$subtotal,'discount_bani'=>0,'shipping_bani'=>$shipping,'shipping_discount_bani'=>0,'total_bani'=>$total,'updated_at'=>$repo->now()],['id'=>$orderId]);
+        $repo->update('orders',['subtotal_bani'=>$subtotal,'discount_bani'=>0,'shipping_bani'=>$shipping,'shipping_discount_bani'=>0,'total_bani'=>$total,'customer_discount_id'=>null,'customer_shipping_discount_id'=>null,'promotion_id'=>null,'shipping_promotion_id'=>null,'updated_at'=>$repo->now()],['id'=>$orderId]);
+        $q=$this->pdo->prepare("UPDATE coupon_redemptions SET status='released',updated_at=:now WHERE order_id=:order_id AND status IN ('reserved','confirmed')"); $q->execute(['now'=>$repo->now(),'order_id'=>$orderId]);
         $repo->insert('audit_log',['actor_user_id'=>$actor['id'],'action'=>'order.invoice_edit','entity_type'=>'order','entity_id'=>$orderId,'context_json'=>InvoiceSnapshot::json(['before'=>$rows,'after'=>$selected,'reason'=>$input['reason'] ?? '','prices'=>'agreed_final_preserved']),'created_at'=>$repo->now()]);
     }
 }

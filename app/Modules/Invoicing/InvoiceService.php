@@ -25,6 +25,7 @@ final class InvoiceService
         $invoice=$this->repository->one('invoices',['id'=>$id,'deleted_at'=>null]) ?? throw new InvoiceException('Factura nu este disponibilă.',404);
         $invoice['snapshot']=json_decode($invoice['snapshot_json'],true,512,JSON_THROW_ON_ERROR);
         $invoice['lines']=$this->repository->all('invoice_lines',['invoice_id'=>$id]);
+        if(!empty($invoice['parent_id'])) { $parent=$this->repository->one('invoices',['id'=>$invoice['parent_id']]); $invoice['parent_document_number']=$parent?$parent['series_code'].' '.$parent['number']:null; }
         usort($invoice['lines'],static fn(array $a,array $b):int=>(int)$a['position']<=>(int)$b['position']);
         return $invoice;
     }
@@ -42,15 +43,92 @@ final class InvoiceService
     {
         $this->allow($actor,'edit');
         $this->repository->transaction(function()use($orderId,$input,$actor):void {
-            $this->key($input); $this->reason($input);
-            if($this->repository->one('invoices',['primary_order_id'=>$orderId])) { throw new InvoiceException('Comanda are deja factură. Folosește actualizarea sau corecția facturii.',409); }
+            $key=$this->key($input); $hash=$this->hash([$orderId,$input]); $this->reason($input);
+            $prior=$this->repository->one('order_document_operations',['request_key'=>$key]);
+            if($prior) {
+                if($prior['action']!=='edit' || $prior['payload_hash']!==$hash || (int)$prior['order_id']!==$orderId) { throw new InvoiceException('Această salvare a fost deja folosită pentru alte date.',409); }
+                return;
+            }
             $order=$this->repository->one('orders',['id'=>$orderId]) ?? throw new InvoiceException('Comanda nu există.');
             if(($input['order_version'] ?? '')!==$order['updated_at']) { throw new InvoiceException('Comanda s-a modificat. Reîncarcă formularul.',409); }
-            (new InvoiceOrderEditor($this->repository->pdo()))->apply($orderId,$input,$actor);
-            if(isset($input['billing'])) {
-                $preview=$this->snapshots->fromOrder($orderId,(array)$input['billing']); $customer=$preview['snapshot']['customer'];
+            $policy=new OrderDocumentPolicy($this->repository);
+            $policy->assert($order,'edit_contact');
+            if(isset($input['items'])) { $policy->assert($order,'edit_items'); }
+            if(isset($input['shipping_address'])) {
+                $policy->assert($order,'edit_delivery');
+                $shipping=(array)$input['shipping_address'];
+                foreach(['address','city','county'] as $field) { if(trim((string)($shipping[$field] ?? ''))==='') { throw new InvoiceException('Completează strada, localitatea și județul pentru livrare.'); } }
+                $shipping=array_intersect_key($shipping,array_flip(['address','city','county','postal_code','country']));
+                foreach($shipping as $field=>$value) { if(!is_string($value) || mb_strlen($value)>500) { throw new InvoiceException('Adresa de livrare nu este validă.'); } $shipping[$field]=trim($value); }
+                $this->repository->update('orders',['shipping_address_json'=>InvoiceSnapshot::json($shipping)],['id'=>$orderId]);
+            }
+            $existing=$this->repository->one('invoices',['primary_order_id'=>$orderId]);
+            if($existing) {
+                // The browser carries the actual version; never replace it with a fresh one on POST.
+                $this->edit((int)$existing['id'],$input,$actor);
+            } else {
+                if(isset($input['items'])) { (new InvoiceOrderEditor($this->repository->pdo()))->apply($orderId,$input,$actor); }
+            }
+            if(!$existing && isset($input['billing'])) {
+                $customer=InvoiceSnapshot::customer($order,(array)$input['billing']);
                 $this->syncOrderCustomer($orderId,$customer,$actor);
             }
+            $this->repository->insert('audit_log',['actor_user_id'=>$actor['id'],'action'=>'order.details_edited','entity_type'=>'order','entity_id'=>$orderId,'context_json'=>InvoiceSnapshot::json(['reason'=>$input['reason'],'invoice_id'=>$existing['id'] ?? null,'shipping_before'=>json_decode($order['shipping_address_json'],true),'shipping_after'=>$input['shipping_address'] ?? null]),'created_at'=>$this->repository->now()]);
+            $this->repository->update('orders',['updated_at'=>$this->repository->now()],['id'=>$orderId]);
+            $this->repository->insert('order_document_operations',['request_key'=>$key,'order_id'=>$orderId,'action'=>'edit','payload_hash'=>$hash,'result_id'=>$existing['id'] ?? null,'created_at'=>$this->repository->now()]);
+        });
+    }
+    /** @param array<string,mixed> $actor @return array<string,mixed> */
+    public function issuanceConfirmation(int $orderId,array $actor): array
+    {
+        $this->allow($actor,'issue');
+        $data=$this->snapshots->fromOrder($orderId,[],false);
+        $settings=(new InvoiceConfigurationRepository($this->repository->pdo()))->settings();
+        return $data+['series'=>$settings['active_code'],'number'=>$this->repository->nextNumber($settings['active_code']),
+            'confirmation_hash'=>$this->hash($data),'total'=>InvoiceCalculator::totals($data['lines'])['gross_bani']];
+    }
+    /** Record the operator's verified COD balance, with an immutable before/after audit.
+     * @param array<string,mixed> $input @param array<string,mixed> $actor
+     */
+    public function setOrderPayment(int $orderId,array $input,array $actor): void
+    {
+        $this->allow($actor,'payment');
+        $this->repository->transaction(function()use($orderId,$input,$actor):void {
+            $key=$this->key($input); $hash=$this->hash([$orderId,$input]); $reason='Actualizarea stării plății din comandă';
+            $prior=$this->repository->one('order_document_operations',['request_key'=>$key]);
+            if($prior) {
+                if($prior['action']!=='payment' || $prior['payload_hash']!==$hash || (int)$prior['order_id']!==$orderId) { throw new InvoiceException('Această confirmare a fost deja folosită.',409); }
+                return;
+            }
+            $order=$this->repository->one('orders',['id'=>$orderId]) ?? throw new InvoiceException('Comanda nu există.',404);
+            if($order['payment_method']!=='cod') { throw new InvoiceException('Plata cu cardul este actualizată numai pe baza confirmării procesatorului.',409); }
+            if(!hash_equals($this->repository->paymentVersion($orderId),(string)($input['order_version'] ?? ''))) { throw new InvoiceException('Comanda s-a modificat. Redeschide formularul.',409); }
+            $cash=$this->repository->orderCash($orderId);
+            if($cash['refunded']>0 || in_array($order['payment_status'],['refunded','partially_refunded'],true)) { throw new InvoiceException('Există restituiri înregistrate. Folosește documentele de restituire pentru corectarea evidenței.',409); }
+            $documents=$this->repository->all('invoices',['order_id'=>$orderId,'deleted_at'=>null]);
+            $total=$documents!==[]?max(0,$this->repository->orderNet($orderId)):(int)$order['total_bani'];
+            $state=(string)($input['payment_status'] ?? '');
+            if(!in_array($state,['pending','partial','paid'],true)) { throw new InvoiceException('Alege starea plății.'); }
+            $amount=match($state){'pending'=>0,'paid'=>$total,default=>InvoiceCalculator::bani((string)($input['amount'] ?? '0'))};
+            if($state==='partial' && ($amount<=0 || $amount>=$total)) { throw new InvoiceException('Pentru plata parțială, suma încasată trebuie să fie mai mare de 0 și mai mică decât totalul de plată.'); }
+            if($state==='paid' && $total<=0) { throw new InvoiceException('Comanda nu mai are o valoare de încasat.'); }
+            $manual=$this->repository->one('payments',['order_id'=>$orderId,'provider'=>'manual_cod']);
+            $values=['amount_bani'=>$amount,'status'=>$amount>0?'paid':'pending','updated_at'=>$this->repository->now()];
+            if($manual) { $this->repository->update('payments',$values,['id'=>$manual['id']]); }
+            else { $this->repository->insert('payments',$values+['order_id'=>$orderId,'provider'=>'manual_cod','provider_payment_id'=>'manual-cod:'.$orderId,'currency'=>$order['currency'],'refunded_bani'=>0,'created_at'=>$this->repository->now()]); }
+            // Allocate the recorded amount once across the surviving positive documents.
+            $remaining=$amount;
+            foreach($documents as $document) {
+                if(!in_array($document['kind'],['sale','corrected_positive'],true)) { continue; }
+                $paid=min($remaining,(int)$document['gross_bani']); $remaining-=$paid;
+                // Keep the historical invoice intact after its first fiscal transmission.
+                if($document['fiscal_attempted_at']!==null || $document['fiscal_reference']!==null || !in_array($document['fiscal_state'],['unconfigured','not_sent','queued','scheduled','awaiting_configuration'],true)) { continue; }
+                $this->touch($document,['paid_bani'=>$paid,'payment_state'=>$paid===(int)$document['gross_bani']?'paid':($paid>0?'partial':'unpaid')]);
+                $this->audit((int)$document['id'],'payment_balance_updated',$actor,$reason,['paid_bani'=>$document['paid_bani']],['paid_bani'=>$paid,'external_transfer_performed'=>false]);
+            }
+            $this->repository->update('orders',['payment_status'=>$state,'updated_at'=>$this->repository->now()],['id'=>$orderId]);
+            $this->repository->insert('audit_log',['actor_user_id'=>$actor['id'],'action'=>'order.payment_updated','entity_type'=>'order','entity_id'=>$orderId,'context_json'=>InvoiceSnapshot::json(['reason'=>$reason,'before'=>['status'=>$order['payment_status'],'received_bani'=>$cash['received']],'after'=>['status'=>$state,'received_bani'=>$amount],'external_transfer_performed'=>false]),'created_at'=>$this->repository->now()]);
+            $this->repository->insert('order_document_operations',['request_key'=>$key,'order_id'=>$orderId,'action'=>'payment','payload_hash'=>$hash,'result_id'=>null,'created_at'=>$this->repository->now()]);
         });
     }
     /** @param array<string,mixed> $input @param array<string,mixed> $actor @return array<string,mixed> */
@@ -62,9 +140,76 @@ final class InvoiceService
             if($retry=$this->retry($key,'issue',$hash)) { return $retry; }
             $existing=$this->repository->one('invoices',['primary_order_id'=>$orderId]);
             if($existing) { return $this->decorate($this->load((int)$existing['id'])); }
+            if(isset($input['confirmation_hash'])) {
+                $confirmation=$this->issuanceConfirmation($orderId,$actor);
+                if(!hash_equals($confirmation['confirmation_hash'],(string)$input['confirmation_hash']) || ($input['expected_number'] ?? '')!==$confirmation['series'].' '.$confirmation['number']) {
+                    throw new InvoiceException('Comanda sau următorul număr s-a schimbat. Redeschide confirmarea înainte de emitere.',409);
+                }
+            }
             $data=$this->snapshots->fromOrder($orderId,(array)($input['billing'] ?? []));
             $invoice=$this->create('sale',$orderId,$data['snapshot'],$data['lines'],$actor,$key,null,null,'',isset($input['warehouse_id'])?(int)$input['warehouse_id']:null);
             $this->remember($key,'issue',$hash,(int)$invoice['id']); return $this->decorate($invoice);
+        });
+    }
+    /** Confirm a commercial return, independently of its optional fiscal documents.
+     * @param array<string,mixed> $input @param array<string,mixed> $actor
+     */
+    public function returnOrder(int $orderId,array $input,array $actor): int
+    {
+        $this->allow($actor,'return');
+        return $this->repository->transaction(function()use($orderId,$input,$actor):int {
+            $key=$this->key($input); $hash=$this->hash([$orderId,$input]);
+            $prior=$this->repository->one('order_document_operations',['request_key'=>$key]);
+            if($prior) {
+                if($prior['action']!=='return' || $prior['payload_hash']!==$hash || (int)$prior['order_id']!==$orderId) { throw new InvoiceException('Această confirmare a fost deja folosită pentru alte date.',409); }
+                return (int)$prior['result_id'];
+            }
+            $order=$this->repository->one('orders',['id'=>$orderId]) ?? throw new InvoiceException('Comanda nu există.',404);
+            if(!in_array($order['status'],['shipped','delivered','returned','return_requested','return_refused','return_confirmed'],true)) { throw new InvoiceException('Returul este disponibil după expedierea comenzii.'); }
+            if(isset($input['order_version']) && $input['order_version']!==$order['updated_at']) { throw new InvoiceException('Comanda s-a modificat. Redeschide returul.',409); }
+            $reason=$this->reason($input); $requested=(array)($input['quantities'] ?? []);
+            $returned=(new \App\Modules\Orders\OrderReturnAvailability($this->repository->pdo()))->returned($orderId);
+            $selected=[];
+            foreach($this->repository->all('order_items',['order_id'=>$orderId]) as $item) {
+                $raw=(string)($requested[$item['id']] ?? '0');
+                if(!preg_match('/\A[0-9]{1,9}\z/',$raw)) { throw new InvoiceException('Cantitatea trebuie să fie un număr întreg, cel puțin 0.'); }
+                $quantity=(int)$raw;
+                if($quantity>max(0,(int)$item['quantity']-($returned[(int)$item['id']] ?? 0))) { throw new InvoiceException('Cantitatea disponibilă pentru retur s-a schimbat pentru '.$item['product_name'].'.',409); }
+                if($quantity>0) { $selected[(int)$item['id']]=$quantity; }
+                unset($requested[$item['id']]);
+            }
+            if(array_filter($requested,static fn(mixed $q):bool=>(string)$q!=='0')) { throw new InvoiceException('Un produs nu aparține acestei comenzi.'); }
+            if($selected===[]) { throw new InvoiceException('Alege o cantitate mai mare decât 0 pentru cel puțin un produs.'); }
+            $issue=(string)($input['issue_invoice'] ?? '0')==='1'; $plans=[];
+            if($issue) {
+                $positive=array_values(array_filter($this->repository->all('invoices',['order_id'=>$orderId,'deleted_at'=>null]),static fn(array $i):bool=>in_array($i['kind'],['sale','corrected_positive'],true)));
+                if($positive===[]) {
+                    // Explicit operator choice: the positive invoice precedes its negative counterpart.
+                    $data=$this->snapshots->fromOrder($orderId,[],true,true);
+                    $positive[]=$this->create('sale',$orderId,$data['snapshot'],$data['lines'],$actor,$key.':positive',null,null,'',null);
+                }
+                $needed=$selected;
+                foreach($positive as $invoice) {
+                    $doc=$this->load((int)$invoice['id']); $quantities=[];
+                    foreach($doc['lines'] as $line) {
+                        if($line['kind']!=='product') { continue; }
+                        $itemId=(int)$line['order_item_id'];
+                        $left=max(0,(int)$line['quantity_units']-$this->repository->creditedUnits((int)$line['id']));
+                        $take=min(($needed[$itemId] ?? 0)*10000,$left);
+                        if($take>0) { $quantities[$line['id']]=InvoiceCalculator::quantity($take); $needed[$itemId]-=intdiv($take,10000); }
+                    }
+                    if($quantities!==[]) { $plans[]=['document'=>$doc,'quantities'=>$quantities]; }
+                }
+                if(array_sum($needed)>0) { throw new InvoiceException('Unele cantități nu mai sunt disponibile pe facturile comenzii. Verifică documentele de corecție.',409); }
+            }
+            // Physical receipt and money transfers are separate explicit operations.
+            $returnId=(new \App\Modules\Orders\OrderService($this->repository->pdo()))->registerReturn($orderId,$selected,$reason,(string)($input['notes'] ?? ''),false,'none',0,(int)$actor['id'],(string)($input['notify_customer'] ?? '0')==='1');
+            foreach($plans as $index=>$plan) {
+                $credit=$this->credit((int)$plan['document']['id'],['request_key'=>$key.':credit:'.$index,'version'=>$plan['document']['row_version'],'reason'=>$reason,'quantities'=>$plan['quantities']],$actor);
+                $this->repository->insert('order_return_documents',['return_id'=>$returnId,'invoice_id'=>$credit['id']]);
+            }
+            $this->repository->insert('order_document_operations',['request_key'=>$key,'order_id'=>$orderId,'action'=>'return','payload_hash'=>$hash,'result_id'=>$returnId,'created_at'=>$this->repository->now()]);
+            return $returnId;
         });
     }
     /** @param array<string,mixed> $input @param array<string,mixed> $actor @return array<string,mixed> */
@@ -155,6 +300,9 @@ final class InvoiceService
         return $this->repository->transaction(function()use($id,$input,$actor):array {
             $key=$this->key($input); $hash=$this->hash([$id,$input]); if($retry=$this->retry($key,'edit',$hash)) { return $retry; }
             $invoice=$this->load($id); $this->version($invoice,$input); $this->unlocked($invoice); $reason=$this->reason($input);
+            $order=$this->repository->one('orders',['id'=>$invoice['order_id']]) ?? throw new InvoiceException('Comanda nu există.');
+            $policy=new OrderDocumentPolicy($this->repository); $policy->assert($order,'edit_contact');
+            if(isset($input['items'])) { $policy->assert($order,'edit_items'); }
             if($invoice['kind']!=='sale' || $this->repository->children($id)!==[]) { throw new InvoiceException('Această factură are documente dependente. Folosește un document de corecție.',409); }
             $snapshot=$invoice['snapshot']; $financial=[];
             if(isset($input['items'])) {
@@ -175,11 +323,17 @@ final class InvoiceService
                 $financial['payment_state']=(int)$invoice['paid_bani']>=$financial['gross_bani']?'paid':((int)$invoice['paid_bani']>0?'partial':'unpaid');
             }
             $customer=array_replace($snapshot['customer'],(array)($input['billing'] ?? [])); InvoiceSnapshot::validateCustomer($customer); $snapshot['customer']=$customer;
+            $latestOrder=$this->repository->one('orders',['id'=>$invoice['order_id']]);
+            $snapshot['shipping_address']=json_decode($latestOrder['shipping_address_json'],true,512,JSON_THROW_ON_ERROR);
             if(isset($input['billing'])) { $this->syncOrderCustomer((int)$invoice['order_id'],$customer,$actor); }
             $notes=trim((string)($input['notes'] ?? $invoice['notes'])); if(mb_strlen($notes)>5000) { throw new InvoiceException('Notele sunt prea lungi.'); }
             $currentLines=$this->repository->all('invoice_lines',['invoice_id'=>$id]);
             $this->touch($invoice,$financial+['snapshot_json'=>InvoiceSnapshot::json($snapshot),'notes'=>$notes,'email_state'=>$invoice['email_state']==='not_sent'?'not_sent':'needs_resend','search_text'=>$this->search(array_replace($invoice,$financial),$snapshot,$currentLines)]);
             $this->cancelQueuedEmail($id);
+            $job=$this->repository->one('invoice_fiscal_jobs',['invoice_id'=>$id]);
+            if($job && $invoice['fiscal_attempted_at']===null) {
+                $this->repository->update('invoice_fiscal_jobs',['payload_hash'=>self::documentHash($this->load($id)),'updated_at'=>$this->repository->now()],['invoice_id'=>$id]);
+            }
             $updated=$this->load($id); $this->audit($id,'edited',$actor,$reason,$invoice,$updated); $this->remember($key,'edit',$hash,$id); return $this->decorate($updated);
         });
     }
@@ -205,7 +359,7 @@ final class InvoiceService
             $key=$this->key($input); $hash=$this->hash([$id,$input]); if($retry=$this->retry($key,'receive',$hash)) { return $retry; }
             $invoice=$this->load($id); $this->version($invoice,$input);
             if(!in_array($invoice['kind'],['return','correction_negative'],true)) { throw new InvoiceException('Primirea fizică se înregistrează pentru un retur sau storno.'); }
-            if($this->repository->one('invoice_receipts',['invoice_id'=>$id])) { throw new InvoiceException('Primirea produselor a fost deja înregistrată.',409); }
+            if($this->repository->one('invoice_receipts',['invoice_id'=>$id]) || (new \App\Modules\Inventory\ReturnStockLinks($this->repository->pdo()))->nirForInvoice($id)) { throw new InvoiceException('Primirea produselor a fost deja înregistrată.',409); }
             $plans=[]; $hasProduct=false;
             foreach($invoice['lines'] as $line) {
                 if($line['kind']!=='product' || (int)$line['quantity_units']>=0) { continue; } $hasProduct=true;
@@ -241,14 +395,20 @@ final class InvoiceService
                 if($amount>$cash['received']-$cash['refunded']) { throw new InvoiceException('Nu poți înregistra o restituire mai mare decât banii încasați efectiv pentru comandă.'); }
                 $this->repository->insert('invoice_refunds',['invoice_id'=>$id,'amount_bani'=>$amount,'reference'=>$reason,'actor_id'=>$actor['id'],'created_at'=>$this->repository->now()]);
                 $this->repository->update('orders',['payment_status'=>$cash['refunded']+$amount===$cash['received']?'refunded':'partially_refunded','updated_at'=>$this->repository->now()],['id'=>$invoice['order_id']]);
-                $this->touch($invoice,[]);
+                if($invoice['fiscal_attempted_at']===null && $invoice['fiscal_reference']===null && in_array($invoice['fiscal_state'],['unconfigured','not_sent','queued','scheduled','awaiting_configuration'],true)) { $this->touch($invoice,[]); }
             } else {
                 if($invoice['payment_method']==='stripe') { throw new InvoiceException('Încasarea online este stabilită numai de procesatorul de plăți.'); }
                 $cash=$this->repository->orderCash((int)$invoice['order_id']);
                 if($amount>max(0,$this->repository->orderNet((int)$invoice['order_id'])-$cash['received']+$cash['refunded'])) { throw new InvoiceException('Suma depășește restul de plată al comenzii, după retururi și corecții.'); }
                 $paid=(int)$invoice['paid_bani']+$amount; if($paid>(int)$invoice['gross_bani']) { throw new InvoiceException('Suma depășește restul de plată.'); }
-                $this->touch($invoice,['paid_bani'=>$paid,'payment_state'=>$paid===(int)$invoice['gross_bani']?'paid':'partial']);
-                if($cash['received']+$amount-$cash['refunded'] >= $this->repository->orderNet((int)$invoice['order_id'])) { $this->repository->update('orders',['payment_status'=>'paid','updated_at'=>$this->repository->now()],['id'=>$invoice['order_id']]); }
+                if($invoice['fiscal_attempted_at']===null && $invoice['fiscal_reference']===null && in_array($invoice['fiscal_state'],['unconfigured','not_sent','queued','scheduled','awaiting_configuration'],true)) {
+                    $this->touch($invoice,['paid_bani'=>$paid,'payment_state'=>$paid===(int)$invoice['gross_bani']?'paid':'partial']);
+                }
+                $manual=$this->repository->one('payments',['order_id'=>$invoice['order_id'],'provider'=>'manual_cod']);
+                if($manual) { $this->repository->update('payments',['amount_bani'=>$cash['received']+$amount,'status'=>'paid','updated_at'=>$this->repository->now()],['id'=>$manual['id']]); }
+                else { $this->repository->insert('payments',['order_id'=>$invoice['order_id'],'provider'=>'manual_cod','provider_payment_id'=>'manual-cod:'.$invoice['order_id'],'amount_bani'=>$cash['received']+$amount,'status'=>'paid','currency'=>$invoice['currency'],'refunded_bani'=>0,'created_at'=>$this->repository->now(),'updated_at'=>$this->repository->now()]); }
+                $state=$cash['received']+$amount-$cash['refunded'] >= $this->repository->orderNet((int)$invoice['order_id'])?'paid':'partial';
+                $this->repository->update('orders',['payment_status'=>$state,'updated_at'=>$this->repository->now()],['id'=>$invoice['order_id']]);
             }
             $this->audit($id,'payment_recorded',$actor,$reason,['paid_bani'=>$invoice['paid_bani']],['amount_bani'=>$amount,'external_transfer_performed'=>false]);
             $this->remember($key,'payment',$hash,$id); return $this->decorate($this->load($id));
@@ -264,6 +424,8 @@ final class InvoiceService
             $invoice=$this->load($id); $this->version($invoice,$input); $this->unlocked($invoice); $reason=$this->reason($input);
             if($this->deleteBlocker($invoice)!=='') { throw new InvoiceException($this->deleteBlocker($invoice),409); }
             $before=$this->decorate($invoice);
+            $returnNir=(new \App\Modules\Inventory\ReturnStockLinks($this->repository->pdo()))->nirForInvoice($id);
+            if($returnNir) { (new \App\Modules\Inventory\NirService($this->repository->pdo()))->delete((int)$returnNir['id'],(int)$returnNir['row_version'],$actor); }
             $receipt=$this->repository->one('invoice_receipts',['invoice_id'=>$id]);
             if($receipt) { $this->stock->undoReceipt((int)$receipt['id'],$actor); $this->repository->update('invoice_receipts',['reversed_at'=>$this->repository->now()],['id'=>$receipt['id']]); }
             if(in_array($invoice['kind'],['sale','corrected_positive'],true)) { foreach($invoice['lines'] as $line) { $this->stock->undoIssue($line,$actor,'delete-invoice:'.$id.':'.$line['id']); } }
@@ -275,7 +437,7 @@ final class InvoiceService
                 if($order['status']==='returned') { $changes['status']=$snapshot['order_status_before']; }
                 $cash=$this->repository->orderCash((int)$invoice['order_id']);
                 $restoredTotal=$this->repository->orderNet((int)$invoice['order_id'])-(int)$invoice['gross_bani'];
-                if($cash['refunded']===0) { $changes['payment_status']=$cash['received']>0 && $cash['received'] >= $restoredTotal?'paid':'pending'; }
+                if($cash['refunded']===0) { $changes['payment_status']=$cash['received']>0?($cash['received'] >= $restoredTotal?'paid':'partial'):'pending'; }
                 $this->repository->update('orders',$changes,['id'=>$invoice['order_id']]);
             }
             foreach($this->repository->all('invoice_public_links',['invoice_id'=>$id,'revoked_at'=>null]) as $link) { $this->repository->update('invoice_public_links',['revoked_at'=>$this->repository->now()],['id'=>$link['id']]); }
@@ -287,10 +449,12 @@ final class InvoiceService
     /** @param array<string,mixed> $invoice */
     public function deleteBlocker(array $invoice): string
     {
-        if($invoice['fiscal_attempted_at']!==null || $invoice['fiscal_reference']!==null || !in_array($invoice['fiscal_state'],['unconfigured','not_sent'],true)) { return 'Documentul este blocat de o încercare de transmitere fiscală.'; }
+        if($invoice['fiscal_attempted_at']!==null || $invoice['fiscal_reference']!==null || !in_array($invoice['fiscal_state'],['unconfigured','not_sent','queued','scheduled','awaiting_configuration'],true)) { return 'Documentul este blocat de o încercare de transmitere fiscală.'; }
         if($this->repository->latestId()!==(int)$invoice['id']) { return 'Se poate șterge numai ultimul document emis.'; }
         if($this->repository->children((int)$invoice['id'])!==[]) { return 'Documentul are retururi sau corecții asociate.'; }
         if($this->repository->all('invoice_refunds',['invoice_id'=>$invoice['id']])!==[]) { return 'Pentru acest document este înregistrată o restituire de bani.'; }
+        $returnNir=(new \App\Modules\Inventory\ReturnStockLinks($this->repository->pdo()))->nirForInvoice((int)$invoice['id']);
+        if($returnNir && (new \App\Modules\Inventory\NirRepository($this->repository->pdo()))->lastConfirmedId()!==(int)$returnNir['id']) { return 'NIR-ul de retur asociat nu este ultimul document confirmat. Verifică documentele de stoc înainte de ștergere.'; }
         if($this->repository->one('invoice_return_requests',['invoice_id'=>$invoice['id'],'state'=>'pending'])) { return 'Există o solicitare de retur în analiză pentru acest document.'; }
         return '';
     }
@@ -343,7 +507,7 @@ final class InvoiceService
         $pending=[];
         foreach(['return','correction_negative'] as $kind) {
             foreach($this->repository->all('invoices',['kind'=>$kind,'deleted_at'=>null]) as $invoice) {
-                if($this->repository->one('invoice_receipts',['invoice_id'=>$invoice['id']])) { continue; }
+                if($this->repository->one('invoice_receipts',['invoice_id'=>$invoice['id']]) || (new \App\Modules\Inventory\ReturnStockLinks($this->repository->pdo()))->nirForInvoice((int)$invoice['id'])) { continue; }
                 if($this->repository->one('invoice_lines',['invoice_id'=>$invoice['id'],'kind'=>'product'])) { $pending[]=$this->brief($invoice); }
             }
         }
@@ -502,14 +666,22 @@ final class InvoiceService
             $lineId=$this->repository->insert('invoice_lines',$line); $line['id']=$lineId;
             if($positive) { $this->stock->issue($line,$actor); }
         }
-        $invoice=$this->load($id); $this->audit($id,'issued',$actor,$reason,[],$invoice); return $invoice;
+        $invoice=$this->load($id); (new SpvSchedule($this->repository->pdo()))->sync($invoice); $invoice=$this->load($id); $this->audit($id,'issued',$actor,$reason,[],$invoice); return $invoice;
     }
     /** @param array<string,mixed> $invoice @param array<string,mixed> $data */
-    private function touch(array $invoice,array $data): void { $this->repository->update('invoices',$data+['row_version'=>(int)$invoice['row_version']+1,'updated_at'=>$this->repository->now()],['id'=>$invoice['id']]); }
+    private function touch(array $invoice,array $data): void
+    {
+        $this->repository->update('invoices',$data+['row_version'=>(int)$invoice['row_version']+1,'updated_at'=>$this->repository->now()],['id'=>$invoice['id']]);
+        if(!empty($data['deleted_at'])) {
+            $this->repository->pdo()->prepare('DELETE FROM invoice_fiscal_jobs WHERE invoice_id=?')->execute([$invoice['id']]);
+            return;
+        }
+        (new SpvSchedule($this->repository->pdo()))->sync($this->load((int)$invoice['id']));
+    }
     /** @param array<string,mixed> $invoice @param array<string,mixed> $input */
     private function version(array $invoice,array $input): void { if((string)($input['version'] ?? '')!==(string)$invoice['row_version']) { throw new InvoiceException('Documentul a fost schimbat în altă fereastră. Reîncarcă înainte de a continua.',409); } }
     /** @param array<string,mixed> $invoice */
-    private function unlocked(array $invoice): void { if($invoice['fiscal_attempted_at']!==null || $invoice['fiscal_reference']!==null || !in_array($invoice['fiscal_state'],['unconfigured','not_sent'],true)) { throw new InvoiceException('Documentul a intrat în fluxul fiscal și nu mai poate fi modificat sau șters.',409); } }
+    private function unlocked(array $invoice): void { if($invoice['fiscal_attempted_at']!==null || $invoice['fiscal_reference']!==null || !in_array($invoice['fiscal_state'],['unconfigured','not_sent','queued','scheduled','awaiting_configuration'],true)) { throw new InvoiceException('Documentul a intrat în fluxul fiscal și nu mai poate fi modificat sau șters.',409); } }
     /** @param array<string,mixed> $input */
     private function reason(array $input): string { $reason=trim((string)($input['reason'] ?? '')); if(mb_strlen($reason)<3 || mb_strlen($reason)>2000) { throw new InvoiceException('Completează un motiv clar, între 3 și 2.000 de caractere.'); } return $reason; }
     /** @param array<string,mixed> $input */
@@ -550,6 +722,7 @@ final class InvoiceService
     {
         $invoice=$this->brief($invoice); $invoice['related']=array_map(fn(array $row):array=>$this->brief($row),$this->repository->children((int)$invoice['id']));
         $invoice['parent']=$invoice['parent_id']?$this->repository->one('invoices',['id'=>$invoice['parent_id']]):null;
+        $invoice['receipt_nir']=(new \App\Modules\Inventory\ReturnStockLinks($this->repository->pdo()))->nirForInvoice((int)$invoice['id']);
         $invoice['receipt']=$this->repository->one('invoice_receipts',['invoice_id'=>$invoice['id']]);
         if($invoice['receipt']) {
             $invoice['receipt']['lines']=json_decode($invoice['receipt']['lines_json'],true,512,JSON_THROW_ON_ERROR);
@@ -561,7 +734,7 @@ final class InvoiceService
         $invoice['refunded_bani']=array_sum(array_column($invoice['refunds'],'amount_bani'));
         $invoice['return_requests']=$this->repository->all('invoice_return_requests',['invoice_id'=>$invoice['id']]);
         foreach($invoice['return_requests'] as &$request) { $request['details']=json_decode($request['request_json'],true,512,JSON_THROW_ON_ERROR); $request['decisions']=json_decode($request['decision_json'],true,512,JSON_THROW_ON_ERROR); } unset($request);
-        $invoice['delete_blocker']=$this->deleteBlocker($invoice); $invoice['editable']=$invoice['kind']==='sale' && $invoice['related']===[] && $invoice['fiscal_attempted_at']===null && $invoice['fiscal_reference']===null && in_array($invoice['fiscal_state'],['unconfigured','not_sent'],true);
+        $invoice['delete_blocker']=$this->deleteBlocker($invoice); $invoice['editable']=$invoice['kind']==='sale' && $invoice['related']===[] && $invoice['fiscal_attempted_at']===null && $invoice['fiscal_reference']===null && in_array($invoice['fiscal_state'],['unconfigured','not_sent','queued','scheduled','awaiting_configuration'],true);
         foreach($invoice['lines'] as &$line) {
             $line['snapshot']=json_decode($line['snapshot_json'],true,512,JSON_THROW_ON_ERROR);
             $line['quantity_display']=InvoiceCalculator::quantity((int)$line['quantity_units']); $line['total_display']=InvoiceCalculator::money((int)$line['gross_bani'],$invoice['currency']);

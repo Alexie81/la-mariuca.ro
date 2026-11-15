@@ -1,0 +1,6 @@
+{% import 'admin/partials/nir-ui.twig' as n %}
+<section class="order-payment-card" aria-labelledby="order-payment-title">
+<header><span class="order-payment-card__icon">{{ n.icon(order.payment_status == 'paid' ? 'check' : 'money') }}</span><div><span class="order-kicker">Încasarea comenzii</span><h2 id="order-payment-title">Starea plății</h2></div></header>
+<div class="order-payment-card__status"><span class="order-pill order-pill--payment-{{ order.payment_status }}"><i aria-hidden="true"></i>{{ order.payment_status_label }}</span><small>{{ order.payment_method == 'cod' ? 'Ramburs' : 'Card online · Stripe' }}</small></div>
+{% if can_manage_documents and order.payment_method == 'cod' %}<a class="order-billing__action order-billing__action--secondary" href="{{ url('admin/facturi/0/order-payment/?order=' ~ order.id ~ '&return_to=order') }}" data-iv-modal>{{ n.icon('edit') }}<span>Modifică starea plății</span>{{ n.icon('chevron') }}</a>{% else %}<p>{{ order.payment_method == 'stripe' ? 'Se actualizează automat la confirmarea procesatorului.' : 'Starea încasării este administrată de un manager.' }}</p>{% endif %}
+</section>

@@ -10,10 +10,10 @@ final class InvoiceSnapshot
 {
     public function __construct(private readonly PDO $pdo,private readonly string $root) {}
     /** @param array<string,mixed> $billing @return array{snapshot:array<string,mixed>,lines:list<array<string,mixed>>} */
-    public function fromOrder(int $orderId,array $billing=[],bool $validate=true): array
+    public function fromOrder(int $orderId,array $billing=[],bool $validate=true,bool $returnPair=false): array
     {
         $order=(new OrderService($this->pdo))->findForAdmin($orderId) ?? throw new InvoiceException('Comanda nu există.',404);
-        if(in_array($order['status'],['cancelled','returned','manual_review'],true)) { throw new InvoiceException('Comanda nu este eligibilă pentru emiterea unei facturi.'); }
+        if(in_array($order['status'],['cancelled','manual_review'],true) || ($order['status']==='returned' && !$returnPair)) { throw new InvoiceException('Comanda nu este eligibilă pentru emiterea unei facturi.'); }
         if($order['payment_method']==='stripe' && $order['payment_status']!=='paid') { throw new InvoiceException('Factura cu card se emite numai după plata confirmată de procesator.'); }
         if(in_array($order['payment_status'],['refunded','partially_refunded'],true)) { throw new InvoiceException('Verifică rambursarea comenzii înainte de facturare.'); }
         if($order['currency']!=='RON') { throw new InvoiceException('Această comandă necesită un curs valutar înainte de facturare.'); }
@@ -21,15 +21,7 @@ final class InvoiceSnapshot
         foreach(['legal_name','tax_id','registered_address','city','country'] as $field) {
             if(trim((string)$company[$field])==='') { throw new InvoiceException('Completează denumirea legală, CUI și sediul firmei în Detaliile firmei.'); }
         }
-        $customer=['name'=>trim($order['first_name'].' '.$order['last_name']),'email'=>$order['email'],'phone'=>$order['phone'],
-            'type'=>$order['customer_type'],'company'=>$order['company'],'address'=>$order['billing_address']];
-        // Historical checkout addresses are Romanian-only and predate the country field.
-        if(!isset($customer['address']['country'])) { $code=$customer['address']['country_code'] ?? 'RO'; $customer['address']['country']=$code==='RO'?'România':$code; }
-        if($billing!==[]) {
-            foreach(['name','email','phone','type'] as $field) { if(isset($billing[$field])) { $customer[$field]=trim((string)$billing[$field]); } }
-            foreach(['address','company'] as $field) { if(isset($billing[$field]) && is_array($billing[$field])) { $customer[$field]=$billing[$field]; } }
-        }
-        if($validate) { self::validateCustomer($customer); }
+        $customer=self::customer($order,$billing,$validate);
         $vat=(bool)$company['is_vat_payer']?(int)$company['vat_rate_basis_points']:0;
         $subtotal=(int)$order['subtotal_bani']; $discount=(int)$order['discount_bani'];
         if($subtotal<=0 || $discount<0 || $discount>$subtotal || $order['items']===[]) { throw new InvoiceException('Totalurile comenzii nu permit emiterea.'); }
@@ -50,12 +42,31 @@ final class InvoiceSnapshot
         return ['snapshot'=>['company'=>$company,'customer'=>$customer,'order_number'=>$order['order_number'],'order_id'=>$orderId,'order_created_at'=>$order['created_at'],
             'order_status_before'=>$order['status'],'order_payment_before'=>$order['payment_status'],'shipping_address'=>$order['shipping_address'],
             'shipping_method'=>$order['shipping_method_name'],'currency'=>$order['currency'],'payment_method'=>$order['payment_method'],
-            'paid_bani'=>$order['payment_status']==='paid'?(int)$order['total_bani']:0,'logo_data'=>$this->image('/assets/images/logo-la-mariuca-transparent.png')], 'lines'=>$lines];
+            'paid_bani'=>(new InvoiceRepository($this->pdo))->orderCash($orderId)['received'],'logo_data'=>$this->image('/assets/images/logo-la-mariuca-transparent.png')], 'lines'=>$lines];
     }
     /** @return array<string,mixed> */
     public static function serviceIdentity(string $name,string $kind): array
     {
         return ['order_item_id'=>null,'product_id'=>null,'variant_id'=>null,'kind'=>$kind,'name'=>$name,'sku'=>'','unit'=>'serv','scope_type'=>null,'scope_id'=>null,'snapshot_json'=>'{}'];
+    }
+    /** Contact preparation does not depend on payment or company readiness for invoice issue.
+     * @param array<string,mixed> $order @param array<string,mixed> $billing @return array<string,mixed>
+     */
+    public static function customer(array $order,array $billing=[],bool $validate=true): array
+    {
+        $customer=['name'=>trim($order['first_name'].' '.$order['last_name']),'email'=>$order['email'],'phone'=>$order['phone'],
+            'type'=>$order['customer_type'],'company'=>$order['company'] ?? json_decode($order['company_json'],true,512,JSON_THROW_ON_ERROR),
+            'address'=>$order['billing_address'] ?? json_decode($order['billing_address_json'],true,512,JSON_THROW_ON_ERROR)];
+        if(!isset($customer['address']['country'])) { $code=$customer['address']['country_code'] ?? 'RO'; $customer['address']['country']=$code==='RO'?'România':$code; }
+        foreach(['name','email','phone','type'] as $field) { if(isset($billing[$field])) { if(!is_string($billing[$field]) || mb_strlen($billing[$field])>254) { throw new InvoiceException('Datele clientului nu sunt valide.'); } $customer[$field]=trim($billing[$field]); } }
+        foreach(['address','company'] as $field) {
+            if(!isset($billing[$field])) { continue; }
+            if(!is_array($billing[$field])) { throw new InvoiceException('Datele de facturare nu sunt valide.'); }
+            foreach($billing[$field] as $value) { if(!is_string($value) || mb_strlen($value)>500) { throw new InvoiceException('Datele de facturare nu sunt valide.'); } }
+            $customer[$field]=$billing[$field];
+        }
+        if($validate) { self::validateCustomer($customer); }
+        return $customer;
     }
     /** @param array<string,mixed> $customer */
     public static function validateCustomer(array $customer): void

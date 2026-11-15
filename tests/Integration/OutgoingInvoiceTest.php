@@ -31,6 +31,54 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         $this->service=new InvoiceService(new InvoiceRepository($this->pdo),new InvoiceSnapshot($this->pdo,$this->root),new InvoiceStockService($this->pdo));
     }
     protected function tearDown(): void { unset($this->service); parent::tearDown(); }
+    public function testStockJournalMatchesDocumentsAndSeparatesOnlineAvailability(): void
+    {
+        $repository=new \App\Modules\Inventory\StockLedgerRepository($this->pdo);
+        $ledger=new \App\Modules\Inventory\StockLedgerService($repository);
+        $id=(int)$this->variant['product_id'];
+        $invoice=$this->service->issue($this->order(2),['request_key'=>'journal-sale'],$this->actor);
+        $detail=$ledger->detail($id,[],$this->actor);
+        self::assertSame(-20000,$detail['current_units']); self::assertTrue($detail['consistent']);
+        self::assertSame(20000,$detail['outgoing_units']); self::assertSame(0,$detail['incoming_units']);
+        self::assertSame('LM 1',$detail['movements'][0]['document']);
+        self::assertNull($detail['movements'][0]['cost_bani']);
+        $this->purchase(3,'40','JOURNAL-PURCHASE');
+        $detail=$ledger->detail($id,[],$this->actor);
+        self::assertSame(10000,$detail['current_units']); self::assertSame(10000,$detail['closing_units']); self::assertTrue($detail['consistent']);
+        self::assertSame(8000,$detail['movements'][0]['cost_bani']);
+        $online=$detail['online'];
+        $this->service->delete($invoice['id'],['request_key'=>'journal-delete','version'=>$invoice['row_version'],'reason'=>'Verificare jurnal'],$this->actor);
+        $detail=$ledger->detail($id,[],$this->actor); self::assertSame(30000,$detail['current_units']); self::assertTrue($detail['consistent']); self::assertSame($online,$detail['online']);
+        $ledger->threshold($id,'4',$this->actor);
+        $rows=$ledger->registry(['q'=>$this->variant['sku'],'alert'=>'low'],$this->actor);
+        self::assertCount(1,$rows['items']); self::assertSame('3',$rows['items'][0]['quantity']); self::assertSame('low',$rows['items'][0]['alert']);
+    }
+    public function testStockExportsPreserveNumericCellsNoTrailingDotsAndProtectFormulaText(): void
+    {
+        $this->purchase(3,'40','EXPORT-PURCHASE');
+        $repository=new \App\Modules\Inventory\StockLedgerRepository($this->pdo); $ledger=new \App\Modules\Inventory\StockLedgerService($repository);
+        $exports=new \App\Modules\Inventory\StockLedgerExportService($this->root);
+        $data=$ledger->registry(['q'=>$this->variant['sku']],$this->actor,true); $data['items'][0]['name']='=HYPERLINK("https://invalid.test")';
+        $file=$exports->registry($data,$repository->companyProfile());
+        try {
+            $book=\PhpOffice\PhpSpreadsheet\IOFactory::load($file['path']); $sheet=$book->getActiveSheet();
+            self::assertSame('s',$sheet->getCell('A7')->getDataType()); self::assertSame('n',$sheet->getCell('E7')->getDataType());
+            self::assertSame('3',$sheet->getCell('E7')->getFormattedValue()); self::assertSame(120,$sheet->getCell('I7')->getValue());
+            $book->disconnectWorksheets();
+        } finally { $exports->cleanup($file['path']); }
+        $detail=$ledger->detail((int)$this->variant['product_id'],[],$this->actor); $detail['product']['name']='=1+1';
+        $file=$exports->product($detail,$repository->companyProfile());
+        try { $book=\PhpOffice\PhpSpreadsheet\IOFactory::load($file['path']); $sheet=$book->getActiveSheet(); self::assertSame('s',$sheet->getCell('D3')->getDataType()); self::assertSame('3',$sheet->getCell('F11')->getFormattedValue()); $book->disconnectWorksheets(); }
+        finally { $exports->cleanup($file['path']); }
+    }
+    public function testStockLedgerRejectsInvalidPeriodAndUnauthorizedThresholdChanges(): void
+    {
+        $ledger=new \App\Modules\Inventory\StockLedgerService(new \App\Modules\Inventory\StockLedgerRepository($this->pdo)); $id=(int)$this->variant['product_id'];
+        foreach([['from'=>'2026-02-30'],['from'=>'2026-12-01','to'=>'2026-01-01']] as $filters) {
+            try { $ledger->detail($id,$filters,$this->actor); self::fail('Invalid interval accepted'); } catch(InvoiceException $e) { self::assertNotSame('',$e->getMessage()); }
+        }
+        $this->expectException(InvoiceException::class); $ledger->threshold($id,'4',['id'=>0,'role'=>'administrator']);
+    }
     public function testIssueFreezesSnapshotAndDeduplicatesWithoutOnlineStockChanges(): void
     {
         $order=$this->order(2); $online=$this->pdo->query('SELECT * FROM inventory ORDER BY variant_id')->fetchAll();
@@ -56,6 +104,41 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         $this->service->delete($invoice['id'],['request_key'=>'delete-last-sale','version'=>$invoice['row_version'],'reason'=>'Corectare test'],$this->actor);
         self::assertSame(100000,$this->balance());
         $again=$this->service->issue((int)$invoice['order_id'],['request_key'=>'reissue-same-order'],$this->actor); self::assertSame(1,$again['number']); self::assertSame(40000,$this->balance());
+    }
+    public function testInvoiceBeforeAnyNirShowsNegativeBalanceUntilPurchaseIsEntered(): void
+    {
+        $order=$this->order(2); self::assertSame(0,$this->balance());
+        $online=$this->pdo->query('SELECT * FROM inventory ORDER BY variant_id')->fetchAll();
+        $invoice=$this->service->issue($order,['request_key'=>'negative-before-purchase'],$this->actor);
+        self::assertSame(-20000,$this->balance());
+        $this->purchase(2,'40','LATE-EXACT');
+        self::assertSame(0,$this->balance());
+        self::assertSame(0,$this->service->document($invoice['id'],$this->actor)['lines'][0]['pending_units']);
+        self::assertSame($online,$this->pdo->query('SELECT * FROM inventory ORDER BY variant_id')->fetchAll());
+    }
+    public function testIssuanceConfirmationRejectsChangesAndNeverConsumesANumber(): void
+    {
+        $order=$this->order(1); $confirmation=$this->service->issuanceConfirmation($order,$this->actor);
+        self::assertSame(1,$confirmation['number']);
+        $this->pdo->exec("UPDATE orders SET first_name='Schimbat' WHERE id=".$order);
+        try {
+            $this->service->issue($order,['request_key'=>'stale-confirmation','confirmation_hash'=>$confirmation['confirmation_hash'],'expected_number'=>$confirmation['series'].' '.$confirmation['number']],$this->actor);
+            self::fail('A stale confirmation was accepted');
+        } catch(InvoiceException $e) { self::assertSame(409,$e->getCode()); }
+        self::assertSame(0,$this->balance());
+        self::assertSame(0,(int)$this->pdo->query('SELECT COUNT(*) FROM invoices')->fetchColumn());
+    }
+    public function testEditingFromOrderRevisesSameInvoiceAndShippingWithoutAdditionalStockExit(): void
+    {
+        $orderId=$this->order(2); $invoice=$this->service->issue($orderId,['request_key'=>'order-edit-existing'],$this->actor);
+        $order=(new InvoiceRepository($this->pdo))->one('orders',['id'=>$orderId]);
+        $shipping=['address'=>'Strada nouă 2','city'=>'Iași','county'=>'Iași','country'=>'RO','postal_code'=>''];
+        $this->service->editOrder($orderId,['request_key'=>'edit-order-existing','order_version'=>$order['updated_at'],'version'=>$invoice['row_version'],'reason'=>'Corectare date client','billing'=>['name'=>'Maria Pop','email'=>'maria@example.test'],'shipping_address'=>$shipping],$this->actor);
+        $updated=$this->service->load($invoice['id']);
+        self::assertSame($invoice['number'],$updated['number']); self::assertSame($invoice['series_code'],$updated['series_code']);
+        self::assertSame('Maria Pop',$updated['snapshot']['customer']['name']); self::assertSame($shipping,$updated['snapshot']['shipping_address']);
+        self::assertSame(-20000,$this->balance()); self::assertSame(1,(int)$this->pdo->query('SELECT COUNT(*) FROM invoices')->fetchColumn());
+        self::assertNotSame($invoice['content_hash'] ?? $invoice['snapshot_json'],$updated['content_hash'] ?? $updated['snapshot_json']);
     }
     public function testCreditDoesNotRestockUntilReceiptAndDeletionUndoesIt(): void
     {
@@ -240,7 +323,8 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         $_SESSION['user_id']=$this->actor['id'];
         self::assertSame(200,$send('GET','/admin/facturi/')->getStatusCode());
         self::assertSame(419,$send('POST','/admin/facturi/emite/',['order_id'=>$order,'request_key'=>'http-issue-test'])->getStatusCode());
-        $response=$send('POST','/admin/facturi/emite/',['_csrf'=>$_SESSION['_csrf'],'order_id'=>$order,'request_key'=>'http-issue-test']);
+        $confirmation=$this->service->issuanceConfirmation($order,$this->actor);
+        $response=$send('POST','/admin/facturi/emite/',['_csrf'=>$_SESSION['_csrf'],'order_id'=>$order,'request_key'=>'http-issue-test','confirmation_hash'=>$confirmation['confirmation_hash'],'expected_number'=>$confirmation['series'].' '.$confirmation['number']]);
         self::assertSame(200,$response->getStatusCode(),(string)$response->getBody());
         $result=json_decode((string)$response->getBody(),true);
         self::assertSame('/admin/facturi/'.$this->pdo->query('SELECT id FROM invoices')->fetchColumn().'/',$result['redirect']);
@@ -290,9 +374,11 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         $this->service->delete($credit['id'],['request_key'=>'registry-filters-delete','version'=>1,'reason'=>'Corectare retur'],$this->actor);
         $order=$repo->one('orders',['id'=>$invoice['order_id']]);
         self::assertSame('delivered',$order['status']);
-        self::assertSame('pending',$order['payment_status']);
+        self::assertSame('partial',$order['payment_status']);
         self::assertSame($net,$repo->orderCash($invoice['order_id'])['received']);
-        self::assertSame(1,$repo->registry(['fiscal_state'=>'unconfigured'])['total']);
+        // Manual SPV mode leaves an issued document unsent, without a transmission job.
+        self::assertSame(1,$repo->registry(['fiscal_state'=>'not_sent'])['total']);
+        self::assertSame(0,(int)$this->pdo->query('SELECT COUNT(*) FROM invoice_fiscal_jobs')->fetchColumn());
     }
 
     public function testAllAdminFormsAndPrivateExportsHaveWorkingHttpResponses(): void
@@ -421,10 +507,14 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         self::assertStringContainsString('name="return_to" value="order"',$html);
         self::assertStringContainsString('name="order_id" value="'.$orderId.'"',$html);
         self::assertStringNotContainsString('data-iv-order',$html);
+        self::assertStringNotContainsString('name="billing[',$html);
+        self::assertStringContainsString('Stoc contabil actualizat',$html);
         $standalone=$app->handle($get);self::assertSame(200,$standalone->getStatusCode());
         self::assertStringContainsString('Înapoi la comandă',(string)$standalone->getBody());
         self::assertSame(0,(int)$this->pdo->query('SELECT COUNT(*) FROM invoices')->fetchColumn());
         $input=['_csrf'=>$_SESSION['_csrf'],'order_id'=>$orderId,'request_key'=>'issue-from-order','return_to'=>'order'];
+        $confirmation=$this->service->issuanceConfirmation($orderId,$this->actor);
+        $input+=['confirmation_hash'=>$confirmation['confirmation_hash'],'expected_number'=>$confirmation['series'].' '.$confirmation['number']];
         $post=$factory->createServerRequest('POST','http://localhost/admin/facturi/emite/',['REMOTE_ADDR'=>'127.0.0.78'])->withParsedBody($input);
         $response=$app->handle($post->withHeader('Accept','application/json'));
         self::assertSame(200,$response->getStatusCode(),(string)$response->getBody());
@@ -433,6 +523,150 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         self::assertSame(1,(int)$this->pdo->query('SELECT COUNT(*) FROM invoices')->fetchColumn());
         self::assertSame(-10000,$this->balance());
         unset($app);gc_collect_cycles();
+    }
+    public function testOrderReturnCanRemainWithoutAnInvoiceAndNeverTouchesStock(): void
+    {
+        $order=$this->order(2); $this->pdo->exec("UPDATE orders SET status='delivered' WHERE id=".$order);
+        $item=(int)$this->pdo->query('SELECT id FROM order_items WHERE order_id='.$order)->fetchColumn();
+        $input=['request_key'=>'return-no-invoice','quantities'=>[$item=>1],'reason'=>'Mărime nepotrivită','issue_invoice'=>'0'];
+        $id=$this->service->returnOrder($order,$input,$this->actor);
+        self::assertSame($id,$this->service->returnOrder($order,$input,$this->actor));
+        self::assertSame(0,(int)$this->pdo->query('SELECT COUNT(*) FROM invoices')->fetchColumn());
+        self::assertSame(0,$this->balance());
+        $loaded=(new \App\Modules\Orders\OrderService($this->pdo))->findForAdmin($order);
+        self::assertSame(1,$loaded['items'][0]['returnable_quantity']); self::assertTrue($loaded['can_return']);
+    }
+    public function testOrderReturnWithExistingInvoiceCreatesOneCreditAndCountsQuantityOnce(): void
+    {
+        $order=$this->order(2); $this->pdo->exec("UPDATE orders SET status='delivered' WHERE id=".$order);
+        $this->service->issue($order,['request_key'=>'return-issue-original'],$this->actor);
+        $item=(int)$this->pdo->query('SELECT id FROM order_items WHERE order_id='.$order)->fetchColumn();
+        $input=['request_key'=>'return-with-invoice','quantities'=>[$item=>1],'reason'=>'Mărime nepotrivită','issue_invoice'=>'1'];
+        $id=$this->service->returnOrder($order,$input,$this->actor);
+        self::assertSame($id,$this->service->returnOrder($order,$input,$this->actor));
+        self::assertSame(2,(int)$this->pdo->query('SELECT COUNT(*) FROM invoices')->fetchColumn());
+        self::assertSame(-20000,$this->balance(),'A credit does not receive physical goods');
+        $loaded=(new \App\Modules\Orders\OrderService($this->pdo))->findForAdmin($order);
+        self::assertSame(1,$loaded['items'][0]['returnable_quantity']);
+        $this->service->returnOrder($order,array_replace($input,['request_key'=>'return-second-piece']),$this->actor);
+        self::assertSame(0,(new \App\Modules\Orders\OrderService($this->pdo))->findForAdmin($order)['items'][0]['returnable_quantity']);
+        $this->expectException(InvoiceException::class);
+        $this->service->returnOrder($order,array_replace($input,['request_key'=>'return-too-many']),$this->actor);
+    }
+    public function testOrderReturnCanExplicitlyIssuePositiveAndNegativePair(): void
+    {
+        $order=$this->order(1); $this->pdo->exec("UPDATE orders SET status='delivered' WHERE id=".$order);
+        $item=(int)$this->pdo->query('SELECT id FROM order_items WHERE order_id='.$order)->fetchColumn();
+        $this->service->returnOrder($order,['request_key'=>'return-positive-pair','quantities'=>[$item=>1],'reason'=>'Produs nepotrivit','issue_invoice'=>'1'],$this->actor);
+        self::assertSame(['sale','return'],$this->pdo->query('SELECT kind FROM invoices ORDER BY id')->fetchAll(\PDO::FETCH_COLUMN));
+        self::assertSame(-10000,$this->balance());
+    }
+    public function testZeroReturnCannotCreateInvoiceOrReturn(): void
+    {
+        $order=$this->order(1); $this->pdo->exec("UPDATE orders SET status='delivered' WHERE id=".$order);
+        try { $this->service->returnOrder($order,['request_key'=>'zero-return-test','quantities'=>[],'reason'=>'Test retur','issue_invoice'=>'1'],$this->actor); self::fail('Empty return accepted'); }
+        catch(InvoiceException $e) { self::assertStringContainsString('mai mare decât 0',$e->getMessage()); }
+        self::assertSame(0,(int)$this->pdo->query('SELECT COUNT(*) FROM invoices')->fetchColumn());
+        self::assertSame(0,(int)$this->pdo->query('SELECT COUNT(*) FROM order_returns')->fetchColumn());
+    }
+    public function testOrderPaymentCanBeRecordedBeforeInvoiceWithoutReasonAndIsIdempotent(): void
+    {
+        $order=$this->order(2); $repo=new InvoiceRepository($this->pdo); $before=$repo->one('orders',['id'=>$order]);
+        $input=['request_key'=>'order-payment-partial','order_version'=>$repo->paymentVersion($order),'payment_status'=>'partial','amount'=>'10'];
+        $this->service->setOrderPayment($order,$input,$this->actor);
+        $this->service->setOrderPayment($order,$input,$this->actor);
+        self::assertSame('partial',$repo->one('orders',['id'=>$order])['payment_status']);
+        self::assertSame(1000,$repo->orderCash($order)['received']);
+        self::assertSame(0,$this->balance());
+        self::assertSame(1,(int)$this->pdo->query("SELECT COUNT(*) FROM audit_log WHERE action='order.payment_updated'")->fetchColumn());
+        $invoice=$this->service->issue($order,['request_key'=>'issue-after-payment'],$this->actor);
+        self::assertSame(1000,(int)$invoice['paid_bani']); self::assertSame('partial',$invoice['payment_state']);
+        $this->service->setOrderPayment($order,['request_key'=>'order-payment-full','order_version'=>$repo->paymentVersion($order),'payment_status'=>'paid'],$this->actor);
+        $updated=$this->service->document($invoice['id'],$this->actor);
+        self::assertSame('paid',$updated['payment_state']); self::assertSame((int)$before['total_bani'],(int)$updated['paid_bani']);
+        self::assertSame($invoice['display_number'],$updated['display_number']); self::assertSame(-20000,$this->balance());
+        $this->service->setOrderPayment($order,['request_key'=>'order-payment-correction','order_version'=>$repo->paymentVersion($order),'payment_status'=>'pending'],$this->actor);
+        self::assertSame(0,$repo->orderCash($order)['received']); self::assertSame('unpaid',$this->service->document($invoice['id'],$this->actor)['payment_state']);
+    }
+    public function testCardStatusCannotBeForgedUsingOrderPaymentAction(): void
+    {
+        $order=$this->order(1); $this->pdo->exec("UPDATE orders SET payment_method='stripe' WHERE id=".$order);
+        try { $this->service->setOrderPayment($order,['request_key'=>'forged-card-payment','payment_status'=>'paid'],$this->actor); self::fail('Card status accepted'); }
+        catch(InvoiceException $e) { self::assertStringContainsString('procesator',$e->getMessage()); }
+        self::assertSame('pending',$this->pdo->query('SELECT payment_status FROM orders WHERE id='.$order)->fetchColumn());
+        self::assertSame(0,(int)$this->pdo->query("SELECT COUNT(*) FROM payments WHERE provider='manual_cod'")->fetchColumn());
+    }
+    public function testOrderPaymentPreservesTransmittedInvoiceAndRejectsStaleBalance(): void
+    {
+        $order=$this->order(1); $repo=new InvoiceRepository($this->pdo);
+        $invoice=$this->service->issue($order,['request_key'=>'payment-fiscal-original'],$this->actor);
+        $repo->update('invoices',['fiscal_state'=>'accepted','fiscal_reference'=>'TEST-ONLY','fiscal_attempted_at'=>$repo->now()],['id'=>$invoice['id']]);
+        $before=$repo->one('invoices',['id'=>$invoice['id']]); $version=$repo->paymentVersion($order);
+        $this->service->setOrderPayment($order,['request_key'=>'payment-fiscal-paid','order_version'=>$version,'payment_status'=>'paid'],$this->actor);
+        self::assertSame('paid',$repo->one('orders',['id'=>$order])['payment_status']);
+        self::assertSame($before,$repo->one('invoices',['id'=>$invoice['id']]));
+        self::assertSame((int)$before['gross_bani'],$repo->orderCash($order)['received']);
+        self::assertSame(0,$repo->summary()['outstanding']);
+        try { $this->service->setOrderPayment($order,['request_key'=>'payment-fiscal-stale','order_version'=>$version,'payment_status'=>'pending'],$this->actor); self::fail('Stale payment form accepted'); }
+        catch(InvoiceException $e) { self::assertSame(409,$e->getCode()); }
+        self::assertSame('paid',$repo->one('orders',['id'=>$order])['payment_status']);
+    }
+    public function testPartialCollectionsDoNotRewriteTransmittedInvoice(): void
+    {
+        $order=$this->order(1); $repo=new InvoiceRepository($this->pdo);
+        $invoice=$this->service->issue($order,['request_key'=>'collection-fiscal-original'],$this->actor);
+        $repo->update('invoices',['fiscal_state'=>'accepted','fiscal_reference'=>'TEST-ONLY','fiscal_attempted_at'=>$repo->now()],['id'=>$invoice['id']]);
+        $before=$repo->one('invoices',['id'=>$invoice['id']]);
+        foreach(['collection-first','collection-second'] as $key) {
+            $input=['request_key'=>$key,'version'=>$before['row_version'],'amount'=>'10','reason'=>'Încasare ramburs'];
+            $this->service->payment($invoice['id'],$input,$this->actor);
+            $this->service->payment($invoice['id'],$input,$this->actor);
+        }
+        self::assertSame($before,$repo->one('invoices',['id'=>$invoice['id']]));
+        self::assertSame(2000,$repo->orderCash($order)['received']);
+        self::assertSame((int)$before['gross_bani']-2000,$repo->summary()['outstanding']);
+        self::assertSame('partial',$repo->one('orders',['id'=>$order])['payment_status']);
+    }
+    public function testOrderReturnNirUsesInvoiceAllocationsAndCannotBeReceivedTwice(): void
+    {
+        $this->purchase(5,'40','BRIDGE-PURCHASE'); $order=$this->order(2);
+        $invoice=$this->service->issue($order,['request_key'=>'bridge-issue'],$this->actor);
+        $this->pdo->exec("UPDATE orders SET status='delivered' WHERE id=".$order);
+        $item=(int)$invoice['lines'][0]['order_item_id'];
+        $returnId=$this->service->returnOrder($order,['request_key'=>'bridge-return','quantities'=>[$item=>1],'reason'=>'Mărime nepotrivită','issue_invoice'=>'1'],$this->actor);
+        $credit=$this->service->document((int)$this->pdo->query("SELECT id FROM invoices WHERE kind='return'")->fetchColumn(),$this->actor);
+        $nir=new NirService($this->pdo); $defaults=$nir->defaults($this->actor)['values'];
+        self::assertTrue($nir->pendingReturnReceipts($this->actor)[0]['eligible']);
+        $input=['physically_received'=>true,'warehouse_id'=>$defaults['warehouse_id'],'location_id'=>$defaults['location_id']];
+        $receipt=$nir->receiveReturn($returnId,$input,'bridge-nir-receipt',$this->actor);
+        self::assertSame(40000,$this->balance()); self::assertSame(4000,$receipt['inventory_bani']);
+        self::assertSame($credit['display_number'],$receipt['invoice_number']);
+        self::assertSame($receipt['id'],$nir->receiveReturn($returnId,$input,'bridge-nir-receipt',$this->actor)['id']);
+        self::assertSame([],$this->service->pendingReceipts($this->actor)); self::assertSame([],$nir->pendingReturnReceipts($this->actor));
+        self::assertSame($receipt['id'],$this->service->document($credit['id'],$this->actor)['receipt_nir']['id']);
+        try {
+            $this->service->receive($credit['id'],['request_key'=>'bridge-double-receipt','version'=>$credit['row_version'],'reason'=>'Verificat','received'=>[$credit['lines'][0]['id']=>1],'restock'=>[$credit['lines'][0]['id']=>1]],$this->actor);
+            self::fail('The same goods were received twice');
+        } catch(InvoiceException $e) { self::assertSame(409,$e->getCode()); }
+        self::assertSame(40000,$this->balance());
+        $this->service->delete($credit['id'],['request_key'=>'bridge-delete-credit','version'=>$credit['row_version'],'reason'=>'Corectare document'],$this->actor);
+        self::assertSame(30000,$this->balance());
+        self::assertSame(0,(int)$this->pdo->query("SELECT COUNT(*) FROM nir_documents WHERE type='customer_return'")->fetchColumn());
+        self::assertSame(0,(int)$this->pdo->query('SELECT SUM(returned_units) FROM nir_fifo_consumptions')->fetchColumn());
+    }
+    public function testInvoiceReceiptCannotBeRepeatedThroughNir(): void
+    {
+        $this->purchase(3,'25','BRIDGE-PURCHASE-2'); $order=$this->order(1);
+        $invoice=$this->service->issue($order,['request_key'=>'bridge-issue-2'],$this->actor);
+        $this->pdo->exec("UPDATE orders SET status='delivered' WHERE id=".$order);
+        $returnId=$this->service->returnOrder($order,['request_key'=>'bridge-return-2','quantities'=>[$invoice['lines'][0]['order_item_id']=>1],'reason'=>'Retur','issue_invoice'=>'1'],$this->actor);
+        $credit=$this->service->document((int)$this->pdo->query("SELECT id FROM invoices WHERE kind='return'")->fetchColumn(),$this->actor);
+        $this->service->receive($credit['id'],['request_key'=>'bridge-invoice-receipt','version'=>$credit['row_version'],'reason'=>'Verificat','received'=>[$credit['lines'][0]['id']=>1],'restock'=>[$credit['lines'][0]['id']=>1]],$this->actor);
+        $nir=new NirService($this->pdo); self::assertSame([],$nir->pendingReturnReceipts($this->actor));
+        self::assertSame([],(new \App\Modules\Inventory\NirRepository($this->pdo))->pendingReturnNotifications($this->actor['id'],gmdate('Y-m-d')));
+        try { $nir->receiveReturn($returnId,['physically_received'=>true],'bridge-duplicate-nir',$this->actor); self::fail('Duplicate receipt accepted'); }
+        catch(\App\Modules\Inventory\NirConflictException) {}
+        self::assertSame(30000,$this->balance());
     }
     private function order(int $quantity): int
     {

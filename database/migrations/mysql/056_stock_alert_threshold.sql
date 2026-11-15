@@ -1,0 +1,1 @@
+ALTER TABLE products ADD COLUMN accounting_minimum_units BIGINT UNSIGNED NOT NULL DEFAULT 0;

@@ -1,0 +1,4 @@
+<nav class="stock-pagination" aria-label="{{ label }}">
+  <span>5 / pagină · {{ pager.from }}–{{ pager.to }} din {{ pager.total }}</span>
+  <div>{% if pager.previous %}<a href="{{ pager.previous }}" data-stock-page aria-label="Pagina precedentă">‹</a>{% else %}<span aria-hidden="true">‹</span>{% endif %}<strong>{{ pager.page }}</strong>{% if pager.next %}<a href="{{ pager.next }}" data-stock-page aria-label="Pagina următoare">›</a>{% else %}<span aria-hidden="true">›</span>{% endif %}</div>
+</nav>

@@ -49,7 +49,7 @@ final class OrderService
         $offset = ($page - 1) * $perPage;
 
         $statement = $this->pdo->prepare(
-            'SELECT o.id,o.order_number,o.email,o.first_name,o.last_name,o.phone,o.total_bani,o.currency,o.status,o.payment_status,o.payment_method,o.created_at,'
+            'SELECT o.id,o.order_number,o.email,o.first_name,o.last_name,o.phone,o.customer_type,o.total_bani,o.currency,o.status,o.payment_status,o.payment_method,o.created_at,'
             . "EXISTS(SELECT 1 FROM order_cancellation_requests cr WHERE cr.order_id=o.id AND cr.status='pending') AS cancellation_requested "
             . 'FROM orders o' . $whereSql . ' ORDER BY o.created_at DESC,o.id DESC LIMIT :limit OFFSET :offset'
         );
@@ -220,9 +220,10 @@ final class OrderService
         );
         $items->execute(['id' => $orderId]);
         $order['items'] = $items->fetchAll();
+        $returned=(new OrderReturnAvailability($this->pdo))->returned($orderId);
         foreach ($order['items'] as &$item) {
             $item['personalization'] = $this->decodeJson((string) $item['personalization_json']);
-            $item['returned_quantity'] = (int) $item['returned_quantity'];
+            $item['returned_quantity'] = $returned[(int)$item['id']] ?? 0;
             $item['returnable_quantity'] = max(0, (int) $item['quantity'] - $item['returned_quantity']);
         }
         unset($item);
@@ -267,11 +268,13 @@ final class OrderService
         $order['cancellation_request'] = $cancellation->fetch() ?: null;
         $order['can_accept_cancellation'] = is_array($order['cancellation_request']) && $order['cancellation_request']['status'] === 'pending'
             && in_array($order['status'], ['new','confirmed','preparing','shipped','cancelled'], true);
-        $order['can_return'] = in_array((string) $order['status'], ['shipped', 'delivered', 'returned'], true)
+        $order['can_return'] = in_array((string) $order['status'], ['shipped', 'delivered', 'returned', 'return_requested', 'return_refused', 'return_confirmed'], true)
             && array_sum(array_column($order['items'], 'returnable_quantity')) > 0;
-        $invoiceQuery=$this->pdo->prepare('SELECT id,series_code,number,kind FROM invoices WHERE order_id=:id AND deleted_at IS NULL ORDER BY id');
+        $invoiceQuery=$this->pdo->prepare('SELECT id,series_code,number,kind,gross_bani FROM invoices WHERE order_id=:id AND deleted_at IS NULL ORDER BY id');
         $invoiceQuery->execute(['id'=>$orderId]); $order['issued_invoices']=$invoiceQuery->fetchAll();
-        if($order['issued_invoices']) { $order['can_return']=false; }
+        $order['return_invoice_default']=count(array_filter($order['issued_invoices'],static fn(array $i):bool=>in_array($i['kind'],['sale','corrected_positive'],true)))>0;
+        $order['return_request_key']=bin2hex(random_bytes(16));
+        $order['document_actions']=(new \App\Modules\Invoicing\OrderDocumentPolicy(new \App\Modules\Invoicing\InvoiceRepository($this->pdo)))->actions($order);
 
         return $order;
     }
@@ -461,9 +464,6 @@ final class OrderService
         int $actorId,
         bool $notifyCustomer = false,
     ): int {
-        $issued=$this->pdo->prepare('SELECT id FROM invoices WHERE order_id=:id AND deleted_at IS NULL LIMIT 1');
-        $issued->execute(['id'=>$orderId]);
-        if($issued->fetchColumn()!==false) { throw new RuntimeException('Comanda este facturată. Înregistrează returul din fișa facturii pentru a păstra documentele și stocul corelate.'); }
         $reason = trim($reason);
         if (mb_strlen($reason) < 3) {
             throw new RuntimeException('Spune pe scurt motivul returului.');
@@ -472,7 +472,9 @@ final class OrderService
             throw new RuntimeException('Opțiunea de rambursare nu este validă.');
         }
 
-        $this->pdo->beginTransaction();
+        $own=!$this->pdo->inTransaction();
+        if($own) { $this->pdo->beginTransaction(); }
+        $this->pdo->exec("UPDATE invoice_configuration SET revision=revision WHERE id=1");
         try {
             $orderStatement = $this->pdo->prepare('SELECT * FROM orders WHERE id=:id');
             $orderStatement->execute(['id' => $orderId]);
@@ -480,7 +482,7 @@ final class OrderService
             if (!is_array($order)) {
                 throw new RuntimeException('Comanda nu a fost găsită.');
             }
-            if (!in_array((string) $order['status'], ['shipped', 'delivered', 'returned'], true)) {
+            if (!in_array((string) $order['status'], ['shipped', 'delivered', 'returned', 'return_requested', 'return_refused', 'return_confirmed'], true)) {
                 throw new RuntimeException('Returul poate fi înregistrat după expedierea comenzii.');
             }
 
@@ -490,13 +492,16 @@ final class OrderService
             );
             $itemsStatement->execute(['order' => $orderId]);
             $items = $itemsStatement->fetchAll();
+            $returned=(new OrderReturnAvailability($this->pdo))->returned($orderId);
             $selected = [];
             $remainingTotal = 0;
             $selectedTotal = 0;
             foreach ($items as $item) {
-                $remaining = max(0, (int) $item['quantity'] - (int) $item['returned_quantity']);
+                $remaining = max(0, (int) $item['quantity'] - ($returned[(int)$item['id']] ?? 0));
                 $remainingTotal += $remaining;
-                $quantity = max(0, (int) ($quantities[(int) $item['id']] ?? 0));
+                $raw=(string)($quantities[(int)$item['id']] ?? '0');
+                if(!preg_match('/\A[0-9]{1,9}\z/',$raw)) { throw new RuntimeException('Cantitatea trebuie să fie un număr întreg, cel puțin 0.'); }
+                $quantity=(int)$raw;
                 if ($quantity > $remaining) {
                     throw new RuntimeException('Cantitatea de retur depășește cantitatea disponibilă pentru ' . $item['product_name'] . '.');
                 }
@@ -623,11 +628,11 @@ final class OrderService
             if ($notifyCustomer) {
                 $this->queueStatusEmail($order, $isFull ? 'returned' : (string) $order['status'], 'Retur înregistrat: ' . $reason, $now);
             }
-            $this->pdo->commit();
+            if($own) { $this->pdo->commit(); }
 
             return $returnId;
         } catch (\Throwable $exception) {
-            if ($this->pdo->inTransaction()) {
+            if ($own && $this->pdo->inTransaction()) {
                 $this->pdo->rollBack();
             }
             throw $exception;

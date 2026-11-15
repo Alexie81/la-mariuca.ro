@@ -20,6 +20,11 @@ $command = $argv[1] ?? 'help';
 
 try {
     switch ($command) {
+        case 'spv:process':
+            $http = new \App\Modules\Invoicing\SpvCurlClient();
+            $result = (new \App\Modules\Invoicing\SpvWorker(new \App\Modules\Invoicing\InvoiceRepository($pdo), \App\Modules\Invoicing\InvoiceModule::service($pdo, $root), new \App\Modules\Invoicing\SpvConnection($pdo, $config, $http), $http, $config, $root))->run((int)($argv[2] ?? 10));
+            fwrite(STDOUT, json_encode($result, JSON_THROW_ON_ERROR) . PHP_EOL);
+            break;
         case 'invoices:process':
             $result = \App\Modules\Invoicing\InvoiceModule::process($pdo, $root, (int) ($argv[2] ?? 20));
             fwrite(STDOUT, json_encode($result, JSON_THROW_ON_ERROR) . "\n");
@@ -224,7 +229,7 @@ try {
             break;
         case 'help':
         default:
-            fwrite(STDOUT, "Comenzi: migrate, seed:demo, seed:catalog, seed:orders-demo [număr], seed:customer-orders-demo <email-client> [număr], seed:newsletter-demo [număr], review:demo [slug], review:demo-pack [slug], admin:create, invoices:process [limită], outbox:process, outbox:work [interval-secunde], push:process [limită], reservations:expire, csv:export [fișier], csv:import <fișier> --dry-run\n");
+            fwrite(STDOUT, "Comenzi: migrate, seed:demo, seed:catalog, seed:orders-demo [număr], seed:customer-orders-demo <email-client> [număr], seed:newsletter-demo [număr], review:demo [slug], review:demo-pack [slug], admin:create, invoices:process [limită], spv:process [limită], outbox:process, outbox:work [interval-secunde], push:process [limită], reservations:expire, csv:export [fișier], csv:import <fișier> --dry-run\n");
     }
 } catch (Throwable $exception) {
     if ($pdo->inTransaction()) {

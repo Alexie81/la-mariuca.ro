@@ -46,6 +46,32 @@ final class OrderAdminWorkflowTest extends DatabaseTestCase
         self::assertSame(303, $login->getStatusCode());
     }
 
+    public function testPaymentModalSavesWithoutReasonAndReturnsToTheOrder(): void
+    {
+        $this->pdo->exec("UPDATE orders SET payment_method='cod' WHERE id=".$this->newOrderId);
+        $url='/admin/facturi/0/order-payment/';
+        $modal=$this->get($url.'?order='.$this->newOrderId.'&return_to=order',['X-Invoice-Modal'=>'1']);
+        $html=(string)$modal->getBody();
+        self::assertSame(200,$modal->getStatusCode(),$html);
+        self::assertStringContainsString('data-kind="order-payment"',$html);
+        self::assertStringNotContainsString('name="reason"',$html);
+        preg_match('/name="request_key" value="([^"]+)"/',$html,$key);
+        preg_match('/name="order_version" value="([^"]+)"/',$html,$version);
+        $input=['_csrf'=>$_SESSION['_csrf'],'request_key'=>$key[1],'order_id'=>$this->newOrderId,'order_version'=>$version[1],'payment_status'=>'paid','return_to'=>'order'];
+        $headers=['Accept'=>'application/json'];
+        $response=$this->post($url,$input,$headers);
+        $body=(string)$response->getBody();
+        self::assertSame(200,$response->getStatusCode(),$body);
+        self::assertSame('/admin/comenzi/'.$this->newOrderId.'/',json_decode($body,true)['redirect']);
+        self::assertSame('paid',$this->pdo->query('SELECT payment_status FROM orders WHERE id='.$this->newOrderId)->fetchColumn());
+        self::assertSame(200,$this->post($url,$input,$headers)->getStatusCode());
+        $input['request_key']='new-payment-stale-request';
+        $input['payment_status']='pending';
+        self::assertSame(409,$this->post($url,$input,$headers)->getStatusCode());
+        unset($input['_csrf']);
+        self::assertSame(419,$this->post($url,$input,$headers)->getStatusCode());
+    }
+
     public function testInternalNoteSavesWithoutChangingOrderOrSendingNotifications(): void
     {
         $url = '/admin/comenzi/' . $this->newOrderId . '/nota/';
@@ -279,25 +305,28 @@ final class OrderAdminWorkflowTest extends DatabaseTestCase
         $before = $snapshot();
         foreach ([[], [$itemId => '0'], [$itemId => '0', 999999 => '2']] as $quantities) {
             $response = $this->post('/admin/comenzi/' . $this->deliveredOrderId . '/retur/', [
-                '_csrf' => $_SESSION['_csrf'], 'quantities' => $quantities,
+                '_csrf' => $_SESSION['_csrf'], 'request_key' => bin2hex(random_bytes(16)), 'quantities' => $quantities,
+                'order_version' => $this->pdo->query('SELECT updated_at FROM orders WHERE id=' . $this->deliveredOrderId)->fetchColumn(),
                 'reason' => 'Mărime nepotrivită', 'refund_mode' => 'full',
                 'restock' => '1', 'notify_customer' => '1',
             ], ['Accept' => 'application/json']);
             self::assertSame(422, $response->getStatusCode());
             $payload = json_decode((string) $response->getBody(), true, 512, JSON_THROW_ON_ERROR);
             self::assertFalse($payload['ok']);
-            self::assertSame('Alege o cantitate mai mare decât 0 pentru cel puțin un produs.', $payload['message']);
+            self::assertSame(isset($quantities[999999]) ? 'Un produs nu aparține acestei comenzi.' : 'Alege o cantitate mai mare decât 0 pentru cel puțin un produs.', $payload['message']);
             self::assertSame($before, $snapshot());
         }
     }
 
-    public function testPartialAndFullReturnRespectQuantitiesRestoreStockAndRecordRefund(): void
+    public function testOrderReturnDoesNotReceiveGoodsOrTransferMoneyImplicitly(): void
     {
         $itemId = (int) $this->pdo->query('SELECT id FROM order_items WHERE order_id=' . $this->deliveredOrderId)->fetchColumn();
         $stockBefore = (int) $this->pdo->query('SELECT physical_quantity FROM inventory WHERE variant_id=' . $this->variantId)->fetchColumn();
 
         $partial = $this->post('/admin/comenzi/' . $this->deliveredOrderId . '/retur/', [
             '_csrf' => $_SESSION['_csrf'],
+            'request_key' => 'return-partial-http',
+            'order_version' => $this->pdo->query('SELECT updated_at FROM orders WHERE id=' . $this->deliveredOrderId)->fetchColumn(),
             'quantities' => [$itemId => '1'],
             'reason' => 'Mărime nepotrivită',
             'notes' => 'Cutia a fost verificată la recepție.',
@@ -309,24 +338,27 @@ final class OrderAdminWorkflowTest extends DatabaseTestCase
         self::assertSame(200, $partial->getStatusCode(), (string) $partial->getBody());
         self::assertSame(1, (int) $this->pdo->query('SELECT COUNT(*) FROM order_returns WHERE order_id=' . $this->deliveredOrderId)->fetchColumn());
         self::assertSame(1, (int) $this->pdo->query('SELECT quantity FROM order_return_items WHERE order_item_id=' . $itemId)->fetchColumn());
-        self::assertSame($stockBefore + 1, (int) $this->pdo->query('SELECT physical_quantity FROM inventory WHERE variant_id=' . $this->variantId)->fetchColumn());
-        self::assertSame('partially_refunded', $this->pdo->query('SELECT payment_status FROM orders WHERE id=' . $this->deliveredOrderId)->fetchColumn());
-        self::assertSame(10000, (int) $this->pdo->query('SELECT refunded_bani FROM payments WHERE order_id=' . $this->deliveredOrderId)->fetchColumn());
+        self::assertSame($stockBefore, (int) $this->pdo->query('SELECT physical_quantity FROM inventory WHERE variant_id=' . $this->variantId)->fetchColumn());
+        self::assertSame('paid', $this->pdo->query('SELECT payment_status FROM orders WHERE id=' . $this->deliveredOrderId)->fetchColumn());
+        self::assertSame(0, (int) $this->pdo->query('SELECT refunded_bani FROM payments WHERE order_id=' . $this->deliveredOrderId)->fetchColumn());
         self::assertSame('delivered', $this->pdo->query('SELECT status FROM orders WHERE id=' . $this->deliveredOrderId)->fetchColumn());
 
         $tooMuch = $this->post('/admin/comenzi/' . $this->deliveredOrderId . '/retur/', [
-            '_csrf' => $_SESSION['_csrf'], 'quantities' => [$itemId => '2'], 'reason' => 'Cantitate invalidă', 'refund_mode' => 'none',
+            '_csrf' => $_SESSION['_csrf'], 'request_key' => 'return-too-much-http', 'quantities' => [$itemId => '2'], 'reason' => 'Cantitate invalidă', 'refund_mode' => 'none',
+            'order_version' => $this->pdo->query('SELECT updated_at FROM orders WHERE id=' . $this->deliveredOrderId)->fetchColumn(),
         ], ['Accept' => 'application/json']);
         self::assertSame(422, $tooMuch->getStatusCode());
         self::assertSame(1, (int) $this->pdo->query('SELECT COUNT(*) FROM order_returns WHERE order_id=' . $this->deliveredOrderId)->fetchColumn());
 
         $full = $this->post('/admin/comenzi/' . $this->deliveredOrderId . '/retur/', [
-            '_csrf' => $_SESSION['_csrf'], 'quantities' => [$itemId => '1'], 'reason' => 'Retur final solicitat', 'refund_mode' => 'full',
+            '_csrf' => $_SESSION['_csrf'], 'request_key' => 'return-full-http', 'quantities' => [$itemId => '1'], 'reason' => 'Retur final solicitat', 'refund_mode' => 'full',
+            'order_version' => $this->pdo->query('SELECT updated_at FROM orders WHERE id=' . $this->deliveredOrderId)->fetchColumn(),
         ], ['Accept' => 'application/json']);
         self::assertSame(200, $full->getStatusCode(), (string) $full->getBody());
         self::assertSame('returned', $this->pdo->query('SELECT status FROM orders WHERE id=' . $this->deliveredOrderId)->fetchColumn());
-        self::assertSame('refunded', $this->pdo->query('SELECT payment_status FROM orders WHERE id=' . $this->deliveredOrderId)->fetchColumn());
-        self::assertSame(30000, (int) $this->pdo->query('SELECT refunded_bani FROM payments WHERE order_id=' . $this->deliveredOrderId)->fetchColumn());
+        self::assertSame('paid', $this->pdo->query('SELECT payment_status FROM orders WHERE id=' . $this->deliveredOrderId)->fetchColumn());
+        self::assertSame(0, (int) $this->pdo->query('SELECT refunded_bani FROM payments WHERE order_id=' . $this->deliveredOrderId)->fetchColumn());
+        self::assertSame(0, (int) $this->pdo->query('SELECT COUNT(*) FROM invoices')->fetchColumn());
         self::assertSame(2, (int) $this->pdo->query('SELECT COALESCE(SUM(quantity),0) FROM order_return_items WHERE order_item_id=' . $itemId)->fetchColumn());
     }
 

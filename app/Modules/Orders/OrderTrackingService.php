@@ -112,7 +112,7 @@ final class OrderTrackingService
         $order['status_icon'] = $stages[$order['status']][2] ?? 'info';
         $order['status_date'] = $dates[$order['status']] ?? null;
         $order['payment_label'] = match ($order['payment_status']) {
-            'paid'=>'Plătită', 'failed'=>'Plată eșuată', 'refunded'=>'Rambursată', 'partially_refunded'=>'Rambursată parțial',
+            'paid'=>'Plătită', 'failed'=>'Plată eșuată', 'refunded'=>'Rambursată', 'partial'=>'Plătită parțial', 'partially_refunded'=>'Rambursată parțial',
             default=>$order['payment_method'] === 'cod' ? 'Ramburs la livrare' : 'Plată în așteptare',
         };
         $order['quantity'] = array_sum(array_column($order['items'], 'quantity'));

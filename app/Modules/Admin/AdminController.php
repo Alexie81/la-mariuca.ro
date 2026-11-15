@@ -975,12 +975,16 @@ final class AdminController
         );
         $paymentLabels = [
             'pending' => 'În așteptare', 'paid' => 'Plătită', 'failed' => 'Eșuată',
-            'partially_refunded' => 'Rambursată parțial', 'refunded' => 'Rambursată',
+            'partial' => 'Plătită parțial', 'partially_refunded' => 'Rambursată parțial', 'refunded' => 'Rambursată',
         ];
         $zone = new \DateTimeZone('Europe/Bucharest');
+        $invoiceRepository = new \App\Modules\Invoicing\InvoiceRepository($this->pdo);
+        $documentPolicy = new \App\Modules\Invoicing\OrderDocumentPolicy($invoiceRepository);
         foreach ($pagination['items'] as &$order) {
+            $order['invoice'] = $invoiceRepository->one('invoices', ['order_id'=>$order['id'],'kind'=>'sale','deleted_at'=>null]);
+            $order['invoice_action'] = $documentPolicy->actions($order)['issue_invoice'];
             $createdAt = new \DateTimeImmutable((string) $order['created_at'], new \DateTimeZone('UTC'));
-            $order['display_created_at'] = $createdAt->setTimezone($zone)->format('d.m.Y, H:i');
+            $order['display_created_at'] = $createdAt->setTimezone($zone)->format('d.m.Y, H:i:s');
             $order['status_label'] = $statusLabels[(string) $order['status']] ?? ucfirst((string) $order['status']);
             $order['payment_status_label'] = $paymentLabels[(string) $order['payment_status']] ?? ucfirst((string) $order['payment_status']);
             $order['payment_method_label'] = (string) $order['payment_method'] === 'stripe' ? 'Card online' : 'Ramburs';
@@ -1002,6 +1006,7 @@ final class AdminController
             'has_filters' => $filterQuery !== [],
             'admin_section' => 'orders',
             'admin_context' => 'Comenzi',
+            'can_invoice' => in_array($this->auth->user()['role'] ?? '', ['administrator','manager'], true),
             'admin_unread_count' => $this->notificationService->unreadCount((int) ($this->auth->user()['id'] ?? 0)),
         ]);
     }
@@ -1016,8 +1021,13 @@ final class AdminController
 
         $order = $this->decorateOrderForAdmin($order);
 
+        $invoiceService=\App\Modules\Invoicing\InvoiceModule::service($this->pdo,dirname(__DIR__,3));
+        $order['billing_documents']=array_map(fn(array $document):array=>$invoiceService->document((int)$document['id'],$this->auth->user() ?? []),$order['issued_invoices']);
+
         return $this->view->render('admin/pages/order-detail.twig', [
             'order' => $order,
+            'can_manage_documents' => in_array($this->auth->user()['role'] ?? '', ['administrator','manager'], true),
+            'can_delete_documents' => ($this->auth->user()['role'] ?? '') === 'administrator',
             'order_note_version' => hash('sha256', (string) $order['internal_notes']),
             'order_note_draft' => $request->getAttribute('order_note_draft', (string) $order['internal_notes']),
             'order_note_error' => $request->getAttribute('order_note_error', ''),
@@ -1268,17 +1278,13 @@ final class AdminController
         $data = (array) ($request->getParsedBody() ?? []);
         $quantities = is_array($data['quantities'] ?? null) ? $data['quantities'] : [];
         try {
-            $this->orders->registerReturn(
-                (int) $args['id'],
-                $quantities,
-                (string) ($data['reason'] ?? ''),
-                (string) ($data['notes'] ?? ''),
-                (string) ($data['restock'] ?? '') === '1',
-                (string) ($data['refund_mode'] ?? 'none'),
-                $this->parseMoneyToBani((string) ($data['refund_amount'] ?? '0')),
-                (int) ($this->auth->user()['id'] ?? 0),
-                (string) ($data['notify_customer'] ?? '') === '1',
-            );
+            \App\Modules\Invoicing\InvoiceModule::service($this->pdo,dirname(__DIR__,3))->returnOrder((int)$args['id'],[
+                'request_key'=>(string)($data['request_key'] ?? ''),
+                'order_version'=>(string)($data['order_version'] ?? ''),
+                'quantities'=>$quantities,'reason'=>(string)($data['reason'] ?? ''),'notes'=>(string)($data['notes'] ?? ''),
+                'issue_invoice'=>(string)($data['issue_invoice'] ?? '0'),
+                'notify_customer'=>(string)($data['notify_customer'] ?? '0'),
+            ],$this->auth->user() ?? []);
             return $this->orderMutationResponse($request, (int) $args['id'], 'Returul a fost înregistrat și istoricul comenzii a fost actualizat.');
         } catch (\Throwable $exception) {
             return $this->orderMutationResponse($request, (int) $args['id'], '', $exception->getMessage());
@@ -1342,12 +1348,12 @@ final class AdminController
         ];
         $paymentLabels = [
             'pending' => 'În așteptare', 'paid' => 'Plătită', 'failed' => 'Eșuată',
-            'partially_refunded' => 'Rambursată parțial', 'refunded' => 'Rambursată',
+            'partial' => 'Plătită parțial', 'partially_refunded' => 'Rambursată parțial', 'refunded' => 'Rambursată',
         ];
         $actionCopy = [
             'confirm' => ['Confirmă comanda', 'Comanda a fost verificată și poate intra în pregătire.'],
             'prepare' => ['Începe pregătirea', 'Produsele sunt culese și pregătite pentru colet.'],
-            'ship' => ['Marchează expediată', 'Stocul rezervat se scade și poți atașa AWB-ul.'],
+            'ship' => ['Marchează expediată', 'Produsele rezervate sunt marcate ca expediate. Stocul contabil se scade numai prin factură.'],
             'deliver' => ['Marchează livrată', 'Coletul a ajuns la client.'],
             'cancel' => ['Anulează comanda', 'Rezervările de stoc și cuponul se eliberează.'],
         ];
@@ -1380,6 +1386,7 @@ final class AdminController
             'order.return_full' => ['Retur integral înregistrat', 'return', 'violet'],
             'order.return_partial' => ['Retur parțial înregistrat', 'return', 'violet'],
             'order.email_queued' => ['E-mail pus în coadă', 'mail', 'blue'],
+            'order.payment_updated' => ['Starea plății actualizată', 'card', 'sage'],
             'order.cancellation_requested' => ['Clientul a solicitat anularea', 'request', 'amber'],
             'order.cancellation_accepted' => ['Solicitarea de anulare a fost acceptată', 'check', 'sage'],
             'order.cancellation_rejected' => ['Solicitarea de anulare a fost respinsă', 'cancel', 'rose'],
@@ -1446,22 +1453,6 @@ final class AdminController
         }
         Flash::set($error === '' ? 'success' : 'error', $error === '' ? $success : $error);
         return $this->view->redirect($redirect);
-    }
-
-    private function parseMoneyToBani(string $value): int
-    {
-        $normalized = trim(str_replace([' ', "\u{00A0}"], '', $value));
-        if ($normalized === '') {
-            return 0;
-        }
-        if (str_contains($normalized, ',') && str_contains($normalized, '.')) {
-            $normalized = str_replace('.', '', $normalized);
-        }
-        $normalized = str_replace(',', '.', $normalized);
-        if (!is_numeric($normalized)) {
-            throw new \RuntimeException('Suma rambursată nu este validă.');
-        }
-        return max(0, (int) round((float) $normalized * 100));
     }
 
     /** Keep an explicit international prefix; infer Romania only for a complete national number. */
@@ -1714,7 +1705,7 @@ final class AdminController
         ];
         $paymentLabels = [
             'pending' => 'În așteptare', 'paid' => 'Plătită', 'failed' => 'Eșuată',
-            'partially_refunded' => 'Rambursată parțial', 'refunded' => 'Rambursată',
+            'partial' => 'Plătită parțial', 'partially_refunded' => 'Rambursată parțial', 'refunded' => 'Rambursată',
         ];
         foreach ($data['orders']['items'] as &$order) {
             $order['display_created_at'] = $this->localCustomerDate((string) ($order['created_at'] ?? ''));

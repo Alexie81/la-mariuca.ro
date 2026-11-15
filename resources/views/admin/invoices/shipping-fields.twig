@@ -1,0 +1,8 @@
+{% import 'admin/partials/nir-ui.twig' as n %}
+<section class="iv-form-step"><header>{{ n.icon('box') }}<div><h3>Adresa de livrare</h3><p>Poate fi diferită de adresa de facturare.</p></div></header><div class="iv-fields">
+<label>Stradă și număr<input name="shipping_address[address]" required maxlength="500" value="{{ edit_order.shipping_address.address|default('') }}"></label>
+<label>Localitate<input name="shipping_address[city]" required maxlength="150" value="{{ edit_order.shipping_address.city|default('') }}"></label>
+<label>Județ<input name="shipping_address[county]" required maxlength="150" value="{{ edit_order.shipping_address.county|default('') }}"></label>
+<label>Cod poștal <small>Opțional</small><input name="shipping_address[postal_code]" maxlength="20" value="{{ edit_order.shipping_address.postal_code|default('') }}"></label>
+<label>Țară<input name="shipping_address[country]" required maxlength="100" value="{{ edit_order.shipping_address.country|default('RO') }}"></label>
+</div></section>

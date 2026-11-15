@@ -20,15 +20,17 @@
   {% if admin_section|default('') == 'promotions' %}<link rel="stylesheet" href="{{ url('assets/css/promotion-admin.css?v=20261108-usage-v8') }}">{% endif %}
   {% if admin_section|default('') == 'shipping' %}<link rel="stylesheet" href="{{ url('assets/css/shipping-admin.css?v=20261103-v4') }}">{% endif %}
   {% if admin_section|default('') == 'payment_methods' %}<link rel="stylesheet" href="{{ url('assets/css/payment-methods-admin.css?v=20261108-fees') }}">{% endif %}
-  {% if admin_section|default('') == 'orders' %}<link rel="stylesheet" href="{{ url('assets/css/order-admin.css?v=20261108-cancellation-v13') }}"><link rel="stylesheet" href="{{ url('assets/css/order-history.css?v=20261108-1') }}"><link rel="stylesheet" href="{{ url('assets/css/order-cancellation.css?v=20261108-1') }}">{% endif %}
+  {% if admin_section|default('') == 'orders' %}<link rel="stylesheet" href="{{ url('assets/css/order-admin.css?v=20261115-1') }}"><link rel="stylesheet" href="{{ url('assets/css/order-history.css?v=20261108-1') }}"><link rel="stylesheet" href="{{ url('assets/css/order-cancellation.css?v=20261108-1') }}">{% endif %}
   {% if admin_section|default('') == 'orders' %}<link rel="stylesheet" href="{{ url('assets/css/order-notifications.css?v=20261108-v1') }}">{% endif %}
   {% if admin_section|default('') == 'orders' %}<link rel="stylesheet" href="{{ url('assets/css/order-contact-actions.css?v=20261108-1') }}">{% if order is defined %}<link rel="stylesheet" href="{{ url('assets/css/order-billing.css?v=20261114-1') }}">{% endif %}{% endif %}
   {% if admin_section|default('') == 'companies' %}<link rel="stylesheet" href="{{ url('assets/css/company-admin.css?v=20261112-locations') }}">{% endif %}
   {% if admin_section|default('') == 'nir' %}<link rel="stylesheet" href="{{ url('assets/css/nir-pdf-preview.css?v=20261114-v1') }}"><link rel="stylesheet" href="{{ url('assets/css/nir-admin.css?v=20261112-nir-return') }}"><link rel="stylesheet" href="{{ url('assets/css/nir-experience.css?v=20261112-guided-v1') }}"><link rel="stylesheet" href="{{ url('assets/css/nir-detail.css?v=20261112-return') }}"><link rel="stylesheet" href="{{ url('assets/css/nir-editor.css?v=20261112-catalog-v1') }}"><link rel="stylesheet" href="{{ url('assets/css/nir-return.css?v=20261113-linked') }}"><link rel="stylesheet" href="{{ url('assets/css/nir-export.css?v=20261112-v2') }}">{% endif %}
   {% if admin_section|default('') == 'invoice_configuration' %}<link rel="stylesheet" href="{{ url('assets/css/invoice-configuration.css?v=20261113-1') }}">{% endif %}
   {% if admin_section|default('') == 'invoice_automations' %}<link rel="stylesheet" href="{{ url('assets/css/invoice-automations.css?v=20261113-1') }}">{% endif %}
-  {% if admin_section|default('') == 'spv_preview' %}<link rel="stylesheet" href="{{ url('assets/css/spv-preview.css?v=20261114-1') }}">{% endif %}
-  {% if admin_section|default('') == 'invoices' or (admin_section|default('') == 'orders' and order is defined) %}<link rel="stylesheet" href="{{ url('assets/css/invoices.css?v=20261114-4') }}">{% endif %}
+  {% if admin_section|default('') == 'spv_preview' %}<link rel="stylesheet" href="{{ url('assets/css/spv-preview.css?v=20261115-1') }}">{% endif %}
+  {% if admin_section|default('') == 'orders' %}<link rel="stylesheet" href="{{ url('assets/css/order-registry.css?v=20261115-2') }}">{% endif %}
+  {% if admin_section|default('') in ['invoices','orders'] %}<link rel="stylesheet" href="{{ url('assets/css/invoices.css?v=20261115-3') }}">{% endif %}
+  {% if admin_section|default('') == 'stock' %}<link rel="stylesheet" href="{{ url('assets/css/stock-ledger.css?v=20261115-2') }}"><link rel="stylesheet" href="{{ url('assets/css/nir-export.css?v=20261112-v2') }}">{% endif %}
 </head>
 {% set operator = admin_user|default(current_user()) %}
 {% set first_name = operator.first_name|default('Administrator') %}
@@ -153,6 +155,10 @@
           <span class="admin-nav__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h10l4 4v14H5V3ZM14 3v5h5M8 12h8M8 16h4"/><path d="m14 16 1.5 1.5L18 15"/></svg></span>
           <span><strong>NIR-uri</strong><small>Recepții și intrări în stoc</small></span>
         </a>
+        <a class="admin-nav__item{{ active_admin_section == 'stock' ? ' is-active' : '' }}" href="{{ url('admin/stoc/') }}"{% if active_admin_section == 'stock' %} aria-current="page"{% endif %}>
+          <span class="admin-nav__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 7 9-4 9 4-9 4-9-4ZM3 12l9 4 9-4M3 17l9 4 9-4"/></svg></span>
+          <span><strong>Stocuri</strong><small>Intrări, ieșiri și fișe produse</small></span>
+        </a>
       </nav>
 
       <div class="admin-sidebar__spacer"></div>
@@ -205,7 +211,8 @@
   {% if admin_section|default('') == 'nir' %}{% include 'admin/partials/nir-stock-help.twig' %}{% include 'admin/partials/nir-unsaved.twig' %}{% include 'admin/partials/nir-export-loader.twig' %}{% include 'admin/partials/nir-pdf-preview.twig' %}<script src="{{ url('assets/js/nir-pdf-preview.js?v=20261114-v1') }}" defer></script><script src="{{ url('assets/js/nir-export.js?v=20261112-v2') }}" defer></script><script src="{{ url('assets/js/nir-calculations.js?v=20261112-3') }}" defer></script><script src="{{ url('assets/js/nir-flow.js?v=20261112-draft-confirm') }}" defer></script><script src="{{ url('assets/js/nir-disclosure.js?v=20261112-v1') }}" defer></script><script src="{{ url('assets/js/nir-media.js?v=20261112-v1') }}" defer></script><script src="{{ url('assets/js/nir-upload.js?v=20261112-v2') }}" defer></script><script src="{{ url('assets/js/nir-unsaved.js?v=20261112-v1') }}" defer></script><script src="{{ url('assets/js/nir-admin.js?v=20261113-linked') }}" defer></script>{% endif %}
   {% if admin_section|default('') == 'invoice_configuration' %}<script src="{{ url('assets/js/invoice-configuration.js?v=20261113-1') }}" defer></script>{% endif %}
   {% if admin_section|default('') == 'invoice_automations' %}<script src="{{ url('assets/js/invoice-automations.js?v=20261113-1') }}" defer></script>{% endif %}
-  {% if admin_section|default('') == 'spv_preview' %}<script src="{{ url('assets/js/spv-preview.js?v=20261114-1') }}" defer></script>{% endif %}
-{% if admin_section|default('') == 'invoices' or (admin_section|default('') == 'orders' and order is defined) %}<script src="{{ url('assets/js/invoices.js?v=20261114-4') }}" defer></script>{% endif %}
+  {% if admin_section|default('') == 'spv_preview' %}<script src="{{ url('assets/js/spv.js?v=20261115-1') }}" defer></script>{% endif %}
+{% if admin_section|default('') in ['invoices','orders'] %}<script src="{{ url('assets/js/invoices.js?v=20261115-3') }}" defer></script>{% endif %}
+{% if admin_section|default('') == 'stock' %}{% include 'admin/partials/stock-modals.twig' %}{% include 'admin/partials/nir-export-loader.twig' %}<script src="{{ url('assets/js/nir-export.js?v=20261112-v2') }}" defer></script><script src="{{ url('assets/js/stock-ledger.js?v=20261115-1') }}" defer></script>{% endif %}
 </body>
 </html>

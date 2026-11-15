@@ -14,7 +14,7 @@
   </div>
   <button type="button" class="iv-btn iv-add-product" data-iv-add-item data-next-index="{{ edit_order.items|length }}">{{ n.icon('plus') }}Adaugă un produs</button>
   <noscript><div class="iv-fields"><label>Adaugă un produs din catalog<select name="items[{{ edit_order.items|length }}][sku]"><option value="">Alege produsul</option>{% for product in product_options %}<option value="{{ product.sku }}">{{ product.name }} · {{ product.option_summary }} · {{ product.sku }}</option>{% endfor %}</select></label><label>Cantitate pentru produsul nou<input name="items[{{ edit_order.items|length }}][quantity]" type="number" min="0" max="999" value="0"></label></div></noscript>
-  <p class="iv-editor-note">Prețurile produselor existente se păstrează. Cantitatea 0 elimină o poziție; produsele noi folosesc prețul actual din catalog.</p>
+  <p class="iv-editor-note">Prețurile produselor existente se păstrează. Pentru un produs nou poți ajusta prețul propus din catalog înainte de salvare.</p>
   <template data-iv-item-template>
     <article class="iv-edit-item iv-edit-item--new">
       <span class="iv-edit-photo" data-iv-preview-photo>{{ n.icon('image') }}<img hidden alt=""></span>
@@ -25,6 +25,7 @@
         <button type="button" class="iv-change-product" data-iv-change-product>{{ n.icon('search') }}Schimbă produsul</button>
       </div>
       <label class="iv-edit-quantity">Cantitate<input type="number" name="items[INDEX][quantity]" min="1" max="999" step="1" value="1" required></label>
+      <label class="iv-edit-price">Preț convenit, Lei<input name="items[INDEX][unit_price]" inputmode="decimal" data-iv-unit-price required></label>
       <button type="button" class="iv-icon iv-remove-product" data-iv-remove-item aria-label="Elimină produsul nou" title="Elimină produsul nou">{{ n.icon('trash') }}</button>
     </article>
   </template>

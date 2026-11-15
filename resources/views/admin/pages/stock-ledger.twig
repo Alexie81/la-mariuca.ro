@@ -1,0 +1,37 @@
+{% extends 'admin/layouts/base.twig' %}
+{% block title %}Stoc și fișa produsului{% endblock %}
+{% block content %}
+<div class="stock-page">
+  <section class="stock-hero">
+    <div class="stock-hero__copy"><span class="stock-eyebrow">Evidență contabilă</span><h1>Stocuri</h1><p>Cantități, alerte și istoricul fiecărui produs. Totul, într-un singur loc.</p></div>
+    <div class="stock-hero__actions"><div class="stock-hero__metric"><span>Produse urmărite</span><strong>{{ total }}</strong><small>cu istoric contabil</small></div><a class="stock-btn stock-btn--export" href="{{ url('admin/stoc/export/xlsx/?period=month') }}" data-stock-export><svg viewBox="0 0 24 24"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 19h14"/></svg>Exportă registrul</a></div>
+  </section>
+
+  <section class="stock-guidance"><span class="stock-guidance__icon"><svg viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.6 2.8 8.2 7 10 4.2-1.8 7-5.4 7-10V6l-7-3Z"/><path d="m9 12 2 2 4-4"/></svg></span><div><strong>Două evidențe, fiecare cu rolul ei</strong><p>Disponibilitatea online controlează ce poate comanda clientul. Stocul contabil se modifică prin NIR-uri, facturi și retururi și poate fi negativ până înregistrezi achiziția.</p></div></section>
+
+  <section class="stock-card">
+    <header class="stock-card__head"><div><span class="stock-eyebrow">Registru produse</span><h2>Soldurile curente</h2></div><span>{{ from }}–{{ to }} din {{ total }}</span></header>
+    <form class="stock-filters" action="{{ url('admin/stoc/') }}" method="get" role="search">
+      <label class="stock-search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m16.5 16.5 4 4"/></svg><span><small>Căutare inteligentă</small><input type="search" name="q" value="{{ filters.q|default('') }}" placeholder="Nume, SKU, cod de bare, furnizor sau document..."></span>{% if filters.q|default('') %}<a href="{{ url('admin/stoc/?alert=' ~ filters.alert|default('')) }}" aria-label="Șterge căutarea">×</a>{% endif %}</label>
+      <label class="stock-filter-select"><span>Alertă</span><select name="alert"><option value="">Toate produsele</option><option value="negative"{{ filters.alert|default('') == 'negative' ? ' selected' : '' }}>Stoc negativ</option><option value="low"{{ filters.alert|default('') == 'low' ? ' selected' : '' }}>La sau sub prag</option></select></label>
+      <button class="stock-btn stock-btn--primary" type="submit">Afișează</button>
+      {% if filters.q|default('') or filters.alert|default('') %}<a class="stock-btn" href="{{ url('admin/stoc/') }}">Resetează</a>{% endif %}
+    </form>
+
+    {% if items %}
+      <div class="stock-table-wrap"><table class="stock-table"><thead><tr><th>Produs</th><th>Stoc contabil</th><th>În curs de acoperire</th><th>Online</th><th>Valoare</th><th>Stare</th><th></th></tr></thead><tbody>
+      {% for item in items %}<tr class="stock-row stock-row--{{ item.alert }}">
+        <td data-label="Produs"><a class="stock-product" data-stock-open href="{{ url('admin/stoc/' ~ item.id ~ '/') }}"><span class="stock-product__photo">{% if item.image_path %}<img src="{{ url(item.image_path|trim('/')) }}" alt="">{% else %}<svg viewBox="0 0 24 24"><path d="M4 5h16v14H4zM7 15l3-3 2 2 2-3 3 4"/></svg>{% endif %}</span><span><strong>{{ item.name }}</strong><small>{{ item.sku ?: 'Fără SKU' }}{% if item.category %} · {{ item.category }}{% endif %}</small>{% if item.supplier %}<em>{{ item.supplier }}</em>{% endif %}</span></a></td>
+        <td data-label="Stoc contabil"><strong class="stock-number">{{ item.quantity|decimal_ro }}</strong><small>prag {{ item.minimum|decimal_ro }}</small></td>
+        <td data-label="În curs de acoperire"><strong class="stock-number">{{ item.pending|decimal_ro }}</strong><small>ieșiri înainte de NIR</small></td>
+        <td data-label="Disponibilitate online">{% if item.unlimited %}<span class="stock-online stock-online--supplier">La furnizor</span>{% else %}<strong class="stock-number">{{ item.online_quantity }}</strong><small>disponibile clienților</small>{% endif %}</td>
+        <td data-label="Valoare"><strong>{{ money(item.value_bani) }}</strong><small>cost rămas</small></td>
+        <td data-label="Stare"><span class="stock-state stock-state--{{ item.alert }}"><i></i>{{ item.alert == 'negative' ? 'Stoc negativ' : (item.alert == 'low' ? 'Sub prag' : 'În regulă') }}</span></td>
+        <td class="stock-row__open"><a data-stock-open href="{{ url('admin/stoc/' ~ item.id ~ '/') }}" aria-label="Deschide fișa {{ item.name }}"><svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></a></td>
+      </tr>{% endfor %}
+      </tbody></table></div>
+      {% if pages > 1 %}<nav class="stock-pagination" aria-label="Paginare registru">{% if previous_url %}<a href="{{ previous_url }}">‹</a>{% else %}<span>‹</span>{% endif %}<strong>Pagina {{ page }} din {{ pages }}</strong>{% if next_url %}<a href="{{ next_url }}">›</a>{% else %}<span>›</span>{% endif %}</nav>{% endif %}
+    {% else %}<div class="stock-empty"><span><svg viewBox="0 0 24 24"><path d="M4 5h16v14H4zM8 9h8M8 13h5"/></svg></span><h3>Nu am găsit produse</h3><p>Modifică termenul sau alerta. Produsele urmărite contabil vor apărea automat după configurare.</p></div>{% endif %}
+  </section>
+</div>
+{% endblock %}

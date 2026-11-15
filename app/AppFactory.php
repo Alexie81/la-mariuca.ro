@@ -183,7 +183,10 @@ final class AppFactory
         $invoiceController = new \App\Modules\Invoicing\InvoiceController($invoiceService, $invoiceRepository, new \App\Modules\Invoicing\InvoiceExportService($invoiceRepository, $root), new AdminNotificationService($pdo), $auth, $view, $config, $catalogSearch);
         $invoiceCustomer=new \App\Modules\Invoicing\InvoiceCustomerController($invoiceService,$view,$config,$rateLimiter);
         $invoiceAutomationController = new \App\Modules\Invoicing\InvoiceAutomationController(new \App\Modules\Invoicing\InvoiceAutomationService(new \App\Modules\Invoicing\InvoiceAutomationRepository($pdo)), new AdminNotificationService($pdo), $auth, $view, $config);
-        $spvPreviewController = new \App\Modules\Invoicing\SpvPreviewController(new AdminNotificationService($pdo), $auth, $view);
+        $spvHttp = new \App\Modules\Invoicing\SpvCurlClient();
+        $spvPreviewController = new \App\Modules\Invoicing\SpvController(new \App\Modules\Invoicing\SpvSettingsService($pdo, $config), new \App\Modules\Invoicing\SpvConnection($pdo, $config, $spvHttp), $spvHttp, $invoiceRepository, $invoiceService, $config, $auth, $view, $root);
+        $stockRepository = new \App\Modules\Inventory\StockLedgerRepository($pdo);
+        $stockController = new \App\Modules\Inventory\StockLedgerController(new \App\Modules\Inventory\StockLedgerService($stockRepository), $stockRepository, new \App\Modules\Inventory\StockLedgerExportService($root), new AdminNotificationService($pdo), $auth, $view, $config);
         $nirController = new \App\Modules\Inventory\NirAdminController(
             new \App\Modules\Inventory\NirService($pdo), new \App\Modules\Inventory\NirDocumentStorage($root),
             new \App\Modules\Inventory\NirImportService(), new \App\Modules\Inventory\NirExportService($root),
@@ -258,7 +261,12 @@ final class AppFactory
         $app->post('/admin/', [$adminController, 'login']);
         $app->post('/admin/deconectare/', [$adminController, 'logout']);
 
-        $app->group('/admin', function (RouteCollectorProxy $group) use ($adminController, $adminPushController, $twoFactorController, $orderNotificationSettingsController, $paymentMethodSettingsController, $companyAdminController, $nirController, $invoiceConfigurationController, $invoiceAutomationController, $invoiceController, $spvPreviewController): void {
+        $app->group('/admin', function (RouteCollectorProxy $group) use ($adminController, $adminPushController, $twoFactorController, $orderNotificationSettingsController, $paymentMethodSettingsController, $companyAdminController, $nirController, $invoiceConfigurationController, $invoiceAutomationController, $invoiceController, $spvPreviewController, $stockController): void {
+            $group->get('/stoc/', [$stockController, 'index']);
+            $group->get('/stoc/export/xlsx/', [$stockController, 'export']);
+            $group->get('/stoc/{id:[0-9]+}/', [$stockController, 'detail']);
+            $group->post('/stoc/{id:[0-9]+}/prag/', [$stockController, 'threshold']);
+            $group->get('/stoc/{id:[0-9]+}/export/xlsx/', [$stockController, 'export']);
             $group->get('/facturi/', [$invoiceController, 'index']);
             $group->get('/facturi/produs/', [$invoiceController, 'productPreview']);
             $group->get('/facturi/produse/', [$invoiceController, 'products']);
@@ -267,10 +275,14 @@ final class AppFactory
             $group->get('/facturi/export/{format:xlsx|zip}/', [$invoiceController, 'export']);
             $group->get('/facturi/{id:[0-9]+}/', [$invoiceController, 'detail']);
             $group->get('/facturi/{id:[0-9]+}/{format:pdf|xlsx|zip}/', [$invoiceController, 'export']);
-            $group->get('/facturi/{id:[0-9]+}/{action:edit|return|correct|receive|payment|delete|email|link|request|decide|policy|order-edit}/', [$invoiceController, 'form']);
-            $group->post('/facturi/{id:[0-9]+}/{action:edit|return|correct|receive|payment|delete|email|link|dismiss|request|decide|policy|order-edit}/', [$invoiceController, 'action']);
+            $group->get('/facturi/{id:[0-9]+}/{action:edit|return|correct|receive|payment|delete|email|link|request|decide|policy|order-edit|order-payment}/', [$invoiceController, 'form']);
+            $group->post('/facturi/{id:[0-9]+}/{action:edit|return|correct|receive|payment|delete|email|link|dismiss|request|decide|policy|order-edit|order-payment}/', [$invoiceController, 'action']);
             $group->get('/automatizari/', [$invoiceAutomationController, 'index']);
             $group->get('/spv-efactura/', [$spvPreviewController, 'index']);
+            $group->get('/spv-efactura/retur/', [$spvPreviewController, 'callback']);
+            $group->post('/spv-efactura/{operation:conecteaza|deconecteaza|testeaza|salveaza}/', [$spvPreviewController, 'action']);
+            $group->post('/spv-efactura/facturi/{id:[0-9]+}/{operation:trimite|verifica|reia}/', [$spvPreviewController, 'invoiceAction']);
+            $group->get('/spv-efactura/facturi/{id:[0-9]+}/arhiva/', [$spvPreviewController, 'archive']);
             $group->post('/automatizari/', [$invoiceAutomationController, 'save']);
             $group->get('/configurator-factura/', [$invoiceConfigurationController, 'index']);
             $group->post('/configurator-factura/{action:setari}/', [$invoiceConfigurationController, 'save']);

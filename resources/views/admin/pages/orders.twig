@@ -1,8 +1,11 @@
 {% extends 'admin/layouts/base.twig' %}
+{% import 'admin/invoices/ui.twig' as iv %}
+{% import 'admin/partials/nir-ui.twig' as n %}
 
 {% block title %}Comenzi{% endblock %}
 
 {% block content %}
+<div class="orders-workspace" data-iv-page>
   <section class="admin-orders-hero" aria-labelledby="admin-orders-title">
     <div>
       <span class="admin-eyebrow"><i aria-hidden="true"></i> Activitatea boutique-ului</span>
@@ -30,7 +33,12 @@
         </div>
       </div>
       {% if pagination.total > 0 %}
-        <p>Se afișează <strong>{{ pagination.from }}–{{ pagination.to }}</strong> din <strong>{{ pagination.total }}</strong></p>
+        <div class="orders-register-navigation"><p><strong>{{ pagination.from }}–{{ pagination.to }}</strong> din {{ pagination.total }} comenzi</p>
+          {% if pagination.total_pages > 1 %}<nav class="orders-page-control" aria-label="Navigare rapidă între pagini"><span>Pagina <strong>{{ pagination.page }}</strong> / {{ pagination.total_pages }}</span>
+            {% if pagination.page > 1 %}<a href="{{ url('admin/comenzi/?pagina=' ~ (pagination.page - 1) ~ (filters_query ? '&' ~ filters_query : '')) }}" aria-label="Pagina precedentă">{{ n.icon('back') }}</a>{% else %}<span class="is-disabled" aria-hidden="true">{{ n.icon('back') }}</span>{% endif %}
+            {% if pagination.page < pagination.total_pages %}<a href="{{ url('admin/comenzi/?pagina=' ~ (pagination.page + 1) ~ (filters_query ? '&' ~ filters_query : '')) }}" aria-label="Pagina următoare din registru">{{ n.icon('arrow') }}</a>{% else %}<span class="is-disabled" aria-hidden="true">{{ n.icon('arrow') }}</span>{% endif %}
+          </nav>{% endif %}
+        </div>
       {% endif %}
     </header>
 
@@ -38,7 +46,7 @@
       <label class="admin-orders-search">
         <span class="sr-only">Caută în comenzi</span>
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m16.5 16.5 4 4"/></svg>
-        <input type="search" name="cautare" value="{{ search }}" placeholder="Număr, client, email, telefon, produs, SKU, AWB…" autocomplete="off">
+        <input type="search" name="cautare" value="{{ search }}" placeholder="Număr, client, email, telefon, produs, SKU…" autocomplete="off">
       </label>
       <label class="admin-orders-status">
         <span class="sr-only">Filtrează după status</span>
@@ -70,40 +78,36 @@
     {% endif %}
 
     {% if orders %}
-      <div class="admin-orders-table-wrap">
-        <table class="admin-orders-table">
-          <thead>
-            <tr>
-              <th>Nr. comandă</th>
-              <th>Client</th>
-              <th>Tip plată</th>
-              <th>Stare plată</th>
-              <th>Status comandă</th>
-              <th>Data și ora</th>
-              <th>Total</th>
-              <th><span class="sr-only">Deschide</span></th>
-            </tr>
-          </thead>
+      <div class="orders-register-wrap">
+        <table class="orders-register">
+          <caption class="sr-only">Comenzi, clienți, starea plății și facturi</caption>
+          <thead><tr><th>Comandă</th><th>Client</th><th>Status</th><th>Plată</th><th>Total</th><th>Factură</th><th><span class="sr-only">Deschide comanda</span></th></tr></thead>
           <tbody>
-            {% for order in orders %}
-              <tr>
-                <td data-label="Nr. comandă">
-                  <a class="admin-orders-table__number" href="{{ url('admin/comenzi/' ~ order.id ~ '/') }}">{{ order.order_number ?: '#' ~ order.id }}</a>
-                  {% if order.cancellation_requested %}<a class="order-cancellation-badge" href="{{ url('admin/comenzi/' ~ order.id ~ '/#cerere-anulare') }}">Anulare solicitată</a>{% endif %}
-                </td>
-                <td data-label="Client" class="admin-orders-table__client">
-                  <strong>{{ order.first_name }} {{ order.last_name }}</strong>
-                  <a href="mailto:{{ order.email }}">{{ order.email }}</a>
-                  <a href="tel:{{ order.phone|replace({' ': '', '-': ''}) }}">{{ order.phone }}</a>
-                </td>
-                <td data-label="Tip plată"><span class="admin-payment-method admin-payment-method--{{ order.payment_method }}">{{ order.payment_method_label }}</span></td>
-                <td data-label="Stare plată"><span class="admin-payment-state admin-payment-state--{{ order.payment_status }}">{{ order.payment_status_label }}</span></td>
-                <td data-label="Status comandă"><span class="admin-order-badge admin-order-badge--{{ order.status }}">{{ order.status_label }}</span></td>
-                <td data-label="Data și ora"><time datetime="{{ order.created_at }}">{{ order.display_created_at }}</time></td>
-                <td data-label="Total"><strong class="admin-orders-table__total">{{ money(order.total_bani) }}</strong></td>
-                <td class="admin-orders-table__action"><a href="{{ url('admin/comenzi/' ~ order.id ~ '/') }}" aria-label="Deschide comanda {{ order.order_number ?: '#' ~ order.id }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a></td>
-              </tr>
-            {% endfor %}
+          {% for order in orders %}
+            <tr>
+              <td class="orders-register__identity" data-label="Comandă">
+                <a class="orders-register__number" href="{{ url('admin/comenzi/' ~ order.id ~ '/') }}">{{ order.order_number ?: '#' ~ order.id }}</a>
+                <time datetime="{{ order.created_at }}">{{ order.display_created_at }}</time>
+                {% if order.cancellation_requested %}<a class="order-cancellation-badge" href="{{ url('admin/comenzi/' ~ order.id ~ '/#cerere-anulare') }}">Anulare solicitată</a>{% endif %}
+              </td>
+              <td class="orders-register__client" data-label="Client">
+                <div class="orders-client-name"><strong>{{ order.first_name }} {{ order.last_name }}</strong><abbr title="{{ order.customer_type == 'company' ? 'Persoană juridică' : 'Persoană fizică' }}">{{ order.customer_type == 'company' ? 'PJ' : 'PF' }}</abbr></div>
+                {% if order.phone %}<a class="orders-contact" href="tel:{{ order.phone|replace({' ': '', '-': '', '(': '', ')': ''}) }}">{{ order.phone }}</a>{% else %}<a class="orders-contact" href="mailto:{{ order.email }}">{{ order.email }}</a>{% endif %}
+              </td>
+              <td class="orders-register__status" data-label="Status"><span class="orders-status orders-status--{{ order.status }}"><i aria-hidden="true"></i>{{ order.status_label }}</span></td>
+              <td class="orders-register__payment" data-label="Plată"><div class="orders-payment">
+                <span class="orders-payment__method orders-payment__method--{{ order.payment_method }}">{% if order.payment_method == 'stripe' %}<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M3 10h18M7 15h3"/></svg>{% else %}<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="6" width="20" height="12" rx="3"/><circle cx="12" cy="12" r="3"/><path d="M6 11v2m12-2v2"/></svg>{% endif %}{{ order.payment_method_label }}</span>
+                <span class="orders-payment__state orders-payment__state--{{ order.payment_status }}"><i aria-hidden="true"></i>{{ order.payment_status_label }}</span>
+              </div></td>
+              <td class="orders-register__total" data-label="Total"><strong>{{ money(order.total_bani) }}</strong></td>
+              <td class="orders-register__invoice" data-label="Factură">
+                {% if order.invoice %}<a class="orders-invoice orders-invoice--issued" href="{{ url('admin/facturi/' ~ order.invoice.id ~ '/') }}" aria-label="Deschide factura {{ order.invoice.series_code }} {{ order.invoice.number }}">{{ n.icon('document') }}<span>{{ order.invoice.series_code }} {{ order.invoice.number }}</span></a>
+                {% elseif can_invoice and order.invoice_action.allowed %}<a class="orders-invoice orders-invoice--issue" data-iv-modal href="{{ url('admin/facturi/emite/?order=' ~ order.id ~ '&return_to=orders') }}" aria-label="Emite factura pentru comanda {{ order.order_number }}">{{ n.icon('document') }}<span>Emite</span></a>
+                {% else %}<span class="orders-invoice-note{{ order.invoice_action.reason == 'Așteaptă confirmarea plății cu cardul.' ? ' orders-invoice-note--waiting' : '' }}" title="{{ can_invoice ? order.invoice_action.reason : 'Nu ai drept de emitere a facturilor.' }}">{{ order.invoice_action.reason == 'Așteaptă confirmarea plății cu cardul.' ? 'Așteaptă plata' : (can_invoice ? 'Indisponibilă' : 'Neemisă') }}</span>{% endif %}
+              </td>
+              <td class="orders-register__open"><a href="{{ url('admin/comenzi/' ~ order.id ~ '/') }}" aria-label="Deschide comanda {{ order.order_number ?: '#' ~ order.id }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a></td>
+            </tr>
+          {% endfor %}
           </tbody>
         </table>
       </div>
@@ -147,4 +151,6 @@
     <button class="order-notification-close" type="button" aria-label="Închide setările" data-order-notifications-close><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
     <div class="order-notification-content" data-order-notifications-content><div class="order-notification-loading"><span aria-hidden="true"></span><h2 id="order-notifications-title">Notificări de comenzi</h2><p>Se încarcă setările…</p></div></div>
   </dialog>
+  {{ iv.shell() }}
+</div>
 {% endblock %}

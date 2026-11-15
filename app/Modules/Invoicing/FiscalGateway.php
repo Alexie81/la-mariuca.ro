@@ -9,7 +9,7 @@ interface FiscalGateway
     public function build(array $invoice): string;
     /** @return list<string> */
     public function validate(string $document): array;
-    /** The provider must deduplicate on documentKey.
+    /** Use documentKey when supported; unknown transport outcomes must never be blindly retried.
      * @return array{reference:string,state:string,response:array<string,mixed>}
      */
     public function send(string $document,string $documentKey): array;

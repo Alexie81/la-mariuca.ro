@@ -21,6 +21,7 @@ final class CustomerAccountService
     ];
     private const PAYMENT_STATUS = [
         'pending' => 'În așteptare',
+        'partial' => 'Plătită parțial',
         'paid' => 'Plătită',
         'failed' => 'Eșuată',
         'partially_refunded' => 'Rambursată parțial',
