@@ -139,41 +139,82 @@ final class ProductReviewRepository
         return $statement->fetchColumn() !== false;
     }
 
-    /** @return list<array<string, mixed>> */
-    public function forModeration(): array
+    /** @return array<string,int|float> */
+    public function moderationSummary(): array
     {
-        $reviews = $this->pdo->query("SELECT review.*, product.name AS product_name, product.slug AS product_slug,
-                moderator.first_name AS moderator_first_name, moderator.last_name AS moderator_last_name
-            FROM product_reviews review
-            JOIN products product ON product.id = review.product_id
-            LEFT JOIN users moderator ON moderator.id = review.moderated_by
-            WHERE review.deleted_at IS NULL
-            ORDER BY CASE review.status WHEN 'pending' THEN 0 WHEN 'approved' THEN 1 ELSE 2 END,
-                review.created_at DESC, review.id DESC")->fetchAll();
-        if ($reviews === []) {
-            return [];
-        }
-        $byId = [];
-        foreach ($reviews as $index => $review) {
-            $reviews[$index]['moderation_history'] = [];
-            $byId[(int) $review['id']] = $index;
-        }
-        $history = $this->pdo->query("SELECT audit.*, actor.first_name AS actor_first_name, actor.last_name AS actor_last_name
-            FROM audit_log audit
-            LEFT JOIN users actor ON actor.id=audit.actor_user_id
-            WHERE audit.entity_type='product_review'
-            ORDER BY audit.created_at DESC,audit.id DESC")->fetchAll();
-        foreach ($history as $event) {
-            $reviewId = (int) ($event['entity_id'] ?? 0);
-            if (!isset($byId[$reviewId])) {
-                continue;
-            }
-            $context = json_decode((string) ($event['context_json'] ?? '{}'), true);
-            $event['context'] = is_array($context) ? $context : [];
-            $reviews[$byId[$reviewId]]['moderation_history'][] = $event;
-        }
+        $row=$this->pdo->query("SELECT COUNT(*) AS total,
+            COALESCE(SUM(CASE WHEN status='pending' THEN 1 ELSE 0 END),0) AS pending,
+            COALESCE(SUM(CASE WHEN status='approved' THEN 1 ELSE 0 END),0) AS approved,
+            COALESCE(SUM(CASE WHEN status='rejected' THEN 1 ELSE 0 END),0) AS rejected,
+            COALESCE(SUM(CASE WHEN admin_response<>'' THEN 1 ELSE 0 END),0) AS responded,
+            COALESCE(AVG(CASE WHEN status='approved' THEN rating ELSE NULL END),0) AS average
+            FROM product_reviews WHERE deleted_at IS NULL")->fetch();
+        return ['total'=>(int)$row['total'],'pending'=>(int)$row['pending'],'approved'=>(int)$row['approved'],
+            'rejected'=>(int)$row['rejected'],'responded'=>(int)$row['responded'],'average'=>round((float)$row['average'],1)];
+    }
 
-        return $reviews;
+    /** @param array<string,int|string> $filters */
+    public function moderationCount(array $filters): int
+    {
+        [$where,$params]=$this->moderationWhere($filters);
+        $query=$this->pdo->prepare('SELECT COUNT(*) FROM product_reviews review JOIN products product ON product.id=review.product_id WHERE '.$where);
+        $query->execute($params);
+        return (int)$query->fetchColumn();
+    }
+
+    /** @param array<string,int|string> $filters @return list<array<string,mixed>> */
+    public function moderationPage(array $filters,int $limit,int $offset): array
+    {
+        [$where,$params]=$this->moderationWhere($filters);
+        $order=match($filters['sortare']) {
+            'newest'=>'review.created_at DESC,review.id DESC',
+            'oldest'=>'review.created_at ASC,review.id ASC',
+            'rating'=>'review.rating DESC,review.created_at DESC,review.id DESC',
+            default=>"CASE review.status WHEN 'pending' THEN 0 WHEN 'approved' THEN 1 ELSE 2 END,review.created_at DESC,review.id DESC",
+        };
+        $query=$this->pdo->prepare($this->moderationSelect().' WHERE '.$where.' ORDER BY '.$order.' LIMIT '.max(1,min(50,$limit)).' OFFSET '.max(0,$offset));
+        $query->execute($params);
+        return $query->fetchAll();
+    }
+
+    /** @return array<string,mixed>|null */
+    public function moderationDetail(int $id): ?array
+    {
+        $query=$this->pdo->prepare($this->moderationSelect().' WHERE review.id=:id AND review.deleted_at IS NULL');
+        $query->execute(['id'=>$id]); $review=$query->fetch();
+        if(!is_array($review)) { return null; }
+        $history=$this->pdo->prepare("SELECT audit.action,audit.created_at,actor.first_name AS actor_first_name,actor.last_name AS actor_last_name
+            FROM audit_log audit LEFT JOIN users actor ON actor.id=audit.actor_user_id
+            WHERE audit.entity_type='product_review' AND audit.entity_id=:id ORDER BY audit.created_at DESC,audit.id DESC LIMIT 50");
+        $history->execute(['id'=>$id]); $review['moderation_history']=$history->fetchAll();
+        return $review;
+    }
+
+    private function moderationSelect(): string
+    {
+        return "SELECT review.*, product.name AS product_name, product.slug AS product_slug,
+            (SELECT media.public_path FROM product_images photo JOIN media ON media.id=photo.media_id
+                WHERE photo.product_id=product.id AND media.public_path IS NOT NULL ORDER BY photo.position,photo.media_id LIMIT 1) AS product_image,
+            (SELECT id FROM orders WHERE orders.order_number=review.order_reference LIMIT 1) AS order_id
+            FROM product_reviews review JOIN products product ON product.id=review.product_id";
+    }
+
+    /** @param array<string,int|string> $filters @return array{string,array<string,int|string>} */
+    private function moderationWhere(array $filters): array
+    {
+        $where=['review.deleted_at IS NULL']; $params=[];
+        if($filters['stare']!=='') { $where[]='review.status=:status'; $params['status']=$filters['stare']; }
+        if($filters['nota']!=='') { $where[]='review.rating=:rating'; $params['rating']=(int)$filters['nota']; }
+        if($filters['raspuns']!=='') { $where[]=$filters['raspuns']==='yes'?"review.admin_response<>''":"review.admin_response=''"; }
+        if($filters['q']!=='') {
+            $parts=[];
+            foreach(['product.name','review.author_name','review.author_email','review.order_number','review.body','review.title'] as $index=>$column) {
+                $parts[]=$column." LIKE :search".$index." ESCAPE '!'";
+                $params['search'.$index]='%'.strtr((string)$filters['q'],['!'=>'!!','%'=>'!%','_'=>'!_']).'%';
+            }
+            $where[]='('.implode(' OR ',$parts).')';
+        }
+        return [implode(' AND ',$where),$params];
     }
 
     public function moderate(int $reviewId, string $status, int $moderatorId): void

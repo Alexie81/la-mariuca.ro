@@ -93,10 +93,35 @@ final class ProductReviewService
         return $this->reviews->summaryForProduct($productId);
     }
 
-    /** @return list<array<string, mixed>> */
-    public function forModeration(): array
+    /** @param array<string,mixed> $input @return array<string,int|string> */
+    public function moderationFilters(array $input): array
     {
-        return $this->reviews->forModeration();
+        $value=static fn(string $key):string=>is_scalar($input[$key] ?? null)?trim((string)$input[$key]):'';
+        return ['q'=>mb_substr($value('q'),0,120),
+            'stare'=>in_array($value('stare'),['pending','approved','rejected'],true)?$value('stare'):'',
+            'nota'=>in_array($value('nota'),['1','2','3','4','5'],true)?$value('nota'):'',
+            'raspuns'=>in_array($value('raspuns'),['yes','no'],true)?$value('raspuns'):'',
+            'sortare'=>in_array($value('sortare'),['priority','newest','oldest','rating'],true)?$value('sortare'):'priority',
+            'per_page'=>in_array($value('per_page'),['10','20','50'],true)?(int)$value('per_page'):10,
+            'pagina'=>max(1,min(1000000,(int)$value('pagina')))];
+    }
+
+    /** @param array<string,mixed> $input @return array<string,mixed> */
+    public function moderationWorkspace(array $input): array
+    {
+        $filters=$this->moderationFilters($input); $count=$this->reviews->moderationCount($filters);
+        $pages=max(1,(int)ceil($count/(int)$filters['per_page'])); $page=min((int)$filters['pagina'],$pages); $filters['pagina']=$page;
+        $offset=($page-1)*(int)$filters['per_page'];
+        return ['reviews'=>$this->reviews->moderationPage($filters,(int)$filters['per_page'],$offset),
+            'summary'=>$this->reviews->moderationSummary(),'filters'=>$filters,'total'=>$count,'pages'=>$pages,'page'=>$page,
+            'page_numbers'=>range(max(1,$page-2),min($pages,$page+2)),
+            'from'=>$count>0?$offset+1:0,'to'=>min($count,$offset+(int)$filters['per_page'])];
+    }
+
+    /** @return array<string,mixed>|null */
+    public function moderationDetail(int $id): ?array
+    {
+        return $this->reviews->moderationDetail($id);
     }
 
     public function moderate(int $reviewId, string $action, int $moderatorId, string $response = ''): void

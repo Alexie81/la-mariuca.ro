@@ -460,6 +460,7 @@ final class AppFactory
             $group->post('/notificari/push/test/', [$adminPushController, 'test']);
             $group->post('/notificari/push/dispozitive/{id:[0-9]+}/sterge/', [$adminPushController, 'removeDevice']);
             $group->get('/recenzii/', [$adminController, 'reviews']);
+            $group->get('/recenzii/{id:[0-9]+}/', [$adminController, 'reviewDetail']);
             $group->post('/recenzii/{id:[0-9]+}/actiune/', [$adminController, 'moderateReview']);
             $group->get('/continut/', [$adminController, 'content']);
             $group->post('/continut/sectiuni/{id:[0-9]+}/actiune/', [$adminController, 'sectionAction']);

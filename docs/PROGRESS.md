@@ -2,6 +2,13 @@
 
 Actualizat: 2026-11-15
 
+### 2026-11-15 — Registru compact și modale pentru moderarea recenziilor
+- Pagina recenziilor folosește un tabel cu miniaturi, autor, fragment de text, notă, stare și acțiuni. Are sumar global, taburi de stare, căutare după produs/client/email/comandă/text, filtre pentru notă și răspuns, sortare și paginare pe server cu 10/20/50 de rânduri. Paginile inexistente sunt normalizate, iar sumarul rămâne independent de filtrul curent.
+- Detaliile se încarcă la cerere într-un modal cu secțiuni Recenzie, Răspuns public și Istoric. Aprobarea, respingerea, mutarea în așteptare, răspunsul și retragerea au confirmări dedicate; după salvare se revine în lista filtrată. Erorile păstrează răspunsul introdus, iar închiderea/schimbarea secțiunii protejează textul nesalvat. Fără JavaScript există pagină separată și formulare HTML complete.
+- Interogările sunt parametrizate, sortările/filtrele sunt limitate la valorile acceptate, iar istoricul este încărcat numai pentru recenzia deschisă (ultimele 50 de acțiuni). Accesul administrativ, CSRF, escaparea textelor și retragerea logică rămân active. Datele sunt afișate în Europe/Bucharest.
+- Verificări: **42 teste / 632 aserțiuni**, PHPStan fără erori, lint PHP, sintaxă JS și **163 template-uri Twig** compilate. Regresiile noi acoperă paginarea, filtrarea combinată, caracterele wildcard căutate literal, ordonarea, accesul neautorizat, confirmarea prin POST/JSON, păstrarea contextului intern, validarea fără JS și auditul fiecărei acțiuni.
+- Browser: într-o bază SQLite QA separată cu 23 de recenzii au fost verificate paginarea, căutarea, aprobarea efectivă, publicarea unui răspuns, păstrarea filtrelor, istoricul, protecția textului nesalvat și renunțarea la retragere. Nicio recenzie principală modificată; fără notificări reale, deploy sau bifare în roadmap. MySQL și browserele de pe dispozitive fizice nu sunt declarate verificate.
+
 ### 2026-11-15 — Vizibilitatea produselor după furnizor și acces la recenzii
 - Conform ultimei clarificări, pagina rămâne **Furnizori**. Nu se introduce un registru de surse de aprovizionare sau un furnizor prestabilit. După **Stare**, formularul are numai noul comutator **Produse vizibile online**, independent de starea furnizorului.
 - Oprirea ascunde produsele asociate din magazin, categorii, colecții, căutare, recomandări și sitemap; adresa publică a produsului răspunde cu 404. Adăugarea în coș, creșterea cantității și finalizarea unui coș existent sunt validate pe server. Produsele, stocurile și documentele rămân în administrare; reactivarea restabilește vizibilitatea produselor publicate fără rescrierea statusului lor.

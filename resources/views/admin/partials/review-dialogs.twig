@@ -1,0 +1,5 @@
+{% import 'admin/partials/review-icons.twig' as r %}
+<dialog class="rv-dialog" data-review-dialog aria-labelledby="rv-dialog-title"><div data-review-dialog-content></div></dialog>
+<dialog class="rv-confirm" data-review-confirm aria-labelledby="rv-confirm-title" aria-describedby="rv-confirm-copy"><div class="rv-confirm__content"><span class="rv-mark">{{ r.icon('shield') }}</span><span class="rv-eyebrow">Moderare recenzie</span><h2 id="rv-confirm-title"></h2><p id="rv-confirm-copy"></p><p class="rv-confirm__identity" data-review-confirm-identity></p><div class="rv-confirm__actions"><button type="button" class="rv-button" data-review-confirm-cancel>Renunță</button><button type="button" class="rv-button rv-button--primary" data-review-confirm-accept>Confirmă</button></div></div></dialog>
+<div class="rv-loading" data-review-loading hidden role="status">Se încarcă recenzia…</div>
+<div class="rv-alert" data-review-page-error hidden role="alert"></div>

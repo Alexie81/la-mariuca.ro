@@ -1582,19 +1582,36 @@ final class AdminController
         return $this->config->path('admin/notificari/' . ($query !== '' ? '?' . $query : ''));
     }
 
-    public function reviews(): ResponseInterface
+    public function reviews(ServerRequestInterface $request): ResponseInterface
     {
         return $this->view->render('admin/pages/reviews.twig', [
             'admin_section' => 'reviews',
             'admin_context' => 'Moderare și răspunsuri',
-            'reviews' => $this->reviews->forModeration(),
+            ...$this->reviews->moderationWorkspace($request->getQueryParams()),
         ]);
+    }
+
+    public function reviewDetail(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $review=$this->reviews->moderationDetail((int)$args['id']);
+        $query=$request->getQueryParams();
+        $panel=is_string($query['panel'] ?? null) && in_array($query['panel'],['review','reply','history'],true)?$query['panel']:'review';
+        $filters=$this->reviews->moderationFilters($query);
+        return $this->view->render($request->getHeaderLine('X-Review-Modal')==='1'?'admin/partials/review-detail.twig':'admin/pages/review-detail.twig',[
+            'admin_section'=>'reviews','admin_context'=>'Moderare și răspunsuri','review'=>$review,'panel'=>$panel,
+            'filters'=>$filters,'return_url'=>$this->config->path('admin/recenzii/').'?'.http_build_query($filters),
+        ],$review?200:404)->withHeader('Cache-Control','no-store');
     }
 
     public function moderateReview(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
     {
         $data = (array) ($request->getParsedBody() ?? []);
         $user = $this->auth->user();
+        $context=[];
+        if(is_string($data['return_query'] ?? null)) { parse_str(mb_substr($data['return_query'],0,2048),$context); }
+        $filters=$this->reviews->moderationFilters($context);
+        $returnUrl=$this->config->path('admin/recenzii/').'?'.http_build_query($filters);
+        $json=str_contains($request->getHeaderLine('Accept'),'application/json');
         try {
             $action = (string) ($data['action'] ?? '');
             $this->reviews->moderate(
@@ -1603,15 +1620,29 @@ final class AdminController
                 (int) ($user['id'] ?? 0),
                 (string) ($data['admin_response'] ?? ''),
             );
-            Flash::set('success', match ($action) {
+            $message=match ($action) {
                 'respond' => 'Răspunsul public a fost salvat.',
-                'remove' => 'Recenzia a fost retrasă conform politicii de retenție.',
+                'remove' => 'Recenzia a fost retrasă. Istoricul ei este păstrat.',
                 default => 'Starea recenziei a fost actualizată.',
-            });
+            };
+            Flash::set('success',$message);
+            if($json) {
+                $response->getBody()->write(json_encode(['ok'=>true,'message'=>$message,'redirect'=>$returnUrl],JSON_THROW_ON_ERROR));
+                return $response->withHeader('Content-Type','application/json; charset=utf-8')->withHeader('Cache-Control','no-store');
+            }
         } catch (\Throwable $exception) {
-            Flash::set('error', $exception->getMessage());
+            $message=$exception instanceof \RuntimeException && !$exception instanceof \PDOException?$exception->getMessage():'Modificarea nu a putut fi salvată. Încearcă din nou.';
+            if($json) {
+                $response->getBody()->write(json_encode(['ok'=>false,'message'=>$message],JSON_THROW_ON_ERROR));
+                return $response->withStatus(422)->withHeader('Content-Type','application/json; charset=utf-8')->withHeader('Cache-Control','no-store');
+            }
+            return $this->view->render('admin/pages/review-detail.twig',[
+                'admin_section'=>'reviews','review'=>$this->reviews->moderationDetail((int)$args['id']),
+                'panel'=>($data['action'] ?? '')==='respond'?'reply':'review','filters'=>$filters,'return_url'=>$returnUrl,
+                'error'=>$message,'response_value'=>(string)($data['admin_response'] ?? ''),
+            ],422);
         }
-        return $this->view->redirect($this->config->path('admin/recenzii/'));
+        return $this->view->redirect($returnUrl);
     }
 
     public function content(): ResponseInterface
