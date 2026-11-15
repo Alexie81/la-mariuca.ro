@@ -1,5 +1,10 @@
 # Progres
 
+### 2026-11-15 — Cererea de retur se creează numai din comandă
+- Eliminată acțiunea duplicată din meniul facturii și formularul de creare bazat pe liniile facturii. În admin rămâne formularul comenzii, cu fotografii, cantități și destinația restituirii. Deciziile asupra cererilor existente și solicitarea clientului din urmărirea comenzii sunt păstrate.
+- Adresele vechi GET trimit la formularul comenzii. POST-urile vechi nu creează cereri: JSON 410 sau redirecționare pentru formularul normal, cu autorizare și CSRF. Încărcarea modalului de factură respectă redirecționarea; versiunea scriptului a fost actualizată.
+- Verificări: test HTTP **1 test / 29 aserțiuni** pentru singurul CTA, redirecționări, POST vechi fără efecte, CSRF, formular complet stilizat și crearea exclusiv în registrul comenzii. **178 template-uri Twig**, sintaxa JavaScript și diff check trecute. Fără schimbări ale comenzilor principale sau deploy.
+
 ### 2026-11-15 — Cerere unică de retur, urmărire și costuri de restituire
 - Cererile din admin și cele din pagina clientului sunt proiectate în aceeași secțiune privată de urmărire: în analiză, acceptată, acceptată parțial, respinsă sau retur anulat. Cererea manuală este vizibilă fără emiterea unei facturi. IBAN-ul și titularul nu sunt expuse în proiecția de urmărire.
 - Conform cererii explicite ulterioare: **o singură cerere pe comandă**, inclusiv după decizie, verificată între ambele registre în tranzacția cu blocaj comun. Reluarea aceleiași confirmări este idempotentă; cheia reutilizată pentru alte date este refuzată. Acțiunile pentru cerere nouă dispar când există una; o cerere în analiză trebuie soluționată prin fluxul ei.

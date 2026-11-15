@@ -144,6 +144,7 @@
     loadingController?.abort();loadingController=new AbortController();opener=trigger||opener;startLoader();
     try{
       const response=await fetch(url,{headers:{'X-Invoice-Modal':'1'},credentials:'same-origin',signal:loadingController.signal});
+      if(response.redirected){location.assign(response.url);return;}
       if(!response.ok)throw new Error('Formularul nu poate fi deschis. Reîncarcă pagina și încearcă din nou.');
       const html=await response.text();const fragment=new DOMParser().parseFromString(html,'text/html'),form=fragment.querySelector('[data-iv-form]');
       if(!form)throw new Error('Sesiunea a expirat. Reîncarcă pagina pentru autentificare.');

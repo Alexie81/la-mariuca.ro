@@ -66,6 +66,11 @@ final class InvoiceController
         try {
             $kind=$args['action'] ?? 'issue'; $this->service->allow($this->actor(),$kind);
             $invoice=(int)($args['id'] ?? 0)>0?$this->service->document((int)$args['id'],$this->actor()):null;
+            // Old bookmarks lead to the single order form; invoices cannot create requests.
+            if($kind==='request') {
+                if(!$invoice) { throw new InvoiceException('Factura nu există.',404); }
+                return $this->view->redirect($this->config->path('admin/comenzi/'.$invoice['order_id'].'/cerere-retur/modal/'));
+            }
             $orderId=(int)($request->getQueryParams()['order'] ?? $request->getQueryParams()['order_id'] ?? 0);
             if($invoice && $kind==='edit') { $kind='order-edit'; $orderId=(int)$invoice['order_id']; }
             if($kind==='order-edit' && $orderId>0 && !$invoice) {
@@ -126,6 +131,14 @@ final class InvoiceController
         try {
             $input=(array)$request->getParsedBody(); $kind=$args['action'] ?? 'issue'; $actor=$this->actor(); $id=(int)($args['id'] ?? 0); $result=null;
             $sourceOrderId=$id>0?(int)$this->service->document($id,$actor)['order_id']:0;
+            if($kind==='request') {
+                $this->service->allow($actor,$kind);
+                $redirect=$this->config->path('admin/comenzi/'.$sourceOrderId.'/cerere-retur/modal/');
+                $message='Cererea de retur se înregistrează din comandă. Deschide formularul comenzii pentru a continua.';
+                if($this->jsonWanted($request)) { return $this->json(['ok'=>false,'message'=>$message,'redirect'=>$redirect],410); }
+                Flash::set('error',$message);
+                return $this->view->redirect($redirect);
+            }
             if(!(new \App\Shared\Http\RateLimiter($this->repository->pdo()))->allow('invoice-action',(string)$actor['id'],90,300)) { throw new InvoiceException('Ai făcut multe operațiuni. Așteaptă puțin și reîncearcă.',429); }
             if($kind==='issue') {
                 if(empty($input['confirmation_hash']) || empty($input['expected_number'])) { throw new InvoiceException('Redeschide confirmarea de emitere a facturii.',409); }
@@ -142,7 +155,6 @@ final class InvoiceController
             elseif($kind==='order-edit') { $this->service->editOrder((int)($input['order_id'] ?? 0),$input,$actor); }
             elseif($kind==='return-reconcile') { $this->service->reconcileReturn((int)($input['order_id'] ?? 0),(int)($input['return_id'] ?? 0),$input,$actor); }
             elseif($kind==='order-payment') { $this->service->setOrderPayment((int)($input['order_id'] ?? 0),$input,$actor); }
-            elseif($kind==='request') { $this->service->requestReturn($id,$input,$actor); }
             else {
                 $result=match($kind) { 'return'=>$this->service->credit($id,$input,$actor),'receive'=>$this->service->receive($id,$input,$actor),
                     'edit'=>$this->service->edit($id,$input,$actor),'correct'=>$this->service->correct($id,$input,$actor),'payment'=>$this->service->payment($id,$input,$actor),'decide'=>$this->service->decideReturn($id,$input,$actor),default=>throw new InvoiceException('Acțiune necunoscută.',404) };

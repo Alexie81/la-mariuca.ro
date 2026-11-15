@@ -995,6 +995,59 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         unset($app);gc_collect_cycles();
     }
 
+    public function testAdminReturnRequestsCanOnlyBeCreatedFromTheOrder(): void
+    {
+        $order=$this->order(2); $this->pdo->exec("UPDATE orders SET status='delivered' WHERE id=".$order);
+        $invoice=$this->service->issue($order,['request_key'=>'single-order-request-invoice'],$this->actor);
+        $_SESSION['user_id']=$this->actor['id'];
+        $factory=new \Slim\Psr7\Factory\ServerRequestFactory();
+        $send=function(string $method,string $path,array $input=[],array $headers=[])use($factory) {
+            $request=$factory->createServerRequest($method,'http://localhost'.$path,['REMOTE_ADDR'=>'127.0.0.83'])->withParsedBody($input);
+            foreach($headers as $name=>$value) { $request=$request->withHeader($name,$value); }
+            $app=\App\AppFactory::create($this->root);$response=$app->handle($request);unset($app);gc_collect_cycles();return $response;
+        };
+        $legacy='/admin/facturi/'.$invoice['id'].'/request/';
+        $canonical='/admin/comenzi/'.$order.'/cerere-retur/modal/';
+        $page=$send('GET','/admin/comenzi/'.$order.'/');
+        self::assertSame(200,$page->getStatusCode());
+        self::assertSame(1,substr_count((string)$page->getBody(),'href="'.$canonical.'"'));
+        self::assertStringNotContainsString($legacy,(string)$page->getBody());
+        $page=$send('GET','/admin/facturi/'.$invoice['id'].'/');
+        self::assertSame(200,$page->getStatusCode());self::assertStringNotContainsString($legacy,(string)$page->getBody());
+        foreach([[],['X-Invoice-Modal'=>'1']] as $headers) {
+            $response=$send('GET',$legacy,[],$headers);
+            self::assertSame(303,$response->getStatusCode());self::assertSame($canonical,$response->getHeaderLine('Location'));
+        }
+        $page=$send('GET',$canonical);$html=(string)$page->getBody();
+        self::assertSame(200,$page->getStatusCode());
+        self::assertStringContainsString('data-order-return-form',$html);
+        self::assertStringContainsString('return-editor.css',$html);
+        self::assertStringContainsString('name="bank_name"',$html);
+        self::assertStringContainsString('order-return-item__image',$html);
+        $before=(int)$this->pdo->query('SELECT COUNT(*) FROM outbox_messages')->fetchColumn();
+        $oldInput=['request_key'=>'legacy-request-denied','quantities'=>[$invoice['lines'][0]['id']=>'1'],'reason'=>'Produs nepotrivit','refund_method'=>'cash'];
+        self::assertSame(419,$send('POST',$legacy,$oldInput,['Accept'=>'application/json'])->getStatusCode());
+        $oldInput['_csrf']=$_SESSION['_csrf'];
+        $response=$send('POST',$legacy,$oldInput,['Accept'=>'application/json']);
+        self::assertSame(410,$response->getStatusCode());
+        $payload=json_decode((string)$response->getBody(),true,512,JSON_THROW_ON_ERROR);
+        self::assertFalse($payload['ok']);self::assertSame($canonical,$payload['redirect']);
+        $response=$send('POST',$legacy,$oldInput);
+        self::assertSame(303,$response->getStatusCode());self::assertSame($canonical,$response->getHeaderLine('Location'));
+        self::assertSame(0,(int)$this->pdo->query('SELECT COUNT(*) FROM invoice_return_requests')->fetchColumn());
+        self::assertSame(0,(int)$this->pdo->query('SELECT COUNT(*) FROM order_return_requests')->fetchColumn());
+        self::assertSame($before,(int)$this->pdo->query('SELECT COUNT(*) FROM outbox_messages')->fetchColumn());
+        $item=(int)$this->pdo->query('SELECT id FROM order_items WHERE order_id='.$order)->fetchColumn();
+        $input=['_csrf'=>$_SESSION['_csrf'],'request_key'=>'canonical-order-request','quantities'=>[$item=>'1'],'reason'=>'Produs nepotrivit','refund_method'=>'cash'];
+        $response=$send('POST','/admin/comenzi/'.$order.'/cerere-retur/',$input,['Accept'=>'application/json']);
+        self::assertSame(200,$response->getStatusCode(),(string)$response->getBody());
+        self::assertSame(1,(int)$this->pdo->query('SELECT COUNT(*) FROM order_return_requests')->fetchColumn());
+        self::assertSame(0,(int)$this->pdo->query('SELECT COUNT(*) FROM invoice_return_requests')->fetchColumn());
+        self::assertSame('pending',$this->pdo->query('SELECT state FROM order_return_requests')->fetchColumn());
+        self::assertSame($before+1,(int)$this->pdo->query('SELECT COUNT(*) FROM outbox_messages')->fetchColumn());
+        self::assertSame('delivered',$this->pdo->query('SELECT status FROM orders WHERE id='.$order)->fetchColumn());
+    }
+
     private function order(int $quantity): int
     {
         $_SESSION['cart_token']=bin2hex(random_bytes(32)); $cart=new CartService($this->pdo); $cart->add($this->variant['id'],$quantity);
