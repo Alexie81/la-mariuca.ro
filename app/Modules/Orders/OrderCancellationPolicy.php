@@ -11,6 +11,12 @@ final class OrderCancellationPolicy
 {
     public const WINDOW_SECONDS = 5 * 24 * 60 * 60;
 
+    /** Direct cancellation follows the current operational state, without a historic delivery lock. */
+    public static function allowsDirect(string $status): bool
+    {
+        return in_array($status,['new','confirmed','preparing','shipped'],true);
+    }
+
     public static function deadline(string $createdAt): int
     {
         return (new DateTimeImmutable($createdAt, new DateTimeZone('UTC')))->getTimestamp() + self::WINDOW_SECONDS;

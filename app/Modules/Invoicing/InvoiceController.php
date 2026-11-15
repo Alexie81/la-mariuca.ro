@@ -89,7 +89,7 @@ final class InvoiceController
                 $editOrder['payment_version']=$this->repository->paymentVersion((int)$editOrder['id']);
                 $editOrder['cash']=$this->repository->orderCash((int)$editOrder['id']);
                 $editOrder['can_record_refund']=(new OrderRefundService($this->repository))->eligible($editOrder);
-                $documents=$this->repository->all('invoices',['order_id'=>$editOrder['id'],'deleted_at'=>null]);
+                $documents=$this->repository->currentOrderInvoices((int)$editOrder['id']);
                 $editOrder['payment_total']=$editOrder['can_record_refund']?(int)$editOrder['total_bani']:($documents!==[]?max(0,$this->repository->orderNet((int)$editOrder['id'])):(int)$editOrder['total_bani']);
             }
             $actions=$editOrder?(new OrderDocumentPolicy($this->repository))->actions($editOrder):[];

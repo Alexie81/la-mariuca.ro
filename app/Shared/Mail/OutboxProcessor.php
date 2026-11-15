@@ -42,7 +42,7 @@ final class OutboxProcessor
         if (!ctype_digit($floor)) { throw new RuntimeException('MAIL_SEND_AFTER_ID trebuie să fie un ID pozitiv sau zero.'); }
         $types = array_values(array_filter(array_map('trim', explode(',', $this->config->get('MAIL_MESSAGE_TYPES')))));
         foreach ($types as $type) {
-            if (!in_array($type, ['invoice', 'invoice_return_notice', 'order_confirmation', 'order_details_changed', 'internal_order_notification', 'order_status_update', 'verify_email', ...OrderCancellationEmail::TYPES], true)) {
+            if (!in_array($type, ['dispatch_note', 'invoice', 'invoice_return_notice', 'order_confirmation', 'order_details_changed', 'internal_order_notification', 'order_status_update', 'verify_email', ...OrderCancellationEmail::TYPES], true)) {
                 throw new RuntimeException('MAIL_MESSAGE_TYPES conține un tip necunoscut.');
             }
         }
@@ -78,6 +78,7 @@ final class OutboxProcessor
         $statusEmail = new OrderStatusEmail($tracking, $this->config,
             new Environment(new FilesystemLoader($this->root . '/resources/views'), ['autoescape'=>'html']));
         $invoiceEmail = new \App\Modules\Invoicing\InvoiceEmail($invoiceRepository, $this->config, $this->root);
+        $dispatchEmail = new \App\Modules\Invoicing\DispatchNoteEmail(new \App\Modules\Invoicing\DispatchNoteRepository($this->pdo), $this->config, $this->root);
         foreach ($messages as $message) {
             if ($message['message_type'] === 'invoice') {
                 $invoicePayload = json_decode($message['payload_json'], true);
@@ -98,7 +99,10 @@ final class OutboxProcessor
             try {
                 $payload = json_decode((string) $message['payload_json'], true, 512, JSON_THROW_ON_ERROR);
                 $html = null; $attachment = null; $attachmentName = null;
-                if (in_array($message['message_type'], ['invoice','invoice_return_notice'], true)) {
+                if ($message['message_type'] === 'dispatch_note') {
+                    $rendered=$dispatchEmail->render($payload,(string)$message['recipient']);
+                    $subject=$rendered['subject'];$body=$rendered['text'];$html=$rendered['html'];$attachment=$rendered['attachment'];$attachmentName=$rendered['attachment_name'];
+                } elseif (in_array($message['message_type'], ['invoice','invoice_return_notice'], true)) {
                     $rendered = $invoiceEmail->render($payload, (string) $message['recipient']);
                     $subject = $rendered['subject']; $body = $rendered['text']; $html = $rendered['html'];
                     $attachment = $rendered['attachment']; $attachmentName = $rendered['attachment_name'];

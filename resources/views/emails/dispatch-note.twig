@@ -1,0 +1,16 @@
+{% extends 'emails/order-confirmation.twig' %}
+{% block introduction %}
+<h1 class="greeting" style="margin:24px 0 16px;color:#2d333d;font-size:32px;line-height:40px;font-weight:600;">Bună, {{ first_name }}!</h1>
+<p style="margin:0;color:#697583;font-size:17px;line-height:28px;">Îți trimitem avizul de însoțire pentru comanda {{ order_number }}. Îl găsești atașat și îl poți deschide direct de mai jos.</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="#60445c" style="margin-top:24px;background:#60445c;border-radius:22px;"><tr><td style="padding:23px 24px;"><p style="margin:0 0 8px;color:#ead6e4;font-size:12px;letter-spacing:1px;text-transform:uppercase;">Aviz de însoțire · {{ order_number }}</p><p style="margin:0;color:#fff;font-size:26px;line-height:36px;font-weight:bold;">{{ number }}</p></td></tr></table>
+{% if personal_message %}<div style="margin:22px 0 0;padding:20px 22px;border:1px solid #eadfea;border-radius:18px;background:#fcf8fc;color:#514658;font-size:17px;line-height:28px;">{{ personal_message|nl2br }}</div>{% endif %}
+<table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:24px;"><tr><td>
+<!--[if mso]><v:roundrect href="{{ tracking_url }}" style="height:56px;v-text-anchor:middle;width:244px;" arcsize="50%" stroke="f" fillcolor="#75506e"><w:anchorlock xmlns:w="urn:schemas-microsoft-com:office:word"/><center style="color:#ffffff;font-family:Arial,sans-serif;font-size:17px;font-weight:bold;">Deschide avizul</center></v:roundrect><![endif]-->
+<!--[if !mso]><!--><a href="{{ tracking_url }}" target="_blank" rel="noopener noreferrer" style="display:inline-block;padding:17px 25px;background:#75506e;border-radius:28px;color:#fff;font-size:17px;line-height:22px;font-weight:bold;text-decoration:none;">Deschide avizul</a><!--<![endif]-->
+</td></tr></table>
+<p style="margin:16px 0 0;color:#7c8792;font-size:14px;line-height:23px;">Documentul se deschide fără autentificare. <a href="{{ download_url }}" style="color:#a74768;">Descarcă avizul PDF</a> pentru a păstra o copie.</p>
+{% endblock %}
+{% block order_contents %}{% endblock %}
+{% block delivery_and_payment %}{% endblock %}
+{% block email_origin %}Mesaj pentru avizul{% endblock %}
+{% block private_link_notice %}Acest link este privat și oferă acces la avizul tău.{% endblock %}

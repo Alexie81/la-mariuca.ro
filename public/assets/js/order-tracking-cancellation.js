@@ -9,29 +9,12 @@
   const reason = form.querySelector('[name="reason"]');
   const submit = form.querySelector('[data-cancel-submit]');
   const error = form.querySelector('[data-cancel-error]');
-  const started = performance.now();
-  const remainingMs = Number(form.dataset.cancelRemaining) * 1000;
   let submitting = false;
-  let expired = false;
   const showError = (message) => { error.textContent = message; error.hidden = false; };
-  const checkExpiry = () => {
-    if (!submit || performance.now() - started < remainingMs) return;
-    expired = true;
-    submit.disabled = true;
-    if (opener) opener.hidden = true;
-    showError('Au trecut 5 zile de la plasare. Perioada în care poți solicita anularea s-a încheiat.');
-  };
-  if (submit) {
-    setTimeout(checkExpiry, Math.max(0, remainingMs));
-    document.addEventListener('visibilitychange', checkExpiry);
-    window.addEventListener('pageshow', checkExpiry);
-  }
   if (dialog && typeof dialog.showModal === 'function') {
     let previousOverflow = '';
     opener?.addEventListener('click', (event) => {
       if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
-      checkExpiry();
-      if (expired) return;
       event.preventDefault();
       previousOverflow = document.documentElement.style.overflow;
       document.documentElement.style.overflow = 'hidden';
@@ -55,8 +38,7 @@
   form.addEventListener('submit', async (event) => {
     if (!window.fetch || !submit) return;
     event.preventDefault();
-    checkExpiry();
-    if (submitting || expired || !form.reportValidity()) return;
+    if (submitting || !form.reportValidity()) return;
     submitting = true;
     submit.disabled = true;
     submit.setAttribute('aria-busy', 'true');
@@ -83,9 +65,9 @@
       showError('Nu am putut confirma trimiterea. Verifică conexiunea și încearcă din nou; aceeași cerere nu va fi înregistrată de două ori.');
     } finally {
       submitting = false;
-      submit.disabled = expired;
+      submit.disabled = false;
       submit.removeAttribute('aria-busy');
-      submit.querySelector('span').textContent = 'Trimite cererea';
+      submit.querySelector('span').textContent = 'Da, anulează comanda';
     }
   });
 })();

@@ -90,7 +90,7 @@ final class DispatchNoteWorkflowTest extends DatabaseTestCase
             $this->pdo->exec("UPDATE orders SET status='new' WHERE id=".$order);
             $note=$this->service->issue($order,hash('sha256','issue-'.$status),$this->actor);
             $this->pdo->prepare('UPDATE orders SET status=:status WHERE id=:id')->execute(['status'=>$status,'id'=>$order]);
-            self::assertTrue($this->service->forOrder($order,$this->actor)['can_delete']);self::assertSame($index+1,(int)$note['number']);
+            self::assertTrue($this->service->forOrder($order,$this->actor)['can_delete']);self::assertSame(1,(int)$note['number']);
             $this->service->delete($order,hash('sha256','delete-'.$status),$this->actor,$note['id'],$note['row_version']);
             self::assertNull($this->service->forOrder($order,$this->actor));
         }
@@ -103,6 +103,8 @@ final class DispatchNoteWorkflowTest extends DatabaseTestCase
         try{$this->service->delete($order,str_repeat('b',32),$this->actor,$note['id'],$note['row_version']);self::fail('Stale version deleted');}catch(InvoiceException $error){self::assertSame(409,$error->getCode());}
         $current=$this->service->forOrder($order,$this->actor);$this->service->delete($order,str_repeat('b',32),$this->actor,$current['id'],$current['row_version']);
         $replacement=$this->service->issue($order,str_repeat('c',32),$this->actor);
+        self::assertNotSame($note['id'],$replacement['id']);self::assertSame($note['number'],$replacement['number']);
+        self::assertSame($note['number'],(new DispatchNoteRepository($this->pdo))->find((int)$note['id'])['number']);
         $this->service->delete($order,str_repeat('b',32),$this->actor,$current['id'],$current['row_version']);
         try{$this->service->delete($order,str_repeat('d',32),$this->actor,$current['id'],$current['row_version']);self::fail('Stale form deleted replacement');}catch(InvoiceException $error){self::assertSame(409,$error->getCode());}
         self::assertSame($replacement['id'],$this->service->forOrder($order,$this->actor)['id']);
@@ -150,6 +152,60 @@ final class DispatchNoteWorkflowTest extends DatabaseTestCase
         self::assertSame(404,$app->handle($factory->createServerRequest('GET','http://localhost/admin/comenzi/'.$order.'/aviz/pdf/'))->getStatusCode());
         unset($delivered,$noIdentity,$form,$standalone,$stale,$repeat);
         unset($pdf,$updated,$issued,$rejected,$page,$app); gc_collect_cycles();
+    }
+
+    public function testEmailIncludesPrivatePdfAndSupportsDeliberateResendsWithoutDuplicates(): void
+    {
+        $id=$this->order(1);$note=$this->service->issue($id,hash('sha256','issue-dispatch-email'),$this->actor);
+        $input=['request_key'=>hash('sha256','dispatch-email-first'),'dispatch_note_id'=>$note['id'],'version'=>$note['row_version'],'personal_message'=>'Cu drag! <script>alert(1)</script>'];
+        $before=$this->stockState();$this->service->queueEmail($id,$input,$this->actor);$this->service->queueEmail($id,$input,$this->actor);
+        self::assertSame(1,(int)$this->pdo->query("SELECT COUNT(*) FROM outbox_messages WHERE message_type='dispatch_note'")->fetchColumn());
+        $input['request_key']=hash('sha256','dispatch-email-second');$this->service->queueEmail($id,$input,$this->actor);
+        $messages=$this->pdo->query("SELECT * FROM outbox_messages WHERE message_type='dispatch_note'")->fetchAll();self::assertCount(2,$messages);
+        $renderer=new \App\Modules\Invoicing\DispatchNoteEmail(new DispatchNoteRepository($this->pdo),Config::load($this->root),$this->root);
+        $payload=json_decode($messages[0]['payload_json'],true,512,JSON_THROW_ON_ERROR);$rendered=$renderer->render($payload,$messages[0]['recipient']);
+        self::assertStringContainsString('Deschide avizul',$rendered['html']);self::assertStringContainsString('anpc-sal.png',$rendered['html']);
+        self::assertStringContainsString('&lt;script&gt;',$rendered['html']);self::assertStringNotContainsString('<script>',$rendered['html']);
+        self::assertStringStartsWith('%PDF-',(string)file_get_contents($rendered['attachment']));self::assertStringStartsWith('Aviz-',$rendered['attachment_name']);
+        $factory=new ServerRequestFactory();$app=AppFactory::create($this->root);$url='http://localhost/aviz/'.$note['document_key'].'/';
+        $response=$app->handle($factory->createServerRequest('GET',$url)->withQueryParams(['view'=>'1']));
+        self::assertSame(200,$response->getStatusCode());self::assertStringContainsString('inline',$response->getHeaderLine('Content-Disposition'));self::assertSame('no-referrer',$response->getHeaderLine('Referrer-Policy'));
+        try { $renderer->render($payload,'someone-else@example.test');self::fail('Wrong recipient accepted'); } catch(InvoiceException $error) { self::assertStringContainsString('actualizat',$error->getMessage()); }
+        $this->service->delete($id,hash('sha256','delete-emailed-dispatch'),$this->actor,$note['id'],$note['row_version']);
+        self::assertSame(404,$app->handle($factory->createServerRequest('GET',$url))->getStatusCode());
+        self::assertSame(2,(int)$this->pdo->query("SELECT COUNT(*) FROM outbox_messages WHERE message_type='dispatch_note' AND status='failed' AND attempts=5")->fetchColumn());
+        $replacement=$this->service->issue($id,hash('sha256','issue-replacement-email'),$this->actor);self::assertSame($note['number'],$replacement['number']);
+        self::assertSame(404,$app->handle($factory->createServerRequest('GET',$url))->getStatusCode());
+        self::assertSame($before,$this->stockState());
+        unset($app,$response);gc_collect_cycles();
+    }
+
+    public function testEmailHttpRequiresAuthorizationCsrfAndProcessesResends(): void
+    {
+        $order=$this->order(1);$note=$this->service->issue($order,hash('sha256','http-email-issue'),$this->actor);
+        $factory=new ServerRequestFactory();$app=AppFactory::create($this->root);$url='http://localhost/admin/comenzi/'.$order.'/aviz/email/';
+        $get=$factory->createServerRequest('GET',$url);self::assertSame(303,$app->handle($get)->getStatusCode());
+        $_SESSION['user_id']=$this->actor['id'];$_SESSION['_csrf']=bin2hex(random_bytes(32));
+        $standalone=$app->handle($get);self::assertSame(200,$standalone->getStatusCode());self::assertStringContainsString('Mesaj personalizat',(string)$standalone->getBody());
+        self::assertSame(200,$app->handle($get->withHeader('X-Invoice-Modal','1'))->getStatusCode());
+        $input=['request_key'=>hash('sha256','http-email-first'),'dispatch_note_id'=>$note['id'],'version'=>$note['row_version'],'personal_message'=>'Cu drag!'];
+        $post=$factory->createServerRequest('POST',$url);self::assertSame(419,$app->handle($post->withParsedBody($input))->getStatusCode());
+        $input['_csrf']=$_SESSION['_csrf'];
+        self::assertSame(409,$app->handle($post->withHeader('Accept','application/json')->withParsedBody(array_replace($input,['version'=>99])))->getStatusCode());
+        self::assertSame(302,$app->handle($post->withParsedBody($input))->getStatusCode());
+        self::assertTrue(json_decode((string)$app->handle($post->withHeader('Accept','application/json')->withParsedBody($input))->getBody(),true)['ok']);
+        $input['request_key']=hash('sha256','http-email-resend');
+        self::assertSame(200,$app->handle($post->withHeader('Accept','application/json')->withParsedBody($input))->getStatusCode());
+        self::assertSame(2,(int)$this->pdo->query("SELECT COUNT(*) FROM outbox_messages WHERE message_type='dispatch_note'")->fetchColumn());
+        $saved=$_ENV;
+        try {
+            $_ENV['APP_ENV']='development';$_ENV['MAIL_DELIVERY_MODE']='smtp';$_ENV['MAIL_SEND_AFTER_ID']='0';$_ENV['MAIL_MESSAGE_TYPES']='dispatch_note';$_ENV['MAILER_DSN']='smtp://127.0.0.1:2525';$_ENV['MAIL_FROM_ADDRESS']='shop@example.test';
+            $this->pdo->exec("UPDATE outbox_messages SET available_at='2020-01-01'");
+            $processor=new \App\Shared\Mail\OutboxProcessor($this->pdo,Config::load($this->root),$this->root,new \Symfony\Component\Mailer\Transport\NullTransport());
+            self::assertSame(['processed'=>2,'sent'=>2,'previewed'=>0,'failed'=>0],$processor->process());
+            self::assertSame(0,$processor->process()['processed']);
+        } finally { $_ENV=$saved; }
+        unset($app,$standalone);gc_collect_cycles();
     }
 
     private function order(int $quantity): int

@@ -10,7 +10,7 @@ final class OrderDocumentPolicy
     /** @param array<string,mixed> $order @return array<string,array<string,mixed>> */
     public function actions(array $order): array
     {
-        $documents=$this->repository->all('invoices',['order_id'=>$order['id'],'deleted_at'=>null]);
+        $documents=$this->repository->currentOrderInvoices((int)$order['id']);
         $positive=null; $blocked=''; $chain=false;
         foreach($documents as $document) {
             if($document['kind']==='sale') { $positive=$document; }

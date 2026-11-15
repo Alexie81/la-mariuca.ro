@@ -187,10 +187,16 @@
       }catch(err){toast(err.message);}finally{endLoader();busy=false;download.removeAttribute('aria-busy');}return;
     }
   });
+  const navigateAfterSave=(redirect)=>{
+    const target=new URL(redirect||location.href,location.href);
+    if(target.origin===location.origin&&target.pathname===location.pathname&&target.search===location.search){
+      history.replaceState(history.state,'',target.href);location.reload();
+    }else location.assign(target.href);
+  };
   root.addEventListener('submit',async e=>{
     if(e.target.matches('[data-dispatch-issue]')){
       e.preventDefault();if(busy)return;busy=true;const form=e.target,button=form.querySelector('button');button.disabled=true;startLoader();
-      try{const response=await fetch(form.action,{method:'POST',body:new FormData(form),credentials:'same-origin',headers:{Accept:'application/json'}});const result=await response.json();if(!response.ok||!result.ok)throw new Error(result.message||'Avizul nu a putut fi generat.');sessionStorage.setItem('iv-feedback',result.message);location.assign(result.redirect);}
+      try{const response=await fetch(form.action,{method:'POST',body:new FormData(form),credentials:'same-origin',headers:{Accept:'application/json'}});const result=await response.json();if(!response.ok||!result.ok)throw new Error(result.message||'Avizul nu a putut fi generat.');sessionStorage.setItem('iv-feedback',result.message);navigateAfterSave(result.redirect);}
       catch(err){toast(err.message||'Avizul nu a putut fi generat. Reîncarcă pagina și încearcă din nou.');}
       finally{busy=false;button.disabled=false;endLoader();}return;
     }
@@ -201,7 +207,7 @@
     try{const response=await fetch(form.action,{method:'POST',body:new FormData(form),credentials:'same-origin',headers:{'Accept':'application/json'}});let result;try{result=await response.json();}catch{throw new Error('Sesiunea a expirat sau serverul nu răspunde. Datele tale sunt păstrate în formular.');}
       if(!response.ok||!result.ok)throw new Error(result.message||'Verifică datele introduse.');
       baseline=signature(form);if(result.link!==undefined){shareResult(form,result);}
-      else{sessionStorage.setItem('iv-feedback',result.message);location.assign(result.redirect);}
+      else{sessionStorage.setItem('iv-feedback',result.message);navigateAfterSave(result.redirect);}
     }catch(err){error(form,err.message);}finally{endLoader();busy=false;if(submit)submit.disabled=false;}
   });
   root.querySelector('[data-iv-lightbox]')?.addEventListener('click',e=>{if(e.target===e.currentTarget)e.currentTarget.close();});

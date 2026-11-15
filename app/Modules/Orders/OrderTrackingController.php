@@ -78,16 +78,16 @@ final class OrderTrackingController
                 ->withHeader('Retry-After', '900');
         }
         try {
-            $this->tracking->requestCancellation($id, $reason);
+            $this->tracking->cancelDirect($id,$reason,is_string($body['status_version']??null)?$body['status_version']:'');
         } catch (\DomainException $exception) {
             return $json ? $this->cancellationJson(false, $exception->getMessage(), 422)
                 : $this->page(status: 422, cancellationForm: true, cancellationError: $exception->getMessage(), cancellationReason: $reason);
         } catch (\Throwable) {
-            $message = 'Cererea nu a putut fi salvată acum. Te rugăm să încerci din nou.';
+            $message = 'Comanda nu a putut fi anulată acum. Te rugăm să încerci din nou.';
             return $json ? $this->cancellationJson(false, $message, 503)
                 : $this->page(status: 503, cancellationForm: true, cancellationError: $message, cancellationReason: $reason);
         }
-        return $json ? $this->cancellationJson(true, 'Cererea de anulare a fost înregistrată.')
+        return $json ? $this->cancellationJson(true, 'Comanda a fost anulată. Confirmarea este pregătită pentru email.')
             : $this->privateResponse($this->view->redirect($this->config->path('urmarire-comanda/#cerere-anulare')));
     }
 

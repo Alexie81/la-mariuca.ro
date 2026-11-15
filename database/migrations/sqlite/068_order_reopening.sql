@@ -1,0 +1,2 @@
+ALTER TABLE orders ADD COLUMN invoice_cycle_start_id INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE orders ADD COLUMN return_cycle_start_id INTEGER NOT NULL DEFAULT 0;

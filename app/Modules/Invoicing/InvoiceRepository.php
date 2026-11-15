@@ -9,6 +9,14 @@ final class InvoiceRepository
     private const TABLES = ['invoices','invoice_lines','invoice_actions','invoice_audit','invoice_public_links','invoice_receipts','invoice_receipt_allocations','invoice_return_requests','invoice_reminder_dismissals','invoice_refunds','invoice_automation_intents','outbox_messages','orders','order_items','users','company_warehouses','inventory_reservations','inventory_movements','audit_log','invoice_return_policy','invoice_fiscal_jobs','payments','order_document_operations','order_return_documents','order_returns','order_return_items','order_return_requests','order_refunds'];
     public function __construct(private readonly PDO $pdo) {}
     public function pdo(): PDO { return $this->pdo; }
+    /** Documents of the current fulfilment, excluding earlier fully cancelled cycles.
+     * @return list<array<string,mixed>>
+     */
+    public function currentOrderInvoices(int $orderId): array
+    {
+        $query=$this->pdo->prepare('SELECT i.* FROM invoices i JOIN orders o ON o.id=i.order_id WHERE i.order_id=:id AND i.deleted_at IS NULL AND i.id>o.invoice_cycle_start_id ORDER BY i.id');
+        $query->execute(['id'=>$orderId]);return $query->fetchAll();
+    }
     public function now(): string { return gmdate('Y-m-d\TH:i:s\Z'); }
     /** Read-only presentation data; the editor validates availability and price again on save.
      * @return array<string,mixed>|null

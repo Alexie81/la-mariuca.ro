@@ -66,6 +66,63 @@ final class OrderCancellationWorkflowTest extends DatabaseTestCase
         $_ENV = $this->environment;
     }
 
+    /** @return array<string,mixed> */
+    private function inventory(): array { return $this->pdo->query('SELECT * FROM inventory WHERE variant_id='.$this->variantId)->fetch(); }
+
+    public function testReopeningRestoresReservationsAndCouponOnceAndCanBeCancelledAgain(): void
+    {
+        $orders=new OrderService($this->pdo);$before=$this->inventory();
+        $orders->transition($this->orderId,'cancel',null,$this->adminId);
+        $version=$orders->statusVersion($this->orderId);
+        self::assertSame('reopen',$orders->findForAdmin($this->orderId)['available_actions'][0]['action']);
+        $orders->transition($this->orderId,'reopen',null,$this->adminId,'',true,$version);
+        $orders->transition($this->orderId,'reopen',null,$this->adminId,'',true,$version);
+        self::assertSame('new',$this->orderStatus());
+        self::assertSame((int)$before['physical_quantity'],(int)$this->inventory()['physical_quantity']);
+        self::assertSame((int)$before['reserved_quantity'],(int)$this->inventory()['reserved_quantity']);
+        self::assertSame('reserved',$this->pdo->query('SELECT status FROM coupon_redemptions WHERE order_id='.$this->orderId)->fetchColumn());
+        self::assertSame(1,(int)$this->pdo->query("SELECT COUNT(*) FROM audit_log WHERE action='order.reopen'")->fetchColumn());
+        self::assertSame(1,$this->mailCount('order_status_update'));
+        self::assertNull($this->pdo->query('SELECT cancelled_at FROM orders WHERE id='.$this->orderId)->fetchColumn());
+        $orders->transition($this->orderId,'deliver',null,$this->adminId);
+        $orders->transition($this->orderId,'reset',null,$this->adminId);
+        $orders->transition($this->orderId,'cancel',null,$this->adminId);
+        $orders->transition($this->orderId,'reopen',null,$this->adminId);
+        self::assertSame((int)$before['physical_quantity'],(int)$this->inventory()['physical_quantity']);
+        self::assertSame((int)$before['reserved_quantity'],(int)$this->inventory()['reserved_quantity']);
+    }
+
+    public function testReopeningInsufficientStockRollsBackWithoutChangingPayments(): void
+    {
+        $orders=new OrderService($this->pdo);$orders->transition($this->orderId,'cancel',null,$this->adminId);
+        $this->pdo->exec('UPDATE inventory SET physical_quantity=reserved_quantity WHERE variant_id='.$this->variantId);
+        $before=$this->economicSnapshot();
+        $this->assertFailure(fn()=>$orders->transition($this->orderId,'reopen',null,$this->adminId,'',true),'Stoc insuficient');
+        self::assertSame($before,$this->economicSnapshot());self::assertSame('cancelled',$this->orderStatus());
+        self::assertSame(0,$this->mailCount('order_status_update'));
+    }
+
+    public function testDirectCancellationUsesCurrentStatusEvenAfterDeliveryResetOrReopening(): void
+    {
+        $orders=new OrderService($this->pdo);$orders->transition($this->orderId,'deliver',null,$this->adminId);
+        self::assertFalse($this->tracking->details($this->orderId)['can_request_cancellation']);
+        $orders->transition($this->orderId,'reset',null,$this->adminId);
+        $this->pdo->exec("UPDATE orders SET created_at='2020-01-01T00:00:00Z' WHERE id=".$this->orderId);
+        self::assertTrue($this->tracking->details($this->orderId)['can_request_cancellation']);
+        $version=$orders->statusVersion($this->orderId);
+        $this->tracking->cancelDirect($this->orderId,'',$version);$this->tracking->cancelDirect($this->orderId,'',$version);
+        self::assertSame('cancelled',$this->orderStatus());self::assertSame(1,$this->mailCount('order_status_update'));
+        self::assertSame(0,(int)$this->pdo->query('SELECT COUNT(*) FROM order_cancellation_requests')->fetchColumn());
+        $event=$this->pdo->query("SELECT * FROM audit_log WHERE action='order.cancel' ORDER BY id DESC LIMIT 1")->fetch();
+        self::assertNull($event['actor_user_id']);self::assertSame('customer_tracking',json_decode($event['context_json'],true)['source']);
+        $orders->transition($this->orderId,'reopen',null,$this->adminId);
+        $this->assertFailure(fn()=>$this->tracking->cancelDirect($this->orderId,'',$version),'s-a schimbat');
+        self::assertTrue($this->tracking->details($this->orderId)['can_request_cancellation']);
+        $orders->transition($this->orderId,'ship',null,$this->adminId);
+        $this->tracking->cancelDirect($this->orderId,'',$orders->statusVersion($this->orderId));
+        self::assertSame('cancelled',$this->orderStatus());
+    }
+
     public function testRequestNotifiesClientAndEverySavedInternalRecipientOnlyOnce(): void
     {
         (new OrderNotificationSettingsService($this->pdo))->save(['orders@example.test','team@example.test','ORDERS@example.test'], $this->adminId);
@@ -297,6 +354,17 @@ final class OrderCancellationWorkflowTest extends DatabaseTestCase
         // Opting out also protects messages queued before the preference changed.
         self::assertSame(['processed'=>0, 'sent'=>0, 'failed'=>0, 'expired'=>0], $push->processPending());
         self::assertSame(0, (int) $this->pdo->query('SELECT SUM(attempts) FROM admin_push_deliveries')->fetchColumn());
+    }
+
+    public function testDirectCancellationResolvesAnOlderPendingRequest(): void
+    {
+        $this->tracking->requestCancellation($this->orderId,'Doresc anularea comenzii.');
+        $orders=new OrderService($this->pdo);
+        $this->tracking->cancelDirect($this->orderId,'',$orders->statusVersion($this->orderId));
+        self::assertSame('cancelled',$this->orderStatus());
+        self::assertSame('accepted',$this->requestRecord()['status']);
+        self::assertSame(1,$this->mailCount('order_status_update'));
+        self::assertSame(0,$this->mailCount('order_cancellation_decision'));
     }
 
     /** @return array<string,mixed> */

@@ -35,7 +35,8 @@
       </article>
       {% endfor %}
     </div>
-    {% else %}
+    {% endif %}
+    {% if not has_invoices or order.document_actions.issue_invoice.allowed %}
     <div class="order-billing__empty"><span class="order-billing__doc-icon">{{ n.icon('document') }}</span><div><strong>Factura comenzii</strong><p>{{ order.document_actions.issue_invoice.allowed ? 'Datele sunt pregătite pentru emitere.' : order.document_actions.issue_invoice.reason }}</p></div>
       {% if can_manage_documents and order.document_actions.issue_invoice.allowed %}<a class="order-billing__button is-primary" href="{{ url('admin/facturi/emite/?order=' ~ order.id ~ '&return_to=order') }}" data-iv-modal>{{ n.icon('plus') }}Emite factura</a>{% endif %}
     </div>
@@ -48,6 +49,7 @@
       {% if order.dispatch_note %}
         <a class="order-billing__button is-primary" href="{{ url('admin/comenzi/' ~ order.id ~ '/aviz/pdf/?deschide=1') }}" target="_blank" rel="noopener">{{ n.icon('eye') }}Vezi avizul</a>
         <a class="order-billing__button" href="{{ url('admin/comenzi/' ~ order.id ~ '/aviz/pdf/') }}" data-iv-download>{{ n.icon('download') }}Descarcă PDF</a>
+        <a class="order-billing__button" href="{{ url('admin/comenzi/' ~ order.id ~ '/aviz/email/') }}" data-iv-modal>{{ n.icon('mail') }}Trimite pe email</a>
         {% if order.dispatch_note.can_delete %}<a class="order-billing__button is-danger" href="{{ url('admin/comenzi/' ~ order.id ~ '/aviz/sterge/confirmare/') }}" data-iv-modal>{{ n.icon('trash') }}Șterge avizul</a>{% else %}<span class="order-billing__unavailable">{{ order.dispatch_note.delete_blocker }}</span>{% endif %}
       {% elseif order.status not in ['cancelled','returned','refunded'] %}
         <form action="{{ url('admin/comenzi/' ~ order.id ~ '/aviz/') }}" method="post" data-dispatch-issue><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="request_key" value="{{ order.dispatch_note_request_key }}"><button type="submit" class="order-billing__button is-primary">{{ n.icon('plus') }}Generează avizul</button></form>

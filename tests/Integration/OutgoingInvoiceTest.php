@@ -445,7 +445,7 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
             $request=$factory->createServerRequest('GET','http://localhost'.$path,['REMOTE_ADDR'=>'127.0.0.71'])->withQueryParams($query)->withHeader('X-Invoice-Modal','1');
             $response=$app->handle($request); unset($app); gc_collect_cycles(); return $response;
         };
-        foreach(['edit','return','correct','payment','delete','email','link','request'] as $action) {
+        foreach(['edit','return','correct','payment','delete','email','link'] as $action) {
             $response=$get('/admin/facturi/'.$invoice['id'].'/'.$action.'/');
             self::assertSame(200,$response->getStatusCode(),$action);
             self::assertStringContainsString('name="_csrf"',(string)$response->getBody());
@@ -993,6 +993,38 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         self::assertSame(-(int)$line['gross_bani']/2+1500,$credit['gross_bani']);self::assertSame('accepted',$tracking->forOrder($order)[0]['state']);self::assertSame(1500,$tracking->forOrder($order)[0]['settlement']['costs_bani']);
         $_SESSION['tracked_order']['id']=$order+1;self::assertSame(303,$app->handle($request)->getStatusCode());
         unset($app);gc_collect_cycles();
+    }
+
+    public function testReopenedCancellationCanBeInvoicedAgainAndCancelledRepeatedly(): void
+    {
+        $id=$this->order(1);$orders=new \App\Modules\Orders\OrderService($this->pdo);$repo=new InvoiceRepository($this->pdo);
+        $first=$this->service->issue($id,['request_key'=>'reopen-first-sale'],$this->actor);
+        $orders->transition($id,'cancel',null,$this->actor['id']);
+        $orders->transition($id,'reopen',null,$this->actor['id']);
+        self::assertTrue($orders->findForAdmin($id)['document_actions']['issue_invoice']['allowed']);
+        $second=$this->service->issue($id,['request_key'=>'reopen-second-sale'],$this->actor);
+        self::assertNotSame($first['id'],$second['id']);self::assertSame($first['number'],$second['number']);
+        $orders->transition($id,'cancel',null,$this->actor['id']);
+        $orders->transition($id,'reopen',null,$this->actor['id']);
+        self::assertCount(0,$repo->currentOrderInvoices($id));
+        self::assertSame('new',$repo->one('orders',['id'=>$id])['status']);
+    }
+
+    public function testReopeningKeepsCreditedHistoryButStartsNewInvoiceAndReturnQuantities(): void
+    {
+        $id=$this->order(2);$orders=new \App\Modules\Orders\OrderService($this->pdo);$repo=new InvoiceRepository($this->pdo);
+        $original=$this->service->issue($id,['request_key'=>'reopen-historical-sale'],$this->actor);
+        $this->service->issue($this->order(1),['request_key'=>'later-sale-blocks-delete'],$this->actor);
+        $orders->transition($id,'cancel',null,$this->actor['id']);
+        $history=$repo->all('invoices',['order_id'=>$id,'deleted_at'=>null]);self::assertCount(2,$history);self::assertSame(0,$repo->orderNet($id));
+        $orders->transition($id,'reopen',null,$this->actor['id']);
+        self::assertNull($repo->one('invoices',['primary_order_id'=>$id]));
+        self::assertSame(2,$orders->findForAdmin($id)['items'][0]['returnable_quantity']);
+        $new=$this->service->issue($id,['request_key'=>'reopen-new-sale'],$this->actor);self::assertNotSame($original['id'],$new['id']);
+        self::assertCount(1,$repo->currentOrderInvoices($id));self::assertSame($new['gross_bani'],$repo->orderNet($id));
+        foreach($history as $document) { self::assertSame($document['snapshot_json'],$repo->one('invoices',['id'=>$document['id']])['snapshot_json']); }
+        $orders->transition($id,'deliver',null,$this->actor['id']);
+        self::assertSame(2,$orders->findForAdmin($id)['items'][0]['returnable_quantity']);
     }
 
     public function testAdminReturnRequestsCanOnlyBeCreatedFromTheOrder(): void

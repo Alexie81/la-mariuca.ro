@@ -249,78 +249,52 @@ final class OrderTrackingTest extends DatabaseTestCase
         self::assertSame(0, (int) $this->pdo->query('SELECT COUNT(*) FROM order_cancellation_requests')->fetchColumn());
     }
 
-    public function testCancellationRecordsIntentOnceWithoutChangingOrderPaymentOrStockAndQueuesReceipt(): void
+    private function cancellationActor(): int
     {
-        $this->request('GET');
-        $_SESSION['tracked_order'] = ['id'=>$this->orderId, 'expires'=>time()+1800];
-        $this->pdo->prepare("UPDATE orders SET status='preparing',payment_method='stripe',payment_status='paid' WHERE id=:id")->execute(['id'=>$this->orderId]);
-        $beforeOrder = $this->pdo->query('SELECT * FROM orders')->fetchAll();
-        $beforeInventory = $this->pdo->query('SELECT * FROM inventory')->fetchAll();
-        $beforeReservations = $this->pdo->query('SELECT * FROM inventory_reservations')->fetchAll();
-        $beforePayments = $this->pdo->query('SELECT * FROM payments')->fetchAll();
-        $beforeCoupons = $this->pdo->query('SELECT * FROM coupon_redemptions')->fetchAll();
-        $beforeMail = $this->pdo->query('SELECT * FROM outbox_messages')->fetchAll();
-        $reason = 'Am ales mărimea greșită. <script>alert(1)</script>';
-        $data = ['_csrf'=>$_SESSION['_csrf'], 'reason'=>$reason, 'order_id'=>(string) ($this->orderId + 999)];
-        $response = $this->request('POST', '/urmarire-comanda/solicitare-anulare/', $data);
-        self::assertSame(303, $response->getStatusCode());
-        self::assertSame('/urmarire-comanda/#cerere-anulare', $response->getHeaderLine('Location'));
-        $first = $this->pdo->query('SELECT * FROM order_cancellation_requests')->fetch();
-        self::assertSame($this->orderId, (int) $first['order_id']);
-        self::assertSame($reason, $first['reason']);
-        self::assertSame('preparing', $first['order_status_at_request']);
-        $data['reason'] = 'O nouă trimitere nu trebuie să suprascrie motivul.';
-        self::assertSame(303, $this->request('POST', '/urmarire-comanda/solicitare-anulare/', $data)->getStatusCode());
-        self::assertSame([$first], $this->pdo->query('SELECT * FROM order_cancellation_requests')->fetchAll());
-        self::assertSame(1, (int) $this->pdo->query("SELECT COUNT(*) FROM audit_log WHERE action='order.cancellation_requested'")->fetchColumn());
-        self::assertSame($beforeOrder, $this->pdo->query('SELECT * FROM orders')->fetchAll());
-        self::assertSame($beforeInventory, $this->pdo->query('SELECT * FROM inventory')->fetchAll());
-        self::assertSame($beforeReservations, $this->pdo->query('SELECT * FROM inventory_reservations')->fetchAll());
-        self::assertSame($beforePayments, $this->pdo->query('SELECT * FROM payments')->fetchAll());
-        self::assertSame($beforeCoupons, $this->pdo->query('SELECT * FROM coupon_redemptions')->fetchAll());
-        $afterMail = $this->pdo->query('SELECT * FROM outbox_messages ORDER BY id')->fetchAll();
-        self::assertSame($beforeMail, array_slice($afterMail, 0, count($beforeMail)));
-        self::assertCount(count($beforeMail) + 1, $afterMail);
-        self::assertSame('order_cancellation_received', $afterMail[array_key_last($afterMail)]['message_type']);
-        $html = (string) $this->request('GET')->getBody();
-        self::assertStringContainsString('Cerere de anulare înregistrată', $html);
-        self::assertStringContainsString('&lt;script&gt;', $html);
-        self::assertStringNotContainsString('<script>alert', $html);
-        self::assertStringNotContainsString('data-tracking-cancel-open', $html);
+        $now=gmdate('c');
+        $this->pdo->prepare("INSERT INTO users(email,password_hash,first_name,last_name,role,status,created_at,updated_at) VALUES('direct-cancel@example.test','disabled','Automation','QA','administrator','active',?,?)")->execute([$now,$now]);
+        return (int)$this->pdo->lastInsertId();
     }
 
-    public function testCancellationValidatesReasonAndHasUsableNonJavascriptForm(): void
+    public function testDirectCancellationPreservesPaymentAndIgnoresPostedOrderIdentity(): void
     {
-        $this->request('GET');
-        $_SESSION['tracked_order'] = ['id'=>$this->orderId, 'expires'=>time()+1800];
-        $path = '/urmarire-comanda/solicitare-anulare/';
-        $form = $this->request('GET', $path);
-        self::assertSame(200, $form->getStatusCode());
-        self::assertStringContainsString('name="reason"', (string) $form->getBody());
-        self::assertStringContainsString('tracking-cancel-page', (string) $form->getBody());
-        foreach (['', '   ', 'abc', "\u{200B}\u{200B}\u{200B}\u{200B}\u{200B}", str_repeat('ă', 1001)] as $reason) {
-            $response = $this->request('POST', $path, ['_csrf'=>$_SESSION['_csrf'], 'reason'=>$reason]);
-            self::assertSame(422, $response->getStatusCode());
-            self::assertStringContainsString('5–1.000 de caractere', (string) $response->getBody());
-        }
-        self::assertSame(0, (int) $this->pdo->query('SELECT COUNT(*) FROM order_cancellation_requests')->fetchColumn());
+        $this->cancellationActor();$this->request('GET');
+        $_SESSION['tracked_order']=['id'=>$this->orderId,'expires'=>time()+1800];
+        $this->pdo->exec("UPDATE orders SET payment_method='stripe',payment_status='paid' WHERE id=".$this->orderId);
+        $payments=$this->pdo->query('SELECT * FROM payments')->fetchAll();
+        $data=['_csrf'=>$_SESSION['_csrf'],'status_version'=>(new OrderService($this->pdo))->statusVersion($this->orderId),'order_id'=>$this->orderId+999];
+        $response=$this->request('POST','/urmarire-comanda/solicitare-anulare/',$data);
+        self::assertSame(303,$response->getStatusCode());
+        self::assertSame(303,$this->request('POST','/urmarire-comanda/solicitare-anulare/',$data)->getStatusCode());
+        self::assertSame('cancelled',$this->pdo->query('SELECT status FROM orders WHERE id='.$this->orderId)->fetchColumn());
+        self::assertSame('paid',$this->pdo->query('SELECT payment_status FROM orders WHERE id='.$this->orderId)->fetchColumn());
+        self::assertSame($payments,$this->pdo->query('SELECT * FROM payments')->fetchAll());
+        self::assertSame('released',$this->pdo->query('SELECT status FROM inventory_reservations WHERE order_id='.$this->orderId)->fetchColumn());
+        self::assertSame(0,(int)$this->pdo->query('SELECT COUNT(*) FROM order_cancellation_requests')->fetchColumn());
+        self::assertSame(1,(int)$this->pdo->query("SELECT COUNT(*) FROM outbox_messages WHERE message_type='order_status_update'")->fetchColumn());
     }
 
-    public function testCancellationRechecksAgeAndStatusAfterFormWasOpened(): void
+    public function testDirectCancellationHasOptionalNoteAndUsableNonJavascriptForm(): void
     {
-        $this->request('GET');
-        $_SESSION['tracked_order'] = ['id'=>$this->orderId, 'expires'=>time()+1800];
-        $path = '/urmarire-comanda/solicitare-anulare/';
-        self::assertStringContainsString('data-cancel-submit', (string) $this->request('GET', $path)->getBody());
-        foreach (['shipped', 'delivered', 'cancelled', 'returned', 'manual_review'] as $status) {
-            $this->pdo->prepare('UPDATE orders SET status=:status WHERE id=:id')->execute(['status'=>$status, 'id'=>$this->orderId]);
-            self::assertStringNotContainsString('data-tracking-cancel-open', (string) $this->request('GET')->getBody());
-            self::assertSame(422, $this->request('POST', $path, ['_csrf'=>$_SESSION['_csrf'], 'reason'=>'Doresc anularea comenzii.'])->getStatusCode());
-        }
-        $this->pdo->prepare("UPDATE orders SET status='preparing',created_at=:created WHERE id=:id")->execute(['created'=>gmdate('c', time()-432000), 'id'=>$this->orderId]);
-        self::assertSame(422, $this->request('POST', $path, ['_csrf'=>$_SESSION['_csrf'], 'reason'=>'Doresc anularea comenzii.'])->getStatusCode());
-        self::assertStringNotContainsString('data-tracking-cancel-open', (string) $this->request('GET')->getBody());
-        self::assertSame(0, (int) $this->pdo->query('SELECT COUNT(*) FROM order_cancellation_requests')->fetchColumn());
+        $this->request('GET');$_SESSION['tracked_order']=['id'=>$this->orderId,'expires'=>time()+1800];
+        $path='/urmarire-comanda/solicitare-anulare/';$html=(string)$this->request('GET',$path)->getBody();
+        self::assertStringContainsString('Anulezi comanda?',$html);self::assertStringContainsString('Opțional',$html);
+        self::assertStringContainsString('name="status_version"',$html);self::assertStringNotContainsString('data-cancel-remaining',$html);
+        $response=$this->request('POST',$path,['_csrf'=>$_SESSION['_csrf'],'reason'=>str_repeat('ă',1001),'status_version'=>(new OrderService($this->pdo))->statusVersion($this->orderId)]);
+        self::assertSame(422,$response->getStatusCode());self::assertStringContainsString('maximum 1.000',(string)$response->getBody());
+    }
+
+    public function testDirectCancellationChecksCurrentStatusAndStaleFormInsteadOfOrderAge(): void
+    {
+        $actor=$this->cancellationActor();$this->request('GET');$_SESSION['tracked_order']=['id'=>$this->orderId,'expires'=>time()+1800];
+        $orders=new OrderService($this->pdo);$version=$orders->statusVersion($this->orderId);$path='/urmarire-comanda/solicitare-anulare/';
+        $orders->transition($this->orderId,'deliver',null,$actor);
+        self::assertStringNotContainsString('data-tracking-cancel-open',(string)$this->request('GET')->getBody());
+        self::assertSame(422,$this->request('POST',$path,['_csrf'=>$_SESSION['_csrf'],'status_version'=>$version])->getStatusCode());
+        $orders->transition($this->orderId,'reset',null,$actor);
+        $this->pdo->exec("UPDATE orders SET created_at='2020-01-01T00:00:00Z' WHERE id=".$this->orderId);
+        self::assertStringContainsString('data-tracking-cancel-open',(string)$this->request('GET')->getBody());
+        self::assertSame(303,$this->request('POST',$path,['_csrf'=>$_SESSION['_csrf'],'status_version'=>$orders->statusVersion($this->orderId)])->getStatusCode());
     }
 
     public function testCancellationAppearsInCrmFilterOrderHistoryAndNotifications(): void

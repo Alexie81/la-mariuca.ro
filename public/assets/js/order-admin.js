@@ -383,7 +383,15 @@
         feedback.hidden = false;
         feedback.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
       }
-      window.setTimeout(() => { window.location.href = payload.redirect || window.location.href; }, 350);
+      window.setTimeout(() => {
+        const target = new URL(payload.redirect || window.location.href, window.location.href);
+        if (target.origin === window.location.origin && target.pathname === window.location.pathname && target.search === window.location.search) {
+          window.history.replaceState(window.history.state, '', target.href);
+          window.location.reload();
+        } else {
+          window.location.assign(target.href);
+        }
+      }, 350);
     } catch (error) {
       if (feedback) {
         feedback.textContent = error.message || 'A apărut o problemă temporară.';

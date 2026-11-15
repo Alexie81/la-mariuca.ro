@@ -280,7 +280,7 @@ final class OrderService
             $order['dispatch_note']['delete_blocker']=(new \App\Modules\Invoicing\DispatchNotePolicy($dispatchRepository))->deletionBlocker($order['dispatch_note']);
             $order['dispatch_note']['can_delete']=$order['dispatch_note']['delete_blocker']==='';
         }
-        $order['return_invoice_default']=count(array_filter($order['issued_invoices'],static fn(array $i):bool=>in_array($i['kind'],['sale','corrected_positive'],true)))>0;
+        $order['return_invoice_default']=count(array_filter($order['issued_invoices'],static fn(array $i):bool=>(int)$i['id']>(int)$order['invoice_cycle_start_id'] && in_array($i['kind'],['sale','corrected_positive'],true)))>0;
         $order['return_request_key']=bin2hex(random_bytes(16));
         $order['dispatch_note_request_key']=bin2hex(random_bytes(24));
         $order['document_actions']=(new \App\Modules\Invoicing\OrderDocumentPolicy(new \App\Modules\Invoicing\InvoiceRepository($this->pdo)))->actions($order);
@@ -358,7 +358,7 @@ final class OrderService
         return $order;
     }
 
-    public function transition(int $orderId, string $action, ?string $awb, int $actorId, string $reason = '', bool $notifyCustomer = false, ?string $expectedVersion = null): void
+    public function transition(int $orderId, string $action, ?string $awb, int $actorId, string $reason = '', bool $notifyCustomer = false, ?string $expectedVersion = null,string $source='admin'): void
     {
         $normal = ['new','confirmed','preparing','shipped','delivered'];
         $allowed = [
@@ -368,6 +368,7 @@ final class OrderService
             'ship' => ['from' => $normal, 'to' => 'shipped'],
             'deliver' => ['from' => $normal, 'to' => 'delivered'],
             'cancel' => ['from' => ['new', 'confirmed', 'preparing', 'shipped'], 'to' => 'cancelled'],
+            'reopen' => ['from' => ['cancelled','new'], 'to' => 'new'],
         ];
         if (!isset($allowed[$action])) {
             throw new RuntimeException('Acțiune de comandă invalidă.');
@@ -386,6 +387,7 @@ final class OrderService
             if ($order['status'] === $allowed[$action]['to']) { if($ownsTransaction) { $this->pdo->commit(); } return; }
             if ($expectedVersion !== null && !hash_equals($this->statusVersion($orderId),$expectedVersion)) { throw new RuntimeException('Statusul s-a modificat între timp. Redeschide formularul.'); }
             $now = gmdate('c');
+            if($action==='reopen') { (new OrderReopeningService(new \App\Modules\Invoicing\InvoiceRepository($this->pdo)))->prepare($order,$actorId,$now); }
             $wasDispatched=in_array($order['status'],['shipped','delivered'],true);
             $willBeDispatched=in_array($allowed[$action]['to'],['shipped','delivered'],true);
             if ($willBeDispatched && !$wasDispatched) {
@@ -443,6 +445,7 @@ final class OrderService
                 }
             }
             $extra = $willBeDispatched && !$wasDispatched ? ', shipped_at = COALESCE(shipped_at,:now2), awb = COALESCE(:awb,awb)' : ($action === 'cancel' ? ', cancelled_at = :now2' : '');
+            if($action==='reopen') { $extra=', cancelled_at=NULL, shipped_at=NULL, awb=NULL'; }
             $params = ['status' => $allowed[$action]['to'], 'now' => $now, 'id' => $orderId];
             if ($willBeDispatched && !$wasDispatched) {
                 $params['now2'] = $now;
@@ -451,24 +454,24 @@ final class OrderService
                 $params['now2'] = $now;
             }
             $this->pdo->prepare("UPDATE orders SET status = :status, updated_at = :now{$extra} WHERE id = :id")->execute($params);
-            if ($action !== 'cancel' && $action !== 'reset') {
+            if ($action !== 'cancel' && $action !== 'reset' && $action !== 'reopen') {
                 $this->pdo->prepare("UPDATE coupon_redemptions SET status='confirmed',updated_at=:now WHERE order_id=:order AND status='reserved'")
                     ->execute(['now' => $now, 'order' => $orderId]);
-            } elseif ($action === 'reset') {
+            } elseif ($action === 'reset' || $action === 'reopen') {
                 $this->pdo->prepare("UPDATE coupon_redemptions SET status='reserved',updated_at=:now WHERE order_id=:order AND status='confirmed'")->execute(['now'=>$now,'order'=>$orderId]);
             } elseif ($action === 'cancel') {
                 $this->pdo->prepare("UPDATE coupon_redemptions SET status='released',updated_at=:now WHERE order_id=:order AND status IN ('reserved','confirmed')")
                     ->execute(['now' => $now, 'order' => $orderId]);
             }
-            $context = ['from' => $order['status'], 'to' => $allowed[$action]['to']];
+            $context = ['from' => $order['status'], 'to' => $allowed[$action]['to'],'source'=>$source];
             if (trim($reason) !== '') {
                 $context['reason'] = mb_substr(trim($reason), 0, 500);
             }
             $this->pdo->prepare("INSERT INTO audit_log (actor_user_id, action, entity_type, entity_id, context_json, created_at) VALUES (:actor, :action, 'order', :id, :context, :now)")->execute([
-                'actor' => $actorId, 'action' => 'order.' . $action, 'id' => $orderId, 'context' => json_encode($context, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR), 'now' => $now,
+                'actor' => $source==='customer_tracking'?null:$actorId, 'action' => 'order.' . $action, 'id' => $orderId, 'context' => json_encode($context, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR), 'now' => $now,
             ]);
             if ($notifyCustomer) {
-                $this->queueStatusEmail($order, $allowed[$action]['to'], '', $now);
+                $this->queueStatusEmail($order, $allowed[$action]['to'], $action==='reopen'?'Comanda ta a fost reluată și este din nou în pregătire pentru procesare.':'', $now);
             }
             if ($ownsTransaction) { $this->pdo->commit(); }
         } catch (\Throwable $exception) {
@@ -701,6 +704,7 @@ final class OrderService
     /** @return list<array{action:string,status:string}> */
     private function availableActions(string $status): array
     {
+        if($status==='cancelled') { return [['action'=>'reopen','status'=>'new']]; }
         $states=['reset'=>'new','confirm'=>'confirmed','prepare'=>'preparing','ship'=>'shipped','deliver'=>'delivered'];
         if(!in_array($status,$states,true)) { return []; }
         $actions=[];

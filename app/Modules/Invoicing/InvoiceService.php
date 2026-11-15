@@ -116,7 +116,7 @@ final class InvoiceService
                 return;
             }
             if($cash['refunded']>0 || in_array($order['payment_status'],['refunded','partially_refunded'],true)) { throw new InvoiceException('Există restituiri înregistrate. Folosește documentele de restituire pentru corectarea evidenței.',409); }
-            $documents=$this->repository->all('invoices',['order_id'=>$orderId,'deleted_at'=>null]);
+            $documents=$this->repository->currentOrderInvoices($orderId);
             $total=$refundService->eligible($order)?(int)$order['total_bani']:($documents!==[]?max(0,$this->repository->orderNet($orderId)):(int)$order['total_bani']);
             $state=(string)($input['payment_status'] ?? '');
             if(!in_array($state,['pending','partial','paid'],true)) { throw new InvoiceException('Alege starea plății.'); }
@@ -216,7 +216,7 @@ final class InvoiceService
             $settlement=ReturnSettlement::calculate($base,$input)+['destination'=>$destination];
             $issue=(string)($input['issue_invoice'] ?? '0')==='1'; $plans=[];
             if($issue) {
-                $positive=array_values(array_filter($this->repository->all('invoices',['order_id'=>$orderId,'deleted_at'=>null]),static fn(array $i):bool=>in_array($i['kind'],['sale','corrected_positive'],true)));
+                $positive=array_values(array_filter($this->repository->currentOrderInvoices($orderId),static fn(array $i):bool=>in_array($i['kind'],['sale','corrected_positive'],true)));
                 if($positive===[]) {
                     // Explicit operator choice: the positive invoice precedes its negative counterpart.
                     $data=$this->snapshots->fromOrder($orderId,[],true,true);
@@ -271,7 +271,7 @@ final class InvoiceService
             elseif($decision==='invoice') {
                 $order=$this->repository->one('orders',['id'=>$orderId]);
                 if(in_array($order['status'],['cancelled','refunded'],true)) { throw new InvoiceException('Comanda a fost închisă ulterior. Verifică operațiunile înainte de emiterea documentului lipsă.',409); }
-                $positive=array_values(array_filter($this->repository->all('invoices',['order_id'=>$orderId,'deleted_at'=>null]),static fn(array $row):bool=>in_array($row['kind'],['sale','corrected_positive'],true)));
+                $positive=array_values(array_filter($this->repository->currentOrderInvoices($orderId),static fn(array $row):bool=>in_array($row['kind'],['sale','corrected_positive'],true)));
                 if($positive===[]) { $data=$this->snapshots->fromOrder($orderId,[],true,true);$positive[]=$this->create('sale',$orderId,$data['snapshot'],$data['lines'],$actor,$key.':positive',null,null,'',null); }
                 $needed=[];foreach($this->repository->all('order_return_items',['return_id'=>$returnId]) as $item) { $needed[(int)$item['order_item_id']]=(int)$item['quantity']*10000; }
                 $plans=[];
@@ -546,6 +546,8 @@ final class InvoiceService
     /** @param array<string,mixed> $invoice */
     public function deleteBlocker(array $invoice): string
     {
+        $order=$this->repository->one('orders',['id'=>$invoice['order_id']]);
+        if((int)$invoice['id']<=(int)($order['invoice_cycle_start_id']??0)) { return 'Documentul aparține anulării anterioare și se păstrează în istoric după reluarea comenzii.'; }
         if($invoice['fiscal_attempted_at']!==null || $invoice['fiscal_reference']!==null || !in_array($invoice['fiscal_state'],['unconfigured','not_sent','queued','scheduled','awaiting_configuration'],true)) { return 'Documentul este blocat de o încercare de transmitere fiscală.'; }
         if($this->repository->latestId()!==(int)$invoice['id']) { return 'Se poate șterge numai ultimul document emis.'; }
         if($this->repository->children((int)$invoice['id'])!==[]) { return 'Documentul are retururi sau corecții asociate.'; }
@@ -747,9 +749,9 @@ final class InvoiceService
         $this->allow($actor,'return');
         $this->repository->transaction(function()use($orderId,$reason,$actor):void {
             $original=$this->repository->one('invoices',['primary_order_id'=>$orderId]); if(!$original) { return; }
-            $invoice=$this->load((int)$original['id']); $input=['request_key'=>'cancel-order:'.$orderId,'version'=>$invoice['row_version'],'reason'=>trim($reason) ?: 'Anularea comenzii'];
+            $invoice=$this->load((int)$original['id']); $input=['request_key'=>'cancel-order:'.$orderId.':'.$invoice['id'],'version'=>$invoice['row_version'],'reason'=>trim($reason) ?: 'Anularea comenzii'];
             if($this->deleteBlocker($invoice)==='' && ($actor['role'] ?? '')==='administrator') { $this->delete((int)$invoice['id'],$input,$actor); return; }
-            foreach($this->repository->all('invoices',['order_id'=>$orderId,'deleted_at'=>null]) as $document) {
+            foreach($this->repository->currentOrderInvoices($orderId) as $document) {
                 if(!in_array($document['kind'],['sale','corrected_positive'],true)) { continue; }
                 $invoice=$this->load((int)$document['id']); $quantities=[];
                 foreach($invoice['lines'] as $line) { $remaining=(int)$line['quantity_units']-$this->repository->creditedUnits((int)$line['id']); if($remaining>0) { $quantities[$line['id']]=InvoiceCalculator::quantity($remaining); } }

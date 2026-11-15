@@ -51,6 +51,7 @@ final class DispatchNoteService
             $note=$this->repository->activeForOrder($orderId); if(!$note){return;}
             $order=$this->repository->order($orderId); $snapshot=$this->snapshot($order,$this->repository->orderItems($orderId),$this->repository->company());
             $this->repository->update((int)$note['id'],['snapshot_json'=>InvoiceSnapshot::json($snapshot),'row_version'=>(int)$note['row_version']+1,'updated_at'=>$this->repository->now()]);
+            $this->cancelQueuedEmail((int)$note['id']);
             $this->repository->audit((int)$note['id'],(int)$actor['id'],'dispatch_note.regenerated',['order_id'=>$orderId,'before_version'=>(int)$note['row_version'],'after_version'=>(int)$note['row_version']+1]);
         });
     }
@@ -66,7 +67,9 @@ final class DispatchNoteService
             if(($expectedId!==null && $expectedId!==(int)$note['id']) || ($expectedVersion!==null && $expectedVersion!==(int)$note['row_version'])) { throw new InvoiceException('Avizul s-a modificat. Reîncarcă pagina înainte de ștergere.',409); }
             $blocker=(new DispatchNotePolicy($this->repository))->deletionBlocker($note);
             if($blocker!=='') { throw new InvoiceException($blocker,409); }
-            $this->repository->update((int)$note['id'],['active_order_id'=>null,'deleted_at'=>$this->repository->now(),'row_version'=>(int)$note['row_version']+1,'updated_at'=>$this->repository->now()]);
+            $this->repository->update((int)$note['id'],['active_order_id'=>null,'active_number'=>null,'deleted_at'=>$this->repository->now(),'row_version'=>(int)$note['row_version']+1,'updated_at'=>$this->repository->now()]);
+            $this->repository->releaseNumber($note);
+            $this->cancelQueuedEmail((int)$note['id']);
             $this->repository->remember($key,'delete',$hash,(int)$note['id']); $this->repository->audit((int)$note['id'],(int)$actor['id'],'dispatch_note.deleted',['order_id'=>$orderId]);
         });
     }
@@ -74,7 +77,50 @@ final class DispatchNoteService
     /** @param array<string,mixed> $actor */
     public function pdf(int $orderId,array $actor): string
     {
-        $note=$this->forOrder($orderId,$actor)??throw new InvoiceException('Generează mai întâi avizul.',404); $data=$this->pdfData($note);
+        return $this->renderPdf($this->forOrder($orderId,$actor)??throw new InvoiceException('Generează mai întâi avizul.',404));
+    }
+
+    /** @return array<string,mixed> */
+    public function publicNote(string $key): array
+    {
+        if(!preg_match('/^[a-f0-9]{64}$/D',$key)) { throw new InvoiceException('Avizul nu este disponibil.',404); }
+        return $this->decorate($this->repository->byPublicKey($key)??throw new InvoiceException('Avizul nu este disponibil.',404));
+    }
+
+    public function publicPdf(string $key): string { return $this->renderPdf($this->publicNote($key)); }
+
+    /** @param array<string,mixed> $input @param array<string,mixed> $actor */
+    public function queueEmail(int $orderId,array $input,array $actor): void
+    {
+        $this->allow($actor);$key=(string)($input['request_key']??'');$this->key($key);
+        $message=trim((string)($input['personal_message']??''));
+        if(mb_strlen($message)>2000) { throw new InvoiceException('Mesajul poate avea maximum 2.000 de caractere.'); }
+        $this->repository->transaction(function()use($orderId,$input,$actor,$key,$message):void {
+            $note=$this->forOrder($orderId,$actor)??throw new InvoiceException('Avizul nu mai este disponibil.',404);
+            if((int)($input['dispatch_note_id']??0)!==(int)$note['id'] || (int)($input['version']??0)!==(int)$note['row_version']) { throw new InvoiceException('Avizul s-a modificat. Redeschide confirmarea de trimitere.',409); }
+            $email=(string)$note['snapshot']['customer']['email'];
+            if(!filter_var($email,FILTER_VALIDATE_EMAIL)) { throw new InvoiceException('Adresa de email a clientului nu este validă.'); }
+            $payload=['dispatch_note_id'=>$note['id'],'order_id'=>$orderId,'document_key'=>$note['document_key'],'version'=>$note['row_version'],'personal_message'=>$message];
+            $hash=hash('sha256',InvoiceSnapshot::json($payload));$prior=$this->repository->action($key);
+            if($prior) { if($prior['action']!=='email'||!hash_equals($prior['request_hash'],$hash)) { throw new InvoiceException('Confirmarea a fost folosită pentru alt mesaj.',409); }return; }
+            (new InvoiceRepository($this->repository->pdo()))->insert('outbox_messages',['deduplication_key'=>'dispatch-email:'.$key,'message_type'=>'dispatch_note','recipient'=>$email,'payload_json'=>InvoiceSnapshot::json($payload),'status'=>'pending','attempts'=>0,'available_at'=>$this->repository->now(),'created_at'=>$this->repository->now()]);
+            $this->repository->remember($key,'email',$hash,(int)$note['id']);$this->repository->audit((int)$note['id'],(int)$actor['id'],'dispatch_note.email_queued',['order_id'=>$orderId]);
+        });
+    }
+
+    private function cancelQueuedEmail(int $id): void
+    {
+        $repo=new InvoiceRepository($this->repository->pdo());
+        foreach($repo->all('outbox_messages',['message_type'=>'dispatch_note']) as $message) {
+            $payload=json_decode($message['payload_json'],true);
+            if((int)($payload['dispatch_note_id']??0)===$id && in_array($message['status'],['pending','failed'],true)) { $repo->update('outbox_messages',['status'=>'failed','attempts'=>5,'last_error'=>'Avizul a fost modificat sau șters. Pregătește o trimitere nouă.'],['id'=>$message['id']]); }
+        }
+    }
+
+    /** @param array<string,mixed> $note */
+    private function renderPdf(array $note): string
+    {
+        $data=$this->pdfData($note);
         $directory=$this->root.'/storage/cache/dispatch-notes'; if(!is_dir($directory)&&!mkdir($directory,0770,true)&&!is_dir($directory)){throw new InvoiceException('Avizul nu poate fi pregătit.');}
         $path=$directory.'/aviz-'.$note['document_key'].'.pdf'; $options=new Options(); $options->set('isRemoteEnabled',false); $options->set('isPhpEnabled',false); $options->set('isJavascriptEnabled',false); $options->setChroot([$this->root.'/public',$directory]); $options->setFontDir($directory); $options->setFontCache($directory); $options->setTempDir($directory); $options->set('isFontSubsettingEnabled',true); $options->setFontHeightRatio(0.8);
         $pdf=new Dompdf($options); $twig=new Environment(new FilesystemLoader($this->root.'/resources/views'),['autoescape'=>'html','strict_variables'=>true]); $pdf->loadHtml($twig->render('admin/invoices/dispatch-note-preview.twig',$data),'UTF-8'); $pdf->setPaper('A4'); $pdf->render(); $font=$pdf->getFontMetrics()->getFont('Nunito PDF','normal')??'Helvetica'; $pdf->getCanvas()->page_text(500,813,'Pagina {PAGE_NUM} / {PAGE_COUNT}',$font,7,[.5,.44,.49]);

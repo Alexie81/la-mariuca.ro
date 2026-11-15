@@ -13,7 +13,7 @@ final class OrderTrackingRepository
     /** @return list<array<string,mixed>> */
     public function issuedInvoices(int $orderId): array
     {
-        $q=$this->pdo->prepare('SELECT id,series_code,number,kind FROM invoices WHERE order_id=:id AND deleted_at IS NULL ORDER BY id');
+        $q=$this->pdo->prepare('SELECT i.id,i.series_code,i.number,i.kind,(i.id>o.invoice_cycle_start_id) AS current_cycle FROM invoices i JOIN orders o ON o.id=i.order_id WHERE i.order_id=:id AND i.deleted_at IS NULL ORDER BY i.id');
         $q->execute(['id'=>$orderId]); return $q->fetchAll();
     }
 

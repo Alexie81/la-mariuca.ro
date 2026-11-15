@@ -79,6 +79,7 @@ final class OrderTrackingService
         $actions = ['order.confirm'=>'confirmed', 'order.prepare'=>'preparing', 'order.ship'=>'shipped', 'order.deliver'=>'delivered', 'order.cancel'=>'cancelled', 'order.return_full'=>'returned', 'order.manual_review'=>'manual_review', 'stripe.session_failed'=>'manual_review'];
         foreach ($this->repository->events($orderId) as $event) {
             $context = json_decode((string) $event['context_json'], true);
+            if(in_array($event['action'],['order.reset','order.reopen'],true)) { $dates=['new'=>$event['created_at']];continue; }
             if ($event['action'] === 'stripe.session_failed' && is_array($context) && ($context['status_changed'] ?? true) === false) {
                 continue;
             }
@@ -119,12 +120,12 @@ final class OrderTrackingService
         $order['cancellation_request'] = $this->repository->cancellationRequest($orderId);
         $order['cancellation_deadline'] = gmdate('c', OrderCancellationPolicy::deadline((string) $order['created_at']));
         $order['cancellation_remaining'] = max(0, OrderCancellationPolicy::deadline((string) $order['created_at']) - time());
-        $order['can_request_cancellation'] = $order['cancellation_request'] === null
-            && OrderCancellationPolicy::allows((string) $order['status'], (string) $order['created_at']);
+        $order['can_request_cancellation'] = OrderCancellationPolicy::allowsDirect((string)$order['status']);
+        $order['cancellation_version']=$this->orders->statusVersion($orderId);
         $order['invoices'] = [];
         $order['return_requests']=(new OrderTrackingReturns(new \App\Modules\Invoicing\InvoiceRepository($this->repository->pdo())))->forOrder($orderId);
         foreach($this->repository->issuedInvoices($orderId) as $document) {
-            $order['invoices'][]=['id'=>$document['id'],'number'=>$document['series_code'].' '.$document['number'],'issued'=>true,'can_return'=>in_array($document['kind'],['sale','corrected_positive'],true)];
+            $order['invoices'][]=['id'=>$document['id'],'number'=>$document['series_code'].' '.$document['number'],'issued'=>true,'can_return'=>(bool)$document['current_cycle'] && in_array($document['kind'],['sale','corrected_positive'],true)];
         }
         foreach ($this->repository->documents($orderId) as $document) {
             if ($this->resolvePdf((string) $document['private_path']) !== null) {
@@ -134,7 +135,28 @@ final class OrderTrackingService
         return $order;
     }
 
-    /** Records intent only. Approval, refunds and fiscal integrations are separate workflows. */
+    /** Direct action for the order already verified by the tracking controller. */
+    public function cancelDirect(int $orderId,string $reason,string $expectedVersion): void
+    {
+        $reason=trim($reason);if(mb_strlen($reason)>1000) { throw new \DomainException('Nota poate avea maximum 1.000 de caractere.'); }
+        $this->repository->transaction(function()use($orderId,$reason,$expectedVersion):void {
+            $order=$this->repository->lockCancellationOrder($orderId);
+            if(!$order) { throw new \DomainException('Comanda nu mai este disponibilă.'); }
+            if($order['status']==='cancelled') { return; }
+            if(!hash_equals($this->orders->statusVersion($orderId),$expectedVersion)) { throw new \DomainException('Starea comenzii s-a schimbat. Reîncarcă pagina înainte de anulare.'); }
+            if(!OrderCancellationPolicy::allowsDirect((string)$order['status'])) { throw new \DomainException('Comanda nu mai poate fi anulată din starea actuală. Pentru o comandă livrată poți solicita retur.'); }
+            // Same automation identity as invoice processing; the order audit identifies the customer action.
+            $actor=$this->repository->pdo()->query("SELECT id FROM users WHERE role='administrator' AND status='active' ORDER BY id LIMIT 1")->fetchColumn();
+            if(!$actor) { throw new \DomainException('Anularea nu poate fi procesată momentan. Contactează magazinul.'); }
+            $this->orders->transition($orderId,'cancel',null,(int)$actor,'Anulare directă de către client'.($reason!==''?': '.$reason:''),true,$expectedVersion,'customer_tracking');
+            $pending=$this->repository->cancellationRequest($orderId);
+            if($pending && $pending['status']==='pending') {
+                $this->repository->resolveCancellation((int)$pending['id'],'accepted','Comanda a fost anulată direct de client.',(int)$actor,$this->repository->now());
+            }
+        });
+    }
+
+    /** Legacy requests remain reviewable; new tracking controls use direct cancellation. */
     public function requestCancellation(int $orderId, string $reason): int
     {
         $reason = trim((string) preg_replace('/[\x{00A0}\x{200B}\x{FEFF}]/u', ' ', $reason));

@@ -107,10 +107,12 @@ final class InvoiceStockService
     {
         if($units===0 || !$source['variant_id']) { return; }
         $invoice=$this->invoices->one('invoices',['id'=>$source['invoice_id']]);
+        $order=$this->invoices->one('orders',['id'=>$invoice['order_id']]);
+        if((int)$invoice['id']<=(int)$order['invoice_cycle_start_id']) { return; }
         $reservation=$this->invoices->one('inventory_reservations',['order_id'=>$invoice['order_id'],'variant_id'=>$source['variant_id'],'status'=>'consumed']);
         if(!$reservation) { return; }
         if($units%10000!==0) { throw new InvoiceException('Disponibilitatea online a acestui produs folosește bucăți întregi.'); }
-        $q=$this->pdo->prepare("SELECT COALESCE(SUM(m.physical_delta),0) FROM inventory_movements m JOIN invoice_receipts r ON r.id=m.reference_id JOIN invoices i ON i.id=r.invoice_id WHERE m.reference_type='invoice_receipt' AND i.order_id=:order_id AND m.variant_id=:variant AND r.reversed_at IS NULL");
+        $q=$this->pdo->prepare("SELECT COALESCE(SUM(m.physical_delta),0) FROM inventory_movements m JOIN invoice_receipts r ON r.id=m.reference_id JOIN invoices i ON i.id=r.invoice_id WHERE m.reference_type='invoice_receipt' AND i.order_id=:order_id AND i.id>(SELECT invoice_cycle_start_id FROM orders WHERE id=i.order_id) AND m.variant_id=:variant AND r.reversed_at IS NULL");
         $q->execute(['order_id'=>$invoice['order_id'],'variant'=>$source['variant_id']]); $already=(int)$q->fetchColumn(); $quantity=intdiv($units,10000);
         if($already+$quantity>(int)$reservation['quantity']) { throw new InvoiceException('Cantitatea ar depăși produsele expediate efectiv pentru această comandă. Verifică primirile deja înregistrate.'); }
         $q=$this->pdo->prepare('UPDATE inventory SET physical_quantity=physical_quantity+:quantity,updated_at=:now WHERE variant_id=:variant'); $q->execute(['quantity'=>$quantity,'now'=>$this->stock->now(),'variant'=>$source['variant_id']]);

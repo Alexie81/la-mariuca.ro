@@ -45,6 +45,13 @@ final class DispatchNoteRepository
         return is_array($row) ? $row : null;
     }
 
+    /** @return array<string,mixed>|null */
+    public function byPublicKey(string $key): ?array
+    {
+        $query=$this->pdo->prepare('SELECT * FROM dispatch_notes WHERE document_key=:key AND deleted_at IS NULL');
+        $query->execute(['key'=>$key]);$note=$query->fetch();return is_array($note)?$note:null;
+    }
+
     /** @return array<string,mixed> */
     public function order(int $id): array
     {
@@ -73,7 +80,7 @@ final class DispatchNoteRepository
 
     public function fiscalBlocksDeletion(int $orderId): bool
     {
-        $query = $this->pdo->prepare("SELECT COUNT(*) FROM invoices WHERE order_id=:order AND deleted_at IS NULL AND (fiscal_attempted_at IS NOT NULL OR fiscal_reference IS NOT NULL OR fiscal_state NOT IN ('unconfigured','not_sent','queued','scheduled','awaiting_configuration'))");
+        $query = $this->pdo->prepare("SELECT COUNT(*) FROM invoices i WHERE order_id=:order AND i.id>(SELECT invoice_cycle_start_id FROM orders WHERE id=i.order_id) AND deleted_at IS NULL AND (fiscal_attempted_at IS NOT NULL OR fiscal_reference IS NOT NULL OR fiscal_state NOT IN ('unconfigured','not_sent','queued','scheduled','awaiting_configuration'))");
         $query->execute(['order'=>$orderId]);
         return (int)$query->fetchColumn() > 0;
     }
@@ -94,17 +101,29 @@ final class DispatchNoteRepository
         return ['series'=>'LM-AVZ-'.$year,'number'=>(int)$number];
     }
 
+    /** Called under the numbering lock after deleting the latest active note.
+     * @param array<string,mixed> $note
+     */
+    public function releaseNumber(array $note): void
+    {
+        $year=(int)substr((string)$note['series_code'],-4);
+        $query=$this->pdo->prepare('SELECT COALESCE(MAX(active_number),0)+1 FROM dispatch_notes WHERE series_code=:series');
+        $query->execute(['series'=>$note['series_code']]);
+        $this->pdo->prepare('UPDATE dispatch_note_sequences SET next_number=:number WHERE year=:year')->execute(['number'=>(int)$query->fetchColumn(),'year'=>$year]);
+    }
+
     /** @param array<string,mixed> $data */
     public function insert(array $data): int
     {
-        $this->pdo->prepare('INSERT INTO dispatch_notes(document_key,order_id,active_order_id,series_code,number,issued_at,snapshot_json,row_version,created_by,deleted_at,updated_at) VALUES(:document_key,:order_id,:active_order_id,:series_code,:number,:issued_at,:snapshot_json,:row_version,:created_by,:deleted_at,:updated_at)')->execute($data);
+        $data['active_number']=$data['number'];
+        $this->pdo->prepare('INSERT INTO dispatch_notes(document_key,order_id,active_order_id,series_code,number,active_number,issued_at,snapshot_json,row_version,created_by,deleted_at,updated_at) VALUES(:document_key,:order_id,:active_order_id,:series_code,:number,:active_number,:issued_at,:snapshot_json,:row_version,:created_by,:deleted_at,:updated_at)')->execute($data);
         return (int)$this->pdo->lastInsertId();
     }
 
     /** @param array<string,mixed> $data */
     public function update(int $id,array $data): void
     {
-        $allowed=['active_order_id','snapshot_json','row_version','deleted_at','updated_at']; $sets=[]; $params=['id'=>$id];
+        $allowed=['active_order_id','active_number','snapshot_json','row_version','deleted_at','updated_at']; $sets=[]; $params=['id'=>$id];
         foreach($data as $field=>$value) {
             if(!in_array($field,$allowed,true)) { throw new \LogicException('Invalid dispatch note field'); }
             $sets[]=$field.'=:'.$field; $params[$field]=$value;

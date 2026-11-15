@@ -17,6 +17,45 @@ final class DispatchNoteController
     public function __construct(private readonly DispatchNoteService $service,private readonly Auth $auth,private readonly Config $config,private readonly \App\Shared\Http\View $view) {}
 
     /** @param array<string,string> $args */
+    public function emailForm(ServerRequestInterface $request,ResponseInterface $response,array $args): ResponseInterface
+    {
+        try {
+            $orderId=(int)$args['id'];$note=$this->service->forOrder($orderId,$this->actor())??throw new InvoiceException('Avizul nu există.',404);
+            return $this->view->render($request->getHeaderLine('X-Invoice-Modal')==='1'?'admin/invoices/dispatch-email.twig':'admin/pages/dispatch-email.twig',[
+                'admin_section'=>'invoices','admin_context'=>'Aviz de însoțire','note'=>$note,'request_key'=>bin2hex(random_bytes(24)),
+                'form_action'=>$this->config->path('admin/comenzi/'.$orderId.'/aviz/email/'),'back_url'=>$this->config->path('admin/comenzi/'.$orderId.'/').'#aviz',
+            ])->withHeader('Cache-Control','no-store');
+        } catch(\Throwable $error) { return $this->json(['ok'=>false,'message'=>$error instanceof InvoiceException?$error->getMessage():'Formularul nu poate fi deschis.'],$error instanceof InvoiceException?$error->getCode():500); }
+    }
+
+    /** @param array<string,string> $args */
+    public function email(ServerRequestInterface $request,ResponseInterface $response,array $args): ResponseInterface
+    {
+        $orderId=(int)$args['id'];
+        try {
+            $this->service->queueEmail($orderId,(array)$request->getParsedBody(),$this->actor());
+            $message='Emailul cu avizul PDF și linkul privat este pregătit pentru trimitere.';
+            if(str_contains($request->getHeaderLine('Accept'),'application/json')) { return $this->json(['ok'=>true,'message'=>$message,'redirect'=>$this->config->path('admin/comenzi/'.$orderId.'/').'#aviz']); }
+            Flash::set('success',$message);
+        } catch(\Throwable $error) {
+            $message=$error instanceof InvoiceException?$error->getMessage():'Emailul nu a putut fi pregătit.';
+            if(str_contains($request->getHeaderLine('Accept'),'application/json')) { return $this->json(['ok'=>false,'message'=>$message],$error instanceof InvoiceException?$error->getCode():500); }
+            Flash::set('error',$message);
+        }
+        return $this->redirect($orderId);
+    }
+
+    /** @param array<string,string> $args */
+    public function publicPdf(ServerRequestInterface $request,ResponseInterface $response,array $args): ResponseInterface
+    {
+        try {
+            $note=$this->service->publicNote($args['token']);$path=$this->service->publicPdf($args['token']);$handle=fopen($path,'rb');
+            if($handle===false) { throw new InvoiceException('Avizul nu este disponibil.',404); }
+            return (new Response())->withBody(new Stream($handle))->withHeader('Content-Type','application/pdf')->withHeader('Content-Disposition',(($request->getQueryParams()['view']??'')==='1'?'inline':'attachment').'; filename="Aviz-'.$note['series_code'].'-'.$note['number'].'.pdf"')->withHeader('Cache-Control','private, no-store')->withHeader('X-Content-Type-Options','nosniff')->withHeader('X-Robots-Tag','noindex, nofollow')->withHeader('Referrer-Policy','no-referrer');
+        } catch(\Throwable) { $result=new Response(404);$result->getBody()->write('Linkul avizului nu mai este disponibil. Contactează magazinul pentru o copie.');return $result->withHeader('Content-Type','text/plain; charset=utf-8')->withHeader('Cache-Control','no-store'); }
+    }
+
+    /** @param array<string,string> $args */
     public function deleteForm(ServerRequestInterface $request,ResponseInterface $response,array $args): ResponseInterface
     {
         try {

@@ -1449,7 +1449,7 @@ final class AdminController
             'return_quotes'=>\App\Modules\Invoicing\ReturnSettlement::quotes($order),
             'partial_template' => $partials[$type],
             'request_mode'=>$type==='return-request','pending_return_request'=>$pendingRequest,
-            'selected_action' => ($request->getQueryParams()['action'] ?? '')==='cancel'?'cancel':'',
+            'selected_action' => in_array($request->getQueryParams()['action'] ?? '',['cancel','reopen'],true)?$request->getQueryParams()['action']:($order['status']==='cancelled'?'reopen':''),
             'form_title' => $titles[$type],
             'admin_section' => 'orders',
             'admin_context' => 'Comenzi',
@@ -1476,6 +1476,7 @@ final class AdminController
         ];
         $actionCopy = [
             'reset' => ['Marchează nouă', 'Revino la începutul pregătirii, păstrând istoricul comenzii.'],
+            'reopen' => ['Reia comanda', 'Revine la Nouă. Refacem rezervarea produselor disponibile și păstrăm istoricul și plățile.'],
             'confirm' => ['Confirmă comanda', 'Comanda a fost verificată și poate intra în pregătire.'],
             'prepare' => ['Începe pregătirea', 'Produsele sunt culese și pregătite pentru colet.'],
             'ship' => ['Marchează expediată', 'Produsele rezervate sunt marcate ca expediate. Stocul contabil se scade numai prin factură.'],
@@ -1504,6 +1505,7 @@ final class AdminController
         unset($return);
         $historyPresentation = [
             'order.reset' => ['Comandă readusă la Nouă', 'package', 'amber'],
+            'order.reopen' => ['Comandă reluată după anulare', 'package', 'sage'],
             'order.details_edited' => ['Detaliile comenzii actualizate', 'edit', 'violet'],
             'order.details_email_queued' => ['Actualizarea comenzii pregătită pentru email', 'mail', 'blue'],
             'order.invoice_edit' => ['Produsele și valorile comenzii actualizate', 'package', 'violet'],

@@ -225,6 +225,7 @@ final class AppFactory
         $app->post('/plata/{token}/reincearca/', [$checkoutController, 'resumePayment']);
         $app->post('/plata/{token}/anuleaza/', [$checkoutController, 'cancelPayment']);
         $app->get('/factura/{token:[a-f0-9]{64}}/', [$invoiceController, 'publicPdf']);
+        $app->get('/aviz/{token:[a-f0-9]{64}}/', [$dispatchNoteController, 'publicPdf']);
         $app->get('/urmarire-comanda/', [$tracking, 'show']);
         $app->post('/urmarire-comanda/', [$tracking, 'lookup']);
         $app->post('/urmarire-comanda/alta/', [$tracking, 'reset']);
@@ -280,6 +281,8 @@ final class AppFactory
             $group->get('/facturi/{id:[0-9]+}/', [$invoiceController, 'detail']);
             $group->get('/facturi/{id:[0-9]+}/{format:pdf|xlsx|xml|zip}/', [$invoiceController, 'export']);
             $group->post('/comenzi/{id:[0-9]+}/aviz/', [$dispatchNoteController, 'issue']);
+            $group->get('/comenzi/{id:[0-9]+}/aviz/email/', [$dispatchNoteController, 'emailForm']);
+            $group->post('/comenzi/{id:[0-9]+}/aviz/email/', [$dispatchNoteController, 'email']);
             $group->get('/comenzi/{id:[0-9]+}/aviz/sterge/confirmare/', [$dispatchNoteController, 'deleteForm']);
             $group->post('/comenzi/{id:[0-9]+}/aviz/sterge/', [$dispatchNoteController, 'delete']);
             $group->get('/comenzi/{id:[0-9]+}/aviz/pdf/', [$dispatchNoteController, 'pdf']);
