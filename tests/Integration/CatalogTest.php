@@ -177,6 +177,22 @@ final class CatalogTest extends DatabaseTestCase
         $service->saveProduct($form, $productId);
     }
 
+    public function testProductWithAccountingBalanceCannotBeArchived(): void
+    {
+        $this->seed();
+        $service = new CatalogAdminService($this->pdo);
+        $productId = (int) $this->pdo->query("SELECT id FROM products WHERE slug='rochie-de-botez-raisa'")->fetchColumn();
+        $variant = $this->pdo->query('SELECT id,sku FROM product_variants WHERE product_id=' . $productId . ' ORDER BY is_default DESC,id LIMIT 1')->fetch();
+        self::assertIsArray($variant);
+        $now = gmdate('c');
+        $statement = $this->pdo->prepare("INSERT INTO accounting_stock_balances (scope_type,scope_id,product_id,variant_id,sku,quantity,created_at,updated_at) VALUES ('product',:scope,:product,NULL,:sku,2,:now,:now)");
+        $statement->execute(['scope' => $productId, 'product' => $productId, 'sku' => $variant['sku'], 'now' => $now]);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Urmărirea contabilă nu poate fi oprită');
+        $service->deleteProduct($productId);
+    }
+
     public function testHomepageCollectionsContainOnlyPublishedMainCategories(): void
     {
         $this->seed();

@@ -31,6 +31,7 @@
   {% if admin_section|default('') == 'orders' %}<link rel="stylesheet" href="{{ url('assets/css/order-registry.css?v=20261115-2') }}">{% endif %}
   {% if admin_section|default('') in ['invoices','orders'] %}<link rel="stylesheet" href="{{ url('assets/css/invoices.css?v=20261115-3') }}">{% endif %}
   {% if admin_section|default('') == 'stock' %}<link rel="stylesheet" href="{{ url('assets/css/stock-ledger.css?v=20261115-2') }}"><link rel="stylesheet" href="{{ url('assets/css/nir-export.css?v=20261112-v2') }}">{% endif %}
+  {% if product_detail_page|default(false) %}<link rel="stylesheet" href="{{ url('assets/css/product-detail.css?v=20261115-1') }}">{% endif %}
 </head>
 {% set operator = admin_user|default(current_user()) %}
 {% set first_name = operator.first_name|default('Administrator') %}

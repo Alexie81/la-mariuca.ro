@@ -168,6 +168,7 @@
                 </td>
                 <td data-label="Status"><span class="admin-product-status admin-product-status--{{ product.status }}">{{ product.status_label }}</span></td>
                 <td data-label="Acțiuni" class="admin-products-table__actions">
+                  <a href="{{ url('admin/produse/' ~ product.id ~ '/') }}" aria-label="Deschide fișa completă pentru {{ product.name }}" title="Fișă completă"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6Z"/><circle cx="12" cy="12" r="2.5"/></svg><span class="admin-products-phone-label">Fișă</span></a>
                   {% if product.status == 'published' %}<a href="{{ url('produs/' ~ product.slug ~ '/') }}" target="_blank" rel="noopener" aria-label="Deschide pagina publică pentru {{ product.name }}" title="Deschide pagina publică"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 5h5v5M19 5l-8 8"/><path d="M18 13v6H5V6h6"/></svg><span class="admin-products-phone-label">Deschide</span></a>{% endif %}
                   <a href="{{ url('admin/produse/' ~ product.id ~ '/editare/') }}" data-admin-product-editor-trigger data-modal-url="{{ url('admin/produse/' ~ product.id ~ '/editare/modal/') }}" aria-label="Editează {{ product.name }}" title="Editează">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 20 4.2-1 10.4-10.4a2 2 0 0 0-2.8-2.8L5.4 16.2 4 20Z"/><path d="m14.5 7.1 2.8 2.8"/></svg>

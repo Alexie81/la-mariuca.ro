@@ -305,6 +305,15 @@ final class AdminPanelTest extends DatabaseTestCase
         $viewResponse = $this->request('POST', '/produs/produs-creat-din-modal/vizualizare/', ['_csrf' => $_SESSION['_csrf']], '127.0.0.186');
         self::assertSame(204, $viewResponse->getStatusCode());
         self::assertSame(1, (int) $this->pdo->query('SELECT SUM(views) FROM product_view_daily WHERE product_id=' . $createdId)->fetchColumn());
+        $productDetail = $this->get('/admin/produse/' . $createdId . '/');
+        self::assertSame(200, $productDetail->getStatusCode());
+        self::assertSame('no-store', $productDetail->getHeaderLine('Cache-Control'));
+        self::assertStringContainsString('Fișa completă a produsului', (string) $productDetail->getBody());
+        self::assertStringContainsString('Atelier test', (string) $productDetail->getBody());
+        self::assertStringContainsString('Bumbac organic', (string) $productDetail->getBody());
+        self::assertStringContainsString('Cum aleg mărimea?', (string) $productDetail->getBody());
+        self::assertStringContainsString('1 vizualizări publice', (string) $productDetail->getBody());
+        self::assertStringContainsString('/admin/stoc/' . $createdId . '/', (string) $productDetail->getBody());
         $createdVariantId = (int) $this->pdo->query("SELECT id FROM product_variants WHERE sku='LM-MODAL-001'")->fetchColumn();
 
         $duplicateAvailability = json_decode((string) $this->get('/admin/produse/verifica-nume/?nume=PRODUS%20CREAT%20DIN%20MODAL')->getBody(), true, 512, JSON_THROW_ON_ERROR);

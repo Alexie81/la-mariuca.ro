@@ -842,6 +842,45 @@ final class AdminController
         ]);
     }
 
+    public function productDetail(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $detail = $this->catalogAdmin->productDetail((int) ($args['id'] ?? 0));
+        if ($detail === null) {
+            Flash::set('error', 'Produsul solicitat nu mai este disponibil.');
+            return $this->view->redirect($this->config->path('admin/produse/'));
+        }
+        $orderLabels = [
+            'new' => 'Nouă', 'confirmed' => 'Confirmată', 'preparing' => 'În pregătire',
+            'shipped' => 'Expediată', 'delivered' => 'Livrată', 'cancelled' => 'Anulată',
+            'returned' => 'Returnată', 'manual_review' => 'De verificat',
+        ];
+        foreach ($detail['sales'] as &$sale) {
+            $sale['display_created_at'] = $this->localCustomerDate((string) $sale['created_at']);
+            $sale['status_label'] = $orderLabels[(string) $sale['status']] ?? ucfirst((string) $sale['status']);
+        }
+        unset($sale);
+        foreach ($detail['purchases'] as &$purchase) {
+            $purchase['display_created_at'] = $this->localCustomerDate((string) $purchase['nir_at']);
+            $purchase['remaining_quantity'] = \App\Modules\Inventory\NirDecimal::quantity((int) $purchase['remaining_units']);
+        }
+        unset($purchase);
+        $reviewLabels = ['pending' => 'În așteptare', 'approved' => 'Aprobată', 'rejected' => 'Respinsă'];
+        foreach ($detail['reviews'] as &$review) {
+            $review['display_created_at'] = $this->localCustomerDate((string) $review['created_at']);
+            $review['status_label'] = $reviewLabels[(string) $review['status']] ?? ucfirst((string) $review['status']);
+        }
+        unset($review);
+        $detail['product']['status_label'] = match ((string) $detail['product']['status']) {
+            'published' => 'Publicat', 'draft' => 'Ciornă', 'archived' => 'Arhivat', default => 'Inactiv',
+        };
+        return $this->view->render('admin/pages/product-detail.twig', $detail + [
+            'admin_section' => 'products',
+            'admin_context' => 'Fișă produs',
+            'product_detail_page' => true,
+            'admin_unread_count' => $this->notificationService->unreadCount((int) ($this->auth->user()['id'] ?? 0)),
+        ])->withHeader('Cache-Control', 'no-store');
+    }
+
     public function productModalForm(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
     {
         $id = isset($args['id']) ? (int) $args['id'] : null;

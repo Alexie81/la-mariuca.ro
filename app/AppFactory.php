@@ -317,6 +317,7 @@ final class AppFactory
             $group->post('/produse/nou/', [$adminController, 'saveProduct']);
             $group->get('/produse/{id:[0-9]+}/editare/', [$adminController, 'productForm']);
             $group->get('/produse/{id:[0-9]+}/editare/modal/', [$adminController, 'productModalForm']);
+            $group->get('/produse/{id:[0-9]+}/', [$adminController, 'productDetail']);
             $group->post('/produse/{id:[0-9]+}/editare/', [$adminController, 'saveProduct']);
             $group->post('/produse/{id:[0-9]+}/sterge/', [$adminController, 'deleteProduct']);
             $group->get('/clienti/', [$adminController, 'customers']);

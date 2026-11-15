@@ -1,0 +1,106 @@
+{% extends 'admin/layouts/base.twig' %}
+
+{% block title %}{{ product.name }}{% endblock %}
+
+{% block content %}
+{% set main_image = product.gallery_images|first %}
+{% set default_variant = product.variants|first %}
+<div class="product-record">
+  <header class="product-record__hero">
+    <div class="product-record__breadcrumbs"><a href="{{ url('admin/produse/') }}">← Înapoi la produse</a><span>{{ product.status_label }}</span></div>
+    <div class="product-record__hero-grid">
+      <div class="product-record__identity">
+        {% if main_image %}<img src="{{ url(main_image.public_path) }}" width="180" height="180" alt="{{ main_image.alt_text ?: product.name }}">{% else %}<span class="product-record__placeholder" aria-hidden="true">◇</span>{% endif %}
+        <div><span class="product-record__eyebrow">Fișa completă a produsului</span><h1>{{ product.name }}</h1><p>{{ product.extended_title ?: product.short_description }}</p>
+          <div class="product-record__codes"><code>{{ product.primary_sku ?: 'Fără SKU principal' }}</code>{% if default_variant and default_variant.ean %}<code>EAN {{ default_variant.ean }}</code>{% endif %}{% if product.supplier_code %}<code>Furnizor {{ product.supplier_code }}</code>{% endif %}</div>
+        </div>
+      </div>
+      <div class="product-record__actions">
+        <a class="is-primary" href="{{ url('admin/produse/' ~ product.id ~ '/editare/') }}">Editează produsul</a>
+        {% if product.status == 'published' %}<a href="{{ url('produs/' ~ product.slug ~ '/') }}" target="_blank" rel="noopener">Vezi în magazin ↗</a>{% endif %}
+      </div>
+    </div>
+  </header>
+
+  <section class="product-record__summary" aria-label="Rezumat stoc și performanță">
+    <div><span>Stoc online</span><strong>{{ stock.unlimited ? 'Nelimitat' : stock.online_quantity ~ ' buc.' }}</strong><small>{{ stock.reserved_quantity }} rezervate</small></div>
+    <div><span>Stoc contabil</span><strong>{{ stock.accounting_quantity|decimal_ro }} {{ product.unit }}</strong><small>Prag {{ (product.accounting_minimum_units / 10000)|decimal_ro }} {{ product.unit }}</small></div>
+    <div><span>Cantitate vândută</span><strong>{{ commercial.sold_quantity }} buc.</strong><small>{{ commercial.view_count }} vizualizări publice</small></div>
+    <div><span>Venit brut din comenzi</span><strong>{{ money(commercial.revenue_bani) }}</strong><small>Preț mediu {{ money(commercial.average_unit_bani) }}</small></div>
+    <div><span>Recenzii aprobate</span><strong>{{ commercial.review_count }}</strong><small>{{ commercial.review_count ? commercial.average_rating|number_format(1, ',', '.') ~ ' / 5' : 'Fără evaluări' }}</small></div>
+  </section>
+
+  <div class="product-record__grid">
+    <section class="product-record__panel product-record__panel--identity">
+      <header><span>01</span><div><small>Identificare</small><h2>Date comerciale</h2></div></header>
+      <dl>
+        <div><dt>Slug public</dt><dd>/produs/{{ product.slug }}/</dd></div>
+        <div><dt>Sursă</dt><dd>{{ product.source_name ?: (product.supplier.alias|default('—')) }}</dd></div>
+        <div><dt>Furnizor</dt><dd>{{ product.supplier ? product.supplier.alias ~ (product.supplier.company_name ? ' · ' ~ product.supplier.company_name : '') : '—' }}</dd></div>
+        <div><dt>Producător / model</dt><dd>{{ product.brand ?: '—' }}{% if product.model %} · {{ product.model }}{% endif %}</dd></div>
+        <div><dt>Categorii</dt><dd>{% for category in product.categories %}{{ not loop.first ? ' · ' }}{{ category.name }}{% else %}—{% endfor %}</dd></div>
+        <div><dt>TVA / monedă</dt><dd>{{ (product.vat_rate_basis_points / 100)|number_format(2, ',', '.') }}% · {{ product.currency }}</dd></div>
+        <div><dt>Disponibilitate</dt><dd>{{ {'automatic':'Automată din stoc','in_stock':'În stoc','preorder':'Precomandă','on_request':'La cerere','unavailable':'Indisponibil'}[product.public_availability]|default(product.public_availability) }}</dd></div>
+        <div><dt>Stoc extern</dt><dd>{{ product.external_stock_quantity is not null ? product.external_stock_quantity : 'Necunoscut' }}</dd></div>
+      </dl>
+    </section>
+
+    <section class="product-record__panel">
+      <header><span>02</span><div><small>Stoc documentar</small><h2>Intrări și ieșiri</h2></div></header>
+      <div class="product-record__stock-flow"><div><span>Intrări totale</span><strong>+{{ stock.incoming_quantity|decimal_ro }}</strong></div><div><span>Ieșiri totale</span><strong>−{{ stock.outgoing_quantity|decimal_ro }}</strong></div><div><span>Costuri în așteptare</span><strong>{{ stock.pending_quantity|decimal_ro }}</strong></div></div>
+      {% if product.track_in_conta or product.variants|filter(variant => variant.track_in_conta) %}<a class="product-record__deep-link" href="{{ url('admin/stoc/' ~ product.id ~ '/') }}">Deschide fișa de magazie și jurnalul complet →</a>{% else %}<p class="product-record__muted">Produsul nu este urmărit contabil.</p>{% endif %}
+    </section>
+  </div>
+
+  <section class="product-record__panel">
+    <header><span>03</span><div><small>Variante</small><h2>Preț și disponibilitate</h2></div></header>
+    <div class="product-record__variants">
+      {% for variant in product.variants %}<article><div><strong>{{ variant.option_summary ?: 'Variantă standard' }}</strong><code>{{ variant.sku }}</code>{% if variant.ean %}<small>EAN {{ variant.ean }}</small>{% endif %}</div><div><strong>{{ money(variant.price_bani) }}</strong>{% if variant.compare_price_bani > variant.price_bani %}<del>{{ money(variant.compare_price_bani) }}</del>{% endif %}<small>{{ variant.stock_unlimited ? 'Stoc nelimitat' : variant.stock ~ ' buc. online' }}</small></div></article>{% else %}<p class="product-record__empty">Nu există variante active.</p>{% endfor %}
+    </div>
+  </section>
+
+  <div class="product-record__grid">
+    <section class="product-record__panel">
+      <header><span>04</span><div><small>Conținut</small><h2>Descriere și galerie</h2></div></header>
+      <div class="product-record__description">{{ (product.description ?: product.short_description)|product_description_html }}</div>
+      {% if product.gallery_images|length > 1 %}<div class="product-record__gallery">{% for image in product.gallery_images %}<img src="{{ url(image.public_path) }}" width="120" height="120" alt="{{ image.alt_text ?: product.name }}" loading="lazy">{% endfor %}</div>{% endif %}
+    </section>
+    <section class="product-record__panel">
+      <header><span>05</span><div><small>Detalii</small><h2>Specificații și FAQ</h2></div></header>
+      <dl>{% for specification in product.specifications %}<div><dt>{{ specification.group_name ? specification.group_name ~ ' · ' : '' }}{{ specification.name }}</dt><dd>{{ specification.value }}</dd></div>{% else %}<div><dt>Specificații</dt><dd>Nu au fost completate.</dd></div>{% endfor %}</dl>
+      {% if product.faqs %}<div class="product-record__faq">{% for faq in product.faqs %}<details><summary>{{ faq.question }}</summary><p>{{ faq.answer }}</p></details>{% endfor %}</div>{% endif %}
+    </section>
+  </div>
+
+  {% if product.safety_warnings or product.conformity_documents or product.manuals or product.manufacturer_address or product.eu_responsible_person %}
+  <section class="product-record__panel product-record__compliance">
+    <header><span>06</span><div><small>Siguranță</small><h2>Conformitate și garanție</h2></div></header>
+    <div class="product-record__compliance-grid">
+      <p><strong>Garanție legală</strong>{{ product.warranty_legal ?: '—' }}</p><p><strong>Garanție comercială</strong>{{ product.warranty_commercial ?: '—' }}</p>
+      <p><strong>Producător</strong>{{ product.manufacturer_address ?: '—' }}{% if product.manufacturer_email %}<br>{{ product.manufacturer_email }}{% endif %}</p><p><strong>Responsabil UE</strong>{{ product.eu_responsible_person ?: '—' }}</p>
+      <p><strong>Marcaj / model</strong>{{ product.ce_marking ? 'CE · ' : '' }}{{ product.model_identifier ?: product.model ?: '—' }}</p><p><strong>Avertismente</strong>{{ product.safety_warnings ?: '—' }}</p>
+      <p><strong>Documente</strong>{{ product.conformity_documents ?: '—' }}</p><p><strong>Manuale</strong>{{ product.manuals ?: '—' }}</p>
+    </div>
+  </section>
+  {% endif %}
+
+  <section class="product-record__panel product-record__history">
+    <header><span>07</span><div><small>Istoric comercial</small><h2>Vânzări</h2></div></header>
+    <div class="product-record__table-wrap"><table><thead><tr><th>Comandă</th><th>Data</th><th>Client</th><th>Cantitate</th><th>Preț instantaneu</th><th>Status</th><th>Factură</th></tr></thead><tbody>
+      {% for sale in sales %}<tr><td><a href="{{ url('admin/comenzi/' ~ sale.id ~ '/') }}">{{ sale.order_number ?: '#' ~ sale.id }}</a></td><td>{{ sale.display_created_at }}</td><td>{{ sale.first_name }} {{ sale.last_name }}<small>{{ sale.email }}</small></td><td>{{ sale.quantity }}</td><td>{{ money(sale.unit_price_bani) }}</td><td><span class="product-record__badge is-{{ sale.status }}">{{ sale.status_label }}</span></td><td>{% if sale.invoice_id %}<a href="{{ url('admin/facturi/' ~ sale.invoice_id ~ '/') }}">{{ sale.series_code }} {{ sale.invoice_number }}</a>{% else %}—{% endif %}</td></tr>{% else %}<tr><td colspan="7" class="product-record__empty">Produsul nu apare încă în comenzi.</td></tr>{% endfor %}
+    </tbody></table></div>
+  </section>
+
+  <section class="product-record__panel product-record__history">
+    <header><span>08</span><div><small>Istoric documentar</small><h2>Aprovizionări</h2></div></header>
+    <div class="product-record__table-wrap"><table><thead><tr><th>Document</th><th>Furnizor</th><th>Data</th><th>Cantitate</th><th>Cost unitar</th><th>Lot</th><th>Sold lot</th></tr></thead><tbody>
+      {% for purchase in purchases %}<tr><td><a href="{{ url('admin/nir-uri/' ~ purchase.id ~ '/') }}">{{ purchase.number ?: purchase.temp_number }}</a><small>{{ purchase.invoice_series }} {{ purchase.invoice_number }}</small></td><td>{{ purchase.supplier_alias ?: purchase.supplier_name ?: 'Retur / sold inițial' }}</td><td>{{ purchase.display_created_at }}</td><td>{{ purchase.stock_quantity|decimal_ro }}</td><td>{{ purchase.unit_cost_ron|decimal_ro }} RON</td><td>{{ purchase.layer_id ? '#' ~ purchase.layer_id : '—' }}</td><td>{{ purchase.remaining_quantity|decimal_ro }}</td></tr>{% else %}<tr><td colspan="7" class="product-record__empty">Nu există încă intrări confirmate pentru acest produs.</td></tr>{% endfor %}
+    </tbody></table></div>
+  </section>
+
+  <section class="product-record__panel product-record__history">
+    <header><span>09</span><div><small>Feedback clienți</small><h2>Recenzii</h2></div><a class="product-record__head-link" href="{{ url('admin/recenzii/') }}">Moderare recenzii →</a></header>
+    <div class="product-record__reviews">{% for review in reviews %}<article><div><strong>{{ review.author_name }}</strong><span>{% for star in 1..5 %}{{ star <= review.rating ? '★' : '☆' }}{% endfor %}</span></div><p>{{ review.title ? review.title ~ ' — ' }}{{ review.body }}</p><footer><span class="product-record__badge is-{{ review.status }}">{{ review.status_label }}</span>{% if review.is_verified_purchase %}<span>Achiziție verificată</span>{% endif %}{% if review.order_number %}<span>Comanda {{ review.order_number }}</span>{% endif %}<time>{{ review.display_created_at }}</time></footer></article>{% else %}<p class="product-record__empty">Produsul nu are recenzii.</p>{% endfor %}</div>
+  </section>
+</div>
+{% endblock %}

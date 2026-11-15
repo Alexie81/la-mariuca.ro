@@ -6,6 +6,7 @@ namespace App\Modules\Catalog;
 
 use App\Modules\Payments\StripeCatalogQueue;
 use App\Modules\Inventory\AccountingStockReadModel;
+use App\Modules\Inventory\NirDecimal;
 use App\Shared\Security\ProductDescriptionSanitizer;
 use App\Shared\Support\Money;
 use App\Shared\Support\Slugger;
@@ -522,6 +523,7 @@ final class CatalogAdminService
         if (!is_array($row) || (string) $row['status'] === 'archived') {
             throw new RuntimeException('Produsul nu există sau a fost deja șters.');
         }
+        $this->assertAccountingTrackingCanChange($id, false);
 
         $now = gmdate('c');
         $this->pdo->beginTransaction();
@@ -828,6 +830,113 @@ final class CatalogAdminService
         $row['faqs'] = $faqs->fetchAll();
 
         return $row;
+    }
+
+    /** @return array<string,mixed>|null */
+    public function productDetail(int $id): ?array
+    {
+        $product = $this->productForm($id);
+        if ($product === null) {
+            return null;
+        }
+
+        $categories = $this->pdo->prepare('SELECT category.id,category.name,category.slug FROM product_categories relation JOIN categories category ON category.id=relation.category_id WHERE relation.product_id=:product ORDER BY category.name,category.id');
+        $categories->execute(['product' => $id]);
+        $product['categories'] = $categories->fetchAll();
+        $supplier = $this->pdo->prepare('SELECT id,alias,company_name FROM suppliers WHERE id=:id');
+        $supplier->execute(['id' => (int) ($product['supplier_id'] ?? 0)]);
+        $product['supplier'] = $supplier->fetch() ?: null;
+
+        $stock = $this->pdo->prepare("SELECT
+                COALESCE(SUM(COALESCE(inventory.physical_quantity,0)-COALESCE(inventory.reserved_quantity,0)),0) AS online_quantity,
+                COALESCE(SUM(COALESCE(inventory.reserved_quantity,0)),0) AS reserved_quantity,
+                CASE WHEN SUM(CASE WHEN variant.stock_unlimited=1 AND variant.status='active' THEN 1 ELSE 0 END)>0 THEN 1 ELSE 0 END AS unlimited
+            FROM product_variants variant LEFT JOIN inventory ON inventory.variant_id=variant.id
+            WHERE variant.product_id=:product AND variant.status='active'");
+        $stock->execute(['product' => $id]);
+        $stockMetrics = $stock->fetch() ?: ['online_quantity' => 0, 'reserved_quantity' => 0, 'unlimited' => 0];
+        $accounting = (new AccountingStockReadModel($this->pdo))->quantities([$id]);
+
+        $movements = $this->pdo->prepare("SELECT
+                COALESCE(SUM(CASE WHEN movement.units>0 THEN movement.units ELSE 0 END),0) AS incoming_units,
+                COALESCE(SUM(CASE WHEN movement.units<0 THEN -movement.units ELSE 0 END),0) AS outgoing_units
+            FROM (
+                SELECT canonical.quantity_units AS units
+                FROM nir_stock_movements canonical
+                WHERE (canonical.scope_type='product' AND canonical.scope_id=:canonical_product)
+                   OR (canonical.scope_type='variant' AND EXISTS(SELECT 1 FROM product_variants canonical_variant WHERE canonical_variant.id=canonical.scope_id AND canonical_variant.product_id=:canonical_variant_product))
+                UNION ALL
+                SELECT legacy.quantity_delta*10000 AS units
+                FROM accounting_stock_movements legacy
+                WHERE legacy.product_id=:legacy_product
+                  AND NOT EXISTS(SELECT 1 FROM nir_stock_balances replacement WHERE replacement.scope_type=legacy.scope_type AND replacement.scope_id=legacy.scope_id)
+            ) movement");
+        $movements->execute(['canonical_product' => $id, 'canonical_variant_product' => $id, 'legacy_product' => $id]);
+        $movementMetrics = $movements->fetch() ?: ['incoming_units' => 0, 'outgoing_units' => 0];
+        $pending = $this->pdo->prepare('SELECT COALESCE(SUM(quantity_units),0) FROM nir_pending_consumptions WHERE product_id=:product');
+        $pending->execute(['product' => $id]);
+
+        $commercial = $this->pdo->prepare("SELECT
+                COALESCE(SUM(item.quantity),0) AS sold_quantity,
+                COALESCE(SUM(item.line_total_bani),0) AS revenue_bani
+            FROM order_items item JOIN orders customer_order ON customer_order.id=item.order_id
+            WHERE item.product_id=:product AND customer_order.status<>'cancelled'");
+        $commercial->execute(['product' => $id]);
+        $commercialMetrics = $commercial->fetch() ?: ['sold_quantity' => 0, 'revenue_bani' => 0];
+        $views = $this->pdo->prepare('SELECT COALESCE(SUM(views),0) FROM product_view_daily WHERE product_id=:product');
+        $views->execute(['product' => $id]);
+        $rating = $this->pdo->prepare("SELECT COALESCE(AVG(rating),0) AS average_rating,COUNT(*) AS review_count FROM product_reviews WHERE product_id=:product AND status='approved'");
+        $rating->execute(['product' => $id]);
+        $ratingMetrics = $rating->fetch() ?: ['average_rating' => 0, 'review_count' => 0];
+
+        $sales = $this->pdo->prepare("SELECT customer_order.id,customer_order.order_number,customer_order.created_at,customer_order.first_name,customer_order.last_name,customer_order.email,customer_order.status,
+                item.quantity,item.unit_price_bani,item.line_total_bani,invoice.id AS invoice_id,invoice.series_code,invoice.number AS invoice_number
+            FROM order_items item
+            JOIN orders customer_order ON customer_order.id=item.order_id
+            LEFT JOIN invoices invoice ON invoice.primary_order_id=customer_order.id AND invoice.deleted_at IS NULL
+            WHERE item.product_id=:product
+            ORDER BY customer_order.created_at DESC,customer_order.id DESC,item.id DESC LIMIT 50");
+        $sales->execute(['product' => $id]);
+
+        $purchases = $this->pdo->prepare("SELECT document.id,document.number,document.temp_number,document.nir_at,document.invoice_series,document.invoice_number,document.type,
+                supplier.alias AS supplier_alias,supplier.company_name AS supplier_name,line.stock_quantity,line.stock_quantity_units,line.unit_cost_ron,line.sku,
+                layer.id AS layer_id,COALESCE(layer.remaining_units,0) AS remaining_units
+            FROM nir_lines line
+            JOIN nir_documents document ON document.id=line.nir_id
+            LEFT JOIN suppliers supplier ON supplier.id=document.supplier_id
+            LEFT JOIN nir_fifo_layers layer ON layer.line_id=line.id
+            WHERE line.product_id=:product AND document.status='confirmed' AND line.stock_quantity_units>0
+            ORDER BY document.nir_at DESC,document.id DESC,line.position LIMIT 50");
+        $purchases->execute(['product' => $id]);
+
+        $reviews = $this->pdo->prepare('SELECT id,author_name,author_email,rating,title,body,status,is_verified_purchase,order_number,created_at,moderated_at FROM product_reviews WHERE product_id=:product ORDER BY created_at DESC,id DESC LIMIT 50');
+        $reviews->execute(['product' => $id]);
+
+        $soldQuantity = (int) $commercialMetrics['sold_quantity'];
+        $revenue = (int) $commercialMetrics['revenue_bani'];
+        return [
+            'product' => $product,
+            'stock' => [
+                'online_quantity' => (int) $stockMetrics['online_quantity'],
+                'reserved_quantity' => (int) $stockMetrics['reserved_quantity'],
+                'unlimited' => (int) $stockMetrics['unlimited'],
+                'accounting_quantity' => $accounting[$id] ?? '0',
+                'incoming_quantity' => NirDecimal::quantity((int) $movementMetrics['incoming_units']),
+                'outgoing_quantity' => NirDecimal::quantity((int) $movementMetrics['outgoing_units']),
+                'pending_quantity' => NirDecimal::quantity((int) $pending->fetchColumn()),
+            ],
+            'commercial' => [
+                'sold_quantity' => $soldQuantity,
+                'revenue_bani' => $revenue,
+                'average_unit_bani' => $soldQuantity > 0 ? intdiv($revenue, $soldQuantity) : 0,
+                'view_count' => (int) $views->fetchColumn(),
+                'average_rating' => (float) $ratingMetrics['average_rating'],
+                'review_count' => (int) $ratingMetrics['review_count'],
+            ],
+            'sales' => $sales->fetchAll(),
+            'purchases' => $purchases->fetchAll(),
+            'reviews' => $reviews->fetchAll(),
+        ];
     }
 
     /** @param array<string,mixed> $data @return list<int> */
