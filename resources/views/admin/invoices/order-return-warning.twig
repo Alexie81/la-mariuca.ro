@@ -1,0 +1,9 @@
+{% import 'admin/partials/nir-ui.twig' as n %}
+{% if can_manage_documents %}
+  {% for return in order.returns_missing_invoices %}
+  <section class="order-return-notice is-warning is-prominent" aria-label="Retur fără factură">
+    <span class="order-return-notice__icon">{{ n.icon('warning') }}</span><div class="order-return-notice__copy"><strong>Retur înregistrat fără factură de retur</strong><p>{{ order.status == 'returned' ? 'Comanda este returnată, dar returul nu are un document fiscal activ.' : 'Cantitățile returului sunt înregistrate, dar factura de retur nu a fost emisă.' }} Poți emite documentul sau anula această înregistrare.</p><small>{{ return.reason }}</small>
+    <div class="order-return-notice__actions"><a class="order-billing__button is-primary" href="{{ url('admin/facturi/0/return-reconcile/?order=' ~ order.id ~ '&return=' ~ return.id ~ '&decision=invoice') }}" data-iv-modal>{{ n.icon('document') }}Generează factura de retur</a>{% if not return.restore_blocker %}<a class="order-billing__button" href="{{ url('admin/facturi/0/return-reconcile/?order=' ~ order.id ~ '&return=' ~ return.id ~ '&decision=restore') }}" data-iv-modal>{{ n.icon('back') }}{{ return.status_before|default('delivered') in ['new','confirmed','preparing','shipped'] ? 'Revino la starea anterioară' : 'Revino la Livrată' }}</a>{% else %}<small>{{ return.restore_blocker }}</small>{% endif %}</div></div>
+  </section>
+  {% endfor %}
+{% endif %}

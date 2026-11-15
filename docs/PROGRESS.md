@@ -1,5 +1,10 @@
 # Progres
 
+### 2026-11-15 — Avertismentul returului înaintea documentelor
+- Mesajul „Retur înregistrat fără factură de retur” apare deasupra secțiunii Documentele comenzii, cu titlu și iconiță mai mari, fundal cald și acțiunile existente la îndemână. Iconița are balans și contur pulsant discret; preferința pentru mișcare redusă oprește animațiile.
+- Verificat în browserul local QA la desktop, 390 și 768 px: ordinea secțiunilor, animația activă, iconița vizibilă inclusiv pe telefon și lipsa depășirii orizontale. Avertismentul păstrează autorizarea acțiunilor. Fără modificări ale comenzilor principale sau deploy.
+
+
 ### 2026-11-15 — Confirmarea returului fără motiv repetat
 - Eliminat câmpul obligatoriu „Motivul confirmării” atât la emiterea facturii unui retur deja înregistrat, cât și la revenirea după anularea lui. Serverul preia motivul inițial din retur; anularea primește automat descrierea operațiunii în audit.
 - Verificat fluxul fără parametrul `reason`, inclusiv reluarea fără duplicate, emiterea cu motivul inițial și revenirea comenzii: **1 test / 12 aserțiuni**. Sintaxa PHP, **168 template-uri Twig** și diff check au trecut. Nu s-au modificat comenzi și nu s-au trimis emailuri pentru această verificare.
