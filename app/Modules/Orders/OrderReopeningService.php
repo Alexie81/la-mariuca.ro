@@ -11,6 +11,14 @@ final class OrderReopeningService
 {
     public function __construct(private readonly InvoiceRepository $repository) {}
 
+    public function blocker(int $orderId): string
+    {
+        foreach($this->repository->currentOrderInvoices($orderId) as $document) {
+            if($document['kind']==='return') { return 'Comanda anulată are o factură de retur emisă și nu mai poate fi reluată.'; }
+        }
+        return '';
+    }
+
     /** The caller holds the common order/invoice/stock transaction.
      * @param array<string,mixed> $order
      */
@@ -21,6 +29,8 @@ final class OrderReopeningService
         $actor=$this->repository->one('users',['id'=>$actorId,'status'=>'active']);
         if(!$actor || !in_array($actor['role'],['administrator','manager'],true)) { throw new RuntimeException('Nu ai permisiunea să reiei comanda.'); }
         $id=(int)$order['id'];
+        $blocker=$this->blocker($id);
+        if($blocker!=='') { throw new RuntimeException($blocker); }
         $query=$pdo->prepare('SELECT oi.variant_id,SUM(oi.quantity) AS quantity,COALESCE(v.stock_unlimited,0) AS unlimited FROM order_items oi LEFT JOIN product_variants v ON v.id=oi.variant_id WHERE oi.order_id=:id GROUP BY oi.variant_id,v.stock_unlimited');$query->execute(['id'=>$id]);$quantities=[];
         foreach($query->fetchAll() as $item) {
             $quantities[(int)$item['variant_id']]=(int)$item['quantity'];

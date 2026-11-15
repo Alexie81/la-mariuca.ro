@@ -18,6 +18,11 @@ final class InvoiceRepository
         $query->execute(['id'=>$orderId]);return $query->fetchAll();
     }
     public function now(): string { return gmdate('Y-m-d\TH:i:s\Z'); }
+    public function hasConfirmedCardPayment(int $orderId): bool
+    {
+        $query=$this->pdo->prepare("SELECT 1 FROM orders o WHERE o.id=:id AND ((o.payment_method='stripe' AND o.payment_status IN ('paid','partially_refunded','refunded')) OR EXISTS (SELECT 1 FROM payments p WHERE p.order_id=o.id AND p.provider='stripe' AND (p.status IN ('paid','partially_refunded','refunded') OR p.refunded_bani>0)))");
+        $query->execute(['id'=>$orderId]);return $query->fetchColumn()!==false;
+    }
     /** Read-only presentation data; the editor validates availability and price again on save.
      * @return array<string,mixed>|null
      */
@@ -123,6 +128,11 @@ final class InvoiceRepository
         return max($number,(int)$q->fetchColumn())+1;
     }
     public function latestId(): int { return (int)$this->pdo->query('SELECT MAX(id) FROM invoices WHERE deleted_at IS NULL')->fetchColumn(); }
+    public function latestInSeries(string $code): int
+    {
+        $query=$this->pdo->prepare('SELECT id FROM invoices WHERE series_code=:code AND deleted_at IS NULL ORDER BY active_number DESC,id DESC LIMIT 1');
+        $query->execute(['code'=>$code]);return (int)$query->fetchColumn();
+    }
     public function usedSeries(int $id): bool
     {
         $q=$this->pdo->prepare('SELECT id FROM invoices WHERE series_id=:id LIMIT 1'); $q->execute(['id'=>$id]); return $q->fetchColumn()!==false;

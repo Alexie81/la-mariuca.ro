@@ -8,7 +8,7 @@ use DateTimeZone;
 
 final class InvoiceService
 {
-    public const KINDS=['sale'=>'Factură','return'=>'Factură de retur','correction_negative'=>'Corecție storno','corrected_positive'=>'Factură corectată'];
+    public const KINDS=['sale'=>'Factură','return'=>'Factură de retur','correction_negative'=>'Retur pentru corecție','corrected_positive'=>'Factură corectată'];
     public function __construct(private readonly InvoiceRepository $repository,private readonly InvoiceSnapshot $snapshots,private readonly InvoiceStockService $stock) {}
     /** @param array<string,mixed> $actor */
     public function allow(array $actor,string $permission='view'): void
@@ -214,7 +214,7 @@ final class InvoiceService
             $quotes=ReturnSettlement::quotes((new \App\Modules\Orders\OrderService($this->repository->pdo()))->findForAdmin($orderId));
             $base=0;foreach($selected as $itemId=>$quantity) { $base+=$quotes[$itemId][$quantity]; }
             $settlement=ReturnSettlement::calculate($base,$input)+['destination'=>$destination];
-            $issue=(string)($input['issue_invoice'] ?? '0')==='1'; $plans=[];
+            $issue=$this->repository->hasConfirmedCardPayment($orderId) || (string)($input['issue_invoice'] ?? '0')==='1'; $plans=[];
             if($issue) {
                 $positive=array_values(array_filter($this->repository->currentOrderInvoices($orderId),static fn(array $i):bool=>in_array($i['kind'],['sale','corrected_positive'],true)));
                 if($positive===[]) {
@@ -336,7 +336,7 @@ final class InvoiceService
             }
             (new OrderRefundService($this->repository))->allocate((int)$original['order_id']);
             $this->touch($original,['row_version'=>(int)$original['row_version']+1]);
-            if(!$productLeft && $kind==='return' && !$this->repository->hasUnreturnedProducts((int)$original['order_id'])) { $this->repository->update('orders',['status'=>'returned','updated_at'=>$this->repository->now()],['id'=>$original['order_id']]); }
+            if($order['status']!=='cancelled' && !$productLeft && $kind==='return' && !$this->repository->hasUnreturnedProducts((int)$original['order_id'])) { $this->repository->update('orders',['status'=>'returned','updated_at'=>$this->repository->now()],['id'=>$original['order_id']]); }
             if($kind==='return' && ($input['notify_customer'] ?? '1')==='1') { $this->queueEmail((int)$result['id'],$key.':return-email',$actor); }
             $this->remember($key,$kind,$hash,(int)$result['id']); return $this->decorate($result);
         });
@@ -452,7 +452,7 @@ final class InvoiceService
         return $this->repository->transaction(function()use($id,$input,$actor):array {
             $key=$this->key($input); $hash=$this->hash([$id,$input]); if($retry=$this->retry($key,'receive',$hash)) { return $retry; }
             $invoice=$this->load($id); $this->version($invoice,$input);
-            if(!in_array($invoice['kind'],['return','correction_negative'],true)) { throw new InvoiceException('Primirea fizică se înregistrează pentru un retur sau storno.'); }
+            if(!in_array($invoice['kind'],['return','correction_negative'],true)) { throw new InvoiceException('Primirea fizică se înregistrează pentru o factură de retur.'); }
             if($this->repository->one('invoice_receipts',['invoice_id'=>$id]) || (new \App\Modules\Inventory\ReturnStockLinks($this->repository->pdo()))->nirForInvoice($id)) { throw new InvoiceException('Primirea produselor a fost deja înregistrată.',409); }
             $plans=[]; $hasProduct=false;
             foreach($invoice['lines'] as $line) {
@@ -547,9 +547,12 @@ final class InvoiceService
     public function deleteBlocker(array $invoice): string
     {
         $order=$this->repository->one('orders',['id'=>$invoice['order_id']]);
+        if($this->repository->hasConfirmedCardPayment((int)$invoice['order_id'])) {
+            return 'Facturile unei comenzi plătite cu cardul se păstrează. Pentru anulare sau corectare emite o factură de retur.';
+        }
         if((int)$invoice['id']<=(int)($order['invoice_cycle_start_id']??0)) { return 'Documentul aparține anulării anterioare și se păstrează în istoric după reluarea comenzii.'; }
         if($invoice['fiscal_attempted_at']!==null || $invoice['fiscal_reference']!==null || !in_array($invoice['fiscal_state'],['unconfigured','not_sent','queued','scheduled','awaiting_configuration'],true)) { return 'Documentul este blocat de o încercare de transmitere fiscală.'; }
-        if($this->repository->latestId()!==(int)$invoice['id']) { return 'Se poate șterge numai ultimul document emis.'; }
+        if($this->repository->latestInSeries($invoice['series_code'])!==(int)$invoice['id']) { return 'Se poate șterge numai ultimul document emis din serie.'; }
         if($this->repository->children((int)$invoice['id'])!==[]) { return 'Documentul are retururi sau corecții asociate.'; }
         if($this->repository->all('invoice_refunds',['invoice_id'=>$invoice['id']])!==[]) { return 'Pentru acest document este înregistrată o restituire de bani.'; }
         $returnNir=(new \App\Modules\Inventory\ReturnStockLinks($this->repository->pdo()))->nirForInvoice((int)$invoice['id']);
@@ -742,25 +745,6 @@ final class InvoiceService
         if($this->repository->one('outbox_messages',['deduplication_key'=>$key])) { return; }
         $this->repository->insert('outbox_messages',['deduplication_key'=>$key,'message_type'=>'invoice_return_notice','recipient'=>$invoice['snapshot']['customer']['email'],
             'payload_json'=>InvoiceSnapshot::json(['invoice_id'=>$invoice['id'],'return_notice'=>$state,'message'=>$message]),'status'=>'pending','attempts'=>0,'available_at'=>$this->repository->now(),'created_at'=>$this->repository->now()]);
-    }
-    /** @param array<string,mixed> $actor */
-    public function cancelOrder(int $orderId,string $reason,array $actor): void
-    {
-        $this->allow($actor,'return');
-        $this->repository->transaction(function()use($orderId,$reason,$actor):void {
-            $original=$this->repository->one('invoices',['primary_order_id'=>$orderId]); if(!$original) { return; }
-            $invoice=$this->load((int)$original['id']); $input=['request_key'=>'cancel-order:'.$orderId.':'.$invoice['id'],'version'=>$invoice['row_version'],'reason'=>trim($reason) ?: 'Anularea comenzii'];
-            if($this->deleteBlocker($invoice)==='' && ($actor['role'] ?? '')==='administrator') { $this->delete((int)$invoice['id'],$input,$actor); return; }
-            foreach($this->repository->currentOrderInvoices($orderId) as $document) {
-                if(!in_array($document['kind'],['sale','corrected_positive'],true)) { continue; }
-                $invoice=$this->load((int)$document['id']); $quantities=[];
-                foreach($invoice['lines'] as $line) { $remaining=(int)$line['quantity_units']-$this->repository->creditedUnits((int)$line['id']); if($remaining>0) { $quantities[$line['id']]=InvoiceCalculator::quantity($remaining); } }
-                if($quantities) {
-                    $credit=$this->credit((int)$invoice['id'],['request_key'=>'cancel-order:'.$orderId.':'.$invoice['id'],'version'=>$invoice['row_version'],'reason'=>$input['reason'],'quantities'=>$quantities],$actor);
-                    $this->queueEmail((int)$credit['id'],'cancel-credit-email:'.$orderId.':'.$invoice['id'],$actor);
-                }
-            }
-        });
     }
     /** @param array<string,mixed> $snapshot @param list<array<string,mixed>> $lines @param array<string,mixed> $actor @return array<string,mixed> */
     private function create(string $kind,int $orderId,array $snapshot,array $lines,array $actor,string $key,?int $parent,?int $replacement,string $reason,?int $warehouse): array

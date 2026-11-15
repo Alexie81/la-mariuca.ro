@@ -36,7 +36,7 @@ final class InvoiceExportService
         $negative=in_array($invoice['kind'],['return','correction_negative'],true); $paid=$invoice['payment_state']==='paid';
         $refunded=array_sum(array_column($this->repository->all('invoice_refunds',['invoice_id'=>$invoice['id']]),'amount_bani'));
         return ['preview'=>false,'company'=>$company,'customer'=>$customer,'lines'=>$lines,'number'=>$invoice['series_code'].' '.$invoice['number'],
-            'document_title'=>['sale'=>'FACTURĂ','return'=>'FACTURĂ RETUR','correction_negative'=>'FACTURĂ STORNO','corrected_positive'=>'FACTURĂ CORECTATĂ'][$invoice['kind']],
+            'document_title'=>['sale'=>'FACTURĂ','return'=>'FACTURĂ DE RETUR','correction_negative'=>'FACTURĂ DE RETUR','corrected_positive'=>'FACTURĂ CORECTATĂ'][$invoice['kind']],
             'date'=>(new DateTimeImmutable($invoice['issued_at']))->setTimezone(new DateTimeZone('Europe/Bucharest'))->format('d.m.Y'),'due_date'=>(new DateTimeImmutable($invoice['due_date']))->format('d.m.Y'),
             'order_number'=>$snapshot['order_number'],'original_reference'=>isset($snapshot['original_number'])?'Document original '.$snapshot['original_number']:'',
             'payment_paid'=>$paid && !$negative,

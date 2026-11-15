@@ -1,5 +1,15 @@
 # Progres
 
+### 2026-11-15 — Anularea și documentele, cu reguli distincte pentru card
+- Ramburs: anularea nu mai șterge și nu mai emite automat documente. Modalul oferă ștergerea facturii numai dacă este ultima eligibilă din seria ei, emiterea facturii de retur sau rezolvarea ulterioară. Anularea directă a clientului păstrează factura. Avertismentul deasupra documentelor indică sursa anulării și acțiunile permise.
+- Conform clarificării ulterioare, **card confirmat Stripe**: nicio factură asociată nu se șterge, inclusiv factura de retur, după anulare/retur sau rambursare parțială/integrală. Anularea admin/client emite automat factura de retur; dacă lipsește factura inițială, perechea se creează în aceeași tranzacție. Înregistrarea/acceptarea returului emite obligatoriu documentul, indiferent de câmpul trimis din formular; cererea în analiză nu emite documente.
+- Comanda anulată cu factură de retur activă **nu mai poate fi reluată**: acțiunea dispare, iar serverul respinge și formularele vechi. După ștergerea eligibilă a facturii inițiale, reluarea rămâne posibilă. Această regulă înlocuiește reluarea anterioară după neutralizarea prin factură de retur.
+- După factura de retur, comanda rămâne anulată și apare avertismentul proeminent/animat pentru verificarea produselor și NIR, înaintea documentelor. Nu se inventează recepții fizice sau rambursări de bani. Confirmarea NIR este separată și idempotentă.
+- Denumirea vizibilă rămâne **Factură de retur**, inclusiv **FACTURĂ DE RETUR** în PDF/Excel. XML păstrează UBL Invoice tip 380 cu valori negative; nu s-a schimbat formatul în CreditNote. FACT1/FCN clarificate prin verificarea codului și a ghidului ANAF; aceasta nu constituie verificare de transmitere live.
+- Alegerea fiscală are versiune, verificare a eligibilității în tranzacția comună, deduplicare și audit. Confirmările vechi, documentele care nu mai sunt ultimele, CSRF lipsă și reluarea după retur sunt refuzate. Factura/returul și schimbarea stării se salvează atomic.
+- Verificări intermediare: **47 teste / 460 aserțiuni** pentru anulare/retur; **12 teste / 98 aserțiuni** după automatizarea cardului; suita integrală pornită înaintea ultimei clarificări pentru card: **846 teste / 8.466 aserțiuni**. PHPStan și **183 template-uri Twig** fără erori. Verificarea finală a modulelor afectate și QA vizual continuă.
+- Datele testelor sunt izolate; fără modificări ale comenzilor principale, trimiteri SMTP reale, transferuri Stripe sau deploy. Regula existentă de checkout creează doar o încercare înainte de plată, iar comanda după confirmarea `paid`; nu s-au configurat servicii live. Roadmapul rămâne nebifat.
+
 ### 2026-11-15 — Etichete simple pentru ștergerea documentelor
 - Factura folosește **Șterge document**, iar avizul **Șterge avizul**, inclusiv în butoanele de confirmare. Eliminată formularea „ultimul document” din eticheta acțiunii și simplificate mesajele pozitive din confirmare.
 - Butoanele din comandă rămân afișate numai când documentul este ultimul eligibil, conform aceleiași reguli verificate la salvare; documentele anterioare nu primesc buton de ștergere. Protecțiile SPV și celelalte blocaje se păstrează.

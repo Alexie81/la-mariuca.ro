@@ -264,6 +264,7 @@ final class OrderService
         }
         unset($event);
         $order['available_actions'] = $this->availableActions((string) $order['status']);
+        if($order['status']==='cancelled' && (new OrderReopeningService(new \App\Modules\Invoicing\InvoiceRepository($this->pdo)))->blocker((int)$order['id'])!=='') { $order['available_actions']=[]; }
         $order['status_version'] = $this->statusVersion($orderId);
         $cancellation = $this->pdo->prepare('SELECT cr.id,cr.order_id,cr.reason,cr.order_status_at_request,cr.created_at,cr.status,cr.decision_reason,cr.resolved_at,cr.resolved_by,u.first_name AS resolver_first_name,u.last_name AS resolver_last_name FROM order_cancellation_requests cr LEFT JOIN users u ON u.id=cr.resolved_by WHERE cr.order_id=:id');
         $cancellation->execute(['id'=>$orderId]);
@@ -281,6 +282,7 @@ final class OrderService
             $order['dispatch_note']['can_delete']=$order['dispatch_note']['delete_blocker']==='';
         }
         $order['return_invoice_default']=count(array_filter($order['issued_invoices'],static fn(array $i):bool=>(int)$i['id']>(int)$order['invoice_cycle_start_id'] && in_array($i['kind'],['sale','corrected_positive'],true)))>0;
+        $order['return_invoice_required']=(new \App\Modules\Invoicing\InvoiceRepository($this->pdo))->hasConfirmedCardPayment($orderId);
         $order['return_request_key']=bin2hex(random_bytes(16));
         $order['dispatch_note_request_key']=bin2hex(random_bytes(24));
         $order['document_actions']=(new \App\Modules\Invoicing\OrderDocumentPolicy(new \App\Modules\Invoicing\InvoiceRepository($this->pdo)))->actions($order);
@@ -358,7 +360,8 @@ final class OrderService
         return $order;
     }
 
-    public function transition(int $orderId, string $action, ?string $awb, int $actorId, string $reason = '', bool $notifyCustomer = false, ?string $expectedVersion = null,string $source='admin'): void
+    /** @param array<string,mixed> $cancellationDocuments */
+    public function transition(int $orderId, string $action, ?string $awb, int $actorId, string $reason = '', bool $notifyCustomer = false, ?string $expectedVersion = null,string $source='admin',array $cancellationDocuments=[]): void
     {
         $normal = ['new','confirmed','preparing','shipped','delivered'];
         $allowed = [
@@ -387,6 +390,15 @@ final class OrderService
             if ($order['status'] === $allowed[$action]['to']) { if($ownsTransaction) { $this->pdo->commit(); } return; }
             if ($expectedVersion !== null && !hash_equals($this->statusVersion($orderId),$expectedVersion)) { throw new RuntimeException('Statusul s-a modificat între timp. Redeschide formularul.'); }
             $now = gmdate('c');
+            $automaticCardCancellation=false;
+            if($action==='cancel') {
+                $repository=new \App\Modules\Invoicing\InvoiceRepository($this->pdo);
+                $automaticCardCancellation=$repository->hasConfirmedCardPayment($orderId);
+                if($automaticCardCancellation) {
+                    $invoiceActor=$repository->one('users',['id'=>$actorId,'status'=>'active'])??throw new RuntimeException('Operatorul nu mai este disponibil.');
+                    $cancellationDocuments=(new \App\Modules\Invoicing\CancellationInvoiceWorkflow($repository,\App\Modules\Invoicing\InvoiceModule::service($this->pdo,dirname(__DIR__,3))))->automaticCardDocuments($orderId,$notifyCustomer,$invoiceActor);
+                }
+            }
             if($action==='reopen') { (new OrderReopeningService(new \App\Modules\Invoicing\InvoiceRepository($this->pdo)))->prepare($order,$actorId,$now); }
             $wasDispatched=in_array($order['status'],['shipped','delivered'],true);
             $willBeDispatched=in_array($allowed[$action]['to'],['shipped','delivered'],true);
@@ -423,9 +435,6 @@ final class OrderService
                     $this->pdo->prepare("INSERT INTO inventory_movements (variant_id,type,physical_delta,reserved_delta,reason,reference_type,reference_id,actor_user_id,created_at) VALUES (:variant,'reserve',:physical,:reserved,'Revenire la pregătirea comenzii','order',:order,:actor,:now)")->execute(['variant'=>$reservation['variant_id'],'physical'=>$reservation['quantity'],'reserved'=>$reservation['quantity'],'order'=>$orderId,'actor'=>$actorId,'now'=>$now]);
                 }
             } elseif ($action === 'cancel') {
-                $actorQuery=$this->pdo->prepare('SELECT id,role FROM users WHERE id=:id'); $actorQuery->execute(['id'=>$actorId]);
-                $invoiceActor=$actorQuery->fetch();
-                if (is_array($invoiceActor)) { \App\Modules\Invoicing\InvoiceModule::service($this->pdo,dirname(__DIR__,3))->cancelOrder($orderId,$reason,$invoiceActor); }
                 $reservations = $this->pdo->prepare("SELECT * FROM inventory_reservations WHERE order_id = :id AND status = 'active'");
                 $reservations->execute(['id' => $orderId]);
                 foreach ($reservations->fetchAll() as $reservation) {
@@ -454,6 +463,12 @@ final class OrderService
                 $params['now2'] = $now;
             }
             $this->pdo->prepare("UPDATE orders SET status = :status, updated_at = :now{$extra} WHERE id = :id")->execute($params);
+            if($action==='cancel' && ($cancellationDocuments['decision']??'later')!=='later') {
+                if($source!=='admin' && !$automaticCardCancellation) { throw new RuntimeException('Documentele anulării se gestionează din administrare.'); }
+                $repository=new \App\Modules\Invoicing\InvoiceRepository($this->pdo);
+                $invoiceActor=$repository->one('users',['id'=>$actorId,'status'=>'active'])??throw new RuntimeException('Operatorul nu mai este disponibil.');
+                (new \App\Modules\Invoicing\CancellationInvoiceWorkflow($repository,\App\Modules\Invoicing\InvoiceModule::service($this->pdo,dirname(__DIR__,3))))->resolve($orderId,$cancellationDocuments,$invoiceActor);
+            }
             if ($action !== 'cancel' && $action !== 'reset' && $action !== 'reopen') {
                 $this->pdo->prepare("UPDATE coupon_redemptions SET status='confirmed',updated_at=:now WHERE order_id=:order AND status='reserved'")
                     ->execute(['now' => $now, 'order' => $orderId]);

@@ -273,9 +273,9 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
     {
         $first=$this->service->issue($this->order(1),['request_key'=>'cancel-first-case'],$this->actor);
         $second=$this->service->issue($this->order(1),['request_key'=>'cancel-second-case'],$this->actor);
-        $this->service->cancelOrder($second['order_id'],'Greșeală de comandă',$this->actor); self::assertSame(-10000,$this->balance());
+        $this->cancelWithDocuments($second['order_id'],'delete','cancel-second-delete'); self::assertSame(-10000,$this->balance());
         $replacement=$this->service->issue($this->order(1),['request_key'=>'cancel-third-case'],$this->actor); self::assertSame(2,$replacement['number']);
-        $this->service->cancelOrder($first['order_id'],'Solicitare client',$this->actor);
+        $this->cancelWithDocuments($first['order_id'],'credit','cancel-first-credit');
         self::assertCount(1,$this->service->document($first['id'],$this->actor)['related']); self::assertSame(0,(int)$this->pdo->query('SELECT COUNT(*) FROM invoice_refunds')->fetchColumn());
     }
     public function testExportsAndEmailUseHistoricalSnapshotsAndRevocableLinks(): void
@@ -311,10 +311,11 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
     {
         $invoice=$this->service->issue($this->order(2),['request_key'=>'cancel-correction-root'],$this->actor);
         $this->service->correct($invoice['id'],['request_key'=>'cancel-correction-pair','version'=>1,'reason'=>'Date corecte','billing'=>['name'=>'Ana Corectat']],$this->actor);
-        $this->service->cancelOrder($invoice['order_id'],'Anulare solicitată',$this->actor);
+        $workflow=new \App\Modules\Invoicing\CancellationInvoiceWorkflow(new InvoiceRepository($this->pdo),$this->service);
+        $input=$this->cancelWithDocuments($invoice['order_id'],'credit','cancel-chain-explicit');
         $count=(int)$this->pdo->query('SELECT COUNT(*) FROM invoices')->fetchColumn();
         self::assertSame(0,(new InvoiceRepository($this->pdo))->orderNet($invoice['order_id']));
-        $this->service->cancelOrder($invoice['order_id'],'Anulare solicitată',$this->actor);
+        $workflow->resolve($invoice['order_id'],$input,$this->actor);
         self::assertSame($count,(int)$this->pdo->query('SELECT COUNT(*) FROM invoices')->fetchColumn());
     }
     public function testRefundRequiresActualCashAndPaymentCannotExceedNetAfterCredit(): void
@@ -995,36 +996,204 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         unset($app);gc_collect_cycles();
     }
 
-    public function testReopenedCancellationCanBeInvoicedAgainAndCancelledRepeatedly(): void
+    public function testReopenedCancellationCanBeInvoicedAgainAfterExplicitDeletion(): void
     {
         $id=$this->order(1);$orders=new \App\Modules\Orders\OrderService($this->pdo);$repo=new InvoiceRepository($this->pdo);
         $first=$this->service->issue($id,['request_key'=>'reopen-first-sale'],$this->actor);
-        $orders->transition($id,'cancel',null,$this->actor['id']);
+        $this->cancelWithDocuments($id,'delete','reopen-first-delete');
         $orders->transition($id,'reopen',null,$this->actor['id']);
         self::assertTrue($orders->findForAdmin($id)['document_actions']['issue_invoice']['allowed']);
         $second=$this->service->issue($id,['request_key'=>'reopen-second-sale'],$this->actor);
         self::assertNotSame($first['id'],$second['id']);self::assertSame($first['number'],$second['number']);
-        $orders->transition($id,'cancel',null,$this->actor['id']);
+        $this->cancelWithDocuments($id,'delete','reopen-second-delete');
         $orders->transition($id,'reopen',null,$this->actor['id']);
         self::assertCount(0,$repo->currentOrderInvoices($id));
         self::assertSame('new',$repo->one('orders',['id'=>$id])['status']);
     }
 
-    public function testReopeningKeepsCreditedHistoryButStartsNewInvoiceAndReturnQuantities(): void
+    public function testCancelledOrderWithReturnInvoiceCannotBeReopenedAndNeedsNir(): void
     {
+        $this->purchase(4,'40','CANCEL-STOCK');
         $id=$this->order(2);$orders=new \App\Modules\Orders\OrderService($this->pdo);$repo=new InvoiceRepository($this->pdo);
-        $original=$this->service->issue($id,['request_key'=>'reopen-historical-sale'],$this->actor);
-        $this->service->issue($this->order(1),['request_key'=>'later-sale-blocks-delete'],$this->actor);
-        $orders->transition($id,'cancel',null,$this->actor['id']);
-        $history=$repo->all('invoices',['order_id'=>$id,'deleted_at'=>null]);self::assertCount(2,$history);self::assertSame(0,$repo->orderNet($id));
+        $original=$this->service->issue($id,['request_key'=>'cancel-return-sale'],$this->actor);
+        $orders->transition($id,'ship',null,$this->actor['id']);
+        $this->cancelWithDocuments($id,'credit','cancel-return-credit');
+        $documents=$repo->currentOrderInvoices($id);self::assertCount(2,$documents);self::assertSame(0,$repo->orderNet($id));
+        self::assertSame('cancelled',$repo->one('orders',['id'=>$id])['status']);
+        self::assertSame([],$orders->findForAdmin($id)['available_actions']);
+        self::assertSame(20000,$this->balance());
+        self::assertSame(0,(int)$this->pdo->query('SELECT COUNT(*) FROM invoice_receipts')->fetchColumn());
+        try { $orders->transition($id,'reopen',null,$this->actor['id']);self::fail('Reopened credited cancellation'); }
+        catch(\RuntimeException $e) { self::assertStringContainsString('nu mai poate fi reluată',$e->getMessage()); }
+        $credit=$this->service->document((int)$documents[1]['id'],$this->actor);
+        self::assertTrue($credit['requires_nir']);self::assertNotEmpty($credit['order_return']);
+        $exports=new \App\Modules\Invoicing\InvoiceExportService($repo,$this->root);
+        self::assertSame('FACTURĂ DE RETUR',$exports->pdfData($credit)['document_title']);
+        $nir=new NirService($this->pdo);$defaults=$nir->defaults($this->actor)['values'];
+        $input=['physically_received'=>true,'warehouse_id'=>$defaults['warehouse_id'],'location_id'=>$defaults['location_id']];
+        $receipt=$nir->receiveReturn((int)$credit['order_return']['return_id'],$input,'cancel-return-receipt',$this->actor);
+        self::assertSame(40000,$this->balance());
+        self::assertSame($receipt['id'],$nir->receiveReturn((int)$credit['order_return']['return_id'],$input,'cancel-return-receipt',$this->actor)['id']);
+        self::assertSame(40000,$this->balance());
+        self::assertNotEmpty($this->service->document((int)$credit['id'],$this->actor)['receipt_nir']);
+        self::assertSame('cancelled',$repo->one('orders',['id'=>$id])['status']);
+        self::assertSame(0,(int)$this->pdo->query('SELECT COUNT(*) FROM invoice_refunds')->fetchColumn());
+    }
+
+    public function testClientCancellationLeavesDocumentsForExplicitAdminDecision(): void
+    {
+        $repo=new InvoiceRepository($this->pdo);$orders=new \App\Modules\Orders\OrderService($this->pdo);
+        $workflow=new \App\Modules\Invoicing\CancellationInvoiceWorkflow($repo,$this->service);
+        $first=$this->service->issue($this->order(1),['request_key'=>'client-cancel-first'],$this->actor);
+        $last=$this->service->issue($this->order(1),['request_key'=>'client-cancel-last'],$this->actor);
+        $before=(int)$this->pdo->query('SELECT COUNT(*) FROM outbox_messages')->fetchColumn();
+        foreach([$first,$last] as $document) {
+            $orders->transition($document['order_id'],'cancel',null,$this->actor['id'],'',false,null,'customer_tracking');
+            self::assertSame($document['snapshot_json'],$this->service->load($document['id'])['snapshot_json']);
+            $plan=$workflow->plan($document['order_id'],$this->actor);
+            self::assertTrue($plan['pending']);self::assertTrue($plan['customer_cancelled']);
+            self::assertSame($document['id']===$last['id'],$plan['can_delete']);
+        }
+        self::assertSame(-20000,$this->balance());self::assertSame(2,(int)$this->pdo->query('SELECT COUNT(*) FROM invoices')->fetchColumn());
+        self::assertSame($before,(int)$this->pdo->query('SELECT COUNT(*) FROM outbox_messages')->fetchColumn());
+        self::assertFalse($workflow->plan($last['order_id'],['id'=>$this->actor['id'],'role'=>'manager'])['can_delete']);
+        $orders->transition($last['order_id'],'reopen',null,$this->actor['id']);
+        self::assertSame('new',$repo->one('orders',['id'=>$last['order_id']])['status']);
+        self::assertCount(1,$repo->currentOrderInvoices($last['order_id']));
+    }
+
+    public function testCancellationRejectsStaleAndForgedDocumentChoicesAtomically(): void
+    {
+        $repo=new InvoiceRepository($this->pdo);$orders=new \App\Modules\Orders\OrderService($this->pdo);
+        $workflow=new \App\Modules\Invoicing\CancellationInvoiceWorkflow($repo,$this->service);
+        $invoice=$this->service->issue($this->order(1),['request_key'=>'cancel-stale-first'],$this->actor);
+        $id=$invoice['order_id'];$plan=$workflow->plan($id,$this->actor);
+        $before=$repo->one('orders',['id'=>$id]);$reservation=$repo->all('inventory_reservations',['order_id'=>$id]);
+        $this->service->issue($this->order(1),['request_key'=>'cancel-stale-later'],$this->actor);
+        $input=['decision'=>'delete','document_version'=>$plan['version'],'request_key'=>'cancel-stale-decision'];
+        try { $orders->transition($id,'cancel',null,$this->actor['id'],'',false,null,'admin',$input);self::fail('Stale choice accepted'); }
+        catch(InvoiceException $e) { self::assertSame(409,$e->getCode()); }
+        self::assertSame($before,$repo->one('orders',['id'=>$id]));self::assertSame($reservation,$repo->all('inventory_reservations',['order_id'=>$id]));
+        $input['document_version']=$workflow->plan($id,$this->actor)['version'];
+        try { $orders->transition($id,'cancel',null,$this->actor['id'],'',false,null,'admin',$input);self::fail('Nonlatest deletion accepted'); }
+        catch(InvoiceException $e) { self::assertSame(409,$e->getCode()); }
+        self::assertSame($before,$repo->one('orders',['id'=>$id]));
+        $orders->transition($id,'cancel',null,$this->actor['id']);$input['decision']='credit';
         $orders->transition($id,'reopen',null,$this->actor['id']);
-        self::assertNull($repo->one('invoices',['primary_order_id'=>$id]));
-        self::assertSame(2,$orders->findForAdmin($id)['items'][0]['returnable_quantity']);
-        $new=$this->service->issue($id,['request_key'=>'reopen-new-sale'],$this->actor);self::assertNotSame($original['id'],$new['id']);
-        self::assertCount(1,$repo->currentOrderInvoices($id));self::assertSame($new['gross_bani'],$repo->orderNet($id));
-        foreach($history as $document) { self::assertSame($document['snapshot_json'],$repo->one('invoices',['id'=>$document['id']])['snapshot_json']); }
-        $orders->transition($id,'deliver',null,$this->actor['id']);
-        self::assertSame(2,$orders->findForAdmin($id)['items'][0]['returnable_quantity']);
+        try { $workflow->resolve($id,$input,$this->actor);self::fail('Stale cancelled form accepted'); }
+        catch(InvoiceException $e) { self::assertSame(409,$e->getCode()); }
+    }
+
+    public function testCancellationHttpChoicesWarningAndReceiptPrompt(): void
+    {
+        $id=$this->order(1);$invoice=$this->service->issue($id,['request_key'=>'cancel-http-sale'],$this->actor);
+        $_SESSION['user_id']=$this->actor['id'];$factory=new \Slim\Psr7\Factory\ServerRequestFactory();
+        $send=function(string $method,string $path,array $input=[],array $query=[],bool $modal=false)use($factory) {
+            $request=$factory->createServerRequest($method,'http://localhost'.$path,['REMOTE_ADDR'=>'127.0.0.84'])->withParsedBody($input)->withQueryParams($query)->withHeader('Accept','application/json');
+            if($modal) { $request=$request->withHeader('X-Invoice-Modal','1')->withHeader('X-Requested-With','XMLHttpRequest'); }
+            $app=\App\AppFactory::create($this->root);$response=$app->handle($request);unset($app);gc_collect_cycles();return $response;
+        };
+        $base='/admin/comenzi/'.$id.'/';
+        $form=$send('GET',$base.'status/modal/',[],['action'=>'cancel'],true);self::assertSame(200,$form->getStatusCode());
+        self::assertStringContainsString('name="cancellation_document_action" value="delete"',(string)$form->getBody());
+        $this->service->issue($this->order(1),['request_key'=>'cancel-http-later-sale'],$this->actor);
+        $form=$send('GET',$base.'status/modal/',[],['action'=>'cancel'],true);$html=(string)$form->getBody();
+        self::assertStringNotContainsString('name="cancellation_document_action" value="delete"',$html);
+        self::assertStringContainsString('name="cancellation_document_action" value="credit"',$html);
+        $response=$send('POST',$base.'actiune/',['_csrf'=>$_SESSION['_csrf'],'action'=>'cancel','cancellation_document_action'=>'later']);
+        self::assertSame(200,$response->getStatusCode(),(string)$response->getBody());
+        $page=$send('GET',$base);$html=(string)$page->getBody();
+        self::assertStringContainsString('Comandă anulată cu factură emisă',$html);
+        self::assertStringContainsString('Emite factura de retur',$html);self::assertStringNotContainsString('decision=delete',$html);
+        self::assertLessThan(strpos($html,'Documentele comenzii'),strpos($html,'Comandă anulată cu factură emisă'));
+        $form=$send('GET',$base.'anulare/factura/',[],['decision'=>'credit'],true);$html=(string)$form->getBody();
+        self::assertSame(200,$form->getStatusCode());self::assertStringContainsString('iv-edit-notify',$html);
+        preg_match('/name="document_version" value="([^"]+)"/',$html,$version);preg_match('/name="request_key" value="([^"]+)"/',$html,$key);
+        $input=['decision'=>'credit','document_version'=>$version[1],'request_key'=>$key[1],'notify_customer'=>'0'];
+        self::assertSame(419,$send('POST',$base.'anulare/factura/',$input)->getStatusCode());
+        $input['_csrf']=$_SESSION['_csrf'];$response=$send('POST',$base.'anulare/factura/',$input);
+        self::assertSame(200,$response->getStatusCode(),(string)$response->getBody());
+        self::assertSame(200,$send('POST',$base.'anulare/factura/',$input)->getStatusCode());
+        $page=$send('GET',$base);$html=(string)$page->getBody();
+        self::assertStringNotContainsString('Comandă anulată cu factură emisă',$html);self::assertStringNotContainsString('Reia comanda',$html);
+        self::assertStringContainsString('Verifică produsele și creează NIR',$html);
+        self::assertStringContainsString('is-warning is-prominent',$html);
+        self::assertLessThan(strpos($html,'Documentele comenzii'),strpos($html,'Au ajuns produsele?'));
+        self::assertSame('cancelled',$this->pdo->query('SELECT status FROM orders WHERE id='.$id)->fetchColumn());
+    }
+
+    public function testPaidCardDocumentsCannotBeDeletedEvenAfterCancellationOrRefund(): void
+    {
+        $id=$this->order(1);$repo=new InvoiceRepository($this->pdo);
+        $repo->update('orders',['payment_method'=>'stripe','payment_status'=>'paid'],['id'=>$id]);
+        $order=$repo->one('orders',['id'=>$id]);
+        $payment=$repo->insert('payments',['order_id'=>$id,'provider'=>'stripe','provider_payment_id'=>'pi_cancellation_qa','amount_bani'=>$order['total_bani'],'status'=>'paid','currency'=>'RON','refunded_bani'=>0,'created_at'=>$repo->now(),'updated_at'=>$repo->now()]);
+        $invoice=$this->service->issue($id,['request_key'=>'card-cancel-sale'],$this->actor);
+        self::assertStringContainsString('plătite cu cardul',$this->service->deleteBlocker($invoice));
+        self::assertNotEmpty($this->service->document($invoice['id'],$this->actor)['delete_blocker']);
+        $workflow=new \App\Modules\Invoicing\CancellationInvoiceWorkflow($repo,$this->service);
+        self::assertFalse($workflow->plan($id,$this->actor)['can_delete']);
+        try { $this->service->delete($invoice['id'],['request_key'=>'card-delete-denied','reason'=>'Verificare protecție card','version'=>$invoice['row_version']],$this->actor);self::fail('Card invoice deleted'); }
+        catch(InvoiceException $e) { self::assertSame(409,$e->getCode()); }
+        $this->cancelWithDocuments($id,'credit','card-cancel-credit');
+        $credit=$repo->one('invoices',['order_id'=>$id,'kind'=>'return']);
+        foreach(['paid','partially_refunded','refunded'] as $state) {
+            $repo->update('payments',['status'=>$state],['id'=>$payment]);$repo->update('orders',['payment_status'=>$state],['id'=>$id]);
+            self::assertStringContainsString('plătite cu cardul',$this->service->deleteBlocker($this->service->load($credit['id'])));
+            try { $this->service->delete($credit['id'],['request_key'=>'card-credit-delete-'.$state,'reason'=>'Verificare protecție card','version'=>$credit['row_version']],$this->actor);self::fail('Card return invoice deleted'); }
+            catch(InvoiceException $e) { self::assertSame(409,$e->getCode()); }
+        }
+        self::assertCount(2,$repo->currentOrderInvoices($id));
+        self::assertSame('cancelled',$repo->one('orders',['id'=>$id])['status']);
+        self::assertSame(0,$repo->orderNet($id));
+    }
+
+    public function testPaidCardCancellationAutomaticallyCreatesDocumentsForAdminAndCustomer(): void
+    {
+        $repo=new InvoiceRepository($this->pdo);$orders=new \App\Modules\Orders\OrderService($this->pdo);
+        $workflow=new \App\Modules\Invoicing\CancellationInvoiceWorkflow($repo,$this->service);
+        foreach(['admin','customer_tracking'] as $source) {
+            $id=$this->order(1);$repo->update('orders',['payment_method'=>'stripe','payment_status'=>'paid'],['id'=>$id]);
+            // Cover both a pending initial invoice and an already invoiced checkout.
+            if($source==='customer_tracking') { $this->service->issue($id,['request_key'=>'card-auto-existing'],$this->actor); }
+            $orders->transition($id,'cancel',null,$this->actor['id'],'',false,null,$source,['decision'=>'later']);
+            $documents=$repo->currentOrderInvoices($id);self::assertCount(2,$documents);
+            self::assertSame(['sale','return'],array_column($documents,'kind'));
+            self::assertSame(0,$repo->orderNet($id));self::assertFalse($workflow->plan($id,$this->actor)['pending']);
+            self::assertSame('cancelled',$repo->one('orders',['id'=>$id])['status']);
+            self::assertSame([],$orders->findForAdmin($id)['available_actions']);
+            self::assertNotEmpty($this->service->document((int)$documents[1]['id'],$this->actor)['order_return']);
+        }
+        self::assertSame(-20000,$this->balance());
+        self::assertSame(0,(int)$this->pdo->query('SELECT COUNT(*) FROM invoice_receipts')->fetchColumn());
+        self::assertSame(0,(int)$this->pdo->query('SELECT COUNT(*) FROM invoice_refunds')->fetchColumn());
+    }
+
+    public function testPaidCardReturnCannotDisableInvoiceAndRequestWaitsForDecision(): void
+    {
+        $id=$this->order(2);$repo=new InvoiceRepository($this->pdo);
+        $repo->update('orders',['payment_method'=>'stripe','payment_status'=>'paid','status'=>'delivered'],['id'=>$id]);
+        $item=$repo->all('order_items',['order_id'=>$id])[0];
+        $requests=new \App\Modules\Invoicing\OrderReturnRequests($repo);
+        $request=$requests->create($id,['request_key'=>'card-auto-return-request','quantities'=>[$item['id']=>1],'reason'=>'Mărime nepotrivită','refund_method'=>'original'],$this->actor);
+        self::assertSame(0,(int)$this->pdo->query('SELECT COUNT(*) FROM invoices')->fetchColumn());
+        $input=['request_key'=>'card-auto-return-accept','return_request_id'=>$request,'quantities'=>[$item['id']=>1],'reason'=>'Mărime nepotrivită','issue_invoice'=>'0','notify_customer'=>'0'];
+        $returnId=$this->service->returnOrder($id,$input,$this->actor);
+        self::assertSame($returnId,$this->service->returnOrder($id,$input,$this->actor));
+        $documents=$repo->currentOrderInvoices($id);self::assertSame(['sale','return'],array_column($documents,'kind'));
+        self::assertSame('accepted',$repo->one('order_return_requests',['id'=>$request])['state']);
+        self::assertSame(-10000,(int)$repo->all('invoice_lines',['invoice_id'=>$documents[1]['id']])[0]['quantity_units']);
+        self::assertSame(0,(int)$this->pdo->query('SELECT COUNT(*) FROM invoice_receipts')->fetchColumn());
+        self::assertTrue((new \App\Modules\Orders\OrderService($this->pdo))->findForAdmin($id)['return_invoice_required']);
+    }
+
+    /** @return array<string,mixed> */
+    private function cancelWithDocuments(int $id,string $decision,string $key): array
+    {
+        $workflow=new \App\Modules\Invoicing\CancellationInvoiceWorkflow(new InvoiceRepository($this->pdo),$this->service);
+        $input=['decision'=>$decision,'document_version'=>$workflow->plan($id,$this->actor)['version'],'request_key'=>$key,'notify_customer'=>'0'];
+        (new \App\Modules\Orders\OrderService($this->pdo))->transition($id,'cancel',null,$this->actor['id'],'',false,null,'admin',$input);
+        return $input;
     }
 
     public function testAdminReturnRequestsCanOnlyBeCreatedFromTheOrder(): void

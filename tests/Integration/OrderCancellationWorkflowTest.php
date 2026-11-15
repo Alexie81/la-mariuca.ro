@@ -186,8 +186,11 @@ final class OrderCancellationWorkflowTest extends DatabaseTestCase
         self::assertSame(0, (int) (new OrderService($this->pdo))->paginateForAdmin(1, 15)['items'][0]['cancellation_requested']);
     }
 
-    public function testPaidCardApprovalNeverMarksPaymentRefundedOrCreatesAccountingChanges(): void
+    public function testPaidCardApprovalCreatesInvoicesWithoutRefundingOrReceivingStock(): void
     {
+        $companies=new \App\Modules\Companies\CompanyAdminService(new \App\Modules\Companies\CompanyRepository($this->pdo),new \App\Modules\Companies\CompanyStampStorage($this->root));
+        $company=$companies->saveCompany(['legal_name'=>'Firma QA','trade_name'=>'La Măriuca QA','tax_id'=>'12345678','registered_address'=>'Strada Test 1','city'=>'București','country'=>'România','is_vat_payer'=>'1','vat_rate'=>'21'],null,null);
+        $companies->saveWarehouse($company,['name'=>'Gestiune QA'],null);
         $this->pdo->exec("UPDATE orders SET payment_method='stripe',payment_status='paid',status='confirmed' WHERE id=" . $this->orderId);
         $this->pdo->exec("UPDATE payments SET provider='stripe',status='paid' WHERE order_id=" . $this->orderId);
         $this->tracking->requestCancellation($this->orderId, 'Doresc anularea înainte de expediere.');
@@ -196,7 +199,10 @@ final class OrderCancellationWorkflowTest extends DatabaseTestCase
         self::assertSame('cancelled', $this->orderStatus());
         self::assertSame('paid', $this->pdo->query('SELECT payment_status FROM orders WHERE id=' . $this->orderId)->fetchColumn());
         self::assertSame($payments, $this->pdo->query('SELECT * FROM payments')->fetchAll());
-        self::assertSame(0, (int) $this->pdo->query('SELECT COUNT(*) FROM order_returns')->fetchColumn());
+        self::assertSame(1, (int) $this->pdo->query('SELECT COUNT(*) FROM order_returns')->fetchColumn());
+        self::assertSame(2, (int) $this->pdo->query('SELECT COUNT(*) FROM invoices')->fetchColumn());
+        self::assertSame(0, (int) $this->pdo->query('SELECT COUNT(*) FROM invoice_receipts')->fetchColumn());
+        self::assertSame(0, (int) $this->pdo->query('SELECT COUNT(*) FROM invoice_refunds')->fetchColumn());
     }
 
     public function testRejectionKeepsOrderAndStockAndPublishesReasonWithoutAdminIdentity(): void

@@ -1117,6 +1117,7 @@ final class AdminController
         $order['pending_return_requests']=(new \App\Modules\Invoicing\InvoiceRepository($this->pdo))->all('order_return_requests',['order_id'=>$order['id'],'state'=>'pending']);
         $order['customer_return_requests']=(new \App\Modules\Orders\OrderTrackingReturns(new \App\Modules\Invoicing\InvoiceRepository($this->pdo)))->forOrder((int)$order['id']);
         $order['returns_missing_invoices']=(new \App\Modules\Invoicing\OrderReturnWorkflow(new \App\Modules\Invoicing\InvoiceRepository($this->pdo)))->missingDocuments((int)$order['id']);
+        $order['cancellation_documents']=(new \App\Modules\Invoicing\CancellationInvoiceWorkflow(new \App\Modules\Invoicing\InvoiceRepository($this->pdo),$invoiceService))->plan((int)$order['id'],$this->auth->user() ?? []);
 
         return $this->view->render('admin/pages/order-detail.twig', [
             'order' => $order,
@@ -1377,6 +1378,8 @@ final class AdminController
                 (string) ($data['reason'] ?? ''),
                 (string) ($data['notify_customer'] ?? '') === '1',
                 isset($data['status_version']) ? (string)$data['status_version'] : null,
+                'admin',
+                ['decision'=>(string)($data['cancellation_document_action'] ?? 'later'),'document_version'=>(string)($data['cancellation_document_version'] ?? ''),'request_key'=>(string)($data['cancellation_request_key'] ?? ''),'notify_customer'=>(string)($data['notify_customer'] ?? '0')],
             );
             return $this->orderMutationResponse($request, (int) $args['id'], 'Starea comenzii a fost actualizată.');
         } catch (\Throwable $exception) {
@@ -1446,6 +1449,8 @@ final class AdminController
         }
         $data = [
             'order' => $order,
+            'cancellation_documents'=>$type==='status'?(new \App\Modules\Invoicing\CancellationInvoiceWorkflow(new \App\Modules\Invoicing\InvoiceRepository($this->pdo),\App\Modules\Invoicing\InvoiceModule::service($this->pdo,dirname(__DIR__,3))))->plan($orderId,$this->auth->user() ?? []):null,
+            'cancellation_request_key'=>bin2hex(random_bytes(24)),
             'return_quotes'=>\App\Modules\Invoicing\ReturnSettlement::quotes($order),
             'partial_template' => $partials[$type],
             'request_mode'=>$type==='return-request','pending_return_request'=>$pendingRequest,

@@ -30,6 +30,34 @@ final class InvoiceController
         try { return $this->render('admin/pages/invoice-detail.twig',['invoice'=>$this->service->document((int)$args['id'],$this->actor())]); }
         catch(\Throwable $e) { return $this->failure($request,$e); }
     }
+    /** @param array<string,string> $args */
+    public function cancellationForm(ServerRequestInterface $request,ResponseInterface $response,array $args): ResponseInterface
+    {
+        try {
+            $actor=$this->actor();$this->service->allow($actor,'return');
+            $order=$this->repository->one('orders',['id'=>(int)$args['id']])??throw new InvoiceException('Comanda nu există.',404);
+            if($order['status']!=='cancelled') { throw new InvoiceException('Comanda nu mai este anulată. Reîncarcă pagina.',409); }
+            $plan=(new CancellationInvoiceWorkflow($this->repository,$this->service))->plan((int)$order['id'],$actor);
+            if(!$plan['pending']) { throw new InvoiceException('Documentele anulării sunt deja rezolvate.',409); }
+            $decision=($request->getQueryParams()['decision'] ?? '')==='delete'?'delete':'credit';
+            if($decision==='delete' && !$plan['can_delete']) { throw new InvoiceException('Factura nu poate fi ștearsă. Poți emite o factură de retur.',409); }
+            $back=$this->config->path('admin/comenzi/'.$order['id'].'/');
+            return $this->render($request->getHeaderLine('X-Invoice-Modal')==='1'?'admin/invoices/cancellation.twig':'admin/pages/cancellation-invoice.twig',
+                ['order'=>$order,'plan'=>$plan,'decision'=>$decision,'request_key'=>bin2hex(random_bytes(24)),'back_url'=>$back,'form_action'=>$back.'anulare/factura/']);
+        } catch(\Throwable $e) { return $this->failure($request,$e); }
+    }
+    /** @param array<string,string> $args */
+    public function cancellationAction(ServerRequestInterface $request,ResponseInterface $response,array $args): ResponseInterface
+    {
+        try {
+            $input=(array)$request->getParsedBody();
+            (new CancellationInvoiceWorkflow($this->repository,$this->service))->resolve((int)$args['id'],$input,$this->actor());
+            $message=($input['decision'] ?? '')==='delete'?'Factura a fost ștearsă. Numărul este din nou disponibil.':'Factura de retur a fost emisă. Verifică produsele pentru reintrarea în stoc.';
+            $redirect=$this->config->path('admin/comenzi/'.(int)$args['id'].'/');
+            if($this->jsonWanted($request)) { return $this->json(['ok'=>true,'message'=>$message,'redirect'=>$redirect]); }
+            Flash::set('success',$message);return $this->view->redirect($redirect);
+        } catch(\Throwable $e) { return $this->failure($request,$e); }
+    }
     public function productPreview(ServerRequestInterface $request): ResponseInterface
     {
         try {

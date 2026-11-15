@@ -248,6 +248,11 @@
     const statusRadios = root.querySelectorAll('[data-order-action-radio]');
     const syncStatusAction = () => {
       const selected = root.querySelector('[data-order-action-radio]:checked');
+      const documents = root.querySelector('[data-cancellation-documents]');
+      if (documents) {
+        documents.hidden = selected?.value !== 'cancel';
+        documents.querySelectorAll('input').forEach((input) => { input.disabled = documents.hidden; });
+      }
       const submit = selected?.form.querySelector('[type="submit"]');
       if (!submit) return;
       submit.querySelector('span').textContent = selected.closest('.order-choice').querySelector('strong').textContent;

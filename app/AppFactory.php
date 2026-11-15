@@ -273,6 +273,8 @@ final class AppFactory
             $group->post('/stoc/{id:[0-9]+}/ajustare-online/', [$stockController, 'adjustOnline']);
             $group->get('/stoc/{id:[0-9]+}/export/xlsx/', [$stockController, 'export']);
             $group->get('/facturi/', [$invoiceController, 'index']);
+            $group->get('/comenzi/{id:[0-9]+}/anulare/factura/', [$invoiceController, 'cancellationForm']);
+            $group->post('/comenzi/{id:[0-9]+}/anulare/factura/', [$invoiceController, 'cancellationAction']);
             $group->get('/facturi/produs/', [$invoiceController, 'productPreview']);
             $group->get('/facturi/produse/', [$invoiceController, 'products']);
             $group->get('/facturi/emite/', [$invoiceController, 'form']);

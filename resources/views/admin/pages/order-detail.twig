@@ -27,8 +27,8 @@
     {% endif %}
 
     {% include 'admin/invoices/order-return-warning.twig' %}
-    {% include 'admin/invoices/order-panel.twig' %}
     {% include 'admin/invoices/order-return-notices.twig' %}
+    {% include 'admin/invoices/order-panel.twig' %}
     {% include 'admin/partials/order-cancellation-request.twig' %}
     <section class="order-facts" aria-label="Rezumat rapid">
       <article><span class="order-facts__icon order-facts__icon--rose"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 7h12l1 13H5L6 7Z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg></span><div><small>Produse</small><strong>{{ unit_count }} <em>{{ unit_count == 1 ? 'bucată' : 'bucăți' }}</em></strong><span>{{ order.items|length }} {{ order.items|length == 1 ? 'model comandat' : 'modele comandate' }}</span></div></article>

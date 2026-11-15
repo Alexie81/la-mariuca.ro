@@ -3,9 +3,9 @@
 {% if can_manage_documents %}
 <div class="order-return-notices">
 
-  {% for document in order.billing_documents %}{% if document.gross_bani < 0 %}
-  <section class="order-return-notice{{ document.receipt_nir or document.receipt ? ' is-complete' : '' }}" aria-label="Recepția produselor returnate">
-    <span class="order-return-notice__icon">{{ n.icon(document.receipt_nir or document.receipt ? 'check' : 'box') }}</span><div class="order-return-notice__copy"><strong>{{ document.receipt_nir or document.receipt ? 'Produse verificate pentru returul ' ~ document.display_number : 'Factura de retur ' ~ document.display_number ~ ' este emisă. Au ajuns produsele?' }}</strong>
+  {% for document in order.billing_documents %}{% if document.kind in ['return','correction_negative'] %}
+  <section class="order-return-notice{{ document.receipt_nir or document.receipt ? ' is-complete' : ' is-warning is-prominent' }}" aria-label="Recepția produselor returnate">
+    <span class="order-return-notice__icon">{{ n.icon(document.receipt_nir or document.receipt ? 'check' : 'warning') }}</span><div class="order-return-notice__copy"><strong>{{ document.receipt_nir or document.receipt ? 'Produse verificate pentru returul ' ~ document.display_number : 'Factura de retur ' ~ document.display_number ~ ' este emisă. Au ajuns produsele?' }}</strong>
       {% if document.receipt_nir %}<p>Recepția fizică este înregistrată în NIR {{ document.receipt_nir.number }}.</p><a class="order-billing__button" href="{{ url('admin/nir-uri/' ~ document.receipt_nir.id ~ '/') }}">{{ n.icon('warehouse') }}Deschide NIR-ul de retur</a>
       {% elseif document.receipt %}<p>Primirea fizică a fost deja înregistrată pentru acest document.</p>
       {% else %}<p>Factura de retur nu pune marfa în stoc. Verifică produsele primite, apoi confirmă recepția. Până atunci, acest pas rămâne în așteptare.</p><div class="order-return-notice__actions">{% if document.order_return and document.requires_nir %}<a class="order-billing__button is-primary" href="{{ url('admin/nir-uri/retururi/' ~ document.order_return.return_id ~ '/receptie/?return_to=order') }}">{{ n.icon('box') }}Verifică produsele și creează NIR</a>{% else %}<a class="order-billing__button is-primary" href="{{ url('admin/facturi/' ~ document.id ~ '/receive/?return_to=order') }}" data-iv-modal>{{ n.icon('box') }}Verifică produsele primite</a>{% endif %}<span>Încă nu au ajuns? Revino aici la primirea coletului.</span></div>{% endif %}
