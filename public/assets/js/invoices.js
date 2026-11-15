@@ -77,6 +77,15 @@
     finally{submit.disabled=false;busy=false;}
   };
   const init=scope=>{
+    scope.querySelectorAll('[data-iv-received-now]').forEach(button=>{
+      button.hidden=false;
+      button.addEventListener('click',()=>{
+        const parts=Object.fromEntries(new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/Bucharest',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date()).map(part=>[part.type,part.value]));
+        const input=button.form.querySelector('[name="received_at"]');
+        input.value=`${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
+        input.dispatchEvent(new Event('change',{bubbles:true}));input.focus();
+      });
+    });
     scope.querySelectorAll('[data-iv-form]').forEach(form=>{initialValues.set(form,new Map(new FormData(form)));if(form.dataset.kind==='order-edit')form.querySelector('[name="notify_customer"]')?.closest('.iv-edit-notify').setAttribute('hidden','');});
     const balance=scope.querySelector('[data-iv-payment-amount]');
     if(balance){const refund=scope.querySelector('[data-iv-refund-fields]'),amount=refund?.querySelector('[name="refund_amount"]');let partialAmount=amount?.value||'0.00',lastState='';const update=()=>{const state=scope.querySelector('[data-iv-payment-state]:checked')?.value;balance.hidden=state!=='partial';if(refund){const isRefund=['refunded','partially_refunded'].includes(state);refund.hidden=!isRefund;amount.required=isRefund;amount.readOnly=state==='refunded';if(state==='refunded'){if(lastState!=='refunded')partialAmount=amount.value;amount.value=refund.dataset.received;}else if(lastState==='refunded'){amount.value=partialAmount;}lastState=state;}};scope.querySelectorAll('[data-iv-payment-state]').forEach(radio=>radio.addEventListener('change',update));update();}

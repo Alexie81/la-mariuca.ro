@@ -1,5 +1,14 @@
 # Progres
 
+### 2026-11-15 — Verificarea returului confirmă automat NIR-ul
+- Confirmarea modalului **Verifică produsele primite** generează un NIR confirmat de tip **Recepție retur client**. Numai confirmarea NIR-ului postează reintrarea contabilă și disponibilitatea online eligibilă; factura de retur nu adaugă stoc. Cantitățile primite/acceptate/nevandabile/lipsă rămân distincte, cu valorile istorice FIFO și fără loturi cu cost inventat.
+- Recepția, NIR-ul, alocările, atașamentul și auditul sunt atomice și idempotente. Un eșec la generarea NIR-ului anulează și verificarea, și modificările de stoc. Ștergerea eligibilă inversează o singură dată recepția asociată, fără dublarea stocului.
+- Modalul include data și ora recepției în Europe/Bucharest și **Acum**; persistență UTC. NIR-ul preia separat seria, numărul și data locală a facturii de retur. PDF-ul real al facturii este copiat automat în stocarea privată a NIR-ului și apare în **Documente / Fișiere atașate**.
+- Acțiunile din comandă folosesc același modal. După confirmare, pagina se actualizează automat, avertismentul este înlocuit de confirmarea recepției și linkul către NIR. Fără observații obligatorii sau email implicit, conform cerințelor precedente.
+- Migrarea aditivă **069_invoice_receipt_nir.sql** este disponibilă pentru SQLite/MySQL și a fost aplicată pe SQLite local și QA. Nu s-a rulat MySQL/Apache sau deploy în producție.
+- Verificări: **260 teste / 2.119 aserțiuni** pentru facturi și NIR, fără erori/avertismente; PDF descărcat prin ruta autorizată și comparat prin SHA-256; date distincte, cantități parțiale, retry, rollback și ștergere fără dublare. PHPStan fără erori, **183 template-uri Twig** compilate.
+- Browser QA izolat: butonul Acum, confirmare reală locală, NIR cu factura atașată și dispariția avertismentului fără refresh manual. Desktop și 390 px, fără depășire laterală în modal; fără erori JS. Capturi `storage/qa/receipt-nir-*-20261115.jpg`. Fără modificarea comenzilor principale sau trimiteri SMTP/Stripe. Roadmapul rămâne nebifat.
+
 ### 2026-11-15 — Confirmare simplificată a produselor primite
 - Din modalul **Verifică produsele primite** au fost eliminate observațiile obligatorii și opțiunea de notificare prin email. Salvarea fără observații păstrează o descriere internă automată pentru audit, iar această confirmare nu pregătește implicit un email.
 - Pentru fiecare produs, **Primite efectiv** și **Bune pentru stoc** sunt precompletate cu cantitatea returnată pe document, nu cu întreaga cantitate inițial comandată. Valorile rămân editabile; validarea cantităților și separarea produselor nevandabile se păstrează.

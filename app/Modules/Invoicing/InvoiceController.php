@@ -188,7 +188,7 @@ final class InvoiceController
                     'edit'=>$this->service->edit($id,$input,$actor),'correct'=>$this->service->correct($id,$input,$actor),'payment'=>$this->service->payment($id,$input,$actor),'decide'=>$this->service->decideReturn($id,$input,$actor),default=>throw new InvoiceException('Acțiune necunoscută.',404) };
                 $id=(int)$result['id'];
             }
-            $message=match($kind) { 'issue'=>'Factura a fost emisă.','return'=>'Factura de retur a fost emisă.','receive'=>'Primirea produselor a fost înregistrată.','email'=>'Emailul cu factura a fost pus în coada de trimitere.','delete'=>'Factura a fost eliminată, iar stocul a fost recalculat.','payment'=>'Înregistrarea a fost salvată.','correct'=>'Documentele de corecție au fost emise.',default=>'Modificările au fost salvate.' };
+            $message=match($kind) { 'issue'=>'Factura a fost emisă.','return'=>'Factura de retur a fost emisă.','receive'=>'NIR-ul de retur a fost generat, stocul actualizat și factura de retur atașată.','email'=>'Emailul cu factura a fost pus în coada de trimitere.','delete'=>'Factura a fost eliminată, iar stocul a fost recalculat.','payment'=>'Înregistrarea a fost salvată.','correct'=>'Documentele de corecție au fost emise.',default=>'Modificările au fost salvate.' };
             if($kind==='issue' && ($result['email_state'] ?? '')==='queued') { $message='Factura a fost emisă. Emailul cu link privat și PDF este pregătit pentru trimitere.'; }
             $redirect=in_array($kind,['order-edit','order-payment','return-reconcile'],true)?$this->config->path('admin/comenzi/'.(int)$input['order_id'].'/'):$this->url($id>0?$id.'/':'');
             if(($input['return_to'] ?? '')==='order' && ($result || $sourceOrderId>0)) { $redirect=$this->config->path('admin/comenzi/'.(int)($result['order_id'] ?? $sourceOrderId).'/'); }
@@ -260,7 +260,7 @@ final class InvoiceController
     private function json(array $data,int $status=200): ResponseInterface { $response=new Response($status); $response->getBody()->write(InvoiceSnapshot::json($data)); return $response->withHeader('Content-Type','application/json; charset=utf-8')->withHeader('Cache-Control','no-store'); }
     private function failure(ServerRequestInterface $request,\Throwable $e): ResponseInterface
     {
-        $status=$e instanceof InvoiceException?$e->getCode():500;
+        $status=$e instanceof InvoiceException || $e instanceof \App\Modules\Inventory\NirValidationException || $e instanceof \App\Modules\Inventory\NirConflictException?$e->getCode():500;
         $message=$status===500?'Operațiunea nu a putut fi finalizată. Reîncearcă; documentele salvate sunt păstrate.':$e->getMessage();
         if($status===500) { error_log('Invoice '.get_class($e).': '.$e->getMessage()); }
         if($this->jsonWanted($request)) { return $this->json(['ok'=>false,'message'=>$message],$status); }

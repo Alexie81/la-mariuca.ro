@@ -9,7 +9,11 @@ use DateTimeZone;
 final class InvoiceService
 {
     public const KINDS=['sale'=>'Factură','return'=>'Factură de retur','correction_negative'=>'Retur pentru corecție','corrected_positive'=>'Factură corectată'];
-    public function __construct(private readonly InvoiceRepository $repository,private readonly InvoiceSnapshot $snapshots,private readonly InvoiceStockService $stock) {}
+    private readonly ReturnInvoiceAttachment $receiptFiles;
+    public function __construct(private readonly InvoiceRepository $repository,private readonly InvoiceSnapshot $snapshots,private readonly InvoiceStockService $stock,?ReturnInvoiceAttachment $receiptFiles=null)
+    {
+        $this->receiptFiles=$receiptFiles ?? new ReturnInvoiceAttachment($repository,dirname(__DIR__,3));
+    }
     /** @param array<string,mixed> $actor */
     public function allow(array $actor,string $permission='view'): void
     {
@@ -449,7 +453,8 @@ final class InvoiceService
     public function receive(int $id,array $input,array $actor): array
     {
         $this->allow($actor,'receive');
-        return $this->repository->transaction(function()use($id,$input,$actor):array {
+        $attachment=null;
+        try { return $this->repository->transaction(function()use($id,$input,$actor,&$attachment):array {
             $key=$this->key($input); $hash=$this->hash([$id,$input]); if($retry=$this->retry($key,'receive',$hash)) { return $retry; }
             $invoice=$this->load($id); $this->version($invoice,$input);
             if(!in_array($invoice['kind'],['return','correction_negative'],true)) { throw new InvoiceException('Primirea fizică se înregistrează pentru o factură de retur.'); }
@@ -464,16 +469,15 @@ final class InvoiceService
             }
             if(!$hasProduct) { throw new InvoiceException('Documentul nu conține produse pentru primire.'); }
             $notes=trim((string)($input['reason'] ?? ''))!==''?$this->reason($input):'Verificarea produselor primite';
-            $receipt=$this->repository->insert('invoice_receipts',['invoice_id'=>$id,'actor_id'=>$actor['id'],'received_at'=>$this->repository->now(),'lines_json'=>InvoiceSnapshot::json($plans),'notes'=>$notes,'reversed_at'=>null]);
-            foreach($plans as $plan) {
-                $line=$this->repository->one('invoice_lines',['id'=>$plan['line_id']]); $source=$this->repository->one('invoice_lines',['id'=>$line['parent_line_id']]);
-                $this->stock->receive($receipt,$line,$source,$plan['restock_units'],$actor);
-                $this->stock->receiveOnline($receipt,$line,$source,$plan['restock_units'],$actor);
-            }
+            $nirs=new \App\Modules\Inventory\NirService($this->repository->pdo());
+            $receivedAt=$nirs->receiptInstant((string)($input['received_at'] ?? $this->repository->now()));
+            $receipt=$this->repository->insert('invoice_receipts',['invoice_id'=>$id,'actor_id'=>$actor['id'],'received_at'=>$receivedAt,'lines_json'=>InvoiceSnapshot::json($plans),'notes'=>$notes,'reversed_at'=>null]);
+            $attachment=$this->receiptFiles->store($invoice);
+            $nirs->confirmInvoiceReceipt($invoice,$receipt,$attachment,$actor);
             $this->touch($invoice,[]); $this->audit($id,'physically_received',$actor,$notes,[],['receipt_id'=>$receipt,'lines'=>$plans]); $this->remember($key,'receive',$hash,$id);
             if(($input['notify_customer'] ?? '0')==='1') { (new ReturnReceiptNotification($this->repository))->queue((int)$invoice['order_id'],'invoice:'.$receipt,$id); }
             return $this->decorate($this->load($id));
-        });
+        }); } catch(\Throwable $error) { if($attachment!==null) { $this->receiptFiles->remove($attachment); } throw $error; }
     }
     /** @param array<string,mixed> $input @param array<string,mixed> $actor @return array<string,mixed> */
     public function payment(int $id,array $input,array $actor): array

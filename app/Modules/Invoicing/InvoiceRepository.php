@@ -9,6 +9,12 @@ final class InvoiceRepository
     private const TABLES = ['invoices','invoice_lines','invoice_actions','invoice_audit','invoice_public_links','invoice_receipts','invoice_receipt_allocations','invoice_return_requests','invoice_reminder_dismissals','invoice_refunds','invoice_automation_intents','outbox_messages','orders','order_items','users','company_warehouses','inventory_reservations','inventory_movements','audit_log','invoice_return_policy','invoice_fiscal_jobs','payments','order_document_operations','order_return_documents','order_returns','order_return_items','order_return_requests','order_refunds'];
     public function __construct(private readonly PDO $pdo) {}
     public function pdo(): PDO { return $this->pdo; }
+    /** Called only after the NIR's stock was reversed and the NIR deleted. Action tombstones remain. */
+    public function deleteReceipt(int $receiptId): void
+    {
+        $query=$this->pdo->prepare('DELETE FROM invoice_receipt_allocations WHERE receipt_id=:id'); $query->execute(['id'=>$receiptId]);
+        $query=$this->pdo->prepare('DELETE FROM invoice_receipts WHERE id=:id'); $query->execute(['id'=>$receiptId]);
+    }
     /** Documents of the current fulfilment, excluding earlier fully cancelled cycles.
      * @return list<array<string,mixed>>
      */

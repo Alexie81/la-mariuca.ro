@@ -30,7 +30,7 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         $this->pdo->exec('UPDATE product_variants SET track_in_conta=0 WHERE product_id='.(int)$this->variant['product_id']);
         $this->service=new InvoiceService(new InvoiceRepository($this->pdo),new InvoiceSnapshot($this->pdo,$this->root),new InvoiceStockService($this->pdo));
     }
-    protected function tearDown(): void { unset($this->service); parent::tearDown(); }
+    protected function tearDown(): void { unset($this->service); gc_collect_cycles(); parent::tearDown(); }
     public function testStockJournalMatchesDocumentsAndSeparatesOnlineAvailability(): void
     {
         $repository=new \App\Modules\Inventory\StockLedgerRepository($this->pdo);
@@ -396,6 +396,7 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         self::assertStringContainsString('name="restock['.$line.']" value="1"',$html);
         self::assertStringNotContainsString('name="reason"',$html);
         self::assertStringNotContainsString('name="notify_customer"',$html);
+        self::assertMatchesRegularExpression('/name="received_at" value="[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}"/',$html);
         $messages=count($repo->all('outbox_messages'));$balance=$this->balance();
         $input=['_csrf'=>$_SESSION['_csrf'],'request_key'=>'simple-receipt-confirm','version'=>$credit['row_version'],'received'=>[$line=>'1'],'restock'=>[$line=>'0']];
         $request=$factory->createServerRequest('POST',$url,['REMOTE_ADDR'=>'127.0.0.85'])->withHeader('Accept','application/json')->withParsedBody($input);
@@ -421,6 +422,65 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         self::assertSame($before+1,(int)$this->pdo->query('SELECT physical_quantity FROM inventory WHERE variant_id='.$this->variant['id'])->fetchColumn());
         $this->service->delete($credit['id'],['request_key'=>'online-receipt-delete','version'=>$received['row_version'],'reason'=>'Corectare primire'],$this->actor);
         self::assertSame($before,(int)$this->pdo->query('SELECT physical_quantity FROM inventory WHERE variant_id='.$this->variant['id'])->fetchColumn());
+    }
+    public function testVerificationConfirmsReturnNirWithReceptionDateAndInvoiceAttachment(): void
+    {
+        $this->purchase(5,'40','AUTOMATIC-RETURN-NIR'); $order=$this->order(3);
+        $invoice=$this->service->issue($order,['request_key'=>'automatic-nir-sale'],$this->actor);
+        $repo=new InvoiceRepository($this->pdo); $repo->update('orders',['status'=>'delivered'],['id'=>$order]);
+        $returnId=$this->service->returnOrder($order,['request_key'=>'automatic-nir-return','quantities'=>[$invoice['lines'][0]['order_item_id']=>3],'reason'=>'Retur client','issue_invoice'=>'1','notify_customer'=>'0'],$this->actor);
+        $creditId=(int)$repo->one('order_return_documents',['return_id'=>$returnId])['invoice_id'];
+        $repo->update('invoices',['issued_at'=>'2026-11-10T23:30:00Z'],['id'=>$creditId]);
+        $credit=$this->service->document($creditId,$this->actor); $line=$credit['lines'][0]['id'];
+        self::assertSame(20000,$this->balance()); self::assertNull($credit['receipt_nir']);
+        $input=['request_key'=>'automatic-nir-confirm','version'=>$credit['row_version'],'received_at'=>'2026-11-14T10:25','received'=>[$line=>'2'],'restock'=>[$line=>'1']];
+        $result=$this->service->receive($creditId,$input,$this->actor);
+        $nirs=new NirService($this->pdo); $nir=$nirs->document((int)$result['receipt_nir']['id'],$this->actor);
+        self::assertSame('customer_return',$nir['type']); self::assertSame('confirmed',$nir['status']);
+        self::assertSame('2026-11-14T08:25:00Z',$nir['received_at']); self::assertSame($nir['received_at'],$nir['nir_at']);
+        self::assertSame('2026-11-11',$nir['invoice_date']); self::assertSame($credit['series_code'],$nir['invoice_series']); self::assertSame((string)$credit['number'],$nir['invoice_number']);
+        self::assertSame('3.0000',$nir['lines'][0]['invoice_quantity']); self::assertSame('2.0000',$nir['lines'][0]['received_quantity']);
+        self::assertSame('1.0000',$nir['lines'][0]['accepted_quantity']); self::assertSame('1.0000',$nir['lines'][0]['rejected_quantity']);
+        self::assertSame(4000,$nir['inventory_bani']); self::assertSame(30000,$this->balance());
+        $layer=$this->pdo->query('SELECT * FROM nir_fifo_layers WHERE nir_id='.(int)$nir['id'])->fetch();
+        self::assertSame($nir['received_at'],$layer['received_at']); self::assertSame(10000,(int)$layer['initial_units']);
+        self::assertSame('NIR_CUSTOMER_RETURN',$this->pdo->query('SELECT type FROM nir_stock_movements WHERE nir_id='.(int)$nir['id'])->fetchColumn());
+        self::assertCount(1,$nir['attachments']); $file=$nir['attachments'][0];
+        self::assertSame('Factura de retur '.$credit['display_number'].'.pdf',$file['original_name']);
+        $path=(new \App\Modules\Inventory\NirDocumentStorage($this->root))->path($file['stored_name']);
+        self::assertNotNull($path); self::assertSame($file['sha256'],hash_file('sha256',$path)); self::assertStringStartsWith('%PDF-',file_get_contents($path));
+        self::assertSame($nir['id'],$this->service->receive($creditId,$input,$this->actor)['receipt_nir']['id']);
+        self::assertSame(30000,$this->balance()); self::assertSame([],$nirs->pendingReturnReceipts($this->actor));
+        $_SESSION['user_id']=$this->actor['id']; $factory=new \Slim\Psr7\Factory\ServerRequestFactory(); $app=\App\AppFactory::create($this->root);
+        $page=$app->handle($factory->createServerRequest('GET','http://localhost/admin/comenzi/'.$order.'/'));
+        self::assertSame(200,$page->getStatusCode()); self::assertStringNotContainsString('Au ajuns produsele?',(string)$page->getBody());
+        self::assertStringContainsString('admin/nir-uri/'.$nir['id'].'/',(string)$page->getBody());
+        $download=$app->handle($factory->createServerRequest('GET','http://localhost/admin/nir-uri/'.$nir['id'].'/documente/'.$file['id'].'/'));
+        self::assertSame(200,$download->getStatusCode()); self::assertSame($file['sha256'],hash('sha256',(string)$download->getBody()));
+        $nirs->delete((int)$nir['id'],(int)$nir['row_version'],$this->actor);
+        self::assertSame(20000,$this->balance()); self::assertNull($this->service->document($creditId,$this->actor)['receipt_nir']);
+        self::assertNull($repo->one('invoice_receipts',['invoice_id'=>$creditId]));
+    }
+    public function testFailedNirGenerationRollsBackVerificationStockAndAttachment(): void
+    {
+        $this->purchase(3,'40','ROLLBACK-RETURN-NIR');
+        $invoice=$this->service->issue($this->order(1),['request_key'=>'rollback-nir-sale'],$this->actor);
+        $credit=$this->service->credit($invoice['id'],['request_key'=>'rollback-nir-credit','version'=>1,'reason'=>'Retur','quantities'=>[$invoice['lines'][0]['id']=>1],'notify_customer'=>'0'],$this->actor);
+        $input=['request_key'=>'rollback-nir-confirm','version'=>1,'received_at'=>'2026-11-14T10:25','received'=>[$credit['lines'][0]['id']=>1],'restock'=>[$credit['lines'][0]['id']=>1]];
+        $this->pdo->exec("CREATE TRIGGER qa_fail_return_nir BEFORE INSERT ON nir_documents WHEN NEW.type='customer_return' BEGIN SELECT RAISE(ABORT,'QA NIR unavailable'); END");
+        $files=glob($this->root.'/storage/private/nir-documents/*.pdf');
+        try { $this->service->receive($credit['id'],$input,$this->actor); self::fail('A failed NIR changed stock'); }
+        catch(\PDOException $error) { self::assertStringContainsString('QA NIR unavailable',$error->getMessage()); }
+        self::assertSame(20000,$this->balance()); self::assertSame(0,(int)$this->pdo->query('SELECT COUNT(*) FROM invoice_receipts')->fetchColumn());
+        self::assertSame(0,(int)$this->pdo->query('SELECT SUM(returned_units) FROM nir_fifo_consumptions')->fetchColumn());
+        self::assertSame($files,glob($this->root.'/storage/private/nir-documents/*.pdf'));
+        $this->pdo->exec('DROP TRIGGER qa_fail_return_nir');
+        foreach(['2026-02-30T10:00','invalid',''] as $date) {
+            try { $this->service->receive($credit['id'],array_replace($input,['received_at'=>$date]),$this->actor); self::fail('Invalid reception date accepted'); }
+            catch(\App\Modules\Inventory\NirValidationException $error) { self::assertSame(422,$error->getCode()); }
+        }
+        self::assertSame(20000,$this->balance());
+        self::assertNotNull($this->service->receive($credit['id'],$input,$this->actor)['receipt_nir']); self::assertSame(30000,$this->balance());
     }
     public function testHttpRequiresAdminAndCsrfAndSupportsPreviewWithoutJavaScript(): void
     {

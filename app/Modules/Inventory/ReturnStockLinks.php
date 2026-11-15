@@ -36,6 +36,8 @@ final class ReturnStockLinks
     /** @return array<string,mixed>|null */
     public function nirForInvoice(int $invoiceId): ?array
     {
+        $q=$this->pdo->prepare('SELECT n.* FROM nir_documents n JOIN invoice_receipts r ON r.id=n.invoice_receipt_id WHERE r.invoice_id=:id AND r.reversed_at IS NULL LIMIT 1');
+        $q->execute(['id'=>$invoiceId]); $direct=$q->fetch(); if($direct) { return $direct; }
         $q=$this->pdo->prepare('SELECT n.* FROM nir_documents n JOIN order_return_documents d ON d.return_id=n.return_id WHERE d.invoice_id=:id LIMIT 1');
         $q->execute(['id'=>$invoiceId]); return $q->fetch() ?: null;
     }

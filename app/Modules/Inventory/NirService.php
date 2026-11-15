@@ -148,6 +148,10 @@ final class NirService
             $this->repository->preserveDeletedRequestKeys($id);
             $this->repository->delete('nir_outbox',['nir_id'=>$id]);
             $this->repository->delete('nir_documents',['id'=>$id]);
+            if(!empty($document['invoice_receipt_id'])) {
+                $invoices=new \App\Modules\Invoicing\InvoiceRepository($this->pdo);
+                $invoices->deleteReceipt((int)$document['invoice_receipt_id']);
+            }
             $this->repository->compactDraftNumbers();
             foreach($document['lines'] as $line) {
                 $reference=$this->findReference((int)$document['supplier_id'],$line);
@@ -166,6 +170,10 @@ final class NirService
         $id=(int)$document['id']; $now=$this->repository->now();
         // Historical movements remain in the internal audit trail without dangling foreign keys.
         $this->repository->update('nir_stock_movements',['nir_id'=>null,'line_id'=>null],['nir_id'=>$id]);
+        if(!empty($document['invoice_receipt_id'])) {
+            (new InvoiceStockService($this->pdo))->undoReceipt((int)$document['invoice_receipt_id'],$actor);
+            return;
+        }
         foreach($document['lines'] as $line) {
             if(!$line['tracked'] || $line['scope_type']===null) { continue; }
             if($document['type']==='supplier_return') {
@@ -556,6 +564,86 @@ final class NirService
             if($this->repository->one('order_returns',['id'=>$returnId])===null) { throw new NirNotFoundException('Returul nu există.'); }
             $where=['return_id'=>$returnId,'actor_id'=>$this->actorId($actor)]; $value=['dismissed_on'=>(new DateTimeImmutable('now',new DateTimeZone('Europe/Bucharest')))->format('Y-m-d')];
             if($this->repository->one('nir_return_reminders',$where)===null) { $this->repository->insert('nir_return_reminders',$where+$value); } else { $this->repository->update('nir_return_reminders',$value,$where); }
+        });
+    }
+
+    public function receiptInstant(string $value): string { return $this->instant($value,'received_at'); }
+
+    /** Confirm the customer-return NIR and post its stock exactly once, in the same transaction.
+     * @param array<string,mixed> $invoice @param array<string,mixed> $attachment @param array<string,mixed> $actor
+     * @return array<string,mixed>
+     */
+    public function confirmInvoiceReceipt(array $invoice,int $receiptId,array $attachment,array $actor): array
+    {
+        $this->allow($actor,'confirm');
+        return $this->repository->transaction(function()use($invoice,$receiptId,$attachment,$actor):array {
+            $invoices=new \App\Modules\Invoicing\InvoiceRepository($this->pdo);
+            $receipt=$invoices->one('invoice_receipts',['id'=>$receiptId,'invoice_id'=>$invoice['id'],'reversed_at'=>null]);
+            if($receipt===null || $this->returnLinks->nirForInvoice((int)$invoice['id'])!==null) { throw new NirConflictException('Recepția nu este disponibilă pentru generarea NIR-ului.'); }
+            $this->ensureLocations();
+            $warehouseIds=array_values(array_unique(array_filter(array_column($invoice['lines'],'warehouse_id'))));
+            if(count($warehouseIds)>1) { throw new NirValidationException(['warehouse_id'=>'Produsele facturii provin din gestiuni diferite. Recepționează separat fiecare gestiune.']); }
+            $warehouse=isset($warehouseIds[0])?$this->repository->one('company_warehouses',['id'=>$warehouseIds[0],'is_active'=>1]):($this->repository->all('company_warehouses',['company_id'=>$invoice['snapshot']['company']['id'],'is_active'=>1],'is_default DESC,id')[0] ?? null);
+            if($warehouse===null) { throw new NirValidationException(['warehouse_id'=>'Activează gestiunea facturii înainte de recepția produselor.']); }
+            $location=$this->repository->all('nir_locations',['warehouse_id'=>$warehouse['id'],'is_active'=>1],'is_default DESC,id')[0] ?? null;
+            if($location===null) { throw new NirValidationException(['location_id'=>'Adaugă o locație activă în gestiunea facturii pentru recepție.']); }
+            $invoiceDate=(new DateTimeImmutable($invoice['issued_at']))->setTimezone(new DateTimeZone('Europe/Bucharest'))->format('Y-m-d');
+            $plans=json_decode($receipt['lines_json'],true,512,JSON_THROW_ON_ERROR); $rawLines=[]; $sources=[]; $allocations=[];
+            foreach($plans as $plan) {
+                $credit=$invoices->one('invoice_lines',['id'=>$plan['line_id'],'invoice_id'=>$invoice['id']]);
+                if($credit===null) { throw new NirConflictException('Lipsește produsul de pe factura de retur.'); }
+                $source=$invoices->one('invoice_lines',['id'=>$credit['parent_line_id']]);
+                if($source===null) { throw new NirConflictException('Lipsește poziția din factura inițială.'); }
+                $stock=new InvoiceStockService($this->pdo);
+                $stock->receive($receiptId,$credit,$source,$plan['restock_units'],$actor);
+                $stock->receiveOnline($receiptId,$credit,$source,$plan['restock_units'],$actor);
+                $parts=$invoices->all('invoice_receipt_allocations',['receipt_id'=>$receiptId,'invoice_line_id'=>$credit['id']]);
+                $cost=NirDecimal::sum(array_column($parts,'value_bani'));
+                $rawLines[]=array_replace($this->emptyLine(),[
+                    'product_id'=>$source['product_id'],'variant_id'=>$source['variant_id'],'supplier_name'=>$credit['name'],
+                    'invoice_quantity'=>NirDecimal::quantity(abs((int)$credit['quantity_units'])),
+                    'received_quantity'=>NirDecimal::quantity($plan['received_units']),'accepted_quantity'=>NirDecimal::quantity($plan['restock_units']),
+                    'rejected_quantity'=>NirDecimal::quantity($plan['quarantine_units']),'vat_percent'=>'0',
+                    'price_mode'=>'exact_vat','net_override'=>(string)NirDecimal::money($cost),'tax_override'=>'0',
+                    'tracked'=>$source['scope_type']!==null,'purchase_unit'=>$credit['unit'],'stock_unit'=>$credit['unit'],
+                    'difference_notes'=>$plan['missing_units']>0?'Neprimite: '.NirDecimal::quantity($plan['missing_units']).' '.$credit['unit']:'',
+                ]);
+                $sources[]=$source; $allocations[]=$parts;
+            }
+            [$header,$lines]=$this->prepare([
+                'warehouse_id'=>$warehouse['id'],'location_id'=>$location['id'],'currency'=>'RON',
+                'invoice_series'=>$invoice['series_code'],'invoice_number'=>(string)$invoice['number'],'invoice_date'=>$invoiceDate,
+                'exchange_rate_date'=>$invoiceDate,'nir_at'=>$receipt['received_at'],'received_at'=>$receipt['received_at'],
+                'notes'=>'Recepție retur client · Factură de retur '.$invoice['series_code'].' '.$invoice['number'],
+                'external_id'=>'invoice-receipt:'.$receiptId,'lines'=>$rawLines,
+            ],null);
+            // Tracking and cost belong to the issued invoice, even if the catalog was edited later.
+            foreach($lines as $index=>&$line) {
+                $source=$sources[$index]; $line['scope_type']=$source['scope_type']; $line['scope_id']=$source['scope_id'];
+                $line['tracked']=$source['scope_type']!==null?1:0; $line['sku']=$source['sku']; $line['product_name']=$source['name'];
+                $line=NirDecimal::line($line,'1');
+            } unset($line);
+            foreach(self::MONEY as $field) { $header[$field]=NirDecimal::sum(array_column($lines,$field)); }
+            $now=$this->repository->now(); $customer=$invoice['snapshot']['customer'];
+            $header+=['temp_number'=>'DRAFT-RET-CLIENT-'.bin2hex(random_bytes(5)),'type'=>'customer_return','status'=>'confirmed',
+                'row_version'=>1,'reason'=>$receipt['notes'],'order_id'=>$invoice['order_id'],'invoice_receipt_id'=>$receiptId,
+                'created_by'=>$this->actorId($actor),'updated_by'=>$this->actorId($actor),'confirmed_by'=>$this->actorId($actor),
+                'created_at'=>$now,'updated_at'=>$now,'confirmed_at'=>$now,'number'=>$this->repository->nextNumber($header['nir_at'])];
+            $header['supplier_snapshot']=$this->json(['alias'=>$customer['name'],'company_name'=>'Retur client','email'=>$customer['email']]);
+            $id=$this->repository->insert('nir_documents',$header);
+            foreach($lines as $index=>$line) {
+                $lineId=$this->repository->insert('nir_lines',['nir_id'=>$id]+$line);
+                foreach($allocations[$index] as $part) {
+                    if($part['source_kind']==='layer') {
+                        $this->repository->update('nir_fifo_layers',['nir_id'=>$id,'line_id'=>$lineId,'received_at'=>$receipt['received_at']],['id'=>$part['layer_id']]);
+                    }
+                }
+                $this->repository->update('nir_stock_movements',['nir_id'=>$id,'line_id'=>$lineId,'type'=>'NIR_CUSTOMER_RETURN','source_type'=>'nir','source_id'=>$id],['event_key'=>'receipt:'.$receiptId.':'.$plans[$index]['line_id']]);
+            }
+            $this->appendAttachments($id,[$attachment],$actor);
+            $this->audit($id,'customer_return_received',$actor,null,$this->load($id),['invoice_id'=>$invoice['id'],'receipt_id'=>$receiptId]);
+            $this->event($id,'nir.customer_return_received');
+            return $this->document($id,$actor);
         });
     }
 

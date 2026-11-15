@@ -59,7 +59,7 @@ final class InvoiceStockService
             $value=$take===$available ? (int)$consumption['value_bani']-(int)$consumption['returned_value_bani'] : InvoiceCalculator::ratio((int)$consumption['value_bani'],$take,(int)$consumption['quantity_units']);
             $newLayer=$this->stock->insert('nir_fifo_layers',['nir_id'=>$layer['nir_id'],'line_id'=>$layer['line_id'],'warehouse_id'=>$source['warehouse_id'],'scope_type'=>$source['scope_type'],'scope_id'=>$source['scope_id'],
                 'initial_units'=>$take,'remaining_units'=>$take,'initial_value_bani'=>$value,'remaining_value_bani'=>$value,'unit_cost_ron'=>$layer['unit_cost_ron'],
-                'received_at'=>$this->stock->now(),'created_at'=>$this->stock->now(),'original_layer_id'=>$layer['id']]);
+                'received_at'=>$this->invoices->one('invoice_receipts',['id'=>$receiptId])['received_at'],'created_at'=>$this->stock->now(),'original_layer_id'=>$layer['id']]);
             $this->stock->update('nir_fifo_consumptions',['returned_units'=>(int)$consumption['returned_units']+$take,'returned_value_bani'=>(int)$consumption['returned_value_bani']+$value],['id'=>$consumption['id']]);
             $this->invoices->insert('invoice_receipt_allocations',['receipt_id'=>$receiptId,'invoice_line_id'=>$credit['id'],'consumption_id'=>$consumption['id'],'layer_id'=>$newLayer,'quantity_units'=>$take,'value_bani'=>$value,'source_kind'=>'layer']);
             $remaining-=$take; if($remaining===0) { break; }
