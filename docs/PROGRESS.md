@@ -1,5 +1,10 @@
 # Progres
 
+### 2026-11-15 — Confirmare simplificată a produselor primite
+- Din modalul **Verifică produsele primite** au fost eliminate observațiile obligatorii și opțiunea de notificare prin email. Salvarea fără observații păstrează o descriere internă automată pentru audit, iar această confirmare nu pregătește implicit un email.
+- Pentru fiecare produs, **Primite efectiv** și **Bune pentru stoc** sunt precompletate cu cantitatea returnată pe document, nu cu întreaga cantitate inițial comandată. Valorile rămân editabile; validarea cantităților și separarea produselor nevandabile se păstrează.
+- Verificări: **6 teste / 46 aserțiuni**, inclusiv formular fără câmpurile eliminate, cantitate returnată diferită de cea comandată, POST fără motiv/email, ajustarea cantității bune pentru stoc la zero, audit, deduplicare și lipsa mesajelor noi. Verificate și recepția/NIR și notificarea explicită din fluxul NIR. **183 template-uri Twig** compilate; diff check trecut. Fără modificarea datelor comenzilor principale sau trimiteri reale.
+
 ### 2026-11-15 — Verificarea celor patru automatizări de facturare
 - Verificate separat emiterea și emailul pentru card/ramburs: test nou cu toate cele patru combinații emitere cu/fără email, procesare repetată fără duplicare, link privat și PDF atașat. Verificate și setările/autosalvarea/CSRF, confirmarea Stripe, transportul injectat, retry-urile și nedublarea emailului deja pregătit manual.
 - **33 teste / 436 aserțiuni**, toate trecute. Nicio trimitere reală nouă sau plată Stripe în această verificare; emailurile testelor folosesc transporturi izolate.

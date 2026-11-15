@@ -382,6 +382,32 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         self::assertSame(1,(int)$this->pdo->query("SELECT COUNT(*) FROM outbox_messages WHERE message_type='invoice'")->fetchColumn());
         self::assertSame('complete',$this->pdo->query('SELECT state FROM invoice_automation_intents WHERE order_id='.$order)->fetchColumn());
     }
+    public function testPhysicalVerificationStartsWithReturnedQuantityWithoutNotesOrEmail(): void
+    {
+        $this->purchase(3,'40','SIMPLE-RECEIPT');
+        $invoice=$this->service->issue($this->order(2),['request_key'=>'simple-receipt-sale'],$this->actor);
+        $credit=$this->service->credit($invoice['id'],['request_key'=>'simple-receipt-credit','version'=>$invoice['row_version'],'reason'=>'Retur client','quantities'=>[$invoice['lines'][0]['id']=>1],'notify_customer'=>'0'],$this->actor);
+        $line=$credit['lines'][0]['id'];$repo=new InvoiceRepository($this->pdo);
+        $_SESSION['user_id']=$this->actor['id'];$factory=new \Slim\Psr7\Factory\ServerRequestFactory();
+        $app=\App\AppFactory::create($this->root);$url='http://localhost/admin/facturi/'.$credit['id'].'/receive/';
+        $form=$app->handle($factory->createServerRequest('GET',$url)->withHeader('X-Invoice-Modal','1'));
+        self::assertSame(200,$form->getStatusCode());$html=(string)$form->getBody();
+        self::assertStringContainsString('name="received['.$line.']" value="1"',$html);
+        self::assertStringContainsString('name="restock['.$line.']" value="1"',$html);
+        self::assertStringNotContainsString('name="reason"',$html);
+        self::assertStringNotContainsString('name="notify_customer"',$html);
+        $messages=count($repo->all('outbox_messages'));$balance=$this->balance();
+        $input=['_csrf'=>$_SESSION['_csrf'],'request_key'=>'simple-receipt-confirm','version'=>$credit['row_version'],'received'=>[$line=>'1'],'restock'=>[$line=>'0']];
+        $request=$factory->createServerRequest('POST',$url,['REMOTE_ADDR'=>'127.0.0.85'])->withHeader('Accept','application/json')->withParsedBody($input);
+        $response=$app->handle($request);self::assertSame(200,$response->getStatusCode(),(string)$response->getBody());
+        self::assertSame(200,$app->handle($request)->getStatusCode());
+        $receipts=$repo->all('invoice_receipts',['invoice_id'=>$credit['id']]);self::assertCount(1,$receipts);
+        $stored=json_decode($receipts[0]['lines_json'],true)[0];
+        self::assertSame(10000,$stored['received_units']);self::assertSame(0,$stored['restock_units']);self::assertSame(10000,$stored['quarantine_units']);
+        self::assertSame($balance,$this->balance());self::assertSame($messages,count($repo->all('outbox_messages')));
+        self::assertNotEmpty($receipts[0]['notes']);
+    }
+
     public function testOnlineStockReturnsOnlyAfterPhysicalReceiptOfShippedPieces(): void
     {
         $this->pdo->exec('UPDATE product_variants SET stock_unlimited=0 WHERE id='.$this->variant['id']);

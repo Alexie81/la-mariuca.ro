@@ -463,7 +463,7 @@ final class InvoiceService
                 $plans[]=['line_id'=>$line['id'],'received_units'=>$received,'restock_units'=>$restock,'quarantine_units'=>$received-$restock,'missing_units'=>abs((int)$line['quantity_units'])-$received];
             }
             if(!$hasProduct) { throw new InvoiceException('Documentul nu conține produse pentru primire.'); }
-            $notes=$this->reason($input);
+            $notes=trim((string)($input['reason'] ?? ''))!==''?$this->reason($input):'Verificarea produselor primite';
             $receipt=$this->repository->insert('invoice_receipts',['invoice_id'=>$id,'actor_id'=>$actor['id'],'received_at'=>$this->repository->now(),'lines_json'=>InvoiceSnapshot::json($plans),'notes'=>$notes,'reversed_at'=>null]);
             foreach($plans as $plan) {
                 $line=$this->repository->one('invoice_lines',['id'=>$plan['line_id']]); $source=$this->repository->one('invoice_lines',['id'=>$line['parent_line_id']]);
@@ -471,7 +471,7 @@ final class InvoiceService
                 $this->stock->receiveOnline($receipt,$line,$source,$plan['restock_units'],$actor);
             }
             $this->touch($invoice,[]); $this->audit($id,'physically_received',$actor,$notes,[],['receipt_id'=>$receipt,'lines'=>$plans]); $this->remember($key,'receive',$hash,$id);
-            if(($input['notify_customer'] ?? '1')==='1') { (new ReturnReceiptNotification($this->repository))->queue((int)$invoice['order_id'],'invoice:'.$receipt,$id); }
+            if(($input['notify_customer'] ?? '0')==='1') { (new ReturnReceiptNotification($this->repository))->queue((int)$invoice['order_id'],'invoice:'.$receipt,$id); }
             return $this->decorate($this->load($id));
         });
     }
