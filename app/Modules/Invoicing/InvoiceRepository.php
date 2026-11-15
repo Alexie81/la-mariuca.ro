@@ -253,7 +253,10 @@ final class InvoiceRepository
     public function trace(int $lineId): array
     {
         $q=$this->pdo->prepare("SELECT c.*,l.nir_id,l.unit_cost_ron,l.received_at,n.number AS nir_number,n.invoice_series,n.invoice_number,n.supplier_snapshot,w.name AS warehouse_name FROM nir_fifo_consumptions c JOIN nir_fifo_layers l ON l.id=c.layer_id LEFT JOIN nir_documents n ON n.id=l.nir_id LEFT JOIN company_warehouses w ON w.id=l.warehouse_id WHERE c.source_type='invoice_line' AND c.source_id=:id ORDER BY c.id");
-        $q->execute(['id'=>$lineId]); return $q->fetchAll();
+        $q->execute(['id'=>$lineId]); $rows=$q->fetchAll();
+        $origins=(new \App\Modules\Inventory\NirRepository($this->pdo))->lotOrigins(array_map('intval',array_column($rows,'layer_id')));
+        foreach($rows as &$row) { $row['origin']=$origins[(int)$row['layer_id']] ?? null; } unset($row);
+        return $rows;
     }
     public function pendingUnits(int $lineId): int
     {

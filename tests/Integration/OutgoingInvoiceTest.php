@@ -442,9 +442,33 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         self::assertSame((2-$purchased)*10000,$resale['lines'][0]['pending_units']);
     }
 
+    public function testReturnClearsUncostedSaleAndLatePurchaseCostsOnlyTheNextSale(): void
+    {
+        $sale=$this->service->issue($this->order(1),['request_key'=>'uncosted-first-sale'],$this->actor);
+        self::assertSame(-10000,$this->balance()); self::assertSame(10000,$sale['lines'][0]['pending_units']);
+        $credit=$this->service->credit($sale['id'],['request_key'=>'uncosted-first-return','version'=>1,'reason'=>'Retur','quantities'=>[$sale['lines'][0]['id']=>1],'notify_customer'=>'0'],$this->actor);
+        self::assertSame(-10000,$this->balance());
+        $received=$this->service->receive($credit['id'],['request_key'=>'uncosted-first-receipt','version'=>1,'received'=>[$credit['lines'][0]['id']=>1],'restock'=>[$credit['lines'][0]['id']=>1]],$this->actor);
+        self::assertSame(0,$this->balance());
+        $first=$this->service->document($sale['id'],$this->actor); self::assertSame(0,$first['lines'][0]['pending_units']); self::assertSame([],$first['lines'][0]['trace']);
+        $second=$this->service->issue($this->order(1),['request_key'=>'uncosted-second-sale'],$this->actor);
+        self::assertSame(-10000,$this->balance()); self::assertSame(10000,$second['lines'][0]['pending_units']);
+        $this->purchase(1,'47.36','LATE-AFTER-RETURN');
+        self::assertSame(0,$this->balance());
+        $second=$this->service->document($second['id'],$this->actor); self::assertSame(0,$second['lines'][0]['pending_units']); self::assertCount(1,$second['lines'][0]['trace']);
+        $part=$second['lines'][0]['trace'][0]; self::assertSame(4736,(int)$part['value_bani']); self::assertSame('LATE-AFTER-RETURN',$part['origin']['invoice_number']); self::assertSame($this->supplier,(int)$part['origin']['supplier_id']);
+        $first=$this->service->document($sale['id'],$this->actor); self::assertSame([],$first['lines'][0]['trace']); self::assertSame(0,$first['lines'][0]['pending_units']);
+        $nir=(new NirService($this->pdo))->document($received['receipt_nir']['id'],$this->actor);
+        self::assertSame(0,$nir['inventory_bani']); self::assertFalse($nir['cost_complete']);
+    }
+
     public function testReturnNirPreservesOriginalLotCostsOnResaleAndExportsOriginalInvoice(): void
     {
-        $this->purchase(1,'40','RETURN-LOT-A'); $this->purchase(2,'53.27','RETURN-LOT-B');
+        $this->pdo->exec('UPDATE product_variants SET stock_unlimited=1 WHERE id='.$this->variant['id']);
+        $supplierA=$this->supplier; $this->purchase(1,'40','RETURN-LOT-A');
+        $this->supplier=(new SupplierAdminService($this->pdo))->save(['alias'=>'Furnizor B','company_name'=>'Firma B']);
+        $this->purchase(2,'53.27','RETURN-LOT-B');
+        $purchaseIds=array_map('intval',$this->pdo->query("SELECT id FROM nir_documents WHERE type='supplier_receipt' ORDER BY id")->fetchAll(\PDO::FETCH_COLUMN));
         $sale=$this->service->issue($this->order(3),['request_key'=>'return-cost-sale'],$this->actor);
         $repo=new InvoiceRepository($this->pdo);
         $repo->update('invoices',['issued_at'=>'2026-11-09T23:30:00Z'],['id'=>$sale['id']]);
@@ -458,6 +482,32 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         $resale=$this->service->issue($this->order(3),['request_key'=>'return-cost-resale'],$this->actor);
         self::assertSame(14654,array_sum(array_column($resale['lines'][0]['trace'],'value_bani')));
         self::assertSame(0,$resale['lines'][0]['pending_units']); self::assertSame(0,$this->balance());
+        foreach($resale['lines'][0]['trace'] as $index=>$part) {
+            self::assertSame($purchaseIds[$index],$part['origin']['nir_id']); self::assertSame($nir['id'],(int)$part['nir_id']);
+            self::assertSame([$supplierA,$this->supplier][$index],(int)$part['origin']['supplier_id']);
+            self::assertSame(['RETURN-LOT-A','RETURN-LOT-B'][$index],$part['origin']['invoice_number']);
+        }
+        // Repeated return/resale cycles must still resolve the first supplier receipt.
+        $secondCredit=$this->service->credit($resale['id'],['request_key'=>'return-cost-credit-again','version'=>1,'reason'=>'Retur','quantities'=>[$resale['lines'][0]['id']=>3],'notify_customer'=>'0'],$this->actor);
+        $secondReceipt=$this->service->receive($secondCredit['id'],['request_key'=>'return-cost-receipt-again','version'=>1,'received'=>[$secondCredit['lines'][0]['id']=>3],'restock'=>[$secondCredit['lines'][0]['id']=>3]],$this->actor);
+        $third=$this->service->issue($this->order(3),['request_key'=>'return-cost-third-sale'],$this->actor);
+        self::assertSame(14654,array_sum(array_column($third['lines'][0]['trace'],'value_bani'))); self::assertSame(0,$this->balance());
+        $this->pdo->exec("UPDATE suppliers SET alias='Nume schimbat' WHERE id=".$supplierA);
+        $third=$this->service->document($third['id'],$this->actor);
+        foreach($third['lines'][0]['trace'] as $index=>$part) { self::assertSame($purchaseIds[$index],$part['origin']['nir_id']); self::assertSame($secondReceipt['receipt_nir']['id'],(int)$part['nir_id']); }
+        self::assertSame('Furnizor QA',$third['lines'][0]['trace'][0]['origin']['supplier_name']);
+        $fifo=$nirs->fifo([],$this->actor);
+        foreach($fifo['layers'] as $layer) { if((int)$layer['nir_id']===$secondReceipt['receipt_nir']['id']) { self::assertContains($layer['origin']['nir_id'],$purchaseIds); self::assertNotSame('Retur client',$layer['origin']['supplier_name']); } }
+        $_SESSION['user_id']=$this->actor['id']; $app=\App\AppFactory::create($this->root); $factory=new \Slim\Psr7\Factory\ServerRequestFactory();
+        $page=$app->handle($factory->createServerRequest('GET','http://localhost/admin/facturi/'.$third['id'].'/'));
+        self::assertSame(200,$page->getStatusCode()); $html=(string)$page->getBody();
+        foreach(['Cost de achiziție · evidență internă','Furnizor QA','Furnizor B','RETURN-LOT-A','RETURN-LOT-B','Reintrare prin retur:'] as $text) { self::assertStringContainsString($text,$html); }
+        $this->pdo->exec("UPDATE users SET role='operator' WHERE id=".$this->actor['id']);
+        self::assertSame([],$this->service->document($third['id'],$this->actor)['lines'][0]['trace']);
+        $operator=$app->handle($factory->createServerRequest('GET','http://localhost/admin/facturi/'.$third['id'].'/'));
+        self::assertSame(200,$operator->getStatusCode()); self::assertStringNotContainsString('Cost de achiziție · evidență internă',(string)$operator->getBody());
+        $this->pdo->exec("UPDATE users SET role='administrator' WHERE id=".$this->actor['id']);
+
         $nir=$nirs->document($nir['id'],$this->actor); self::assertTrue($nir['cost_complete']);
         $exporter=new \App\Modules\Inventory\NirExportService($this->root); $file=$exporter->individual($nir,'xlsx');
         try {

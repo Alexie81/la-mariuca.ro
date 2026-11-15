@@ -1,0 +1,16 @@
+{% import 'admin/partials/nir-ui.twig' as n %}
+{% if doc.can_view_acquisition_cost|default(false) and line.trace %}
+<section class="iv-trace" aria-label="Proveniența și costul achiziției">
+  <strong>Cost de achiziție · evidență internă</strong>
+  {% for part in line.trace %}
+  <div>{{ n.icon('layers') }}<span>
+    {% if part.origin %}
+      <strong>{{ part.origin.supplier_name }}</strong>
+      <small>{{ part.origin.type == 'opening_balance' ? 'Sold inițial' : 'NIR de achiziție' }}: <a href="{{ url('admin/nir-uri/' ~ part.origin.nir_id ~ '/') }}">{{ part.origin.nir_number }}</a>{% if part.origin.invoice_number %} · Factură {{ part.origin.invoice_series }} {{ part.origin.invoice_number }}{% endif %}</small>
+      {% if part.origin.nir_id != part.nir_id %}<small>Reintrare prin retur: <a href="{{ url('admin/nir-uri/' ~ part.nir_id ~ '/') }}">{{ part.nir_number }}</a></small>{% endif %}
+    {% else %}<strong>Originea achiziției nu este disponibilă</strong>{% endif %}
+    <small>{{ (part.quantity_units / 10000)|decimal_ro }} {{ line.unit }} · {{ part.unit_cost_ron|decimal_ro }} RON / {{ line.unit }}</small>
+  </span><b>{{ (part.value_bani / 100)|number_format(2, ',', '.') }} RON</b></div>
+  {% endfor %}
+</section>
+{% endif %}

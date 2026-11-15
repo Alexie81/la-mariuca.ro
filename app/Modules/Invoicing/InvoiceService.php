@@ -22,7 +22,16 @@ final class InvoiceService
         if(!$user || !in_array($user['role'],$roles,true)) { throw new InvoiceException('Nu ai permisiunea necesară pentru această operațiune.',403); }
     }
     /** @param array<string,mixed> $actor @return array<string,mixed> */
-    public function document(int $id,array $actor): array { $this->allow($actor); return $this->decorate($this->load($id)); }
+    public function document(int $id,array $actor): array
+    {
+        $this->allow($actor); $document=$this->decorate($this->load($id));
+        $user=$this->repository->one('users',['id'=>(int)$actor['id']]);
+        $document['can_view_acquisition_cost']=in_array($user['role'] ?? '',['administrator','manager'],true);
+        if(!$document['can_view_acquisition_cost']) {
+            foreach($document['lines'] as &$line) { $line['trace']=[]; } unset($line);
+        }
+        return $document;
+    }
     /** @return array<string,mixed> */
     public function load(int $id): array
     {

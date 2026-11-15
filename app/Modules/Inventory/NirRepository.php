@@ -14,6 +14,38 @@ final class NirRepository
 
     public function now(): string { return gmdate('Y-m-d\TH:i:s\Z'); }
 
+    /** Resolve the acquisition behind each lot, through any number of customer returns.
+     * Read-only and scoped to this call so edits/deletions cannot leave a stale cached origin.
+     * @param list<int> $layerIds @return array<int,array<string,mixed>|null>
+     */
+    public function lotOrigins(array $layerIds): array
+    {
+        $layers=[]; $documents=[]; $result=[];
+        foreach(array_unique($layerIds) as $requestedId) {
+            $id=$requestedId; $seen=[]; $result[$requestedId]=null;
+            while($id>0 && !isset($seen[$id])) {
+                $seen[$id]=true;
+                if(!array_key_exists($id,$layers)) { $layers[$id]=$this->one('nir_fifo_layers',['id'=>$id]); }
+                $layer=$layers[$id]; if($layer===null) { break; }
+                if($layer['original_layer_id']!==null) { $id=(int)$layer['original_layer_id']; continue; }
+                $nirId=(int)$layer['nir_id'];
+                if(!array_key_exists($nirId,$documents)) { $documents[$nirId]=$this->one('nir_documents',['id'=>$nirId]); }
+                $document=$documents[$nirId];
+                if($document===null || !in_array($document['type'],['supplier_receipt','opening_balance'],true)) { break; }
+                $supplier=json_decode((string)$document['supplier_snapshot'],true) ?: [];
+                $result[$requestedId]=[
+                    'layer_id'=>(int)$layer['id'],'nir_id'=>$nirId,'nir_number'=>$document['number'],'type'=>$document['type'],
+                    'supplier_id'=>$document['supplier_id'],
+                    'supplier_name'=>trim((string)($supplier['alias'] ?? '')) ?: (trim((string)($supplier['company_name'] ?? '')) ?: ($document['type']==='opening_balance'?'Sold inițial':'Furnizor indisponibil')),
+                    'invoice_series'=>$document['invoice_series'],'invoice_number'=>$document['invoice_number'],
+                    'invoice_date'=>$document['invoice_date'],'received_at'=>$document['received_at'],
+                ];
+                break;
+            }
+        }
+        return $result;
+    }
+
     /**
      * @template T
      * @param callable():T $callback

@@ -467,7 +467,9 @@ final class NirService
             $pendingUnits=NirDecimal::sum(array_column($this->repository->all('nir_pending_consumptions',['warehouse_id'=>$balance['warehouse_id'],'scope_type'=>$balance['scope_type'],'scope_id'=>$balance['scope_id']]),'quantity_units'));
             $reconciliation[]=['warehouse_id'=>$balance['warehouse_id'],'product_id'=>$balance['product_id'],'variant_id'=>$balance['variant_id'],'sku'=>$balance['sku'],'balance_units'=>(int)$balance['quantity_units'],'fifo_units'=>$layerUnits,'pending_units'=>$pendingUnits,'difference_units'=>(int)$balance['quantity_units']-($layerUnits-$pendingUnits),'balanced'=>(int)$balance['quantity_units']===$layerUnits-$pendingUnits];
         } unset($balance);
+        $origins=$this->repository->lotOrigins(array_map('intval',array_column($layers,'id')));
         foreach($layers as &$layer) {
+            $layer['origin']=$origins[(int)$layer['id']] ?? null;
             $line=$this->repository->one('nir_lines',['id'=>$layer['line_id']]) ?? []; $document=$this->repository->one('nir_documents',['id'=>$layer['nir_id']]) ?? [];
             $supplier=json_decode((string)($document['supplier_snapshot'] ?? '{}'),true) ?: [];
             $layer['supplier_alias']=trim((string)($supplier['alias'] ?? '')) ?: (trim((string)($supplier['company_name'] ?? '')) ?: match($document['type'] ?? '') {'opening_balance'=>'Sold inițial','customer_return'=>'Retur client',default=>'Furnizor indisponibil'});
