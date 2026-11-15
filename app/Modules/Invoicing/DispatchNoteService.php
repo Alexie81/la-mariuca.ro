@@ -29,15 +29,34 @@ final class DispatchNoteService
     }
 
     /** @param array<string,mixed> $actor @return array<string,mixed> */
-    public function issue(int $orderId,string $key,array $actor): array
+    public function issueFormData(int $orderId,array $actor): array
     {
-        $this->allow($actor); $this->key($key);
-        return $this->repository->transaction(function()use($orderId,$key,$actor):array {
-            $hash=hash('sha256','issue:'.$orderId); $prior=$this->repository->action($key);
-            if($prior){if($prior['action']!=='issue'||!hash_equals($prior['request_hash'],$hash)){throw new InvoiceException('Această confirmare a fost folosită pentru alt aviz.',409);} return $this->decorate($this->repository->find((int)$prior['dispatch_note_id'])??throw new InvoiceException('Avizul nu mai există.',404));}
-            if($existing=$this->repository->activeForOrder($orderId)){return $this->decorate($existing);}
+        $this->allow($actor); $order=$this->repository->order($orderId); $this->eligible($order);
+        if($this->repository->activeForOrder($orderId)) { throw new InvoiceException('Avizul este deja emis. Reîncarcă pagina comenzii.',409); }
+        return $this->snapshot($order,$this->repository->orderItems($orderId),$this->repository->company());
+    }
+
+    /** @param array<string,mixed> $actor @param array<string,mixed> $dispatch @return array<string,mixed> */
+    public function issue(int $orderId,string $key,array $actor,array $dispatch=[]): array
+    {
+        $this->allow($actor); $this->key($key); $dispatch=$this->dispatchFields($dispatch);
+        return $this->repository->transaction(function()use($orderId,$key,$actor,$dispatch):array {
+            $hash=hash('sha256','issue:'.$orderId.($dispatch===[]?'':':'.InvoiceSnapshot::json($dispatch))); $prior=$this->repository->action($key);
+            if($prior){
+                if($prior['action']!=='issue'||!hash_equals($prior['request_hash'],$hash)){throw new InvoiceException('Această confirmare a fost folosită pentru alt aviz.',409);}
+                $note=$this->repository->find((int)$prior['dispatch_note_id']);
+                if(!$note || $note['deleted_at']!==null) { throw new InvoiceException('Avizul acestei confirmări a fost șters. Redeschide formularul pentru un document nou.',409); }
+                return $this->decorate($note);
+            }
+            if($existing=$this->repository->activeForOrder($orderId)){
+                $note=$this->decorate($existing);
+                foreach($dispatch as $field=>$value) {
+                    if($note['snapshot']['dispatch'][$field]!==$value) { throw new InvoiceException('Avizul a fost deja emis cu alte date de expediție. Reîncarcă pagina comenzii.',409); }
+                }
+                return $note;
+            }
             $order=$this->repository->order($orderId); $this->eligible($order);
-            $now=$this->repository->now(); $number=$this->repository->nextNumber($now); $snapshot=$this->snapshot($order,$this->repository->orderItems($orderId),$this->repository->company());
+            $now=$this->repository->now(); $number=$this->repository->nextNumber($now); $snapshot=$this->snapshot($order,$this->repository->orderItems($orderId),$this->repository->company(),$dispatch);
             $id=$this->repository->insert(['document_key'=>bin2hex(random_bytes(32)),'order_id'=>$orderId,'active_order_id'=>$orderId,'series_code'=>$number['series'],'number'=>$number['number'],'issued_at'=>$now,'snapshot_json'=>InvoiceSnapshot::json($snapshot),'row_version'=>1,'created_by'=>(int)$actor['id'],'deleted_at'=>null,'updated_at'=>$now]);
             $this->repository->remember($key,'issue',$hash,$id); $this->repository->audit($id,(int)$actor['id'],'dispatch_note.issued',['order_id'=>$orderId,'number'=>$number]);
             return $this->decorate($this->repository->find($id)??throw new InvoiceException('Avizul nu a putut fi încărcat.'));
@@ -49,7 +68,8 @@ final class DispatchNoteService
     {
         $this->allow($actor); $this->repository->transaction(function()use($orderId,$actor):void {
             $note=$this->repository->activeForOrder($orderId); if(!$note){return;}
-            $order=$this->repository->order($orderId); $snapshot=$this->snapshot($order,$this->repository->orderItems($orderId),$this->repository->company());
+            $previous=json_decode($note['snapshot_json'],true,512,JSON_THROW_ON_ERROR);
+            $order=$this->repository->order($orderId); $snapshot=$this->snapshot($order,$this->repository->orderItems($orderId),$this->repository->company(),$previous['dispatch_overrides'] ?? []);
             $this->repository->update((int)$note['id'],['snapshot_json'=>InvoiceSnapshot::json($snapshot),'row_version'=>(int)$note['row_version']+1,'updated_at'=>$this->repository->now()]);
             $this->cancelQueuedEmail((int)$note['id']);
             $this->repository->audit((int)$note['id'],(int)$actor['id'],'dispatch_note.regenerated',['order_id'=>$orderId,'before_version'=>(int)$note['row_version'],'after_version'=>(int)$note['row_version']+1]);
@@ -127,14 +147,14 @@ final class DispatchNoteService
         if(file_put_contents($path,$pdf->output(),LOCK_EX)===false){throw new InvoiceException('PDF-ul avizului nu a putut fi salvat.');} unset($pdf); gc_collect_cycles(); return $path;
     }
 
-    /** @param array<string,mixed> $order @param list<array<string,mixed>> $items @param array<string,mixed> $company @return array<string,mixed> */
-    private function snapshot(array $order,array $items,array $company): array
+    /** @param array<string,mixed> $order @param list<array<string,mixed>> $items @param array<string,mixed> $company @param array<string,string> $dispatch @return array<string,mixed> */
+    private function snapshot(array $order,array $items,array $company,array $dispatch=[]): array
     {
         if($items===[]){throw new InvoiceException('Comanda nu are produse.');}
         $shipping=json_decode((string)$order['shipping_address_json'],true,512,JSON_THROW_ON_ERROR); $lines=[]; $total=0; $quantity=0;
         foreach($items as $position=>$item){$value=(int)$item['line_total_bani']; $lines[]=['position'=>$position+1,'name'=>(string)$item['product_name'],'sku'=>(string)$item['sku'],'unit'=>'buc','quantity'=>(int)$item['quantity'],'unit_bani'=>(int)$item['unit_price_bani'],'value_bani'=>$value,'image_path'=>(string)($item['image_path']??'')]; $total+=$value; $quantity+=(int)$item['quantity'];}
         $address=implode(', ',array_filter([$shipping['address']??'',$shipping['postal_code']??'',$shipping['city']??'',$shipping['county']??'',$shipping['country']??'România'],static fn($value):bool=>trim((string)$value)!==''));
-        return ['order_reference'=>(string)($order['order_number']?:'#'.$order['id']),'company'=>$company,'customer'=>['name'=>trim($order['first_name'].' '.$order['last_name']),'type'=>$order['customer_type']==='company'?'Persoană juridică':'Persoană fizică','address'=>$address,'phone'=>(string)$order['phone'],'email'=>(string)$order['email']],'lines'=>$lines,'total_bani'=>$total,'quantity'=>$quantity,'dispatch'=>['delegate'=>'','identity'=>'','vehicle'=>(string)($order['awb']??''),'time'=>'','loading_place'=>(string)($company['physical_address']?:$company['registered_address']),'carrier'=>(string)($order['shipping_method_name']??'')]];
+        return ['order_reference'=>(string)($order['order_number']?:'#'.$order['id']),'company'=>$company,'customer'=>['name'=>trim($order['first_name'].' '.$order['last_name']),'type'=>$order['customer_type']==='company'?'Persoană juridică':'Persoană fizică','address'=>$address,'phone'=>(string)$order['phone'],'email'=>(string)$order['email']],'lines'=>$lines,'total_bani'=>$total,'quantity'=>$quantity,'dispatch_overrides'=>$dispatch,'dispatch'=>array_replace(['delegate'=>'','identity'=>'','vehicle'=>'','time'=>'','loading_place'=>(string)($company['physical_address']?:$company['registered_address']),'carrier'=>(string)($order['shipping_method_name']??'')],$dispatch)];
     }
 
     /** @param array<string,mixed> $note @return array<string,mixed> */
@@ -147,6 +167,23 @@ final class DispatchNoteService
         foreach($snapshot['lines'] as $line){$line['unit_price']=$this->money((int)$line['unit_bani']); $line['value']=$this->money((int)$line['value_bani']); $line['image_data']=$this->publicImage((string)$line['image_path']); $lines[]=$line;}
         $stampPath=$this->stamps->path(is_string($company['stamp_path']??null)?$company['stamp_path']:null); $stamp=$stampPath?file_get_contents($stampPath):false; $date=(new DateTimeImmutable($note['issued_at'],new DateTimeZone('UTC')))->setTimezone(new DateTimeZone('Europe/Bucharest'));
         return ['is_model'=>false,'company'=>$company,'lines'=>$lines,'line_groups'=>count($lines)>20?[array_slice($lines,0,11),...array_chunk(array_slice($lines,11),20)]:[$lines],'series'=>$note['series_code'],'number'=>(string)$note['number'],'reference'=>$note['reference'],'date'=>$date->format('d.m.Y'),'order_reference'=>$snapshot['order_reference'],'total'=>$this->money((int)$snapshot['total_bani']),'quantity'=>(int)$snapshot['quantity'],'customer'=>$snapshot['customer'],'dispatch'=>$snapshot['dispatch'],'logo'=>$this->asset('assets/images/logo-la-mariuca-transparent.png'),'monogram'=>$this->asset('assets/images/apple-touch-icon-lm.png'),'stamp_data'=>$stamp?'data:image/png;base64,'.base64_encode($stamp):'','font_regular'=>'file://'.str_replace('\\','/',$this->root.'/public/assets/fonts/nunito-sans-pdf-regular.ttf'),'font_bold'=>'file://'.str_replace('\\','/',$this->root.'/public/assets/fonts/nunito-sans-pdf-bold.ttf')];
+    }
+
+    /** @param array<string,mixed> $input @return array<string,string> */
+    private function dispatchFields(array $input): array
+    {
+        $fields=['delegate'=>['Numele delegatului',150],'identity'=>['CI – serie și număr',80],
+            'vehicle'=>['Mijloc de transport / nr.',100],'time'=>['Ora livrării',5],'loading_place'=>['Locul încărcării',500]];
+        $result=[];
+        foreach($fields as $field=>[$label,$limit]) {
+            if(!array_key_exists($field,$input)) { continue; }
+            if(!is_string($input[$field]) || preg_match('/[\x00-\x1F\x7F]/u',$input[$field])) { throw new InvoiceException($label.': valoarea nu este validă.'); }
+            $value=trim($input[$field]);
+            if(mb_strlen($value)>$limit) { throw new InvoiceException($label.': maximum '.$limit.' caractere.'); }
+            if($field==='time' && $value!=='' && !preg_match('/^(?:[01][0-9]|2[0-3]):[0-5][0-9]$/D',$value)) { throw new InvoiceException('Ora livrării trebuie să aibă formatul HH:MM.'); }
+            $result[$field]=$value;
+        }
+        return $result;
     }
 
     private function publicImage(string $path): string {if($path===''){return $this->asset('assets/images/apple-touch-icon-lm.png');}$path=ltrim($path,'/'); $full=realpath($this->root.'/public/'.$path); $public=realpath($this->root.'/public'); if($full===false||$public===false||!str_starts_with($full,$public.DIRECTORY_SEPARATOR)||!is_file($full)){return $this->asset('assets/images/apple-touch-icon-lm.png');}$mime=(new \finfo(FILEINFO_MIME_TYPE))->file($full)?:'image/png'; return 'data:'.$mime.';base64,'.base64_encode((string)file_get_contents($full));}

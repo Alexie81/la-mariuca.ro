@@ -1,0 +1,19 @@
+{% import 'admin/partials/nir-ui.twig' as n %}
+<form method="post" action="{{ form_action }}" class="iv-form" data-iv-form data-kind="dispatch-issue">
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="request_key" value="{{ request_key }}">
+  <header class="iv-form-head"><span class="iv-mark">{{ n.icon('box') }}</span><div><span class="iv-eyebrow">Aviz de însoțire</span><h2>Pregătește expediția</h2><p>Completează detaliile care vor apărea pe aviz.</p></div><a class="iv-icon" href="{{ back_url }}" data-iv-close aria-label="Închide">{{ n.icon('close') }}</a></header>
+  <div class="iv-form-body">
+    <div class="iv-error" data-iv-errors role="alert" tabindex="-1"{% if not error %} hidden{% endif %}>{{ error }}</div>
+    <section class="iv-payment-total"><span>{{ n.icon('document') }}Comanda {{ snapshot.order_reference }}</span><strong>{{ snapshot.customer.name }}</strong><small>{{ snapshot.quantity }} buc. · Clientul, adresa și produsele se preiau din comandă.</small></section>
+    <section class="iv-form-step"><header><span>{{ n.icon('truck') }}</span><div><h3>Date privind expediția</h3><p>Toate câmpurile sunt opționale.</p></div></header>
+      <div class="iv-fields">
+        <label>Numele delegatului<input type="text" name="dispatch[delegate]" value="{{ snapshot.dispatch.delegate }}" maxlength="150" placeholder="Nume și prenume" autocomplete="off"></label>
+        <label>CI – serie și număr<input type="text" name="dispatch[identity]" value="{{ snapshot.dispatch.identity }}" maxlength="80" placeholder="Ex. AB 123456" autocomplete="off"></label>
+        <label>Mijloc de transport / nr.<input type="text" name="dispatch[vehicle]" value="{{ snapshot.dispatch.vehicle }}" maxlength="100" placeholder="Ex. Autoutilitară · B 123 ABC" autocomplete="off"></label>
+        <label>Ora livrării<input type="time" name="dispatch[time]" value="{{ snapshot.dispatch.time }}" step="60"></label>
+        <label class="iv-wide">Locul încărcării<input type="text" name="dispatch[loading_place]" value="{{ snapshot.dispatch.loading_place }}" maxlength="500" placeholder="Adresa de la care pleacă produsele" autocomplete="off"></label>
+      </div>
+    </section>
+  </div>
+  <footer class="iv-form-footer"><a class="iv-btn" href="{{ back_url }}" data-iv-close>Renunță</a><span>Poți genera avizul și fără aceste detalii.</span><button type="submit" class="iv-btn iv-btn--primary">{{ n.icon('check') }}Generează avizul</button></footer>
+</form>

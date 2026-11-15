@@ -17,6 +17,27 @@ final class DispatchNoteController
     public function __construct(private readonly DispatchNoteService $service,private readonly Auth $auth,private readonly Config $config,private readonly \App\Shared\Http\View $view) {}
 
     /** @param array<string,string> $args */
+    public function issueForm(ServerRequestInterface $request,ResponseInterface $response,array $args): ResponseInterface
+    {
+        try { return $this->renderIssueForm($request,(int)$args['id']); }
+        catch(\Throwable $error) { return $this->json(['ok'=>false,'message'=>$error instanceof InvoiceException?$error->getMessage():'Formularul nu poate fi deschis.'],$error instanceof InvoiceException?$error->getCode():500); }
+    }
+
+    /** @param array<string,mixed> $input */
+    private function renderIssueForm(ServerRequestInterface $request,int $orderId,array $input=[],string $error='',int $status=200): ResponseInterface
+    {
+        $snapshot=$this->service->issueFormData($orderId,$this->actor());
+        foreach(is_array($input['dispatch'] ?? null)?$input['dispatch']:[] as $field=>$value) {
+            if(array_key_exists($field,$snapshot['dispatch']) && is_string($value)) { $snapshot['dispatch'][$field]=$value; }
+        }
+        return $this->view->render($request->getHeaderLine('X-Invoice-Modal')==='1'?'admin/invoices/dispatch-issue.twig':'admin/pages/dispatch-issue.twig',[
+            'admin_section'=>'invoices','admin_context'=>'Aviz de însoțire','snapshot'=>$snapshot,'error'=>$error,
+            'request_key'=>is_string($input['request_key'] ?? null)?$input['request_key']:bin2hex(random_bytes(24)),
+            'form_action'=>$this->config->path('admin/comenzi/'.$orderId.'/aviz/'),'back_url'=>$this->config->path('admin/comenzi/'.$orderId.'/').'#aviz',
+        ],$status)->withHeader('Cache-Control','no-store');
+    }
+
+    /** @param array<string,string> $args */
     public function emailForm(ServerRequestInterface $request,ResponseInterface $response,array $args): ResponseInterface
     {
         try {
@@ -72,12 +93,15 @@ final class DispatchNoteController
     /** @param array<string,string> $args */
     public function issue(ServerRequestInterface $request,ResponseInterface $response,array $args): ResponseInterface
     {
+        $input=(array)$request->getParsedBody();
         try {
-            $input=(array)$request->getParsedBody(); $this->service->issue((int)$args['id'],(string)($input['request_key']??''),$this->actor()); Flash::set('success','Avizul a fost generat din datele comenzii.');
+            if(isset($input['dispatch']) && !is_array($input['dispatch'])) { throw new InvoiceException('Datele de expediție nu sunt valide.'); }
+            $this->service->issue((int)$args['id'],(string)($input['request_key']??''),$this->actor(),$input['dispatch'] ?? []); Flash::set('success','Avizul a fost generat din datele comenzii.');
             if(str_contains($request->getHeaderLine('Accept'),'application/json')) { return $this->json(['ok'=>true,'message'=>'Avizul a fost generat. Îl poți deschide sau descărca din comandă.','redirect'=>$this->config->path('admin/comenzi/'.(int)$args['id'].'/').'#aviz']); }
         } catch(\Throwable $error) {
             $message=$error instanceof InvoiceException?$error->getMessage():'Avizul nu a putut fi generat.';
             if(str_contains($request->getHeaderLine('Accept'),'application/json')) { return $this->json(['ok'=>false,'message'=>$message],$error instanceof InvoiceException?($error->getCode()?:422):500); }
+            if($error instanceof InvoiceException && $error->getCode()===422) { return $this->renderIssueForm($request,(int)$args['id'],$input,$message,422); }
             Flash::set('error',$message);
         }
         return $this->redirect((int)$args['id']);

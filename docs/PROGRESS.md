@@ -1,5 +1,12 @@
 # Progres
 
+### 2026-11-15 — Date opționale de expediție în modalul avizului
+- **Generează avizul** deschide un modal în stilul documentelor: numele delegatului, CI (serie/număr), mijlocul de transport/numărul, ora livrării și locul încărcării. Toate sunt opționale; locul încărcării pornește de la adresa firmei și poate fi golit. AWB-ul nu mai este folosit automat drept număr al mijlocului de transport.
+- Datele se validează pe server și se păstrează în snapshotul avizului/PDF, inclusiv valorile lăsate explicit goale. Regenerarea după modificarea comenzii păstrează detaliile introduse și numărul documentului. Formularul funcționează și fără JS și păstrează valorile în cazul erorilor.
+- Deschiderea formularului nu emite documente; POST-ul rămâne protejat prin autorizare/CSRF. Confirmările repetate nu dublează avizul; formularele concurente cu alte detalii și confirmările unui document șters răspund cu conflict, fără succes fals.
+- Browser QA izolat: completate cele cinci câmpuri, verificat modalul la desktop/390 px fără depășire laterală, emis avizul și verificată apariția imediată în comandă fără refresh manual. Capturi private `storage/qa/dispatch-fields-modal.jpg` și `dispatch-fields-mobile.jpg`. PDF-ul și escaparea câmpurilor sunt verificate în teste; nu s-au trimis emailuri și nu s-au modificat documentele comenzilor principale. Serverul QA oprit și filele temporare închise.
+- Regresia comună este consemnată mai jos; după întărirea verificărilor pentru confirmări concurente/șterse: **11 teste / 166 aserțiuni**, toate trecute. PHPStan, lint PHP/JS, **185 template-uri Twig** și diff check trecute. Fără deploy, verificare MySQL/Apache sau servicii externe; roadmapul rămâne nebifat.
+
 ### 2026-11-15 — Factura inițială pe NIR și costul returului clientului
 - NIR-ul de retur client identifică factura inițială prin documentul de retur, atât pentru recepțiile legate direct de factură, cât și pentru fluxul mai vechi al comenzii. Referințele și data Europe/Bucharest apar în detalii, PDF și Excel; data facturii de retur din NIR rămâne distinctă. Funcționează și pentru documentele deja emise, fără migrare sau modificarea stocului.
 - Costurile reale rămân în loturile originale la retur și revânzare. Test nou pentru două loturi la **40,00 și 53,27 lei**, cu valoare totală **146,54 lei**, păstrată integral la revânzare. Acoperite separat costul absent, acoperirea parțială și achiziția reală la preț zero; costul lipsă nu generează loturi gratuite.

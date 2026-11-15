@@ -37,7 +37,7 @@ final class DispatchNoteWorkflowTest extends DatabaseTestCase
         $this->service=new DispatchNoteService(new DispatchNoteRepository($this->pdo),$this->root,new CompanyStampStorage($this->root));
     }
 
-    protected function tearDown(): void {unset($this->service); parent::tearDown();}
+    protected function tearDown(): void {unset($this->service); gc_collect_cycles(); parent::tearDown();}
 
     public function testIssueIsIdempotentKeepsSnapshotAndNeverChangesStock(): void
     {
@@ -62,6 +62,62 @@ final class DispatchNoteWorkflowTest extends DatabaseTestCase
         self::assertSame($note['series_code'],$updated['series_code']); self::assertSame($note['number'],$updated['number']); self::assertSame(2,(int)$updated['row_version']);
         self::assertSame('Maria Pop',$updated['snapshot']['customer']['name']); self::assertStringContainsString('Strada Nouă 2',$updated['snapshot']['customer']['address']);
         self::assertSame(1,(int)$this->pdo->query("SELECT COUNT(*) FROM audit_log WHERE action='dispatch_note.regenerated'")->fetchColumn());
+    }
+
+    public function testOptionalExpeditionFieldsPersistAcrossRegenerationAndValidateBeforeIssuance(): void
+    {
+        $order=$this->order(1); $before=$this->stockState();
+        foreach([['time'=>'25:00'],['time'=>'9:05'],['delegate'=>['invalid']],['identity'=>"AB\n123"],['vehicle'=>str_repeat('x',101)],['loading_place'=>str_repeat('x',501)]] as $invalid) {
+            try { $this->service->issue($order,str_repeat('1',32),$this->actor,$invalid); self::fail('Invalid dispatch fields accepted'); }
+            catch(InvoiceException $error) { self::assertSame(422,$error->getCode()); }
+            self::assertNull($this->service->forOrder($order,$this->actor));
+        }
+        $fields=['delegate'=>'Ana <Pop>','identity'=>'AB 123456','vehicle'=>'Autoutilitară B 123 QA','time'=>'14:35','loading_place'=>''];
+        $note=$this->service->issue($order,str_repeat('1',32),$this->actor,$fields);
+        self::assertSame($fields,$note['snapshot']['dispatch_overrides']);
+        try { $this->service->issue($order,str_repeat('4',32),$this->actor,['delegate'=>'Alt delegat']); self::fail('Concurrent form silently ignored'); }
+        catch(InvoiceException $error) { self::assertSame(409,$error->getCode()); }
+        self::assertSame($note['id'],$this->service->issue($order,str_repeat('1',32),$this->actor,$fields)['id']);
+        try { $this->service->issue($order,str_repeat('1',32),$this->actor,array_replace($fields,['time'=>'15:35'])); self::fail('Changed retry accepted'); }
+        catch(InvoiceException $error) { self::assertSame(409,$error->getCode()); }
+        $this->pdo->exec("UPDATE orders SET first_name='Maria',awb='AWB-OTHER' WHERE id=".$order);
+        $this->service->regenerate($order,$this->actor); $updated=$this->service->forOrder($order,$this->actor);
+        foreach($fields as $key=>$value) { self::assertSame($value,$updated['snapshot']['dispatch'][$key]); }
+        self::assertSame('Maria Pop',$updated['snapshot']['customer']['name']); self::assertSame($note['number'],$updated['number']);
+        $data=(new \ReflectionMethod($this->service,'pdfData'))->invoke($this->service,$updated);
+        $twig=new \Twig\Environment(new \Twig\Loader\FilesystemLoader($this->root.'/resources/views'),['autoescape'=>'html']);
+        $html=$twig->render('admin/invoices/dispatch-note-preview.twig',$data);
+        foreach(['Ana &lt;Pop&gt;','AB 123456','Autoutilitară B 123 QA','14:35'] as $text) { self::assertStringContainsString($text,$html); }
+        self::assertStringNotContainsString('AWB-OTHER',$html); self::assertSame($before,$this->stockState());
+        self::assertStringStartsWith('%PDF-',(string)file_get_contents($this->service->pdf($order,$this->actor)));
+        $blank=array_fill_keys(array_keys($fields),''); $empty=$this->service->issue($this->order(1),str_repeat('2',32),$this->actor,$blank);
+        foreach($blank as $key=>$value) { self::assertSame('',$empty['snapshot']['dispatch'][$key]); }
+        $this->service->delete($empty['order_id'],str_repeat('5',32),$this->actor);
+        try { $this->service->issue($empty['order_id'],str_repeat('2',32),$this->actor,$blank); self::fail('Deleted confirmation returned success'); }
+        catch(InvoiceException $error) { self::assertSame(409,$error->getCode()); }
+    }
+
+    public function testIssuanceModalAndStandaloneRetainOptionalInputOnValidationErrors(): void
+    {
+        $order=$this->order(1); $_SESSION['user_id']=$this->actor['id']; $app=AppFactory::create($this->root); $factory=new ServerRequestFactory();
+        $path='http://localhost/admin/comenzi/'.$order.'/aviz/';
+        foreach([[],['X-Invoice-Modal'=>'1']] as $headers) {
+            $request=$factory->createServerRequest('GET',$path); foreach($headers as $name=>$value) { $request=$request->withHeader($name,$value); }
+            $form=$app->handle($request); self::assertSame(200,$form->getStatusCode()); $html=(string)$form->getBody();
+            foreach(['delegate','identity','vehicle','time','loading_place'] as $field) { self::assertStringContainsString('name="dispatch['.$field.']"',$html); }
+            self::assertStringContainsString('Toate câmpurile sunt opționale.',$html); self::assertNull($this->service->forOrder($order,$this->actor));
+        }
+        $input=['_csrf'=>$_SESSION['_csrf'],'request_key'=>str_repeat('3',32),'dispatch'=>['delegate'=>'Nume păstrat','time'=>'99:99']];
+        $invalid=$app->handle($factory->createServerRequest('POST',$path)->withParsedBody($input));
+        self::assertSame(422,$invalid->getStatusCode()); self::assertStringContainsString('Nume păstrat',(string)$invalid->getBody());
+        self::assertStringContainsString('Ora livrării trebuie',(string)$invalid->getBody()); self::assertNull($this->service->forOrder($order,$this->actor));
+        $input['dispatch']['time']='16:45';
+        $ok=$app->handle($factory->createServerRequest('POST',$path)->withHeader('Accept','application/json')->withParsedBody($input));
+        self::assertSame(200,$ok->getStatusCode()); $payload=json_decode((string)$ok->getBody(),true);
+        self::assertTrue($payload['ok']); self::assertSame('/admin/comenzi/'.$order.'/#aviz',$payload['redirect']);
+        self::assertSame('16:45',$this->service->forOrder($order,$this->actor)['snapshot']['dispatch']['time']);
+        unset($_SESSION['user_id']);
+        self::assertSame(303,$app->handle($factory->createServerRequest('GET',$path))->getStatusCode());
     }
 
     public function testOnlyLatestActiveNoteCanBeDeletedEvenAfterDelivery(): void
