@@ -1,6 +1,17 @@
 # Progres
 
-Actualizat: 2026-11-14
+Actualizat: 2026-11-15
+
+### 2026-11-15 — Audit integral al specificației produse–comenzi–facturi–retururi–stoc
+- Specificația integrală furnizată de utilizator este versionată identic în `docs/ORDER_LIFECYCLE_REFERENCE.md` și a fost parcursă cap-coadă împreună cu implementarea existentă. Cerințele aplicabile local identificate ca lipsă au fost implementate fără a rescrie migrații deja publicate și fără a activa servicii live.
+- Fluxurile de administrare pentru stoc, facturi, retururi și SPV au fost finalizate și aliniate vizual cu fișa NIR aprobată. Avizul se emite acum din snapshotul real al comenzii; registrul catalogului are export filtrat, iar fișa completă a produsului reunește identificare, sursă/furnizor, variante, preț, TVA, conformitate, stoc, vânzări, aprovizionări și recenzii.
+- Catalogul păstrează câmpurile comerciale, de conformitate și SEO, iar coșul/checkoutul aplică limite configurabile cu variantele, prețul și disponibilitatea validate pe server. O sursă/furnizor inactiv blochează cumpărarea, produsele arhivate răspund public cu HTTP 410, iar datele structurate nu mai publică o ofertă disponibilă pentru o sursă inactivă.
+- Recenziile sunt eligibile numai pentru comenzi livrate, o singură dată per comandă/produs, cu moderare, răspuns public, audit și retragere logică. Ajustarea manuală a disponibilității online este separată explicit de stocul contabil: cere motiv, este idempotentă, respectă rezervările, păstrează auditul și nu creează NIR ori mișcare contabilă.
+- Au fost aplicate local migrările SQLite `059_product_commercial_details.sql`, `060_product_review_moderation.sql` și `061_stock_online_adjustments.sql`; comanda de migrare confirmă că baza este la zi. Variantele MySQL există, dar nu au fost declarate verificate pe un server MySQL concurent.
+- Verificarea vizuală în browserul intern, cu Paula, a acoperit desktop și 390 px pentru registrul/fișa stocului, registrul de recenzii, fișa completă a produsului și pagina publică. Au fost corectate sumarul paginării din stoc și overflow-ul mobil al fișei produsului; măsurarea finală la viewport 390 px indică `scrollWidth` 375 px. Nu au fost trimise formulare de ajustare și nu au fost modificate comenzi/documente prin QA-ul vizual.
+- Verificări finale: **789 teste / 7.746 aserțiuni**, lint PHP, PHPStan pe **181 fișiere** fără erori, **159 template-uri Twig** compilate, sintaxă validă pentru **42 fișiere JavaScript**, `git diff --check` și audit Composer fără vulnerabilități cunoscute. Toate schimbările au fost împărțite în commituri tematice și publicate pe `origin/master`.
+- Blocaje externe raportate, nu mascate ca finalizate: Apache/shared hosting, concurența MySQL, SPV/ANAF cu identitate și tokenuri reale, Stripe live, SMTP/push live, domeniul HTTPS și instrumentele Google nu au fost verificate în această sesiune; nu s-a făcut deploy. Politica juridică publică de livrare/retur este încă text demonstrativ, deci nu se inventează date structurate fiscale sau juridice până la aprobarea conținutului real.
+- Lista „Ordinea următoarelor module” rămâne neschimbată: conform regulii explicite a proiectului, implementarea și testele nu bifează punctele 2–5 sau 7–12 fără confirmarea utilizatorului.
 
 ### 2026-11-14 — Retur cu cantitate obligatorie și anulare după expediere
 - În modalul de retur al comenzii, înregistrarea este dezactivată când toate cantitățile sunt zero; se activează la alegerea unei cantități pozitive și se blochează din nou la golirea selecției. Footerul explică ce trebuie ales, iar validarea formularului acoperă și trimiterea de la tastatură. Serverul păstrează validarea independentă și răspunde explicit că este necesară o cantitate mai mare decât zero.
