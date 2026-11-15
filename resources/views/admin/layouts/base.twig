@@ -32,7 +32,7 @@
   {% if admin_section|default('') in ['invoices','orders'] %}<link rel="stylesheet" href="{{ url('assets/css/invoices.css?v=20261115-4') }}">{% endif %}
   {% if admin_section|default('') == 'stock' %}<link rel="stylesheet" href="{{ url('assets/css/stock-ledger.css?v=20261115-2') }}"><link rel="stylesheet" href="{{ url('assets/css/nir-export.css?v=20261112-v2') }}">{% endif %}
   {% if product_detail_page|default(false) %}<link rel="stylesheet" href="{{ url('assets/css/product-detail.css?v=20261115-1') }}"><link rel="stylesheet" href="{{ url('assets/css/product-detail-responsive.css?v=20261115-1') }}">{% endif %}
-  {% if admin_section|default('') == 'reviews' %}<link rel="stylesheet" href="{{ url('assets/css/review-admin.css?v=20261115-2') }}">{% endif %}
+  {% if admin_section|default('') == 'reviews' %}<link rel="stylesheet" href="{{ url('assets/css/review-admin.css?v=20261115-3') }}">{% endif %}
   {% if admin_section|default('') == 'suppliers' %}<link rel="stylesheet" href="{{ url('assets/css/supplier-visibility.css?v=20261115-1') }}">{% endif %}
 </head>
 {% set operator = admin_user|default(current_user()) %}
@@ -211,7 +211,7 @@
 
   <script src="{{ url('assets/js/admin-rich-editor.js?v=20261031-rich-description-v1') }}" defer></script>
   <script src="{{ url('assets/js/admin.js?v=20261107-category-payments') }}" defer></script>
-  {% if admin_section|default('') == 'reviews' %}<script src="{{ url('assets/js/review-admin.js?v=20261115-1') }}" defer></script>{% endif %}
+  {% if admin_section|default('') == 'reviews' %}<script src="{{ url('assets/js/review-admin.js?v=20261115-2') }}" defer></script>{% endif %}
   {% if admin_section|default('') == 'products' %}<script src="{{ url('assets/js/admin-product-details.js?v=20261115-1') }}" defer></script>{% endif %}
   {% if admin_section|default('') == 'payment_methods' %}<script src="{{ url('assets/js/payment-methods-admin.js?v=20261108-fees') }}" defer></script>{% endif %}
   {% if admin_section|default('') == 'orders' %}<script src="{{ url('assets/js/order-admin.js?v=20261108-cancellation-v10') }}" defer></script><script src="{{ url('assets/js/order-history.js?v=20261108-1') }}" defer></script>{% endif %}

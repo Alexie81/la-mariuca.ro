@@ -17,10 +17,13 @@
     <form class="rv-filters" method="get" action="{{ url('admin/recenzii/') }}" role="search">
       <input type="hidden" name="stare" value="{{ filters.stare }}">
       <label class="rv-search"><span>Caută în recenzii</span><span class="rv-search__input">{{ r.icon('search') }}<input type="search" name="q" value="{{ filters.q }}" maxlength="120" placeholder="Produs, client, comandă sau text…"></span></label>
+      <div class="rv-filter-options" id="rv-filter-options" data-review-filter-options>
       <label><span>Evaluare</span><select name="nota"><option value="">Toate notele</option>{% for rating in 5..1 %}<option value="{{ rating }}"{{ filters.nota == rating ? ' selected' : '' }}>{{ rating }} {{ rating == 1 ? 'stea' : 'stele' }}</option>{% endfor %}</select></label>
       <label><span>Răspuns</span><select name="raspuns"><option value="">Toate</option><option value="no"{{ filters.raspuns == 'no' ? ' selected' : '' }}>Fără răspuns</option><option value="yes"{{ filters.raspuns == 'yes' ? ' selected' : '' }}>Cu răspuns</option></select></label>
       <label><span>Ordonează</span><select name="sortare">{% for key,label in {'priority':'De verificat întâi','newest':'Cele mai noi','oldest':'Cele mai vechi','rating':'Nota descrescător'} %}<option value="{{ key }}"{{ filters.sortare == key ? ' selected' : '' }}>{{ label }}</option>{% endfor %}</select></label>
       <label class="rv-page-size"><span>Pe pagină</span><select name="per_page">{% for size in [10,20,50] %}<option value="{{ size }}"{{ filters.per_page == size ? ' selected' : '' }}>{{ size }}</option>{% endfor %}</select></label>
+      </div>
+      <button class="rv-button rv-filter-toggle" type="button" hidden data-review-filter-toggle aria-controls="rv-filter-options" aria-expanded="false">{{ r.icon('filter') }} Filtre</button>
       <button class="rv-button rv-button--primary" type="submit">{{ r.icon('filter') }}<span>Aplică</span></button>
     </form>
     {% if filters.q or filters.stare or filters.nota or filters.raspuns %}<div class="rv-filter-result"><span>{{ total }} {{ total == 1 ? 'recenzie găsită' : 'recenzii găsite' }}{% if filters.q %} pentru „{{ filters.q }}”{% endif %}</span><a href="{{ url('admin/recenzii/') }}">{{ r.icon('close') }} Resetează filtrele</a></div>{% endif %}

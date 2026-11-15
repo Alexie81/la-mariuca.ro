@@ -8,6 +8,19 @@
   const loading = root.querySelector('[data-review-loading]');
   const pageError = root.querySelector('[data-review-page-error]');
   const standalone = root.querySelector('.rv-standalone');
+  const filterToggle = root.querySelector('[data-review-filter-toggle]');
+  const filterOptions = root.querySelector('[data-review-filter-options]');
+  if (filterToggle && filterOptions) {
+    const mobile = matchMedia('(max-width: 900px)');
+    let expanded = Array.from(filterOptions.querySelectorAll('select')).some(select => select.value !== ({ sortare: 'priority', per_page: '10' }[select.name] || ''));
+    const syncFilters = () => {
+      filterToggle.hidden = !mobile.matches;
+      filterOptions.hidden = mobile.matches && !expanded;
+      filterToggle.setAttribute('aria-expanded', String(!filterOptions.hidden));
+    };
+    filterToggle.addEventListener('click', () => { expanded = !expanded; syncFilters(); });
+    mobile.addEventListener('change', syncFilters); syncFilters();
+  }
   let opener = null, request = null, baseline = '', saving = false, confirmResolve = null;
   const editor = () => (dialog.open ? content : standalone)?.querySelector('[data-review-content]');
   const responseField = () => editor()?.querySelector('[data-review-response]');
