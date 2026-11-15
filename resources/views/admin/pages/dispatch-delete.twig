@@ -1,0 +1,3 @@
+{% extends 'admin/layouts/base.twig' %}{% import 'admin/invoices/ui.twig' as iv %}
+{% block title %}Șterge avizul {{ note.reference }}{% endblock %}
+{% block content %}<div class="iv-workspace" data-iv-page><a class="iv-back" href="{{ back_url }}">Înapoi la comandă</a><div class="iv-form-page">{% include 'admin/invoices/dispatch-delete.twig' %}</div>{{ iv.shell() }}</div>{% endblock %}

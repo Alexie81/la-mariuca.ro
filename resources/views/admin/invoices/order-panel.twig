@@ -49,7 +49,7 @@
       {% if order.dispatch_note %}
         <a class="order-billing__button is-primary" href="{{ url('admin/comenzi/' ~ order.id ~ '/aviz/pdf/?deschide=1') }}" target="_blank" rel="noopener">{{ n.icon('eye') }}Vezi avizul</a>
         <a class="order-billing__button" href="{{ url('admin/comenzi/' ~ order.id ~ '/aviz/pdf/') }}" data-iv-download>{{ n.icon('download') }}Descarcă PDF</a>
-        {% if order.dispatch_note.can_delete %}<form action="{{ url('admin/comenzi/' ~ order.id ~ '/aviz/sterge/') }}" method="post"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="request_key" value="{{ order.dispatch_note_request_key }}"><button type="submit" class="order-billing__button is-danger" onclick="return confirm('Ștergi avizul? Istoricul operațiunii va rămâne în audit.')" aria-label="Șterge avizul">{{ n.icon('trash') }}</button></form>{% endif %}
+        {% if order.dispatch_note.can_delete %}<a class="order-billing__button is-danger" href="{{ url('admin/comenzi/' ~ order.id ~ '/aviz/sterge/confirmare/') }}" data-iv-modal>{{ n.icon('trash') }}Șterge avizul</a>{% else %}<span class="order-billing__unavailable">{{ order.dispatch_note.delete_blocker }}</span>{% endif %}
       {% elseif order.status not in ['cancelled','returned','refunded'] %}
         <form action="{{ url('admin/comenzi/' ~ order.id ~ '/aviz/') }}" method="post" data-dispatch-issue><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="request_key" value="{{ order.dispatch_note_request_key }}"><button type="submit" class="order-billing__button is-primary">{{ n.icon('plus') }}Generează avizul</button></form>
       {% else %}<span class="order-billing__unavailable">Comanda este închisă.</span>{% endif %}

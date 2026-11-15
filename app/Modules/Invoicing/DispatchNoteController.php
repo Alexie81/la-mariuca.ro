@@ -14,7 +14,21 @@ use Slim\Psr7\Stream;
 
 final class DispatchNoteController
 {
-    public function __construct(private readonly DispatchNoteService $service,private readonly Auth $auth,private readonly Config $config) {}
+    public function __construct(private readonly DispatchNoteService $service,private readonly Auth $auth,private readonly Config $config,private readonly \App\Shared\Http\View $view) {}
+
+    /** @param array<string,string> $args */
+    public function deleteForm(ServerRequestInterface $request,ResponseInterface $response,array $args): ResponseInterface
+    {
+        try {
+            $orderId=(int)$args['id'];$note=$this->service->forOrder($orderId,$this->actor())??throw new InvoiceException('Avizul nu există.',404);
+            return $this->view->render($request->getHeaderLine('X-Invoice-Modal')==='1'?'admin/invoices/dispatch-delete.twig':'admin/pages/dispatch-delete.twig',[
+                'admin_section'=>'invoices','admin_context'=>'Aviz de însoțire','note'=>$note,'request_key'=>bin2hex(random_bytes(24)),
+                'form_action'=>$this->config->path('admin/comenzi/'.$orderId.'/aviz/sterge/'),'back_url'=>$this->config->path('admin/comenzi/'.$orderId.'/').'#aviz',
+            ])->withHeader('Cache-Control','no-store');
+        } catch(\Throwable $error) {
+            $result=new Response($error instanceof InvoiceException?($error->getCode()?:422):500);$result->getBody()->write($error instanceof InvoiceException?$error->getMessage():'Confirmarea nu a putut fi pregătită.');return $result->withHeader('Content-Type','text/plain; charset=utf-8')->withHeader('Cache-Control','no-store');
+        }
+    }
 
     /** @param array<string,string> $args */
     public function issue(ServerRequestInterface $request,ResponseInterface $response,array $args): ResponseInterface
@@ -34,8 +48,19 @@ final class DispatchNoteController
     public function delete(ServerRequestInterface $request,ResponseInterface $response,array $args): ResponseInterface
     {
         try {
-            $input=(array)$request->getParsedBody(); $this->service->delete((int)$args['id'],(string)($input['request_key']??''),$this->actor()); Flash::set('success','Avizul a fost eliminat. Istoricul operațiunii a rămas în audit.');
-        } catch(\Throwable $error) {Flash::set('error',$error instanceof InvoiceException?$error->getMessage():'Avizul nu a putut fi eliminat.');}
+            $input=(array)$request->getParsedBody();
+            $noteId=filter_var($input['dispatch_note_id']??null,FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]);
+            $version=filter_var($input['version']??null,FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]);
+            if(!$noteId || !$version) { throw new InvoiceException('Reîncarcă pagina înainte de ștergerea avizului.',409); }
+            $this->service->delete((int)$args['id'],(string)($input['request_key']??''),$this->actor(),$noteId,$version);
+            $message='Avizul a fost șters. Istoricul operațiunii a rămas în audit.';
+            if(str_contains($request->getHeaderLine('Accept'),'application/json')) { return $this->json(['ok'=>true,'message'=>$message,'redirect'=>$this->config->path('admin/comenzi/'.(int)$args['id'].'/').'#aviz']); }
+            Flash::set('success',$message);
+        } catch(\Throwable $error) {
+            $message=$error instanceof InvoiceException?$error->getMessage():'Avizul nu a putut fi eliminat.';
+            if(str_contains($request->getHeaderLine('Accept'),'application/json')) { return $this->json(['ok'=>false,'message'=>$message],$error instanceof InvoiceException?($error->getCode()?:422):500); }
+            Flash::set('error',$message);
+        }
         return $this->redirect((int)$args['id']);
     }
 

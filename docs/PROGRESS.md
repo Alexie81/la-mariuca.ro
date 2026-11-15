@@ -1,5 +1,11 @@
 # Progres
 
+### 2026-11-15 — Ștergerea ultimului aviz din comandă
+- Numai ultimul aviz activ emis poate fi șters. Este disponibil inclusiv pentru comenzi expediate, livrate, anulate sau returnate; factura blocată prin SPV păstrează protecția. Aceeași regulă este folosită în pagina comenzii și în salvarea tranzacțională. După ștergere, avizul anterior devine ultimul eligibil.
+- Butonul are etichetă vizibilă și deschide un popup prună/roz cu documentul și confirmarea, fără motiv suplimentar. Înlocuit handlerul inline incompatibil cu CSP. Există pagină de confirmare fără JavaScript; CSRF, autorizarea, identitatea și versiunea avizului sunt verificate. O confirmare veche nu poate șterge avizul regenerat sau înlocuit. Stocul, factura și starea comenzii rămân neschimbate; istoricul se păstrează, numerotarea avizelor continuă secvența existentă.
+- Verificări: **16 teste / 346 aserțiuni** pentru aviz/comenzi; după completarea fluxului HTTP de confirmare, **7 teste / 73 aserțiuni**. PHPStan fără erori, **173 template-uri Twig** compilate și diff check. Browser QA: butonul vizibil după livrare, popup și renunțare, desktop și 390 px fără depășire orizontală. Ștergerile efective au fost rulate numai în testele pe baze izolate. Fără modificări ale documentelor principale, trimiteri reale sau deploy.
+
+
 ### 2026-11-15 — Rambursări din comandă și distribuirea linkului facturii
 - Pentru comenzile cu plată ramburs anulate, returnate sau cu retur confirmat (inclusiv parțial), modalul Starea plății oferă **Rambursată** și **Rambursată parțial**. Suma introdusă este totalul restituit până atunci; rambursarea integrală completează suma încasată. Încasările și restituirile se păstrează separat, cu audit, versiune și deduplicare, fără solicitarea unui motiv suplimentar. Notificarea clientului rămâne opțională. Înregistrarea nu inițiază transferuri de bani; Stripe rămâne controlat de procesator.
 - Migrarea **065**, SQLite/MySQL, adaugă registrul restituirilor din comandă și legătura cu factura de retur. Înregistrările se alocă documentelor negative existente sau emise ulterior fără dublarea banilor. Este acoperit și returul rambursat înainte de emiterea perechii de facturi. Banii deja restituiți împiedică anularea simplă a înregistrării de retur. Migrarea este aplicată local pe SQLite; MySQL/concurența pe hosting nu au fost rulate.

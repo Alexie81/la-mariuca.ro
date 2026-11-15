@@ -1169,7 +1169,7 @@ Rămâne vizibil în documentele istorice prin snapshot, dar nu mai poate fi ad�
 - descărcare PDF;
 - trimitere e-mail;
 - partajare;
-- ștergere numai cât timp documentul este eligibil și nu este referit de un flux blocat.
+- ștergere numai pentru ultimul aviz activ emis, dacă factura comenzii nu este blocată prin SPV (actualizare cerută de utilizator la 2026-11-15).
 
 Avizul nu scade încă o dată stocul dacă factura a produs ieșirea.
 
@@ -2871,7 +2871,7 @@ Efectul tranzacțional complet:
 
 ### 64.19. Ștergerea avizului
 
-Avizul se poate șterge numai dacă `can_delete` este adevărat și nu este blocat de un flux ulterior. Ștergerea avizului:
+Conform actualizării cerute de utilizator la 2026-11-15, se poate șterge numai ultimul aviz activ emis. Starea logistică a comenzii (inclusiv expediată, livrată sau returnată) nu mai blochează singură ștergerea; blocarea fiscală SPV a facturii rămâne verificată. Formularul confirmă documentul și versiunea lui; serverul revalidează regula în tranzacție. Ștergerea avizului:
 
 - nu șterge factura;
 - nu inversează stocul;

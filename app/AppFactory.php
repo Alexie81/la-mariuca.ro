@@ -188,7 +188,7 @@ final class AppFactory
         $spvPreviewController = new \App\Modules\Invoicing\SpvController(new \App\Modules\Invoicing\SpvSettingsService($pdo, $config), new \App\Modules\Invoicing\SpvConnection($pdo, $config, $spvHttp), $spvHttp, $invoiceRepository, $invoiceService, $config, $auth, $view, $root);
         $stockRepository = new \App\Modules\Inventory\StockLedgerRepository($pdo);
         $stockController = new \App\Modules\Inventory\StockLedgerController(new \App\Modules\Inventory\StockLedgerService($stockRepository), $stockRepository, new \App\Modules\Inventory\StockLedgerExportService($root), new AdminNotificationService($pdo), $auth, $view, $config);
-        $dispatchNoteController = new \App\Modules\Invoicing\DispatchNoteController(new \App\Modules\Invoicing\DispatchNoteService(new \App\Modules\Invoicing\DispatchNoteRepository($pdo), $root, new \App\Modules\Companies\CompanyStampStorage($root)), $auth, $config);
+        $dispatchNoteController = new \App\Modules\Invoicing\DispatchNoteController(new \App\Modules\Invoicing\DispatchNoteService(new \App\Modules\Invoicing\DispatchNoteRepository($pdo), $root, new \App\Modules\Companies\CompanyStampStorage($root)), $auth, $config, $view);
         $nirController = new \App\Modules\Inventory\NirAdminController(
             new \App\Modules\Inventory\NirService($pdo), new \App\Modules\Inventory\NirDocumentStorage($root),
             new \App\Modules\Inventory\NirImportService(), new \App\Modules\Inventory\NirExportService($root),
@@ -280,6 +280,7 @@ final class AppFactory
             $group->get('/facturi/{id:[0-9]+}/', [$invoiceController, 'detail']);
             $group->get('/facturi/{id:[0-9]+}/{format:pdf|xlsx|xml|zip}/', [$invoiceController, 'export']);
             $group->post('/comenzi/{id:[0-9]+}/aviz/', [$dispatchNoteController, 'issue']);
+            $group->get('/comenzi/{id:[0-9]+}/aviz/sterge/confirmare/', [$dispatchNoteController, 'deleteForm']);
             $group->post('/comenzi/{id:[0-9]+}/aviz/sterge/', [$dispatchNoteController, 'delete']);
             $group->get('/comenzi/{id:[0-9]+}/aviz/pdf/', [$dispatchNoteController, 'pdf']);
             $group->get('/facturi/{id:[0-9]+}/{action:edit|return|correct|receive|payment|delete|email|link|request|decide|policy|order-edit|order-payment|return-reconcile}/', [$invoiceController, 'form']);

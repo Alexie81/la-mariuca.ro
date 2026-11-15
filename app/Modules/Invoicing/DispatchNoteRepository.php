@@ -13,6 +13,11 @@ final class DispatchNoteRepository
     public function pdo(): PDO { return $this->pdo; }
     public function now(): string { return gmdate('Y-m-d\TH:i:s\Z'); }
 
+    public function latestId(): int
+    {
+        return (int)$this->pdo->query('SELECT MAX(id) FROM dispatch_notes WHERE deleted_at IS NULL')->fetchColumn();
+    }
+
     /** @return array<string,mixed>|null */
     public function activeForOrder(int $orderId): ?array
     {

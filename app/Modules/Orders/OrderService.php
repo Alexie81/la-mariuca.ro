@@ -273,14 +273,11 @@ final class OrderService
             && array_sum(array_column($order['items'], 'returnable_quantity')) > 0;
         $invoiceQuery=$this->pdo->prepare('SELECT id,series_code,number,kind,gross_bani FROM invoices WHERE order_id=:id AND deleted_at IS NULL ORDER BY id');
         $invoiceQuery->execute(['id'=>$orderId]); $order['issued_invoices']=$invoiceQuery->fetchAll();
-        $dispatchQuery=$this->pdo->prepare('SELECT id,series_code,number,issued_at,row_version FROM dispatch_notes WHERE active_order_id=:id AND deleted_at IS NULL LIMIT 1');
-        $dispatchQuery->execute(['id'=>$orderId]); $order['dispatch_note']=$dispatchQuery->fetch()?:null;
+        $dispatchRepository=new \App\Modules\Invoicing\DispatchNoteRepository($this->pdo);
+        $order['dispatch_note']=$dispatchRepository->activeForOrder($orderId);
         if($order['dispatch_note']) {
-            $order['dispatch_note']['can_delete']=!in_array($order['status'],['shipped','delivered','return_requested','return_confirmed','returned','refunded'],true);
-            foreach($order['issued_invoices'] as $issuedInvoice) {
-                $fiscal=$this->pdo->prepare("SELECT COUNT(*) FROM invoices WHERE id=:id AND (fiscal_attempted_at IS NOT NULL OR fiscal_reference IS NOT NULL OR fiscal_state NOT IN ('unconfigured','not_sent','queued','scheduled','awaiting_configuration'))");
-                $fiscal->execute(['id'=>$issuedInvoice['id']]); if((int)$fiscal->fetchColumn()>0){$order['dispatch_note']['can_delete']=false;break;}
-            }
+            $order['dispatch_note']['delete_blocker']=(new \App\Modules\Invoicing\DispatchNotePolicy($dispatchRepository))->deletionBlocker($order['dispatch_note']);
+            $order['dispatch_note']['can_delete']=$order['dispatch_note']['delete_blocker']==='';
         }
         $order['return_invoice_default']=count(array_filter($order['issued_invoices'],static fn(array $i):bool=>in_array($i['kind'],['sale','corrected_positive'],true)))>0;
         $order['return_request_key']=bin2hex(random_bytes(16));

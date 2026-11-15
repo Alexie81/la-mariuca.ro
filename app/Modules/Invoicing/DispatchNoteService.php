@@ -56,15 +56,16 @@ final class DispatchNoteService
     }
 
     /** @param array<string,mixed> $actor */
-    public function delete(int $orderId,string $key,array $actor): void
+    public function delete(int $orderId,string $key,array $actor,?int $expectedId=null,?int $expectedVersion=null): void
     {
         $this->allow($actor); $this->key($key);
-        $this->repository->transaction(function()use($orderId,$key,$actor):void {
+        $this->repository->transaction(function()use($orderId,$key,$actor,$expectedId,$expectedVersion):void {
             $prior=$this->repository->action($key);
-            if($prior){$priorNote=$this->repository->find((int)$prior['dispatch_note_id']);$hash=hash('sha256','delete:'.$prior['dispatch_note_id']);if($prior['action']!=='delete'||!hash_equals($prior['request_hash'],$hash)||(int)($priorNote['order_id']??0)!==$orderId){throw new InvoiceException('Această confirmare a fost folosită pentru altă operațiune.',409);} return;}
+            if($prior){$priorNote=$this->repository->find((int)$prior['dispatch_note_id']);$hash=hash('sha256','delete:'.$prior['dispatch_note_id']);if($prior['action']!=='delete'||!hash_equals($prior['request_hash'],$hash)||(int)($priorNote['order_id']??0)!==$orderId||($expectedId!==null && (int)$prior['dispatch_note_id']!==$expectedId)){throw new InvoiceException('Această confirmare a fost folosită pentru altă operațiune.',409);} return;}
             $note=$this->repository->activeForOrder($orderId)??throw new InvoiceException('Avizul nu există.',404); $hash=hash('sha256','delete:'.$note['id']);
-            $order=$this->repository->order($orderId);
-            if(in_array($order['status'],['shipped','delivered','return_requested','return_confirmed','returned','refunded'],true)||$this->repository->fiscalBlocksDeletion($orderId)){throw new InvoiceException('Avizul este referit de un flux ulterior și nu mai poate fi șters.',409);}
+            if(($expectedId!==null && $expectedId!==(int)$note['id']) || ($expectedVersion!==null && $expectedVersion!==(int)$note['row_version'])) { throw new InvoiceException('Avizul s-a modificat. Reîncarcă pagina înainte de ștergere.',409); }
+            $blocker=(new DispatchNotePolicy($this->repository))->deletionBlocker($note);
+            if($blocker!=='') { throw new InvoiceException($blocker,409); }
             $this->repository->update((int)$note['id'],['active_order_id'=>null,'deleted_at'=>$this->repository->now(),'row_version'=>(int)$note['row_version']+1,'updated_at'=>$this->repository->now()]);
             $this->repository->remember($key,'delete',$hash,(int)$note['id']); $this->repository->audit((int)$note['id'],(int)$actor['id'],'dispatch_note.deleted',['order_id'=>$orderId]);
         });
@@ -91,7 +92,7 @@ final class DispatchNoteService
     }
 
     /** @param array<string,mixed> $note @return array<string,mixed> */
-    private function decorate(array $note): array {$note['snapshot']=json_decode($note['snapshot_json'],true,512,JSON_THROW_ON_ERROR); $note['reference']=$note['series_code'].' '.$note['number']; $note['can_delete']=!$this->repository->fiscalBlocksDeletion((int)$note['order_id'])&&!in_array($this->repository->order((int)$note['order_id'])['status'],['shipped','delivered','return_requested','return_confirmed','returned','refunded'],true); return $note;}
+    private function decorate(array $note): array {$note['snapshot']=json_decode($note['snapshot_json'],true,512,JSON_THROW_ON_ERROR); $note['reference']=$note['series_code'].' '.$note['number']; $note['delete_blocker']=(new DispatchNotePolicy($this->repository))->deletionBlocker($note); $note['can_delete']=$note['delete_blocker']===''; return $note;}
 
     /** @param array<string,mixed> $note @return array<string,mixed> */
     private function pdfData(array $note): array
