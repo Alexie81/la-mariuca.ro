@@ -1,0 +1,14 @@
+.product-record {
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+}
+
+.product-record > * {
+  min-width: 0;
+}
+
+@media (max-width: 760px) {
+  .product-record__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
