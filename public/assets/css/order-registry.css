@@ -19,7 +19,9 @@
 .orders-client-name{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
 .orders-client-name strong{color:var(--or-ink);font-size:13px;font-weight:700;line-height:1.35}
 .orders-client-name abbr{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;padding:1px 6px;border:1px solid #d7e5ee;border-radius:7px;background:#eff6fa;color:#4b748c;font-size:10px;font-weight:800;text-decoration:none;cursor:help}
+.orders-contact-list{display:grid;justify-items:start;gap:2px;margin-top:5px}
 .orders-contact{display:inline-block;margin-top:5px;color:#907080;font-size:12px;overflow-wrap:anywhere}
+.orders-contact-list .orders-contact{margin-top:0}
 .orders-contact:hover{color:var(--or-rose);text-decoration:underline}
 .orders-status,.orders-payment__state,.orders-invoice-note{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:29px;padding:5px 10px;border:1px solid transparent;border-radius:999px;font-size:11px;line-height:1.25;font-weight:700;white-space:nowrap;background:#f5eef8;color:#80608d}
 .orders-status i,.orders-payment__state i{display:block;width:5px;height:5px;flex:0 0 5px;border-radius:50%;background:currentColor}

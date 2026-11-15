@@ -92,7 +92,10 @@
               </td>
               <td class="orders-register__client" data-label="Client">
                 <div class="orders-client-name"><strong>{{ order.first_name }} {{ order.last_name }}</strong><abbr title="{{ order.customer_type == 'company' ? 'Persoană juridică' : 'Persoană fizică' }}">{{ order.customer_type == 'company' ? 'PJ' : 'PF' }}</abbr></div>
-                {% if order.phone %}<a class="orders-contact" href="tel:{{ order.phone|replace({' ': '', '-': '', '(': '', ')': ''}) }}">{{ order.phone }}</a>{% else %}<a class="orders-contact" href="mailto:{{ order.email }}">{{ order.email }}</a>{% endif %}
+                <div class="orders-contact-list">
+                  {% if order.phone %}<a class="orders-contact" href="tel:{{ order.phone|replace({' ': '', '-': '', '(': '', ')': ''}) }}">{{ order.phone }}</a>{% endif %}
+                  {% if order.email %}<a class="orders-contact" href="mailto:{{ order.email }}">{{ order.email }}</a>{% endif %}
+                </div>
               </td>
               <td class="orders-register__status" data-label="Status"><span class="orders-status orders-status--{{ order.status }}"><i aria-hidden="true"></i>{{ order.status_label }}</span></td>
               <td class="orders-register__payment" data-label="Plată"><div class="orders-payment">
