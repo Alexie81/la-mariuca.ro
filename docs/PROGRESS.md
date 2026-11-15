@@ -1,5 +1,10 @@
 # Progres
 
+### 2026-11-15 — Confirmarea returului fără motiv repetat
+- Eliminat câmpul obligatoriu „Motivul confirmării” atât la emiterea facturii unui retur deja înregistrat, cât și la revenirea după anularea lui. Serverul preia motivul inițial din retur; anularea primește automat descrierea operațiunii în audit.
+- Verificat fluxul fără parametrul `reason`, inclusiv reluarea fără duplicate, emiterea cu motivul inițial și revenirea comenzii: **1 test / 12 aserțiuni**. Sintaxa PHP, **168 template-uri Twig** și diff check au trecut. Nu s-au modificat comenzi și nu s-au trimis emailuri pentru această verificare.
+
+
 ### 2026-11-15 — Retururi, cereri distincte și notificările clientului
 - Ștergerea ultimei facturi de retur anulează înregistrarea operațională asociată după reversarea documentelor fizice permise; comanda revine la starea anterioară, cantitățile redevin returnabile, iar notificările NIR nu mai includ returul anulat. Istoricul se păstrează. Operațiunile cu bani restituiți sau stoc care nu mai poate fi reversat rămân protejate.
 - Pentru retururile deja rămase fără factură există în comandă un avertisment cu emiterea documentului lipsă sau anularea înregistrării/revenirea la starea anterioară. Emiterea folosește cantitățile deja înregistrate, fără dublarea returului; confirmările sunt tranzacționale, idempotente și verifică versiunea comenzii.

@@ -21,7 +21,6 @@
 <input type="hidden" name="order_id" value="{{ edit_order.id }}"><input type="hidden" name="order_version" value="{{ edit_order.edit_version }}"><input type="hidden" name="return_id" value="{{ reconciliation.id }}"><input type="hidden" name="decision" value="{{ decision }}">
 <div class="iv-decision"><h3>{{ edit_order.order_number }} · retur înregistrat</h3><p>{{ reconciliation.reason }}</p><p>{{ decision == 'restore' ? 'Returul este marcat ca anulat în istoric, cantitățile redevin disponibile pentru un retur nou și comanda revine la starea de dinaintea returului. Nu se modifică stocul sau încasările.' : 'Emitem factura de retur pentru cantitățile deja înregistrate. Dacă lipsește factura inițială, aceasta se emite înaintea documentului de retur. Recepția fizică și NIR-ul rămân un pas separat.' }}</p></div>
 {% if decision == 'restore' and reconciliation.restore_blocker %}<p class="iv-soft-note">{{ reconciliation.restore_blocker }}</p>{% endif %}
-<label class="iv-reason">Motivul confirmării<textarea name="reason" rows="3" minlength="3" maxlength="2000" required placeholder="Explică pe scurt operațiunea."></textarea></label>
 {% if decision == 'invoice' %}<label class="iv-choice"><input type="checkbox" name="notify_customer" value="1" checked>Trimite factura de retur clientului prin email</label>{% endif %}
 {% elseif action == 'order-edit' %}
 <input type="hidden" name="order_version" value="{{ edit_order.edit_version }}"><input type="hidden" name="order_id" value="{{ edit_order.id }}"><input type="hidden" name="edit_focus" value="{{ edit_focus }}">

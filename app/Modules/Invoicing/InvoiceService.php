@@ -241,7 +241,7 @@ final class InvoiceService
     {
         $this->allow($actor,'return');
         $this->repository->transaction(function()use($orderId,$returnId,$input,$actor):void {
-            $key=$this->key($input);$hash=$this->hash([$orderId,$returnId,$input]);$reason=$this->reason($input);
+            $key=$this->key($input);$hash=$this->hash([$orderId,$returnId,$input]);
             $prior=$this->repository->one('order_document_operations',['request_key'=>$key]);
             if($prior) { if($prior['action']!=='return_reconcile' || $prior['payload_hash']!==$hash) { throw new InvoiceException('Confirmarea a fost folosită pentru altă operațiune.',409); } return; }
             if(!hash_equals($this->repository->editVersion($orderId),(string)($input['order_version'] ?? ''))) { throw new InvoiceException('Comanda s-a modificat. Redeschide confirmarea.',409); }
@@ -249,6 +249,9 @@ final class InvoiceService
             $workflow=new OrderReturnWorkflow($this->repository);
             if((new \App\Modules\Inventory\ReturnStockLinks($this->repository->pdo()))->invoicesForReturn($returnId)!==[]) { throw new InvoiceException('Returul are deja un document fiscal.',409); }
             $decision=(string)($input['decision'] ?? '');
+            $reason=trim((string)$return['reason']);
+            if(mb_strlen($reason)<3) { $reason='Retur înregistrat'; }
+            if($decision==='restore') { $reason='Anularea înregistrării returului fără factură. Motiv inițial: '.$reason; }
             if($decision==='restore') { $workflow->void($return,$actor,$reason); }
             elseif($decision==='invoice') {
                 $order=$this->repository->one('orders',['id'=>$orderId]);

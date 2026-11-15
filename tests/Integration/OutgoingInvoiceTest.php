@@ -748,13 +748,14 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
             $order=$this->order(1);$repo->update('orders',['status'=>'delivered'],['id'=>$order]);$item=$repo->all('order_items',['order_id'=>$order])[0];
             $id=$this->service->returnOrder($order,['request_key'=>'orphan-'.$decision,'quantities'=>[$item['id']=>1],'reason'=>'Retur client','issue_invoice'=>'0'],$this->actor);
             self::assertCount(1,$workflow->missingDocuments($order));
-            $input=['request_key'=>'repair-'.$decision,'order_version'=>$repo->editVersion($order),'decision'=>$decision,'reason'=>'Reconciliere retur','notify_customer'=>'1'];
+            $input=['request_key'=>'repair-'.$decision,'order_version'=>$repo->editVersion($order),'decision'=>$decision,'notify_customer'=>'1'];
             $this->service->reconcileReturn($order,$id,$input,$this->actor);$this->service->reconcileReturn($order,$id,$input,$this->actor);
             self::assertSame([],$workflow->missingDocuments($order));
             $loaded=(new \App\Modules\Orders\OrderService($this->pdo))->findForAdmin($order);
             self::assertSame($decision==='invoice'?0:1,$loaded['items'][0]['returnable_quantity']);
             self::assertSame($decision==='invoice'?'returned':'delivered',$loaded['status']);
             self::assertCount($decision==='invoice'?2:0,$repo->all('invoices',['order_id'=>$order,'deleted_at'=>null]));
+            if($decision==='invoice') { self::assertSame('Retur client',$repo->one('invoices',['order_id'=>$order,'kind'=>'return'])['reason']); }
         }
         self::assertCount(1,$repo->all('outbox_messages',['message_type'=>'invoice']));
     }
