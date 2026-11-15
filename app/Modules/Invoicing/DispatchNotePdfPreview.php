@@ -43,6 +43,7 @@ final class DispatchNotePdfPreview
         $stamp = $stampPath === null ? '' : file_get_contents($stampPath);
         $lineGroups = $lineCount > 20 ? [array_slice($lines, 0, 11), ...array_chunk(array_slice($lines, 11), 20)] : [$lines];
         return [
+            'is_model'=>true,
             'company'=>$company, 'lines'=>$lines, 'line_groups'=>$lineGroups, 'series'=>'LM-AVZ', 'number'=>'1', 'reference'=>'LM-AVZ 1',
             'date'=>$date->format('d.m.Y'), 'order_reference'=>'LM-DEMO-2026-1', 'total'=>$this->money($total), 'quantity'=>$quantity,
             'customer'=>['name'=>'Ana Popescu', 'type'=>'Persoană fizică · Date demonstrative',

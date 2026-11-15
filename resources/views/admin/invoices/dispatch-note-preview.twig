@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ro"><head><meta charset="UTF-8"><title>Model aviz · {{ company.trade_name }}</title>
+<html lang="ro"><head><meta charset="UTF-8"><title>{{ is_model ? 'Model aviz' : reference }} · {{ company.trade_name ?: company.legal_name }}</title>
 <style>
 @font-face{font-family:'Nunito PDF';font-weight:400;src:url('{{ font_regular }}') format('truetype')}
 @font-face{font-family:'Nunito PDF';font-weight:700;src:url('{{ font_bold }}') format('truetype')}
@@ -20,7 +20,7 @@ table{width:100%;border-collapse:collapse;table-layout:fixed}td{vertical-align:t
 .footer{position:fixed;bottom:-29pt;left:0;right:0;padding-top:7pt;border-top:.6pt solid #e5d8e1;font-size:6.7pt;line-height:9pt;color:#957e8f}.footer strong{color:#79566e}.footer span{margin-left:10pt;font-size:6.2pt;letter-spacing:.25pt}
 {% if lines|length > 20 %}.products td{padding:3pt 4pt}.photo{width:24pt;height:29pt}.sku{margin-top:2pt}{% endif %}
 </style></head><body>
-<div class="footer"><strong>{{ reference }}</strong><span>MODEL · CLIENT ȘI PRODUSE DEMONSTRATIVE · DOCUMENT NEEMIS</span></div>
+<div class="footer"><strong>{{ reference }}</strong><span>{{ is_model ? 'MODEL · CLIENT ȘI PRODUSE DEMONSTRATIVE · DOCUMENT NEEMIS' : 'AVIZ EMIS DIN COMANDA ' ~ order_reference }}</span></div>
 <div class="top-line"></div>
 <table class="brand"><tr><td><img class="logo" src="{{ logo }}" alt="La Măriuca Boutique"></td><td class="heading"><div class="eyebrow">LA MĂRIUCA BOUTIQUE</div><h1>AVIZ</h1><div class="subtitle">de însoțire a mărfii</div></td></tr></table>
 <div class="identification"><table><tr><td style="width:18%"><div class="label">SERIE</div><strong>{{ series }}</strong></td><td style="width:13%"><div class="label">NUMĂR</div><strong>{{ number }}</strong></td><td style="width:27%"><div class="label">DATA EMITERII</div><strong>{{ date }}</strong></td><td style="width:42%"><div class="label">COMANDĂ DE REFERINȚĂ</div><strong>{{ order_reference }}</strong></td></tr></table></div>

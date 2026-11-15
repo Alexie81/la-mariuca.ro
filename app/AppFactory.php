@@ -187,6 +187,7 @@ final class AppFactory
         $spvPreviewController = new \App\Modules\Invoicing\SpvController(new \App\Modules\Invoicing\SpvSettingsService($pdo, $config), new \App\Modules\Invoicing\SpvConnection($pdo, $config, $spvHttp), $spvHttp, $invoiceRepository, $invoiceService, $config, $auth, $view, $root);
         $stockRepository = new \App\Modules\Inventory\StockLedgerRepository($pdo);
         $stockController = new \App\Modules\Inventory\StockLedgerController(new \App\Modules\Inventory\StockLedgerService($stockRepository), $stockRepository, new \App\Modules\Inventory\StockLedgerExportService($root), new AdminNotificationService($pdo), $auth, $view, $config);
+        $dispatchNoteController = new \App\Modules\Invoicing\DispatchNoteController(new \App\Modules\Invoicing\DispatchNoteService(new \App\Modules\Invoicing\DispatchNoteRepository($pdo), $root, new \App\Modules\Companies\CompanyStampStorage($root)), $auth, $config);
         $nirController = new \App\Modules\Inventory\NirAdminController(
             new \App\Modules\Inventory\NirService($pdo), new \App\Modules\Inventory\NirDocumentStorage($root),
             new \App\Modules\Inventory\NirImportService(), new \App\Modules\Inventory\NirExportService($root),
@@ -261,7 +262,7 @@ final class AppFactory
         $app->post('/admin/', [$adminController, 'login']);
         $app->post('/admin/deconectare/', [$adminController, 'logout']);
 
-        $app->group('/admin', function (RouteCollectorProxy $group) use ($adminController, $adminPushController, $twoFactorController, $orderNotificationSettingsController, $paymentMethodSettingsController, $companyAdminController, $nirController, $invoiceConfigurationController, $invoiceAutomationController, $invoiceController, $spvPreviewController, $stockController): void {
+        $app->group('/admin', function (RouteCollectorProxy $group) use ($adminController, $adminPushController, $twoFactorController, $orderNotificationSettingsController, $paymentMethodSettingsController, $companyAdminController, $nirController, $invoiceConfigurationController, $invoiceAutomationController, $invoiceController, $spvPreviewController, $stockController, $dispatchNoteController): void {
             $group->get('/stoc/', [$stockController, 'index']);
             $group->get('/stoc/export/xlsx/', [$stockController, 'export']);
             $group->get('/stoc/{id:[0-9]+}/', [$stockController, 'detail']);
@@ -275,6 +276,9 @@ final class AppFactory
             $group->get('/facturi/export/{format:xlsx|zip}/', [$invoiceController, 'export']);
             $group->get('/facturi/{id:[0-9]+}/', [$invoiceController, 'detail']);
             $group->get('/facturi/{id:[0-9]+}/{format:pdf|xlsx|zip}/', [$invoiceController, 'export']);
+            $group->post('/comenzi/{id:[0-9]+}/aviz/', [$dispatchNoteController, 'issue']);
+            $group->post('/comenzi/{id:[0-9]+}/aviz/sterge/', [$dispatchNoteController, 'delete']);
+            $group->get('/comenzi/{id:[0-9]+}/aviz/pdf/', [$dispatchNoteController, 'pdf']);
             $group->get('/facturi/{id:[0-9]+}/{action:edit|return|correct|receive|payment|delete|email|link|request|decide|policy|order-edit|order-payment}/', [$invoiceController, 'form']);
             $group->post('/facturi/{id:[0-9]+}/{action:edit|return|correct|receive|payment|delete|email|link|dismiss|request|decide|policy|order-edit|order-payment}/', [$invoiceController, 'action']);
             $group->get('/automatizari/', [$invoiceAutomationController, 'index']);

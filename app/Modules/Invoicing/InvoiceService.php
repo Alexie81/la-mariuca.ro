@@ -75,6 +75,7 @@ final class InvoiceService
             }
             $this->repository->insert('audit_log',['actor_user_id'=>$actor['id'],'action'=>'order.details_edited','entity_type'=>'order','entity_id'=>$orderId,'context_json'=>InvoiceSnapshot::json(['reason'=>$input['reason'],'invoice_id'=>$existing['id'] ?? null,'shipping_before'=>json_decode($order['shipping_address_json'],true),'shipping_after'=>$input['shipping_address'] ?? null]),'created_at'=>$this->repository->now()]);
             $this->repository->update('orders',['updated_at'=>$this->repository->now()],['id'=>$orderId]);
+            if(!$existing) { $this->regenerateDispatchNote($orderId,$actor); }
             $this->repository->insert('order_document_operations',['request_key'=>$key,'order_id'=>$orderId,'action'=>'edit','payload_hash'=>$hash,'result_id'=>$existing['id'] ?? null,'created_at'=>$this->repository->now()]);
         });
     }
@@ -334,6 +335,7 @@ final class InvoiceService
             if($job && $invoice['fiscal_attempted_at']===null) {
                 $this->repository->update('invoice_fiscal_jobs',['payload_hash'=>self::documentHash($this->load($id)),'updated_at'=>$this->repository->now()],['invoice_id'=>$id]);
             }
+            $this->regenerateDispatchNote((int)$invoice['order_id'],$actor);
             $updated=$this->load($id); $this->audit($id,'edited',$actor,$reason,$invoice,$updated); $this->remember($key,'edit',$hash,$id); return $this->decorate($updated);
         });
     }
@@ -702,6 +704,12 @@ final class InvoiceService
         return $this->decorate($this->load((int)$prior['invoice_id']));
     }
     private function remember(string $key,string $action,string $hash,int $id): void { $this->repository->insert('invoice_actions',['request_key'=>$key,'action'=>$action,'request_hash'=>$hash,'invoice_id'=>$id,'created_at'=>$this->repository->now()]); }
+    /** @param array<string,mixed> $actor */
+    private function regenerateDispatchNote(int $orderId,array $actor): void
+    {
+        $root=dirname(__DIR__,3);
+        (new DispatchNoteService(new DispatchNoteRepository($this->repository->pdo()),$root,new \App\Modules\Companies\CompanyStampStorage($root)))->regenerate($orderId,$actor);
+    }
     /** @param array<string,mixed> $actor */
     private function audit(int $id,string $action,array $actor,string $reason,mixed $before,mixed $after): void { $this->repository->insert('invoice_audit',['invoice_id'=>$id,'actor_id'=>$actor['id'],'action'=>$action,'reason'=>$reason,'before_json'=>InvoiceSnapshot::json($before),'after_json'=>InvoiceSnapshot::json($after),'created_at'=>$this->repository->now()]); }
     /** @param array<string,mixed> $invoice @param array<string,mixed> $snapshot @param list<array<string,mixed>> $lines */

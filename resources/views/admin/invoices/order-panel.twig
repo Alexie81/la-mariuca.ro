@@ -61,4 +61,18 @@
     {% endfor %}
   </div>
   {% endif %}
+  {% if can_manage_documents %}
+  <div class="order-dispatch-note" id="aviz">
+    <div class="order-dispatch-note__copy"><span class="order-billing__eyebrow">Document logistic</span><strong>{{ order.dispatch_note ? order.dispatch_note.series_code ~ ' ' ~ order.dispatch_note.number : 'Aviz de însoțire' }}</strong><small>{{ order.dispatch_note ? 'Aviz emis din instantaneul comenzii. Nu modifică stocul.' : 'Generează documentul din client, livrare și produsele comenzii.' }}</small></div>
+    {% if order.dispatch_note %}
+      <div class="order-dispatch-note__actions">
+        <a href="{{ url('admin/comenzi/' ~ order.id ~ '/aviz/pdf/?deschide=1') }}" target="_blank" rel="noopener">{{ n.icon('eye') }}Vizualizează</a>
+        <a href="{{ url('admin/comenzi/' ~ order.id ~ '/aviz/pdf/') }}">{{ n.icon('download') }}Descarcă PDF</a>
+        {% if order.dispatch_note.can_delete %}<form action="{{ url('admin/comenzi/' ~ order.id ~ '/aviz/sterge/') }}" method="post"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="request_key" value="{{ order.dispatch_note_request_key }}"><button type="submit" class="is-danger" onclick="return confirm('Ștergi avizul? Istoricul operațiunii va rămâne în audit.')">{{ n.icon('trash') }}Șterge</button></form>{% endif %}
+      </div>
+    {% else %}
+      <form action="{{ url('admin/comenzi/' ~ order.id ~ '/aviz/') }}" method="post"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="request_key" value="{{ order.dispatch_note_request_key }}"><button type="submit" class="order-billing__action order-billing__action--secondary">{{ n.icon('document') }}<span>Generează avizul</span>{{ n.icon('chevron') }}</button></form>
+    {% endif %}
+  </div>
+  {% endif %}
 </section>

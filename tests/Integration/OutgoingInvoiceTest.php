@@ -131,12 +131,15 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
     public function testEditingFromOrderRevisesSameInvoiceAndShippingWithoutAdditionalStockExit(): void
     {
         $orderId=$this->order(2); $invoice=$this->service->issue($orderId,['request_key'=>'order-edit-existing'],$this->actor);
+        $dispatch=new \App\Modules\Invoicing\DispatchNoteService(new \App\Modules\Invoicing\DispatchNoteRepository($this->pdo),$this->root,new CompanyStampStorage($this->root));
+        $dispatch->issue($orderId,str_repeat('9',32),$this->actor);
         $order=(new InvoiceRepository($this->pdo))->one('orders',['id'=>$orderId]);
         $shipping=['address'=>'Strada nouă 2','city'=>'Iași','county'=>'Iași','country'=>'RO','postal_code'=>''];
         $this->service->editOrder($orderId,['request_key'=>'edit-order-existing','order_version'=>$order['updated_at'],'version'=>$invoice['row_version'],'reason'=>'Corectare date client','billing'=>['name'=>'Maria Pop','email'=>'maria@example.test'],'shipping_address'=>$shipping],$this->actor);
         $updated=$this->service->load($invoice['id']);
         self::assertSame($invoice['number'],$updated['number']); self::assertSame($invoice['series_code'],$updated['series_code']);
         self::assertSame('Maria Pop',$updated['snapshot']['customer']['name']); self::assertSame($shipping,$updated['snapshot']['shipping_address']);
+        self::assertSame('Maria Pop',$dispatch->forOrder($orderId,$this->actor)['snapshot']['customer']['name']); self::assertStringContainsString('Strada nouă 2',$dispatch->forOrder($orderId,$this->actor)['snapshot']['customer']['address']);
         self::assertSame(-20000,$this->balance()); self::assertSame(1,(int)$this->pdo->query('SELECT COUNT(*) FROM invoices')->fetchColumn());
         self::assertNotSame($invoice['content_hash'] ?? $invoice['snapshot_json'],$updated['content_hash'] ?? $updated['snapshot_json']);
     }
