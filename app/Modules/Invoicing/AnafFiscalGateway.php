@@ -17,12 +17,21 @@ final class AnafFiscalGateway implements FiscalGateway
     public function validate(string $document): array { return (new SpvInvoiceXml())->validate($document); }
     public function send(string $document,string $documentKey): array
     {
+        if(str_contains($document,'<!DOCTYPE') || str_contains($document,'<!ENTITY')) { throw new SpvResponseException('rejected','Document XML neacceptat.'); }
         $doc=new \DOMDocument(); $doc->loadXML($document,LIBXML_NONET); $x=new \DOMXPath($doc);
         $x->registerNamespace('cac','urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2'); $x->registerNamespace('cbc','urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2');
         $cif=(string)$x->evaluate('string(//cac:AccountingSupplierParty/cac:Party/cac:PartyLegalEntity/cbc:CompanyID)');
         if(!preg_match('/^\d{2,10}$/D',$cif)) { throw new SpvResponseException('rejected','CUI-ul emitentului nu este valid.'); }
+        $buyer=trim((string)$x->evaluate('string(//cac:AccountingCustomerParty/cac:Party/cac:PartyLegalEntity/cbc:CompanyID)'));
+        $country=trim((string)$x->evaluate('string(//cac:AccountingCustomerParty/cac:Party/cac:PostalAddress/cac:Country/cbc:IdentificationCode)'));
+        if($buyer==='') { throw new SpvResponseException('rejected','Identificatorul cumpărătorului lipsește din XML.'); }
+        // The immutable XML encodes individuals using a 13-digit CNP or the anonymous zero identifier.
+        // Official upload API: https://mfinante.gov.ro/static/10/eFactura/upload.html
+        $operation=preg_match('/^\d{13}$/D',$buyer)?'uploadb2c':'upload';
+        $query=['standard'=>'UBL','cif'=>$cif];
+        if($country!=='' && $country!=='RO') { $query['extern']='DA'; }
         // ANAF does not document a caller-supplied idempotency key. The local claim is authoritative.
-        $result=$this->call('POST','upload',['standard'=>'UBL','cif'=>$cif],$document);
+        $result=$this->call('POST',$operation,$query,$document);
         if(in_array($result['status'],[401,403,429],true)) { throw new SpvResponseException('transient_error','ANAF a refuzat temporar încărcarea (HTTP '.$result['status'].'). Verifică autorizarea sau așteaptă înainte de reluare.'); }
         if($result['status']>=500) { throw new SpvTransportException('Răspuns ANAF incomplet. Verifică mesajele din SPV înainte de a relua încărcarea.'); }
         $data=self::parse($result['body']); $reference=(string)($data['index_incarcare'] ?? $data['id_incarcare'] ?? '');
@@ -35,6 +44,7 @@ final class AnafFiscalGateway implements FiscalGateway
         if($result['status']!==200) { throw new InvoiceException('Starea ANAF nu este disponibilă (HTTP '.$result['status'].').'); }
         $data=self::parse($result['body']); $status=mb_strtolower(trim((string)($data['stare'] ?? '')));
         $state=match($status) {'ok'=>'accepted','nok','xml cu erori nepreluat de sistem'=>'rejected','in prelucrare','în prelucrare'=>'submitted',default=>throw new InvoiceException(self::message($data) ?: 'ANAF nu a returnat o stare cunoscută.')};
+        if($state==='rejected') { $data['message']=self::message($data) ?: 'ANAF a respins documentul. Deschide arhiva ANAF pentru raportul de validare.'; }
         return ['state'=>$state,'response'=>$data+['environment'=>$this->environment]];
     }
     public function download(string $reference): string

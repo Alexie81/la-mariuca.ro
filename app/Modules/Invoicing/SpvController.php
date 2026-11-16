@@ -5,6 +5,7 @@ namespace App\Modules\Invoicing;
 use App\Shared\Config\Config;
 use App\Shared\Http\View;
 use App\Shared\Security\Auth;
+use App\Shared\Support\Flash;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Slim\Psr7\Response;
@@ -18,7 +19,8 @@ final class SpvController
         try { $this->settings->allow($this->actor()); }
         catch(InvoiceException $error) { return $this->forbidden($response,$error); }
         $notice=$_SESSION['spv_notice'] ?? null; unset($_SESSION['spv_notice']);
-        return $this->view->render('admin/pages/spv.twig',['admin_section'=>'spv_preview','admin_context'=>'SPV · RO e-Factura','settings'=>$this->settings->state(),'connection'=>$this->connection->state(),'jobs'=>$this->settings->jobs(),'notice'=>$notice,'callback'=>$this->connection->callback()])->withHeader('Cache-Control','no-store');
+        $selected=filter_var($request->getQueryParams()['factura'] ?? null,FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]) ?: null;
+        return $this->view->render('admin/pages/spv.twig',['admin_section'=>'spv_preview','admin_context'=>'SPV · RO e-Factura','settings'=>$this->settings->state(),'connection'=>$this->connection->state(),'jobs'=>$this->settings->jobs($selected),'selected_invoice'=>$selected,'notice'=>$notice,'callback'=>$this->connection->callback()])->withHeader('Cache-Control','no-store');
     }
     public function action(ServerRequestInterface $request,ResponseInterface $response,array $args): ResponseInterface
     {
@@ -53,20 +55,39 @@ final class SpvController
     }
     public function invoiceAction(ServerRequestInterface $request,ResponseInterface $response,array $args): ResponseInterface
     {
-        $id=(int)$args['id'];
+        $id=(int)$args['id']; $input=(array)$request->getParsedBody();
         try {
             $this->settings->allow($this->actor());
-            $this->invoices->load($id); $job=$this->repository->one('invoice_fiscal_jobs',['invoice_id'=>$id]);
+            $invoice=$this->invoices->load($id); $job=$this->repository->one('invoice_fiscal_jobs',['invoice_id'=>$id]);
             $environment=$job['environment'] ?? $this->settings->state()['environment'];
             $gateway=new AnafFiscalGateway($this->connection,$this->http,$this->config,$environment);
             $service=new InvoiceFiscalService($this->repository,$this->invoices,$gateway);
-            if($args['operation']==='trimite') { $service->queue($id,$this->actor()); $service->process($id); }
+            if($this->settings->documentAction($invoice,$job)['operation']!==$args['operation']) { throw new InvoiceException('Acțiunea nu mai este disponibilă în starea actuală. Verifică starea facturii.',409); }
+            // Authorization may refresh tokens over HTTP; it must succeed before changing the queue.
+            $gateway->prepare();
+            if($args['operation']==='trimite') { if($invoice['fiscal_attempted_at']===null) { $service->queue($id,$this->actor()); } $service->process($id); }
             elseif($args['operation']==='verifica') { $service->poll($id); }
             elseif($args['operation']==='reia') { $service->retry($id,$this->actor()); $service->process($id); }
             else { throw new InvoiceException('Acțiune indisponibilă.',404); }
-            $_SESSION['spv_notice']=['ok'=>true,'text'=>'Operațiunea a fost procesată. Verifică starea documentului și răspunsul ANAF mai jos.'];
+            $result=$this->repository->one('invoice_fiscal_jobs',['invoice_id'=>$id]);
+            $state=$result['state'] ?? 'not_sent';
+            $text=match($state) {
+                'accepted'=>'Factura a fost acceptată de ANAF.',
+                'submitted'=>'Factura a fost încărcată la ANAF și este în verificare. Încărcarea nu înseamnă încă acceptare.',
+                'rejected'=>'ANAF a respins factura. '.($result['last_error'] ?: 'Deschide raportul de validare.'),
+                'transient_error'=>'Factura nu a fost încărcată. '.($result['last_error'] ?: 'Reia trimiterea după remedierea erorii.'),
+                'uncertain'=>'Încărcarea nu poate fi confirmată. Verifică în SPV înainte de orice retrimitere.',
+                default=>'Factura nu este confirmată ca transmisă. Verifică starea documentului.',
+            };
+            if(in_array($state,['accepted','submitted'],true) && $environment==='test') { $text='Test ANAF: '.$text.' Documentul nu a fost transmis în producție.'; }
+            $_SESSION['spv_notice']=['ok'=>in_array($state,['accepted','submitted'],true),'text'=>$text];
         } catch(\Throwable $error) { if($error instanceof InvoiceException && $error->getCode()===403) { return $this->forbidden($response,$error); } $this->error($error); }
-        return $this->view->redirect($this->config->path('admin/spv-efactura/').'#document-'.$id);
+        if(($input['return_to'] ?? '')==='invoice') {
+            $notice=$_SESSION['spv_notice']; unset($_SESSION['spv_notice']);
+            Flash::set($notice['ok']?'success':'error',$notice['text']);
+            return $this->view->redirect($this->config->path('admin/facturi/'.$id.'/'));
+        }
+        return $this->view->redirect($this->config->path('admin/spv-efactura/').'?factura='.$id.'#document-'.$id);
     }
     public function archive(ServerRequestInterface $request,ResponseInterface $response,array $args): ResponseInterface
     {

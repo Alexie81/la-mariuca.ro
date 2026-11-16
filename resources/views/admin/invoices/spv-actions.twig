@@ -1,0 +1,19 @@
+<div class="iv-spv-actions">
+  {% if spv.operation %}
+    {% if not spv.connection.ready %}
+      <p>{{ spv.connection.problem }}</p>
+      <a class="iv-btn" href="{{ url('admin/spv-efactura/') }}">Configurează conexiunea ANAF {{ n.icon('arrow') }}</a>
+    {% elseif not spv.environment_allowed %}
+      <p>Transmiterea în producție este dezactivată pe acest server.</p>
+    {% else %}
+      <form action="{{ url('admin/spv-efactura/facturi/'~doc.id~'/'~spv.operation~'/') }}" method="post">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <input type="hidden" name="return_to" value="invoice">
+        <button class="iv-btn iv-btn--primary">{{ n.icon('arrow') }}{{ {'trimite':(spv.environment == 'test' ? 'Trimite în test ANAF' : 'Trimite în SPV'),'verifica':'Verifică răspunsul ANAF','reia':'Reia trimiterea'}[spv.operation] }}</button>
+      </form>
+    {% endif %}
+  {% endif %}
+  {% if doc.fiscal_job.download_reference|default('') %}
+    <a class="iv-btn" href="{{ url('admin/spv-efactura/facturi/'~doc.id~'/arhiva/') }}">{{ n.icon('download') }}Descarcă răspunsul ANAF</a>
+  {% endif %}
+</div>

@@ -24,6 +24,7 @@ final class SpvConnection
     public function accessToken(): string
     {
         if($this->pdo->inTransaction()) { throw new \LogicException('Token exchange must run outside a transaction'); }
+        if(!$this->configured()) { throw new InvoiceException('Configurează aplicația ANAF și conectează certificatul înainte de transmitere.'); }
         $row=$this->row(); if(!$row['encrypted_tokens']) { throw new InvoiceException('Conectează mai întâi certificatul ANAF.'); }
         $vault=new SpvTokenVault($this->config->get('APP_KEY')); $tokens=$vault->open($row['encrypted_tokens']);
         if((int)$row['expires_at']>time()+300) { return $tokens['access_token']; }
@@ -53,9 +54,23 @@ final class SpvConnection
     /** @return array<string,mixed> */
     public function state(): array
     {
-        $row=$this->row(); unset($row['encrypted_tokens'],$row['refresh_lease'],$row['refresh_lease_until']);
-        $row['connected']=$row['connected_at']!==null; $row['configured']=$this->configured();
-        $row['expired']=$row['connected'] && $row['refresh_expires_at']!==null && (int)$row['refresh_expires_at']<=time();
+        $row=$this->row(); $tokens=[]; $invalid=false;
+        if($row['encrypted_tokens']) {
+            try { $tokens=(new SpvTokenVault($this->config->get('APP_KEY')))->open($row['encrypted_tokens']); }
+            catch(InvoiceException) { $invalid=true; }
+        }
+        unset($row['encrypted_tokens'],$row['refresh_lease'],$row['refresh_lease_until']);
+        $row['connected']=$row['connected_at']!==null && !empty($tokens['access_token']); $row['configured']=$this->configured();
+        $canRefresh=!empty($tokens['refresh_token']) && ($row['refresh_expires_at']===null || (int)$row['refresh_expires_at']>time());
+        $row['expired']=$row['connected'] && (int)$row['expires_at']<=time()+300 && !$canRefresh;
+        $row['ready']=$row['configured'] && $row['connected'] && !$row['expired'];
+        $row['problem']=match(true) {
+            !$row['configured']=>'Aplicația ANAF nu este configurată. Adaugă datele aplicației și autorizează certificatul pentru a trimite facturi.',
+            $invalid=>'Autorizarea salvată nu poate fi citită. Reconectează certificatul ANAF.',
+            $row['expired']=>'Autorizarea ANAF a expirat. Reconectează certificatul pentru a continua.',
+            !$row['connected']=>'Conectează certificatul digital cu acces la firmă pentru a trimite facturi.',
+            default=>null,
+        };
         return $row;
     }
     /** @return array<string,mixed> */

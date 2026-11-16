@@ -49,8 +49,28 @@ final class SpvSettingsService
         });
     }
     /** @return list<array<string,mixed>> */
-    public function jobs(): array
+    public function jobs(?int $invoiceId=null): array
     {
-        return $this->pdo->query('SELECT j.*,i.series_code,i.number,i.order_id,i.issued_at FROM invoice_fiscal_jobs j JOIN invoices i ON i.id=j.invoice_id WHERE i.deleted_at IS NULL ORDER BY j.updated_at DESC LIMIT 40')->fetchAll();
+        $q=$this->pdo->prepare('SELECT j.*,i.id AS invoice_id,i.series_code,i.number,i.order_id,i.issued_at,i.fiscal_state,i.fiscal_attempted_at FROM invoices i LEFT JOIN invoice_fiscal_jobs j ON j.invoice_id=i.id WHERE i.deleted_at IS NULL'.($invoiceId!==null?' AND i.id=:id':'').' ORDER BY COALESCE(j.updated_at,i.issued_at) DESC,i.id DESC LIMIT 40');
+        $q->execute($invoiceId!==null?['id'=>$invoiceId]:[]);
+        $environment=$this->state()['environment'];
+        return array_map(function(array $row)use($environment):array {
+            $row['state']=$row['state'] ?? $row['fiscal_state'];
+            $row['environment']=$row['environment'] ?? $environment;
+            return array_replace($row,$this->documentAction($row,$row));
+        },$q->fetchAll());
+    }
+    /** @param array<string,mixed> $invoice @param array<string,mixed>|null $job @return array<string,mixed> */
+    public function documentAction(array $invoice,?array $job): array
+    {
+        $state=$job['state'] ?? $invoice['fiscal_state'];
+        $environment=$job['environment'] ?? $this->state()['environment'];
+        $operation=match($state) {
+            'submitted'=>'verifica',
+            'rejected','transient_error'=>'reia',
+            'not_sent','queued','scheduled','awaiting_configuration'=>'trimite',
+            default=>null,
+        };
+        return ['operation'=>$operation,'environment'=>$environment,'environment_allowed'=>$environment!=='production' || $this->config->bool('ANAF_ALLOW_PRODUCTION')];
     }
 }

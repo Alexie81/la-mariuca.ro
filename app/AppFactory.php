@@ -181,11 +181,13 @@ final class AppFactory
         $invoiceConfigurationController = new \App\Modules\Invoicing\InvoiceConfigurationController(new \App\Modules\Invoicing\InvoiceConfigurationService(new \App\Modules\Invoicing\InvoiceConfigurationRepository($pdo)), new AdminNotificationService($pdo), $auth, $view, $config);
         $invoiceRepository = new \App\Modules\Invoicing\InvoiceRepository($pdo);
         $invoiceService = new \App\Modules\Invoicing\InvoiceService($invoiceRepository, new \App\Modules\Invoicing\InvoiceSnapshot($pdo, $root), new \App\Modules\Inventory\InvoiceStockService($pdo));
-        $invoiceController = new \App\Modules\Invoicing\InvoiceController($invoiceService, $invoiceRepository, new \App\Modules\Invoicing\InvoiceExportService($invoiceRepository, $root), new AdminNotificationService($pdo), $auth, $view, $config, $catalogSearch);
+        $spvHttp = new \App\Modules\Invoicing\SpvCurlClient();
+        $spvSettings = new \App\Modules\Invoicing\SpvSettingsService($pdo, $config);
+        $spvConnection = new \App\Modules\Invoicing\SpvConnection($pdo, $config, $spvHttp);
+        $invoiceController = new \App\Modules\Invoicing\InvoiceController($invoiceService, $invoiceRepository, new \App\Modules\Invoicing\InvoiceExportService($invoiceRepository, $root), new AdminNotificationService($pdo), $auth, $view, $config, $catalogSearch, $spvSettings, $spvConnection);
         $invoiceCustomer=new \App\Modules\Invoicing\InvoiceCustomerController($invoiceService,$view,$config,$rateLimiter);
         $invoiceAutomationController = new \App\Modules\Invoicing\InvoiceAutomationController(new \App\Modules\Invoicing\InvoiceAutomationService(new \App\Modules\Invoicing\InvoiceAutomationRepository($pdo)), new AdminNotificationService($pdo), $auth, $view, $config);
-        $spvHttp = new \App\Modules\Invoicing\SpvCurlClient();
-        $spvPreviewController = new \App\Modules\Invoicing\SpvController(new \App\Modules\Invoicing\SpvSettingsService($pdo, $config), new \App\Modules\Invoicing\SpvConnection($pdo, $config, $spvHttp), $spvHttp, $invoiceRepository, $invoiceService, $config, $auth, $view, $root);
+        $spvPreviewController = new \App\Modules\Invoicing\SpvController($spvSettings, $spvConnection, $spvHttp, $invoiceRepository, $invoiceService, $config, $auth, $view, $root);
         $stockRepository = new \App\Modules\Inventory\StockLedgerRepository($pdo);
         $stockController = new \App\Modules\Inventory\StockLedgerController(new \App\Modules\Inventory\StockLedgerService($stockRepository), $stockRepository, new \App\Modules\Inventory\StockLedgerExportService($root), new AdminNotificationService($pdo), $auth, $view, $config);
         $dispatchNoteController = new \App\Modules\Invoicing\DispatchNoteController(new \App\Modules\Invoicing\DispatchNoteService(new \App\Modules\Invoicing\DispatchNoteRepository($pdo), $root, new \App\Modules\Companies\CompanyStampStorage($root)), $auth, $config, $view);

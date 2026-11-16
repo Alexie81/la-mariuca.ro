@@ -14,7 +14,7 @@ use Slim\Psr7\Stream;
 
 final class InvoiceController
 {
-    public function __construct(private readonly InvoiceService $service,private readonly InvoiceRepository $repository,private readonly InvoiceExportService $exports,private readonly AdminNotificationService $notifications,private readonly Auth $auth,private readonly View $view,private readonly Config $config,private readonly \App\Modules\Catalog\CatalogSearchService $catalogSearch) {}
+    public function __construct(private readonly InvoiceService $service,private readonly InvoiceRepository $repository,private readonly InvoiceExportService $exports,private readonly AdminNotificationService $notifications,private readonly Auth $auth,private readonly View $view,private readonly Config $config,private readonly \App\Modules\Catalog\CatalogSearchService $catalogSearch,private readonly SpvSettingsService $spvSettings,private readonly SpvConnection $spvConnection) {}
     public function index(ServerRequestInterface $request): ResponseInterface
     {
         try {
@@ -43,7 +43,11 @@ final class InvoiceController
     /** @param array<string,string> $args */
     public function detail(ServerRequestInterface $request,ResponseInterface $response,array $args): ResponseInterface
     {
-        try { return $this->render('admin/pages/invoice-detail.twig',['invoice'=>$this->service->document((int)$args['id'],$this->actor())]); }
+        try {
+            $invoice=$this->service->document((int)$args['id'],$this->actor());
+            $spv=$this->actor()['role']==='administrator'?['connection'=>$this->spvConnection->state()]+$this->spvSettings->documentAction($invoice,$invoice['fiscal_job']):null;
+            return $this->render('admin/pages/invoice-detail.twig',['invoice'=>$invoice,'spv'=>$spv]);
+        }
         catch(\Throwable $e) { return $this->failure($request,$e); }
     }
     /** @param array<string,string> $args */

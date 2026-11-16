@@ -123,7 +123,7 @@ final class SpvIntegrationTest extends DatabaseTestCase
         $connection = new SpvConnection($this->pdo, $this->config(), $http);
         $connection->exchange('authorization-code');
         $gateway = new AnafFiscalGateway($connection, $http, $this->config(), 'test');
-        $xml = '<?xml version="1.0"?><Invoice xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2" xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2"><cac:AccountingSupplierParty><cac:Party><cac:PartyLegalEntity><cbc:CompanyID>12345678</cbc:CompanyID></cac:PartyLegalEntity></cac:Party></cac:AccountingSupplierParty></Invoice>';
+        $xml = '<?xml version="1.0"?><Invoice xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2" xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2"><cac:AccountingSupplierParty><cac:Party><cac:PartyLegalEntity><cbc:CompanyID>12345678</cbc:CompanyID></cac:PartyLegalEntity></cac:Party></cac:AccountingSupplierParty><cac:AccountingCustomerParty><cac:Party><cac:PartyLegalEntity><cbc:CompanyID>87654321</cbc:CompanyID></cac:PartyLegalEntity></cac:Party></cac:AccountingCustomerParty></Invoice>';
 
         self::assertSame(['reference' => '4711', 'state' => 'submitted', 'response' => ['index_incarcare' => '4711', 'environment' => 'test']], $gateway->send($xml, 'local-idempotency-key'));
         self::assertSame('accepted', $gateway->status('4711')['state']);

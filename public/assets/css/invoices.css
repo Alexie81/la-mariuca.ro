@@ -523,6 +523,11 @@ body:has(.iv-dialog[open]),body:has(.iv-lightbox[open]){overflow:hidden}
 .iv-document-states p{font-size:12px;overflow-wrap:anywhere}
 .iv-document-states small{font-size:11px;color:var(--iv-muted)}
 .iv-state-caption{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#89738d}
+.iv-spv-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:12px}
+.iv-spv-actions:empty{display:none}
+.iv-spv-actions p{flex-basis:100%;margin:0 0 3px}
+.iv-spv-actions form{margin:0;max-width:100%}
+.iv-spv-actions .iv-btn{white-space:normal;text-align:left;max-width:100%;font-size:11px;padding:10px 12px}
 .iv-state-icon{display:grid;place-items:center;width:36px;height:38px;flex:none;border-radius:12px;background:#eee5f0;color:#96779b}
 .iv-document-states .iv-icon{width:29px;height:29px;border-radius:9px;flex:none}
 .iv-document-states .is-green{background:#f1f9f5;border-color:#d4e7df}
