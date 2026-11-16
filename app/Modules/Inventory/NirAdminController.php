@@ -76,7 +76,7 @@ final class NirAdminController
             $permissions = $this->nirs->permissions($this->actor());
             $permission = match ($kind) { 'delete'=>'edit', 'attachments'=>'edit', default=>$kind };
             if (empty($permissions[$permission])) { throw new \RuntimeException('Nu ai permisiunea pentru această acțiune.', 403); }
-            if($kind==='delete' && empty($doc['can_delete'])) { throw new NirConflictException('Poți șterge doar ultimul NIR confirmat, după număr. Drafturile se pot șterge oricând.'); }
+            if($kind==='delete' && empty($doc['can_delete'])) { throw new NirConflictException('Doar ciornele pot fi șterse. Pentru un NIR confirmat folosește corectarea sau stornarea disponibilă.'); }
             return $this->render($this->modal($request) ? 'admin/partials/nir-action-content.twig' : 'admin/pages/nir-action.twig', array_replace($this->nirs->defaults($this->actor()), [
                 'action_kind'=>$kind,'document'=>$doc,'values'=>[], 'errors'=>[], 'warnings'=>[],
                 'products'=>$kind==='opening'?$this->nirs->selectProducts($this->actor()):[],

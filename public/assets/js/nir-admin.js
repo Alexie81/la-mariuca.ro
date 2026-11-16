@@ -420,12 +420,12 @@
 
   function reverseAlternative(form) {
     const box=$('[data-reverse-alternative]',form);if(!box)return;
-    const needed=$$('[data-reverse-quantity]',form).some(field=>!field.disabled && number(field.value)>number(field.dataset.originalAvailable));
+    const needed=$$('[data-reverse-quantity]',form).some(field=>!field.disabled && number(field.dataset.compatibleAvailable)>0 && number(field.value)>number(field.dataset.originalAvailable));
     const input=$('input',box);box.hidden=!needed;
     if(input){input.required=needed;if(!needed)input.checked=false;}
     $$('[data-reverse-quantity]',form).forEach(field=>{
       const exceeded=!field.disabled && number(field.value)>number(field.max);
-      field.setCustomValidity?.(exceeded?'La acest furnizor și preț de achiziție poți returna cel mult '+decimal(number(field.max))+' '+(field.dataset.unit || 'buc')+' din acest document.':'');
+      field.setCustomValidity?.(exceeded?'Cantitatea rămasă nestornată din document este de '+decimal(number(field.max))+' '+(field.dataset.unit || 'buc')+'.':'');
     });
   }
 

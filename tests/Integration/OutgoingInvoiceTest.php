@@ -240,15 +240,15 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         self::assertSame(-20000,$this->balance()); self::assertSame(1,(int)$this->pdo->query('SELECT COUNT(*) FROM invoices')->fetchColumn());
         self::assertNotSame($invoice['content_hash'] ?? $invoice['snapshot_json'],$updated['content_hash'] ?? $updated['snapshot_json']);
     }
-    public function testCreditDoesNotRestockUntilReceiptAndDeletionUndoesIt(): void
+    public function testCreditRestocksOnlyThroughConfirmedNirWhichPreventsDeletion(): void
     {
         $this->purchase(5,'40','P-3'); $invoice=$this->service->issue($this->order(2),['request_key'=>'issue-return-test'],$this->actor); $line=$invoice['lines'][0];
         $credit=$this->service->credit($invoice['id'],['request_key'=>'partial-credit-01','version'=>$invoice['row_version'],'reason'=>'Mărime nepotrivită','quantities'=>[$line['id']=>'1']],$this->actor);
         self::assertSame(30000,$this->balance()); self::assertSame(2,$credit['number']); self::assertLessThan(0,$credit['gross_bani']);
         $received=$this->service->receive($credit['id'],['request_key'=>'receive-credit-01','version'=>$credit['row_version'],'reason'=>'Produs verificat','received'=>[$credit['lines'][0]['id']=>'1'],'restock'=>[$credit['lines'][0]['id']=>'1']],$this->actor);
         self::assertSame(40000,$this->balance());
-        $this->service->delete($credit['id'],['request_key'=>'delete-credit-01','version'=>$received['row_version'],'reason'=>'Corectare test'],$this->actor);
-        self::assertSame(30000,$this->balance());
+        $this->assertReceivedCreditCannotBeDeleted($credit['id'],$received['row_version']);
+        self::assertSame(40000,$this->balance());
     }
     public function testPartialCreditsKeepAllHistoricalCentsAndRejectExcess(): void
     {
@@ -478,8 +478,8 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         self::assertSame($before,(int)$this->pdo->query('SELECT physical_quantity FROM inventory WHERE variant_id='.$this->variant['id'])->fetchColumn());
         $received=$this->service->receive($credit['id'],['request_key'=>'online-receipt-confirm','version'=>1,'reason'=>'Produs verificat','received'=>[$credit['lines'][0]['id']=>'1'],'restock'=>[$credit['lines'][0]['id']=>'1']],$this->actor);
         self::assertSame($before+1,(int)$this->pdo->query('SELECT physical_quantity FROM inventory WHERE variant_id='.$this->variant['id'])->fetchColumn());
-        $this->service->delete($credit['id'],['request_key'=>'online-receipt-delete','version'=>$received['row_version'],'reason'=>'Corectare primire'],$this->actor);
-        self::assertSame($before,(int)$this->pdo->query('SELECT physical_quantity FROM inventory WHERE variant_id='.$this->variant['id'])->fetchColumn());
+        $this->assertReceivedCreditCannotBeDeleted($credit['id'],$received['row_version']);
+        self::assertSame($before+1,(int)$this->pdo->query('SELECT physical_quantity FROM inventory WHERE variant_id='.$this->variant['id'])->fetchColumn());
     }
     public static function returnCostCoverage(): array { return ['missing'=>[0,false],'partial'=>[1,false],'free acquisition'=>[2,true]]; }
     #[\PHPUnit\Framework\Attributes\DataProvider('returnCostCoverage')]
@@ -611,22 +611,19 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         self::assertSame(200,$download->getStatusCode()); self::assertSame($file['sha256'],hash('sha256',(string)$download->getBody()));
         $delete=$app->handle($factory->createServerRequest('POST','http://localhost/admin/nir-uri/'.$nir['id'].'/sterge/')
             ->withHeader('Accept','application/json')->withParsedBody(['_csrf'=>$_SESSION['_csrf'],'row_version'=>$nir['row_version']]));
-        self::assertSame(200,$delete->getStatusCode(),(string)$delete->getBody());
-        self::assertSame('/admin/comenzi/'.$order.'/',json_decode((string)$delete->getBody(),true)['redirect']);
-        self::assertSame(20000,$this->balance()); self::assertNull($this->service->document($creditId,$this->actor)['receipt_nir']);
-        self::assertNull($repo->one('invoice_receipts',['invoice_id'=>$creditId]));
-        self::assertFileDoesNotExist($path);
+        self::assertSame(409,$delete->getStatusCode(),(string)$delete->getBody());
+        self::assertSame(30000,$this->balance()); self::assertSame($nir['id'],$this->service->document($creditId,$this->actor)['receipt_nir']['id']);
+        self::assertNotNull($repo->one('invoice_receipts',['invoice_id'=>$creditId]));
+        self::assertFileExists($path);
         $page=$app->handle($factory->createServerRequest('GET','http://localhost/admin/comenzi/'.$order.'/'));
-        self::assertStringContainsString('Au ajuns produsele?',(string)$page->getBody());
-        self::assertStringContainsString('Verifică produsele și creează NIR',(string)$page->getBody());
+        self::assertStringNotContainsString('Au ajuns produsele?',(string)$page->getBody());
+        self::assertStringContainsString('admin/nir-uri/'.$nir['id'].'/',(string)$page->getBody());
         self::assertNull($repo->one('invoices',['id'=>$creditId])['deleted_at']);
-        try { $this->service->receive($creditId,$input,$this->actor); self::fail('Deleted confirmation replayed'); }
-        catch(InvoiceException $error) { self::assertSame(409,$error->getCode()); }
+        self::assertSame($nir['id'],$this->service->receive($creditId,$input,$this->actor)['receipt_nir']['id']);
         $input['request_key']='automatic-nir-recreated'; $input['version']=$this->service->document($creditId,$this->actor)['row_version'];
-        $recreated=$this->service->receive($creditId,$input,$this->actor);
-        self::assertNotSame($nir['id'],$recreated['receipt_nir']['id']); self::assertSame($nir['number'],$recreated['receipt_nir']['number']);
+        try { $this->service->receive($creditId,$input,$this->actor); self::fail('Confirmed reception duplicated'); }
+        catch(InvoiceException $error) { self::assertSame(409,$error->getCode()); }
         self::assertSame(30000,$this->balance()); self::assertSame(1,(int)$this->pdo->query("SELECT COUNT(*) FROM nir_documents WHERE type='customer_return'")->fetchColumn());
-        self::assertSame($recreated['receipt_nir']['id'],$this->service->receive($creditId,$input,$this->actor)['receipt_nir']['id']);
         self::assertSame(30000,$this->balance());
     }
     /** @return array<string,array{bool}> */
@@ -669,13 +666,15 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
             $book->disconnectWorksheets();
         } finally { $exporter->cleanup($file['path']); }
         self::assertSame($nir['id'],$this->service->receive($credit['id'],$input,$this->actor)['receipt_nir']['id']);
-        $nirs->delete($nir['id'],$nir['row_version'],$this->actor);
-        self::assertSame($accounting-($tracked?10000:0),$this->balance()); self::assertSame($online-1,(int)$this->pdo->query('SELECT physical_quantity FROM inventory WHERE variant_id='.$this->variant['id'])->fetchColumn());
-        $fresh=$this->service->document($credit['id'],$this->actor); self::assertNull($fresh['receipt']); self::assertNull($fresh['receipt_nir']);
-        $input['request_key']='legacy-nir-new-reception'; $input['version']=$fresh['row_version'];
-        $again=$this->service->receive($credit['id'],$input,$this->actor);
+        try { $nirs->delete($nir['id'],$nir['row_version'],$this->actor); self::fail('Confirmed NIR deleted'); }
+        catch(\App\Modules\Inventory\NirConflictException $error) { self::assertSame(409,$error->getCode()); }
         self::assertSame($accounting,$this->balance()); self::assertSame($online,(int)$this->pdo->query('SELECT physical_quantity FROM inventory WHERE variant_id='.$this->variant['id'])->fetchColumn());
-        self::assertSame($nir['number'],$again['receipt_nir']['number']);
+        $fresh=$this->service->document($credit['id'],$this->actor); self::assertNotNull($fresh['receipt']); self::assertSame($nir['id'],$fresh['receipt_nir']['id']);
+        $input['request_key']='legacy-nir-new-reception'; $input['version']=$fresh['row_version'];
+        try { $this->service->receive($credit['id'],$input,$this->actor); self::fail('Confirmed reception duplicated'); }
+        catch(InvoiceException $error) { self::assertSame(409,$error->getCode()); }
+        self::assertSame($accounting,$this->balance()); self::assertSame($online,(int)$this->pdo->query('SELECT physical_quantity FROM inventory WHERE variant_id='.$this->variant['id'])->fetchColumn());
+        self::assertSame($nir['number'],$fresh['receipt_nir']['number']);
     }
     public function testFailedNirGenerationRollsBackVerificationStockAndAttachment(): void
     {
@@ -1262,10 +1261,10 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
             self::fail('The same goods were received twice');
         } catch(InvoiceException $e) { self::assertSame(409,$e->getCode()); }
         self::assertSame(40000,$this->balance());
-        $this->service->delete($credit['id'],['request_key'=>'bridge-delete-credit','version'=>$credit['row_version'],'reason'=>'Corectare document'],$this->actor);
-        self::assertSame(30000,$this->balance());
-        self::assertSame(0,(int)$this->pdo->query("SELECT COUNT(*) FROM nir_documents WHERE type='customer_return'")->fetchColumn());
-        self::assertSame(0,(int)$this->pdo->query('SELECT SUM(returned_units) FROM nir_fifo_consumptions')->fetchColumn());
+        $this->assertReceivedCreditCannotBeDeleted($credit['id'],$credit['row_version']);
+        self::assertSame(40000,$this->balance());
+        self::assertSame(1,(int)$this->pdo->query("SELECT COUNT(*) FROM nir_documents WHERE type='customer_return'")->fetchColumn());
+        self::assertSame(10000,(int)$this->pdo->query('SELECT SUM(returned_units) FROM nir_fifo_consumptions')->fetchColumn());
     }
     public function testInvoiceReceiptCannotBeRepeatedThroughNir(): void
     {
@@ -1811,6 +1810,37 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         $shipping=(int)$this->pdo->query("SELECT id FROM shipping_methods WHERE status='active' AND deleted_at IS NULL ORDER BY is_default DESC,position,id LIMIT 1")->fetchColumn();
         $order=(new CheckoutService($this->pdo,$cart,Config::load($this->root)))->place(['email'=>'invoice.customer@example.test','first_name'=>'Ana','last_name'=>'Pop','phone'=>'0700000000','address'=>'Strada Test 1','city'=>'București — Sector 1','county'=>'București','postal_code'=>'010101','shipping_method_id'=>(string)$shipping,'payment_method'=>'cod','idempotency_key'=>bin2hex(random_bytes(16)),'terms'=>'1']); return (int)$order['id'];
     }
+    public function testSupplierStornoPreservesFiscalSaleAndReplacementSuppliesItsAcquisitionCost(): void
+    {
+        $this->purchase(1,'40','ACQUISITION-BEFORE-STORNO');
+        $nirs=new NirService($this->pdo); $purchase=$nirs->document((int)$this->pdo->query('SELECT MAX(id) FROM nir_documents')->fetchColumn(),$this->actor);
+        $sale=$this->service->issue($this->order(1),['request_key'=>'fiscal-sale-before-supplier-storno'],$this->actor);
+        $this->pdo->exec("UPDATE invoices SET fiscal_state='accepted',fiscal_reference='QA-IMMUTABLE',fiscal_attempted_at='2026-11-16T10:00:00Z' WHERE id=".$sale['id']);
+        $before=[];
+        foreach(['orders','order_items','invoices','invoice_lines','inventory','invoice_audit','invoice_fiscal_jobs','outbox_messages'] as $table) { $before[$table]=$this->pdo->query('SELECT * FROM '.$table)->fetchAll(); }
+        $evidence=[['stored_name'=>'qa-supplier-credit.pdf','original_name'=>'Factura corectivă.pdf','mime_type'=>'application/pdf','extension'=>'pdf','size_bytes'=>12,'sha256'=>hash('sha256','supplier-credit')]];
+        $nirs->reverse($purchase['id'],$purchase['row_version'],['attachments'=>$evidence,'reason'=>'Înlocuire document achiziție','invoice_number'=>'SUPPLIER-CREDIT','invoice_date'=>gmdate('Y-m-d'),'quantities'=>[$purchase['lines'][0]['id']=>'1']],'storno-preserving-fiscal-sale',$this->actor);
+        self::assertSame(-10000,$this->balance());
+        self::assertSame(10000,$this->service->document($sale['id'],$this->actor)['lines'][0]['pending_units']);
+        $this->purchase(1,'55','REPLACEMENT-AFTER-STORNO');
+        self::assertSame(0,$this->balance());
+        $after=$this->service->document($sale['id'],$this->actor);
+        self::assertSame(0,$after['lines'][0]['pending_units']);
+        self::assertSame('REPLACEMENT-AFTER-STORNO',$after['lines'][0]['trace'][0]['origin']['invoice_number']);
+        self::assertSame(5500,(int)$after['lines'][0]['trace'][0]['value_bani']);
+        foreach($before as $table=>$rows) { self::assertSame($rows,$this->pdo->query('SELECT * FROM '.$table)->fetchAll(),$table); }
+    }
+
+    private function assertReceivedCreditCannotBeDeleted(int $id,int $version): void
+    {
+        $before=[];
+        foreach(['invoices','invoice_receipts','nir_documents','nir_stock_balances','nir_fifo_layers','nir_fifo_consumptions','inventory'] as $table) { $before[$table]=$this->pdo->query('SELECT * FROM '.$table)->fetchAll(); }
+        self::assertFalse($this->service->document($id,$this->actor)['can_delete']);
+        try { $this->service->delete($id,['request_key'=>'blocked-received-credit-'.$id,'version'=>$version,'reason'=>'Corectare test'],$this->actor); self::fail('Credit with confirmed NIR deleted'); }
+        catch(InvoiceException $error) { self::assertSame(409,$error->getCode()); }
+        foreach($before as $table=>$rows) { self::assertSame($rows,$this->pdo->query('SELECT * FROM '.$table)->fetchAll(),$table); }
+    }
+
     private function purchase(int $quantity,string $price,string $number): void
     {
         $nir=new NirService($this->pdo); $values=$nir->defaults($this->actor)['values'];

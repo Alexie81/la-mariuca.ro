@@ -316,7 +316,7 @@ final class NirWorkflowHttpAuditTest extends DatabaseTestCase
         self::assertSame(0, $this->rowCount('nir_fifo_layers'));
     }
 
-    public function testConfirmedReceiptOffersCorrectionReturnAndLastDocumentDeletionButNotDraftEditing(): void
+    public function testConfirmedReceiptOffersCorrectionAndReturnButRejectsDeletionAndDraftEditing(): void
     {
         $draft=$this->service()->save(null,$this->input('CONFIRMED'),$this->actor());
         $confirmed=$this->json($this->request('POST','/admin/nir-uri/'.$draft['id'].'/confirma/',['row_version'=>$draft['row_version'],'idempotency_key'=>'http-confirm-audit','accept_warnings'=>1],true))['document'];
@@ -325,11 +325,10 @@ final class NirWorkflowHttpAuditTest extends DatabaseTestCase
             foreach (['/','/modal/'] as $suffix) { self::assertSame(200,$this->request('GET','/admin/nir-uri/'.$draft['id'].'/'.$action.$suffix)->getStatusCode()); }
         }
         self::assertSame(303,$this->request('GET','/admin/nir-uri/'.$draft['id'].'/editare/')->getStatusCode());
-        $delete=(string)$this->request('GET','/admin/nir-uri/'.$draft['id'].'/sterge/modal/')->getBody();
-        self::assertStringContainsString('Stocul după ștergere',$delete);
-        self::assertStringContainsString('Stocul contabil poate deveni negativ',$delete);
-        self::assertSame(200,$this->request('POST','/admin/nir-uri/'.$draft['id'].'/sterge/',['row_version'=>$confirmed['row_version']],true)->getStatusCode());
-        self::assertSame(0,$this->rowCount('nir_documents'));
+        self::assertSame(409,$this->request('GET','/admin/nir-uri/'.$draft['id'].'/sterge/modal/')->getStatusCode());
+        self::assertSame(409,$this->request('POST','/admin/nir-uri/'.$draft['id'].'/sterge/',['row_version'=>$confirmed['row_version']],true)->getStatusCode());
+        self::assertSame(1,$this->rowCount('nir_documents'));
+        self::assertStringNotContainsString('/'.$draft['id'].'/sterge/',(string)$this->request('GET','/admin/nir-uri/'.$draft['id'].'/')->getBody());
     }
 
     public function testIndividualAndRegistryExportsProduceRealFilesAndHonourSearch(): void

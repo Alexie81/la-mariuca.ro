@@ -311,9 +311,10 @@ final class NirSecurityHttpTest extends DatabaseTestCase
             self::assertStringContainsString('Documentul original',(string)$target->getBody());
         }
         $last=end($returns);
-        $this->service()->delete((int)$last['id'],(int)$last['row_version'],$this->actor());
+        $delete=$this->request('POST','/admin/nir-uri/'.$last['id'].'/sterge/',['row_version'=>$last['row_version']],true);
+        self::assertSame(409,$delete->getStatusCode());
         $page=$this->request('GET','/admin/nir-uri/'.$document['id'].'/');
-        self::assertSame(1,$this->html((string)$page->getBody())->query($root.'//article')->length);
+        self::assertSame(2,$this->html((string)$page->getBody())->query($root.'//article')->length);
     }
 
     public function testConfirmedDocumentPdfPreviewIsPrivateAndKeepsDownloadsAndStockUnchanged(): void

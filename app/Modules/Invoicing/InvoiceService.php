@@ -578,7 +578,7 @@ final class InvoiceService
         if($this->repository->children((int)$invoice['id'])!==[]) { return 'Documentul are retururi sau corecții asociate.'; }
         if($this->repository->all('invoice_refunds',['invoice_id'=>$invoice['id']])!==[]) { return 'Pentru acest document este înregistrată o restituire de bani.'; }
         $returnNir=(new \App\Modules\Inventory\ReturnStockLinks($this->repository->pdo()))->nirForInvoice((int)$invoice['id']);
-        if($returnNir && (new \App\Modules\Inventory\NirRepository($this->repository->pdo()))->lastConfirmedId()!==(int)$returnNir['id']) { return 'NIR-ul de retur asociat nu este ultimul document confirmat. Verifică documentele de stoc înainte de ștergere.'; }
+        if($returnNir) { return 'Factura are un NIR de retur confirmat. Documentele confirmate de recepție se păstrează și nu pot fi șterse împreună cu factura.'; }
         if($this->repository->one('invoice_return_requests',['invoice_id'=>$invoice['id'],'state'=>'pending'])) { return 'Există o solicitare de retur în analiză pentru acest document.'; }
         return '';
     }

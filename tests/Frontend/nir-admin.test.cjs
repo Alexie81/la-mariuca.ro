@@ -173,9 +173,11 @@ test('alternative stock needs acknowledgement only beyond the original receipt a
   const api=harness(async()=>{}),{f}=form(),row=new Element(),toggle=new Element('input'),quantity=new Element('input'),box=new Element(),ack=new Element('input');
   row.parents.form=f;row.queries['[data-reverse-select]']=[toggle];row.queries['[data-reverse-quantity]']=[quantity];
   f.queries['[data-reverse-select]']=[toggle];f.queries['[data-reverse-quantity]']=[quantity];f.queries['[data-reverse-alternative]']=[box];box.queries.input=[ack];
-  quantity.max='2';quantity.value='1';quantity.dataset.originalAvailable='1';quantity.dataset.unit='buc';quantity.setCustomValidity=text=>quantity.validationMessage=text;toggle.checked=true;
+  quantity.max='2';quantity.value='1';quantity.dataset.originalAvailable='1';quantity.dataset.compatibleAvailable='1';quantity.dataset.unit='buc';quantity.setCustomValidity=text=>quantity.validationMessage=text;toggle.checked=true;
   api.reverseSelection(row);assert.equal(box.hidden,true);assert.equal(ack.required,false);
   quantity.value='2';api.reverseSelection(row);assert.equal(box.hidden,false);assert.equal(ack.required,true);assert.equal(quantity.validationMessage,'');
-  quantity.value='3';api.reverseSelection(row);assert.match(quantity.validationMessage,/cel mult 2 buc/);
+  quantity.value='3';api.reverseSelection(row);assert.match(quantity.validationMessage,/nestornată.*2 buc/);
   ack.checked=true;quantity.value='1';api.reverseSelection(row);assert.equal(box.hidden,true);assert.equal(ack.checked,false);assert.equal(quantity.validationMessage,'');
+  quantity.dataset.originalAvailable='0';quantity.dataset.compatibleAvailable='0';quantity.value='2';api.reverseSelection(row);
+  assert.equal(quantity.disabled,false);assert.equal(quantity.validationMessage,'');assert.equal(box.hidden,true);assert.equal(ack.required,false);
 });

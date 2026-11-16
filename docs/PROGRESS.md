@@ -1,5 +1,12 @@
 # Progres
 
+### 2026-11-16 — NIR corectabil și stornabil după vânzare
+- Conform ultimei clarificări, numai ciornele pot fi șterse. NIR-urile confirmate rămân în evidență; nici ștergerea facturii de retur nu poate elimina un NIR confirmat asociat. Această regulă înlocuiește excepția veche pentru ultimul NIR confirmat.
+- Corectarea recepției furnizorului și stornarea nu mai sunt blocate de cantitățile deja vândute ori de stocul contabil insuficient. Soldul poate deveni negativ. Se păstrează vânzările, documentele fiscale, stocul online, limitele cantităților nestornate, documentele dependente, autorizarea și controlul versiunii.
+- Alocările de achiziție afectate trec în așteptare; intrarea înlocuitoare le acoperă și furnizează costul real. Stornarea respectă furnizorul, prețul și gestiunea loturilor compatibile. Confirmarea recepției și realocarea se execută în aceeași tranzacție.
+- Verificări: regresie extinsă finală **283 teste / 3.009 aserțiuni**, fără erori sau avertismente; suita HTTP de securitate **12 teste / 137 aserțiuni**. **17 teste JavaScript** trecute, PHPStan, lint PHP, **195 template-uri Twig** și diff check trecute. Test dedicat păstrează integral factura simulată ca acceptată SPV, comanda, cozile fiscale/email și mișcările vânzării în timpul stornării și înlocuirii achiziției.
+- Fără modificarea documentelor reale, deploy, trimiteri ANAF/SMTP sau verificare MySQL/Apache. TODO-urile rămân nebifate.
+
 ### TODO pentru 2026-11-16
 
 La revenirea la PC, începem în ordinea cerută explicit de utilizator la 2026-11-15. Această listă are prioritate față de ordinea generală a modulelor; toate punctele sunt de făcut și se bifează numai după confirmarea utilizatorului.
