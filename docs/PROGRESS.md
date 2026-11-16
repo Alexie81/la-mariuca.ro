@@ -14,6 +14,10 @@ La revenirea la PC, începem în ordinea cerută explicit de utilizator la 2026-
 
 Lista este salvată pentru reluarea lucrului, fără pornirea implementării în această sesiune. Modificare numai de documentație; verificare prin diff, fără teste de aplicație necesare.
 
+### 2026-11-16 — Emiterea facturii din comandă
+- Eliminat butonul **Emite o factură** din antetul registrului **Facturi de ieșire**, la cererea utilizatorului. Emiterea din pagina comenzii rămâne disponibilă.
+- Modificare de interfață; **191 template-uri Twig** compilate și diff check trecut.
+
 ### 2026-11-16 — Datele exporturilor și rezumatul încasărilor din facturi
 - Confirmare explicită: **data vânzării este data emiterii facturii**. Exporturile NIR folosesc `nir_at` (data înregistrării NIR-ului); data primirii fizice, factura furnizorului și marcajele tehnice de creare/confirmare nu aleg perioada.
 - Fișele și exporturile de stoc ordonează intrările/retururile după NIR, iar ieșirile după emiterea facturii. Soldul inițial și final se reconstruiesc pentru perioada aleasă; mișcările ulterioare nu schimbă soldul istoric. Operațiunile fără document-sursă păstrează data operațiunii. Titlurile/explicațiile exporturilor indică regula folosită.

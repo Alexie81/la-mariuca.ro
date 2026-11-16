@@ -4,7 +4,7 @@
 {% block content %}<div class="iv-workspace iv-register" data-iv-page>
 <header class="iv-register-hero">
   <div><span class="iv-eyebrow">Facturare · La Măriuca</span><h1>Facturi de ieșire</h1><p>Documente, încasări și retururi. Vezi dintr-o privire ce mai este de făcut.</p>
-    <div class="iv-actions">{% if can_manage %}<a class="iv-btn iv-btn--primary" href="{{ url('admin/facturi/emite/') }}" data-iv-modal>{{ n.icon('plus') }}Emite o factură</a>{% endif %}<a class="iv-btn" href="{{ url('admin/configurator-factura/') }}">{{ n.icon('settings') }}Serii și setări</a>{% if can_manage_spv %}<a class="iv-btn" href="{{ url('admin/spv-efactura/') }}">{{ n.icon('shield') }}SPV · e-Factura</a>{% endif %}{% if can_manage %}<a class="iv-btn" href="{{ url('admin/facturi/0/policy/') }}" data-iv-modal>{{ n.icon('return') }}Condiții de retur</a>{% endif %}</div>
+    <div class="iv-actions"><a class="iv-btn" href="{{ url('admin/configurator-factura/') }}">{{ n.icon('settings') }}Serii și setări</a>{% if can_manage_spv %}<a class="iv-btn" href="{{ url('admin/spv-efactura/') }}">{{ n.icon('shield') }}SPV · e-Factura</a>{% endif %}{% if can_manage %}<a class="iv-btn" href="{{ url('admin/facturi/0/policy/') }}" data-iv-modal>{{ n.icon('return') }}Condiții de retur</a>{% endif %}</div>
   </div><span class="iv-register-seal" aria-hidden="true">{{ n.icon('document') }}</span>
 </header>
 <div class="iv-register-metrics">
