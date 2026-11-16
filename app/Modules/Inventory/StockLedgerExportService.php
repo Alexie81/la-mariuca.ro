@@ -19,7 +19,9 @@ final class StockLedgerExportService
     public function accounting(array $report,array $company): array
     {
         $book=(new StockAccountingWorkbook($this->root))->build($report,$company);
-        return $this->save($book,'La-Mariuca-Centralizator-Stocuri-'.($report['filters']['from'] ?: 'inceput').'--'.($report['filters']['to'] ?: date('Y-m-d')).'.xlsx');
+        $period=$report['filters']['from']==='' && $report['filters']['to']===''?'toata-perioada':($report['filters']['from'] ?: 'inceput').'--'.($report['filters']['to'] ?: 'prezent');
+        $stamp=(new \DateTimeImmutable($report['generated_at']))->setTimezone(new \DateTimeZone('Europe/Bucharest'))->format('Ymd-His');
+        return $this->save($book,'La-Mariuca-Centralizator-Stocuri-'.$period.'-'.$stamp.'.xlsx');
     }
 
     /** @param array<string,mixed> $registry @param array<string,mixed> $company @return array{path:string,name:string} */

@@ -110,6 +110,7 @@
 .stock-row__open svg { width: 16px; height: 16px; }
 .stock-register-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 22px; border-top: 1px solid var(--stock-line); color: var(--stock-muted); font-size: 11px; }
 .stock-register-foot { flex-wrap: wrap; row-gap: 14px; }
+.stock-register-foot--top { background: #fdfbfc; }
 .stock-register-foot__summary { display: flex; align-items: center; gap: 14px; }
 .stock-register-foot__summary form { display: flex; align-items: center; gap: 8px; margin: 0; }
 .stock-filter-select--size { width: 145px; }

@@ -55,7 +55,9 @@ final class StockLedgerService
             if($row['document']==='') { $row['document']=$row['source_type']==='deleted_nir'?'NIR eliminat · #'.$row['source_id']:'Înregistrare anterioară'; }
             $row['label']=match($row['type']) {'INVOICE_OUT','INVOICE_OUT_PENDING','sale'=>'Factură de ieșire','INVOICE_REVERSED'=>'Inversare factură','CUSTOMER_RETURN_IN','NIR_CUSTOMER_RETURN','return'=>'Retur client','CUSTOMER_RETURN_REVERSED'=>'Inversare retur','NIR_DELETED'=>'Eliminare document','NIR_SUPPLIER_RETURN'=>'Retur furnizor','manual_adjustment'=>'Ajustare internă',default=>$delta>0?'Intrare în stoc':'Ieșire din stoc'};
             $row['cost_bani']=null;
-            if(!empty($row['nir_units'])) { $row['cost_bani']=InvoiceCalculator::ratio((int)$row['acquisition_bani'],abs($delta),abs((int)$row['nir_units'])); }
+            // NIR returns persist negative amounts. Direction comes from quantity,
+            // so the cost used by the ledger must be an unsigned magnitude.
+            if(!empty($row['nir_units'])) { $row['cost_bani']=InvoiceCalculator::ratio(abs((int)$row['acquisition_bani']),abs($delta),abs((int)$row['nir_units'])); }
             elseif(in_array($row['type'],['INVOICE_OUT','INVOICE_OUT_PENDING'],true) && !empty($row['invoice_units']) && $row['allocated_bani']!==null) {
                 $row['cost_bani']=InvoiceCalculator::ratio((int)$row['allocated_bani'],abs($delta),(int)$row['invoice_units']);
             }
@@ -126,7 +128,7 @@ final class StockLedgerService
         };
         if($start!==false) {
             $filters['from']=$start?->format('Y-m-d') ?? '';
-            $filters['to']=($preset==='previous'?$today->modify('last day of last month'):$today)->format('Y-m-d');
+            $filters['to']=$preset==='all'?'':($preset==='previous'?$today->modify('last day of last month'):$today)->format('Y-m-d');
         }
         $filters['from']=$this->date((string)($filters['from'] ?? ''));
         $filters['to']=$this->date((string)($filters['to'] ?? ''));

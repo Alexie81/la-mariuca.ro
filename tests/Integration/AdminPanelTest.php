@@ -129,6 +129,11 @@ final class AdminPanelTest extends DatabaseTestCase
         $document = new \DOMDocument();
         @$document->loadHTML('<?xml encoding="utf-8" ?>' . $html);
         $xpath = new \DOMXPath($document);
+        self::assertSame(2, $xpath->query('//*[@data-stock-pagination]')->length);
+        self::assertSame(2, $xpath->query('//select[@name="per_page"]/option[@selected and @value="12"]')->length);
+        self::assertSame('6', $xpath->evaluate('string(//*[@data-stock-pagination="top"]//*[@aria-current="page"])'));
+        self::assertSame(1, $xpath->query('//*[@id="stock-page-size-top"]')->length);
+        self::assertSame(1, $xpath->query('//*[@id="stock-page-size-bottom"]')->length);
         self::assertSame(12, $xpath->query('//tr[contains(@class,"stock-row ")]')->length);
         self::assertSame('6', $xpath->evaluate('string(//nav[@aria-label="Paginare registru"]//*[@aria-current="page"])'));
         $links = $xpath->query('//nav[@aria-label="Paginare registru"]//a');

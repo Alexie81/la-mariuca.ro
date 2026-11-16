@@ -19,6 +19,7 @@
     </form>
 
     {% if items %}
+      {% include 'admin/partials/stock-register-pagination.twig' with {position:'top'} %}
       <div class="stock-table-wrap"><table class="stock-table" aria-label="Soldurile curente ale produselor"><thead><tr><th scope="col">Produs</th><th scope="col">Stoc online</th><th scope="col">Stoc contabil</th><th scope="col">Intrări NIR</th><th scope="col">Ieșiri facturi</th><th scope="col">Valoare contabilă</th><th scope="col">Stare</th><th scope="col"><span class="stock-sr-only">Fișa produsului</span></th></tr></thead><tbody>
       {% for item in items %}<tr class="stock-row stock-row--{{ item.alert }}">
         <td data-label="Produs"><a class="stock-product" data-stock-open href="{{ url('admin/stoc/' ~ item.id ~ '/') }}"><span class="stock-product__photo">{% if item.image_path %}<img src="{{ url(item.image_path|trim('/')) }}" alt="">{% else %}<svg viewBox="0 0 24 24"><path d="M4 5h16v14H4zM7 15l3-3 2 2 2-3 3 4"/></svg>{% endif %}</span><span><strong>{{ item.name }}</strong><small>{{ item.sku ?: 'Fără SKU' }}{% if item.category %} · {{ item.category }}{% endif %}</small>{% if item.image_fallback %}<em>Imagine reprezentativă din categorie</em>{% endif %}</span></a></td>
@@ -36,18 +37,7 @@
         <td class="stock-row__open"><a data-stock-open href="{{ url('admin/stoc/' ~ item.id ~ '/') }}" aria-label="Deschide fișa {{ item.name }}"><svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></a></td>
       </tr>{% endfor %}
       </tbody></table></div>
-      <footer class="stock-register-foot">
-        <div class="stock-register-foot__summary"><form action="{{ url('admin/stoc/') }}" method="get" data-stock-page-size>
-          <input type="hidden" name="q" value="{{ filters.q|default('') }}"><input type="hidden" name="alert" value="{{ filters.alert|default('') }}">
-          <div class="stock-filter-select stock-filter-select--size" data-stock-select><label for="stock-page-size">Produse / pagină</label><select id="stock-page-size" name="per_page">{% for size in page_sizes %}<option value="{{ size }}"{{ size == per_page ? ' selected' : '' }}>{{ size }} produse</option>{% endfor %}</select></div>
-          <button type="submit" class="stock-btn" data-stock-page-size-apply>Aplică</button>
-        </form><span>{{ from }}–{{ to }} din {{ total }} produse</span></div>
-        <nav class="stock-register-pagination" aria-label="Paginare registru">
-          {% if previous_url %}<a class="stock-page-arrow" href="{{ previous_url }}" aria-label="Pagina precedentă" rel="prev"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6"/></svg><span>Înapoi</span></a>{% else %}<span class="stock-page-arrow is-disabled" aria-disabled="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6"/></svg><span>Înapoi</span></span>{% endif %}
-          <div class="stock-page-numbers">{% for link in page_links %}{% if link.number is null %}<span class="stock-page-gap" aria-hidden="true">…</span>{% elseif link.number == page %}<span class="stock-page-current" aria-current="page" aria-label="Pagina {{ page }}">{{ page }}</span>{% else %}<a href="{{ link.url }}" aria-label="Pagina {{ link.number }}">{{ link.number }}</a>{% endif %}{% endfor %}</div>
-          {% if next_url %}<a class="stock-page-arrow" href="{{ next_url }}" aria-label="Pagina următoare" rel="next"><span>Înainte</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m10 6 6 6-6 6"/></svg></a>{% else %}<span class="stock-page-arrow is-disabled" aria-disabled="true"><span>Înainte</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m10 6 6 6-6 6"/></svg></span>{% endif %}
-        </nav>
-      </footer>
+      {% include 'admin/partials/stock-register-pagination.twig' with {position:'bottom'} %}
     {% else %}<div class="stock-empty"><span><svg viewBox="0 0 24 24"><path d="M4 5h16v14H4zM8 9h8M8 13h5"/></svg></span><h3>Nu am găsit produse</h3><p>Modifică termenul sau filtrul. Produsele active și inactive contabil apar în acest registru.</p></div>{% endif %}
   </section>
 </div>

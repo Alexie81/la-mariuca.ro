@@ -80,6 +80,112 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         }
         $this->expectException(InvoiceException::class); $ledger->threshold($id,'4',['id'=>0,'role'=>'administrator']);
     }
+    public function testStockWorkbookMatchesReferenceFieldsAndReconcilesSummaryWithoutFrozenFirstSheet(): void
+    {
+        $this->purchase(3,'40','000123');
+        $this->service->issue($this->order(2),['request_key'=>'reference-export'],$this->actor);
+        $repository=new \App\Modules\Inventory\StockLedgerRepository($this->pdo);
+        $ledger=new \App\Modules\Inventory\StockLedgerService($repository);
+        $report=$ledger->accountingReport(['period'=>'all'],$this->actor);
+        self::assertSame('',$report['filters']['from']); self::assertSame('',$report['filters']['to']);
+        $selected=array_values(array_filter($report['details'],fn(array $d):bool=>(int)$d['product']['id']===(int)$this->variant['product_id']))[0];
+        $selected['product']['name']='=HYPERLINK("https://invalid.test")';
+        $report['details']=[$selected,$selected];
+        // Same source document across two product rows must count once in the summary.
+        $exports=new \App\Modules\Inventory\StockLedgerExportService($this->root);
+        $file=$exports->accounting($report,$repository->companyProfile());
+        try {
+            self::assertStringContainsString('toata-perioada-',$file['name']);
+            $book=\PhpOffice\PhpSpreadsheet\IOFactory::load($file['path']);
+            self::assertSame(['Rezumat','Stoc pe produse','Fișe magazie','Mișcări stoc','Documente sursă','Metodologie'],$book->getSheetNames());
+            $summary=$book->getSheet(0);
+            self::assertNull($summary->getFreezePane());
+            self::assertSame('Toată perioada disponibilă',$summary->getCell('C3')->getValue());
+            foreach(['D11'=>2,'I11'=>4,'D12'=>2,'I12'=>6,'D13'=>4,'I13'=>2,'D14'=>80,'I14'=>0] as $cell=>$value) { self::assertEquals($value,$summary->getCell($cell)->getValue(),$cell); }
+            self::assertSame('n',$summary->getCell('G8')->getDataType());
+            self::assertSame('s',$summary->getCell('C18')->getDataType());
+            self::assertSame($selected['product']['name'],$summary->getCell('C18')->getValue());
+            self::assertMatchesRegularExpression('/^LM-STOC-\d{8}-\d{6}-[A-F0-9]{8}$/',$summary->getCell('A4')->getValue());
+            self::assertSame($summary->getCell('A4')->getValue(),$book->getProperties()->getCustomPropertyValue('Identificator export'));
+            $stock=$book->getSheetByName('Stoc pe produse');
+            self::assertSame(['Nr. crt.','Cod produs','Denumire produs','U.M.','Stoc inițial','Intrări','Ieșiri','Stoc final','Stoc online actual','Valoare inițială la cost','Valoare intrări','Valoare ieșiri','Valoare finală la cost','Nr. mișcări','Control / observații'],$stock->rangeToArray('A6:O6',null,false,false)[0]);
+            self::assertSame('D7',$stock->getFreezePane());
+            self::assertEquals(40,$stock->getCell('M7')->getValue());
+            $cards=$book->getSheetByName('Fișe magazie');
+            self::assertSame('s',$cards->getCell('G8')->getDataType());
+            self::assertSame('000123',$cards->getCell('G8')->getValue());
+            $journal=$book->getSheetByName('Mișcări stoc');
+            self::assertSame('AB',$journal->getHighestDataColumn());
+            $rows=$journal->rangeToArray('A7:AB10',null,false,false);
+            $outgoing=array_values(array_filter($rows,static fn(array $r):bool=>$r[1]==='Ieșire'));
+            self::assertCount(2,$outgoing); self::assertEquals(80,$outgoing[0][21]);
+            self::assertStringContainsString('Comanda ',$outgoing[0][27]);
+            $documents=$book->getSheetByName('Documente sursă');
+            self::assertSame(8,$documents->getHighestDataRow());
+            self::assertEquals(240,$documents->getCell('N7')->getValue());
+            self::assertEquals(160,$documents->getCell('N8')->getValue());
+            $method=implode(' ',array_filter(array_merge(...$book->getSheetByName('Metodologie')->toArray()),'is_string'));
+            self::assertStringContainsString($summary->getCell('A4')->getValue(),$method);
+            self::assertStringContainsString("\nData:",$method);
+            foreach($book->getAllSheets() as $sheet) { self::assertFalse($sheet->getShowGridlines()); }
+            $book->disconnectWorksheets();
+        } finally { $exports->cleanup($file['path']); }
+    }
+    public function testStockWorkbookShowsOpeningBalancesWhenPeriodHasNoActivityAndIncludesAllAvailableDates(): void
+    {
+        $this->purchase(3,'40','EMPTY-INTERVAL');
+        $this->service->issue($this->order(2),['request_key'=>'empty-interval-sale'],$this->actor);
+        $repository=new \App\Modules\Inventory\StockLedgerRepository($this->pdo);
+        $ledger=new \App\Modules\Inventory\StockLedgerService($repository);
+        $report=$ledger->accountingReport(['q'=>$this->variant['sku'],'from'=>'2099-01-01','to'=>'2099-01-31'],$this->actor);
+        $book=(new \App\Modules\Inventory\StockAccountingWorkbook($this->root))->build($report,$repository->companyProfile());
+        try {
+            $summary=$book->getSheet(0);
+            self::assertNull($summary->getFreezePane());
+            self::assertEquals(0,$summary->getCell('I11')->getValue());
+            self::assertEquals(0,$summary->getCell('D12')->getValue());
+            self::assertEquals(1,$summary->getCell('I13')->getValue());
+            self::assertEquals(40,$summary->getCell('D14')->getValue());
+            self::assertSame('Nu există mișcări în perioada selectată.',$summary->getCell('A18')->getValue());
+            self::assertEquals(1,$book->getSheetByName('Stoc pe produse')->getCell('E7')->getValue());
+            self::assertEquals(1,$book->getSheetByName('Stoc pe produse')->getCell('H7')->getValue());
+            self::assertSame('Fără mișcări în perioada selectată.',$book->getSheetByName('Fișe magazie')->getCell('A8')->getValue());
+        } finally { $book->disconnectWorksheets(); }
+        $this->pdo->exec("UPDATE invoices SET issued_at='2099-02-01T10:00:00Z'");
+        $all=$ledger->accountingReport(['q'=>$this->variant['sku'],'period'=>'all'],$this->actor);
+        self::assertCount(2,$all['details'][0]['movements']);
+        self::assertSame(10000,$all['details'][0]['closing_units']);
+        $none=$ledger->accountingReport(['q'=>'no-such-qa-product','period'=>'all'],$this->actor);
+        $book=(new \App\Modules\Inventory\StockAccountingWorkbook($this->root))->build($none,$repository->companyProfile());
+        try { self::assertEquals(0,$book->getSheet(0)->getCell('D11')->getValue()); self::assertSame('Nu există produse pentru filtrele selectate.',$book->getSheetByName('Stoc pe produse')->getCell('A7')->getValue()); }
+        finally { $book->disconnectWorksheets(); }
+    }
+    public function testStockExportSubtractsSupplierReturnCostExactlyOnce(): void
+    {
+        $this->purchase(3,'40','EXPORT-BEFORE-RETURN');
+        $nirs=new NirService($this->pdo);
+        $purchase=$nirs->document((int)$this->pdo->query('SELECT MAX(id) FROM nir_documents')->fetchColumn(),$this->actor);
+        $evidence=[['stored_name'=>'qa-stock-return.pdf','original_name'=>'Factura storno.pdf','mime_type'=>'application/pdf','extension'=>'pdf','size_bytes'=>12,'sha256'=>hash('sha256','stock-return')]];
+        $nirs->reverse($purchase['id'],$purchase['row_version'],['attachments'=>$evidence,'reason'=>'Retur furnizor','invoice_number'=>'RETURN-0001','invoice_date'=>gmdate('Y-m-d'),'quantities'=>[$purchase['lines'][0]['id']=>'1']],'export-supplier-return',$this->actor);
+        $repository=new \App\Modules\Inventory\StockLedgerRepository($this->pdo);
+        $ledger=new \App\Modules\Inventory\StockLedgerService($repository);
+        $report=$ledger->accountingReport(['q'=>$this->variant['sku'],'period'=>'all'],$this->actor);
+        $detail=$report['details'][0];
+        self::assertSame(12000,$detail['incoming_value_bani']);
+        self::assertSame(4000,$detail['outgoing_value_bani']);
+        self::assertSame(8000,$detail['closing_value_bani']);
+        self::assertSame(20000,$detail['closing_units']);
+        self::assertSame(4000,$detail['movements'][1]['cost_bani']);
+        $book=(new \App\Modules\Inventory\StockAccountingWorkbook($this->root))->build($report,$repository->companyProfile());
+        try {
+            self::assertEquals(80,$book->getSheet(0)->getCell('D14')->getValue());
+            self::assertEquals(40,$book->getSheetByName('Stoc pe produse')->getCell('L7')->getValue());
+            self::assertEquals(80,$book->getSheetByName('Stoc pe produse')->getCell('M7')->getValue());
+            self::assertEquals(40,$book->getSheetByName('Mișcări stoc')->getCell('U8')->getValue());
+            self::assertEquals(40,$book->getSheetByName('Mișcări stoc')->getCell('V8')->getValue());
+            self::assertEquals(40,$book->getSheetByName('Documente sursă')->getCell('N8')->getValue());
+        } finally { $book->disconnectWorksheets(); }
+    }
     public function testAccountingExportsUseSourceDocumentDatesAndRebuildPeriodBalances(): void
     {
         $this->purchase(10,'40','PERIOD-OPENING');
@@ -126,7 +232,7 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
                     self::assertSame('30.11.2026 23:59',\PhpOffice\PhpSpreadsheet\Shared\Date::excelToDateTimeObject($sheet->getCell('C9')->getValue())->format('d.m.Y H:i'));
                     self::assertSame('20.11.2026 10:00',\PhpOffice\PhpSpreadsheet\Shared\Date::excelToDateTimeObject($book->getSheetByName('Documente sursă')->getCell('E8')->getValue())->format('d.m.Y H:i'));
                     $stock=$book->getSheetByName('Stoc pe produse'); $found=false;
-                    foreach($stock->getRowIterator(7) as $row) { $r=$row->getRowIndex(); if($stock->getCell('B'.$r)->getValue()===$this->variant['sku']) { self::assertEquals(12,$stock->getCell('H'.$r)->getValue()); self::assertEquals(480,$stock->getCell('N'.$r)->getValue()); $found=true; } }
+                    foreach($stock->getRowIterator(7) as $row) { $r=$row->getRowIndex(); if($stock->getCell('B'.$r)->getValue()===$this->variant['sku']) { self::assertEquals(12,$stock->getCell('H'.$r)->getValue()); self::assertEquals(480,$stock->getCell('M'.$r)->getValue()); $found=true; } }
                     self::assertTrue($found);
                 } else {
                     $sheet=$book->getActiveSheet(); self::assertSame(13,$sheet->getHighestDataRow());

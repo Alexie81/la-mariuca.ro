@@ -1,0 +1,12 @@
+<div class="stock-register-foot{{ position == 'top' ? ' stock-register-foot--top' : '' }}" data-stock-pagination="{{ position }}">
+  <div class="stock-register-foot__summary"><form action="{{ url('admin/stoc/') }}" method="get" data-stock-page-size>
+    <input type="hidden" name="q" value="{{ filters.q|default('') }}"><input type="hidden" name="alert" value="{{ filters.alert|default('') }}">
+    <div class="stock-filter-select stock-filter-select--size" data-stock-select><label for="stock-page-size-{{ position }}">Produse / pagină</label><select id="stock-page-size-{{ position }}" name="per_page">{% for size in page_sizes %}<option value="{{ size }}"{{ size == per_page ? ' selected' : '' }}>{{ size }} produse</option>{% endfor %}</select></div>
+    <button type="submit" class="stock-btn" data-stock-page-size-apply>Aplică</button>
+  </form><span>{{ from }}–{{ to }} din {{ total }} produse</span></div>
+  <nav class="stock-register-pagination" aria-label="{{ position == 'top' ? 'Paginare registru — sus' : 'Paginare registru' }}">
+    {% if previous_url %}<a class="stock-page-arrow" href="{{ previous_url }}" aria-label="Pagina precedentă" rel="prev"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6"/></svg><span>Înapoi</span></a>{% else %}<span class="stock-page-arrow is-disabled" aria-disabled="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6"/></svg><span>Înapoi</span></span>{% endif %}
+    <div class="stock-page-numbers">{% for link in page_links %}{% if link.number is null %}<span class="stock-page-gap" aria-hidden="true">…</span>{% elseif link.number == page %}<span class="stock-page-current" aria-current="page" aria-label="Pagina {{ page }}">{{ page }}</span>{% else %}<a href="{{ link.url }}" aria-label="Pagina {{ link.number }}">{{ link.number }}</a>{% endif %}{% endfor %}</div>
+    {% if next_url %}<a class="stock-page-arrow" href="{{ next_url }}" aria-label="Pagina următoare" rel="next"><span>Înainte</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m10 6 6 6-6 6"/></svg></a>{% else %}<span class="stock-page-arrow is-disabled" aria-disabled="true"><span>Înainte</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m10 6 6 6-6 6"/></svg></span>{% endif %}
+  </nav>
+</div>
