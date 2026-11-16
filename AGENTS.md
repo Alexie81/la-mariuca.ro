@@ -30,6 +30,11 @@
 - Main content works without JavaScript. JS only enhances navigation/forms.
 - Keep storefront styling in `public/assets/css/storefront`; admin styling separate.
 
+## Confirmed stock-document rule (2026-11-16)
+- Accounting quantities come from confirmed NIR lines (supplier receipts and customer returns) minus active positive outgoing invoice lines. A return/negative invoice does not receive goods; its confirmed customer-return NIR does. Existing supplier NIR reversals reverse their original entry.
+- Do not exclude a documented quantity because a legacy catalog/FIFO `track_in_conta` or `tracked` flag is disabled, or because its acquisition cost is unknown. The registry, product record and exports must agree on the source documents, without counting auxiliary stock/audit rows again.
+- Keep acquisition-cost coverage distinct from quantities, and keep online availability/reservations distinct from accounting stock. A customer-return receipt is an **intrare din retur client**, never “Necontabilizat” for an associated product.
+
 ## Commands
 - Install: `php composer.phar install`
 - Configure: copy `.env.example` to `.env`, then `php bin/generate-key.php`

@@ -858,20 +858,10 @@ final class CatalogAdminService
         $accounting = (new AccountingStockReadModel($this->pdo))->quantities([$id]);
 
         $movements = $this->pdo->prepare("SELECT
-                COALESCE(SUM(CASE WHEN movement.units>0 THEN movement.units ELSE 0 END),0) AS incoming_units,
-                COALESCE(SUM(CASE WHEN movement.units<0 THEN -movement.units ELSE 0 END),0) AS outgoing_units
-            FROM (
-                SELECT canonical.quantity_units AS units
-                FROM nir_stock_movements canonical
-                WHERE (canonical.scope_type='product' AND canonical.scope_id=:canonical_product)
-                   OR (canonical.scope_type='variant' AND EXISTS(SELECT 1 FROM product_variants canonical_variant WHERE canonical_variant.id=canonical.scope_id AND canonical_variant.product_id=:canonical_variant_product))
-                UNION ALL
-                SELECT legacy.quantity_delta*10000 AS units
-                FROM accounting_stock_movements legacy
-                WHERE legacy.product_id=:legacy_product
-                  AND NOT EXISTS(SELECT 1 FROM nir_stock_balances replacement WHERE replacement.scope_type=legacy.scope_type AND replacement.scope_id=legacy.scope_id)
-            ) movement");
-        $movements->execute(['canonical_product' => $id, 'canonical_variant_product' => $id, 'legacy_product' => $id]);
+                COALESCE(SUM(CASE WHEN movement.quantity_units>0 THEN movement.quantity_units ELSE 0 END),0) AS incoming_units,
+                COALESCE(SUM(CASE WHEN movement.quantity_units<0 THEN -movement.quantity_units ELSE 0 END),0) AS outgoing_units
+            FROM (".AccountingStockReadModel::documentMovementsSql().") movement WHERE movement.product_id=:product");
+        $movements->execute(['product' => $id]);
         $movementMetrics = $movements->fetch() ?: ['incoming_units' => 0, 'outgoing_units' => 0];
         $pending = $this->pdo->prepare('SELECT COALESCE(SUM(quantity_units),0) FROM nir_pending_consumptions WHERE product_id=:product');
         $pending->execute(['product' => $id]);

@@ -32,29 +32,28 @@ final class AccountingStockReadModel
         return (int)$this->pdo->query('SELECT COUNT(*) FROM (SELECT product_id FROM ('.self::documentMovementsSql().') movements GROUP BY product_id HAVING SUM(quantity_units)<0) negative_products')->fetchColumn();
     }
 
-    /** Every row is backed by a confirmed NIR or by an active issued invoice. */
+    /** One quantity per source line, regardless of legacy FIFO/catalog tracking flags.
+     * Credits describe the financial return; only its confirmed NIR receives goods.
+     */
     public static function documentMovementsSql(): string
     {
-        return "SELECT CASE WHEN movement.scope_type='product' THEN movement.scope_id ELSE variant.product_id END AS product_id,
-                movement.scope_type,movement.scope_id,movement.quantity_units,movement.id
-            FROM nir_stock_movements movement
-            LEFT JOIN product_variants variant ON movement.scope_type='variant' AND variant.id=movement.scope_id
-            WHERE (movement.scope_type='product' OR variant.product_id IS NOT NULL)
-              AND (
-                (movement.nir_id IS NOT NULL AND EXISTS(
-                    SELECT 1 FROM nir_documents source_nir
-                    WHERE source_nir.id=movement.nir_id AND source_nir.status='confirmed'
-                ))
-                OR (movement.source_type='invoice_line' AND EXISTS(
-                    SELECT 1 FROM invoice_lines source_line
-                    JOIN invoices source_invoice ON source_invoice.id=source_line.invoice_id
-                    WHERE source_line.id=movement.source_id AND source_invoice.deleted_at IS NULL
-                ))
-                OR (movement.source_type='order_item' AND EXISTS(
-                    SELECT 1 FROM order_items source_item
-                    JOIN invoices source_invoice ON (source_invoice.order_id=source_item.order_id OR source_invoice.primary_order_id=source_item.order_id)
-                    WHERE source_item.id=movement.source_id AND source_invoice.deleted_at IS NULL
-                ))
-              )";
+        return "SELECT line.product_id,COALESCE(line.scope_type,'product') AS scope_type,
+                COALESCE(line.scope_id,line.product_id) AS scope_id,line.stock_quantity_units AS quantity_units,
+                line.id*2 AS id,document.id AS nir_id,line.id AS line_id,
+                CASE WHEN document.type='customer_return' THEN 'NIR_CUSTOMER_RETURN'
+                    WHEN document.type='supplier_return' THEN 'NIR_SUPPLIER_RETURN' ELSE 'NIR_IN' END AS type,
+                'nir' AS source_type,document.id AS source_id,document.warehouse_id,
+                document.confirmed_by AS actor_id,COALESCE((SELECT MIN(audit.created_at) FROM nir_stock_movements audit WHERE audit.nir_id=document.id AND audit.line_id=line.id),document.confirmed_at,document.created_at) AS created_at
+            FROM nir_lines line JOIN nir_documents document ON document.id=line.nir_id
+            WHERE document.status='confirmed' AND line.product_id IS NOT NULL AND line.stock_quantity_units<>0
+            UNION ALL
+            SELECT line.product_id,COALESCE(line.scope_type,'product') AS scope_type,
+                COALESCE(line.scope_id,line.product_id) AS scope_id,-line.quantity_units AS quantity_units,
+                line.id*2+1 AS id,NULL AS nir_id,NULL AS line_id,'INVOICE_OUT' AS type,
+                'invoice_line' AS source_type,line.id AS source_id,line.warehouse_id,
+                document.created_by AS actor_id,COALESCE((SELECT MIN(audit.created_at) FROM nir_stock_movements audit WHERE audit.source_type='invoice_line' AND audit.source_id=line.id AND audit.quantity_units<0),document.issued_at) AS created_at
+            FROM invoice_lines line JOIN invoices document ON document.id=line.invoice_id
+            WHERE document.deleted_at IS NULL AND document.kind IN ('sale','corrected_positive')
+                AND line.kind='product' AND line.product_id IS NOT NULL AND line.quantity_units>0";
     }
 }

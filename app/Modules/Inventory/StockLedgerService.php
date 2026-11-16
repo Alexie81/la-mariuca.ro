@@ -57,7 +57,7 @@ final class StockLedgerService
             $row['cost_bani']=null;
             // NIR returns persist negative amounts. Direction comes from quantity,
             // so the cost used by the ledger must be an unsigned magnitude.
-            if(!empty($row['nir_units'])) { $row['cost_bani']=InvoiceCalculator::ratio(abs((int)$row['acquisition_bani']),abs($delta),abs((int)$row['nir_units'])); }
+            if(!empty($row['nir_units']) && $row['acquisition_bani']!==null) { $row['cost_bani']=InvoiceCalculator::ratio(abs((int)$row['acquisition_bani']),abs($delta),abs((int)$row['nir_units'])); }
             elseif(in_array($row['type'],['INVOICE_OUT','INVOICE_OUT_PENDING'],true) && !empty($row['invoice_units']) && $row['allocated_bani']!==null) {
                 $row['cost_bani']=InvoiceCalculator::ratio((int)$row['allocated_bani'],abs($delta),(int)$row['invoice_units']);
             }
@@ -96,7 +96,7 @@ final class StockLedgerService
             'opening_value_bani'=>$openingValue,'incoming_value_bani'=>$incomingValue,'outgoing_value_bani'=>$outgoingValue,'closing_value_bani'=>$openingValue+$incomingValue-$outgoingValue,
             'pending_cost_units'=>$openingPending+array_sum(array_column($journal,'pending_cost_units')),'documented_only'=>$fiscalOnly,
             'unlimited'=>$unlimitedCount>0,
-            'accounting_tracked'=>(bool)$product['track_in_conta'] || in_array(1,array_map('intval',array_column($variants,'track_in_conta')),true),
+            'accounting_tracked'=>$rows!==[],
             'filters'=>['from'=>$from,'to'=>$to]];
     }
 

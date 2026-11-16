@@ -48,7 +48,7 @@
     <section class="product-record__panel">
       <header><span>02</span><div><small>Stoc documentar</small><h2>Intrări și ieșiri</h2></div></header>
       <div class="product-record__stock-flow"><div><span>Intrări totale</span><strong>+{{ stock.incoming_quantity|decimal_ro }}</strong></div><div><span>Ieșiri totale</span><strong>−{{ stock.outgoing_quantity|decimal_ro }}</strong></div><div><span>Costuri în așteptare</span><strong>{{ stock.pending_quantity|decimal_ro }}</strong></div></div>
-      {% if product.track_in_conta or product.variants|filter(variant => variant.track_in_conta) %}<a class="product-record__deep-link" href="{{ url('admin/stoc/' ~ product.id ~ '/') }}">Deschide fișa de magazie și jurnalul complet →</a>{% else %}<p class="product-record__muted">Produsul nu este urmărit contabil.</p>{% endif %}
+      <a class="product-record__deep-link" href="{{ url('admin/stoc/' ~ product.id ~ '/') }}">Deschide fișa de magazie și jurnalul complet →</a>
     </section>
   </div>
 

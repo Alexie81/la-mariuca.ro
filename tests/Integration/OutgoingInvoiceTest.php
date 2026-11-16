@@ -54,6 +54,65 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         $rows=$ledger->registry(['q'=>$this->variant['sku'],'alert'=>'low'],$this->actor);
         self::assertCount(1,$rows['items']); self::assertSame('3',$rows['items'][0]['quantity']); self::assertSame('low',$rows['items'][0]['alert']);
     }
+
+    public function testStockQuantitiesUseNirAndPositiveInvoiceEvenWithoutLegacyCostTracking(): void
+    {
+        $id=(int)$this->variant['product_id'];
+        $this->pdo->exec('UPDATE products SET track_in_conta=0 WHERE id='.$id);
+        $this->pdo->exec('UPDATE product_variants SET track_in_conta=0,stock_unlimited=0 WHERE product_id='.$id);
+        $ledger=new \App\Modules\Inventory\StockLedgerService(new \App\Modules\Inventory\StockLedgerRepository($this->pdo));
+        $read=new \App\Modules\Inventory\AccountingStockReadModel($this->pdo);
+        $this->purchase(5,'0','SOURCE-NIR');
+        self::assertSame(50000,$ledger->detail($id,[],$this->actor)['current_units']);
+        $order=$this->order(3);
+        self::assertSame('5',$read->quantities([$id])[$id],'An order must not change documentary stock.');
+        $invoice=$this->service->issue($order,['request_key'=>'source-positive'],$this->actor);
+        self::assertSame('2',$read->quantities([$id])[$id]);
+        $credit=$this->service->credit($invoice['id'],['request_key'=>'source-credit','version'=>1,'reason'=>'Retur client','quantities'=>[$invoice['lines'][0]['id']=>3],'notify_customer'=>'0'],$this->actor);
+        self::assertSame('2',$read->quantities([$id])[$id],'A credit invoice must not receive goods.');
+        $input=['request_key'=>'source-return-nir','version'=>$credit['row_version'],'received'=>[$credit['lines'][0]['id']=>3],'restock'=>[$credit['lines'][0]['id']=>3]];
+        $received=$this->service->receive($credit['id'],$input,$this->actor);
+        $nir=(new NirService($this->pdo))->document($received['receipt_nir']['id'],$this->actor);
+        self::assertSame('customer_return',$nir['type']);
+        $detail=$ledger->detail($id,[],$this->actor);
+        self::assertSame(50000,$detail['current_units']);
+        self::assertSame(80000,$detail['incoming_units']);
+        self::assertSame(30000,$detail['outgoing_units']);
+        self::assertCount(3,$detail['movements']);
+        $returns=array_values(array_filter($detail['movements'],static fn(array $row):bool=>$row['type']==='NIR_CUSTOMER_RETURN'));
+        self::assertCount(1,$returns);self::assertSame(30000,(int)$returns[0]['quantity_units']);
+        self::assertSame($nir['id'],(int)$returns[0]['nir_id']);
+        self::assertSame('5',$read->quantities([$id])[$id]);
+        self::assertSame('5',$ledger->registry(['q'=>$this->variant['sku']],$this->actor)['items'][0]['quantity']);
+        $this->service->receive($credit['id'],$input,$this->actor);
+        self::assertCount(3,$ledger->detail($id,[],$this->actor)['movements']);
+        // Extra audit/write-model rows cannot duplicate a document's quantity.
+        (new \App\Modules\Inventory\NirRepository($this->pdo))->insert('nir_stock_movements',[
+            'nir_id'=>$nir['id'],'line_id'=>$nir['lines'][0]['id'],'warehouse_id'=>$nir['warehouse_id'],
+            'scope_type'=>'product','scope_id'=>$id,'type'=>'NIR_CUSTOMER_RETURN','quantity_units'=>30000,
+            'before_units'=>0,'after_units'=>30000,'event_key'=>'duplicate-legacy-audit','source_type'=>'nir',
+            'source_id'=>$nir['id'],'actor_id'=>$this->actor['id'],'created_at'=>gmdate('c'),
+        ]);
+        self::assertSame('5',$read->quantities([$id])[$id]);
+        self::assertCount(3,$ledger->detail($id,[],$this->actor)['movements']);
+        $catalog=(new \App\Modules\Catalog\CatalogAdminService($this->pdo))->productDetail($id);
+        self::assertSame('5',$catalog['stock']['accounting_quantity']);
+        self::assertSame('8.0000',$catalog['stock']['incoming_quantity']);
+        self::assertSame('3.0000',$catalog['stock']['outgoing_quantity']);
+        // Changing the old catalog flag must not rewrite the quantity history.
+        $this->pdo->exec('UPDATE products SET track_in_conta=1 WHERE id='.$id);
+        self::assertSame('5',$read->quantities([$id])[$id]);
+        $report=$ledger->accountingReport(['period'=>'all'],$this->actor);
+        $product=array_values(array_filter($report['details'],static fn(array $row):bool=>(int)$row['product']['id']===$id))[0];
+        self::assertSame(50000,$product['closing_units']);
+        self::assertCount(3,$product['movements']);
+        $_SESSION['user_id']=$this->actor['id'];$app=\App\AppFactory::create($this->root);
+        $page=$app->handle((new \Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('GET','http://localhost/admin/nir-uri/'.$nir['id'].'/'));
+        self::assertSame(200,$page->getStatusCode());
+        self::assertStringContainsString('Intrare · retur client',(string)$page->getBody());
+        self::assertStringNotContainsString('Necontabilizat',(string)$page->getBody());
+        unset($app);gc_collect_cycles();
+    }
     public function testStockExportsPreserveNumericCellsNoTrailingDotsAndProtectFormulaText(): void
     {
         $this->purchase(3,'40','EXPORT-PURCHASE');

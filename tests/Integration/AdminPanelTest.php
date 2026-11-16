@@ -178,8 +178,17 @@ final class AdminPanelTest extends DatabaseTestCase
             'confirmed_at' => $now,
         ]);
         $nirId = (int) $this->pdo->lastInsertId();
-        $this->pdo->prepare("INSERT INTO nir_stock_movements(nir_id,line_id,warehouse_id,scope_type,scope_id,type,quantity_units,before_units,after_units,event_key,source_type,source_id,actor_id,created_at) VALUES(:nir_id,NULL,:warehouse_id,'variant',:scope_id,'STORNO_OUT',-10000,0,-10000,'admin-panel-stock-fixture','nir_storno',:nir_id,:actor_id,:created_at)")->execute([
+        // The source NIR line, rather than its auxiliary posting, owns the quantity.
+        $lineId = (new \App\Modules\Inventory\NirRepository($this->pdo))->insert('nir_lines', array_replace(\App\Modules\Inventory\NirDecimal::line([
+            'nir_id'=>$nirId,'position'=>1,'product_id'=>$accountingScope['product_id'],'variant_id'=>$accountingScope['variant_id'],
+            'scope_type'=>'variant','scope_id'=>$accountingScope['variant_id'],'supplier_name'=>'Produs test','product_name'=>'Produs test',
+            'sku'=>$accountingScope['sku'],'image_path'=>'','category_name'=>'','invoice_quantity'=>'1','received_quantity'=>'1',
+            'accepted_quantity'=>'1','rejected_quantity'=>'0','conversion_factor'=>'1','unit_price'=>'0','discount_percent'=>'0',
+            'vat_percent'=>'0','extra_cost_ron'=>'0','difference_notes'=>'',
+        ], '1'), ['invoice_quantity'=>'-1','received_quantity'=>'-1','accepted_quantity'=>'-1','stock_quantity'=>'-1','stock_quantity_units'=>-10000]));
+        $this->pdo->prepare("INSERT INTO nir_stock_movements(nir_id,line_id,warehouse_id,scope_type,scope_id,type,quantity_units,before_units,after_units,event_key,source_type,source_id,actor_id,created_at) VALUES(:nir_id,:line_id,:warehouse_id,'variant',:scope_id,'STORNO_OUT',-10000,0,-10000,'admin-panel-stock-fixture','nir_storno',:nir_id,:actor_id,:created_at)")->execute([
             'nir_id' => $nirId,
+            'line_id' => $lineId,
             'warehouse_id' => $warehouseId,
             'scope_id' => (int) $accountingScope['variant_id'],
             'actor_id' => (int) $_SESSION['user_id'],

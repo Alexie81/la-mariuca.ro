@@ -55,7 +55,7 @@ final class StockLedgerRepository
             LEFT JOIN media category_media ON category_media.id=c.image_media_id
             LEFT JOIN media parent_category_media ON parent_category_media.id=parent_category.image_media_id
             LEFT JOIN media grandparent_category_media ON grandparent_category_media.id=grandparent_category.image_media_id
-            LEFT JOIN (SELECT product_id,SUM(quantity_units) units,
+            LEFT JOIN (SELECT product_id,SUM(quantity_units) units,COUNT(*) movement_count,
                 SUM(CASE WHEN quantity_units>0 THEN quantity_units ELSE 0 END) incoming_units,
                 SUM(CASE WHEN quantity_units<0 THEN -quantity_units ELSE 0 END) outgoing_units
                 FROM ('.$this->balancesSql().') all_movements GROUP BY product_id) b ON b.product_id=p.id
@@ -63,7 +63,7 @@ final class StockLedgerRepository
         $q=$this->pdo->prepare('SELECT COUNT(*)'.$from); $q->execute($params); $count=(int)$q->fetchColumn();
         $size=StockPagination::size($filters['per_page'] ?? null); $pages=max(1,(int)ceil($count/$size)); $page=max(1,min($pages,(int)($filters['page'] ?? 1)));
         $sql="SELECT p.id,p.name,p.slug,p.status,p.primary_sku AS sku,p.track_in_conta,p.accounting_minimum_units,c.name AS category,
-            CASE WHEN p.track_in_conta=1 OR EXISTS(SELECT 1 FROM product_variants tracked_variant WHERE tracked_variant.product_id=p.id AND tracked_variant.track_in_conta=1 AND tracked_variant.options_json NOT IN ('','{}','[]')) THEN 1 ELSE 0 END AS accounting_tracked,
+            CASE WHEN COALESCE(b.movement_count,0)>0 THEN 1 ELSE 0 END AS accounting_tracked,
             COALESCE(b.units,0) AS accounting_units,COALESCE(b.incoming_units,0) AS incoming_units,COALESCE(b.outgoing_units,0) AS outgoing_units,
             COALESCE(
                 (SELECT m.public_path FROM product_images pi JOIN media m ON m.id=pi.media_id WHERE pi.product_id=p.id AND m.public_path IS NOT NULL ORDER BY pi.position,pi.media_id LIMIT 1),
@@ -126,17 +126,16 @@ final class StockLedgerRepository
         $q=$this->pdo->prepare("SELECT m.id,m.created_at,m.type,m.quantity_units,m.source_type,m.source_id,m.scope_type,m.scope_id,m.warehouse_id,
             w.name AS warehouse,u.first_name,u.last_name,n.id AS nir_id,n.number AS nir_number,n.supplier_snapshot,n.invoice_series,n.invoice_number,n.status AS nir_status,n.invoice_date,n.notes AS nir_notes,n.nir_at AS nir_registered_at,
             il.invoice_id,i.series_code,i.number AS invoice_number_out,i.deleted_at AS invoice_deleted,i.issued_at AS invoice_date_out,i.order_id,i.snapshot_json AS invoice_snapshot,o.order_number,il.quantity_units AS invoice_units,il.gross_bani AS sale_bani,
-            nl.stock_quantity_units AS nir_units,nl.inventory_bani AS acquisition_bani,nl.stock_unit AS unit,nl.sku AS nir_sku,il.sku AS invoice_sku,
+            nl.stock_quantity_units AS nir_units,
+            CASE WHEN nl.tracked=0 OR (n.type='customer_return' AND COALESCE((SELECT SUM(fl.initial_units) FROM nir_fifo_layers fl WHERE fl.line_id=nl.id),0)<ABS(nl.stock_quantity_units)) THEN NULL ELSE nl.inventory_bani END AS acquisition_bani,nl.stock_unit AS unit,nl.sku AS nir_sku,il.sku AS invoice_sku,
             (SELECT SUM(c.value_bani) FROM nir_fifo_consumptions c WHERE c.source_type='invoice_line' AND c.source_id=il.id) AS allocated_bani,
             (SELECT SUM(pc.quantity_units) FROM nir_pending_consumptions pc WHERE pc.source_type='invoice_line' AND pc.source_id=il.id) AS pending_units
-            FROM nir_stock_movements m JOIN company_warehouses w ON w.id=m.warehouse_id LEFT JOIN users u ON u.id=m.actor_id
+            FROM (".AccountingStockReadModel::documentMovementsSql().") m LEFT JOIN company_warehouses w ON w.id=m.warehouse_id LEFT JOIN users u ON u.id=m.actor_id
             LEFT JOIN nir_documents n ON n.id=m.nir_id LEFT JOIN nir_lines nl ON nl.id=m.line_id
             LEFT JOIN invoice_lines il ON m.source_type='invoice_line' AND il.id=m.source_id LEFT JOIN invoices i ON i.id=il.invoice_id LEFT JOIN orders o ON o.id=i.order_id
-            WHERE ((m.scope_type='product' AND m.scope_id=:product) OR (m.scope_type='variant' AND EXISTS(SELECT 1 FROM product_variants v WHERE v.id=m.scope_id AND v.product_id=:variant_product)))
-              AND ((m.nir_id IS NOT NULL AND n.status='confirmed') OR (m.source_type='invoice_line' AND i.id IS NOT NULL AND i.deleted_at IS NULL)
-                OR (m.source_type='order_item' AND EXISTS(SELECT 1 FROM order_items source_item JOIN invoices source_invoice ON (source_invoice.order_id=source_item.order_id OR source_invoice.primary_order_id=source_item.order_id) WHERE source_item.id=m.source_id AND source_invoice.deleted_at IS NULL)))
+            WHERE m.product_id=:product
             ORDER BY m.created_at,m.id");
-        $q->execute(['product'=>$id,'variant_product'=>$id]); $rows=$q->fetchAll();
+        $q->execute(['product'=>$id]); $rows=$q->fetchAll();
         foreach($rows as &$row) {
             // Keep the audit timestamp intact; the source document determines the reporting period.
             $row['movement_at']=!empty($row['nir_registered_at'])?$row['nir_registered_at']:
