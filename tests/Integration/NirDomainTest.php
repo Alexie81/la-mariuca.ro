@@ -42,7 +42,7 @@ final class NirDomainTest extends DatabaseTestCase
 
     protected function tearDown(): void { unset($this->service); parent::tearDown(); }
 
-    public function testDraftHasNoStockConfirmIsAtomicIdempotentAndCommercialStockIsUntouched(): void
+    public function testDraftHasNoStockConfirmIsAtomicIdempotentAndAddsNumericOnlineStock(): void
     {
         $commercial=$this->pdo->query('SELECT * FROM inventory ORDER BY variant_id')->fetchAll();
         $draft=$this->draft(); self::assertSame(0,$this->countRows('nir_stock_balances')); self::assertSame(0,$this->countRows('nir_fifo_layers'));
@@ -51,8 +51,21 @@ final class NirDomainTest extends DatabaseTestCase
         self::assertSame(30000,$this->balance()); self::assertSame(1,$this->countRows('nir_fifo_layers')); self::assertSame(1,$this->countRows('nir_stock_movements'));
         $retry=$this->service->confirm($draft['id'],$draft['row_version'],'confirm-atomic-001',true,$this->actor);
         self::assertSame($confirmed['id'],$retry['id']); self::assertSame(30000,$this->balance());
-        self::assertSame($commercial,$this->pdo->query('SELECT * FROM inventory ORDER BY variant_id')->fetchAll());
+        $online=$this->pdo->query('SELECT * FROM inventory WHERE variant_id='.(int)$this->variant['id'])->fetch();
+        $beforeVariant=array_values(array_filter($commercial,fn(array $row):bool=>(int)$row['variant_id']===(int)$this->variant['id']))[0];
+        self::assertSame((int)$beforeVariant['physical_quantity']+3,(int)$online['physical_quantity']);
+        self::assertSame(1,$this->countRows('nir_online_stock_effects'));
         self::assertTrue($this->service->fifo([],$this->actor)['reconciliation'][0]['balanced']);
+    }
+
+    public function testConfirmedNirNeverChangesUnlimitedOnlineStock(): void
+    {
+        $this->pdo->prepare('UPDATE product_variants SET stock_unlimited=1 WHERE id=:id')->execute(['id'=>$this->variant['id']]);
+        $before=(int)$this->pdo->query('SELECT physical_quantity FROM inventory WHERE variant_id='.(int)$this->variant['id'])->fetchColumn();
+        $confirmed=$this->confirmed();
+        self::assertSame(30000,$this->balance());
+        self::assertSame($before,(int)$this->pdo->query('SELECT physical_quantity FROM inventory WHERE variant_id='.(int)$this->variant['id'])->fetchColumn());
+        self::assertSame(0,(int)$this->pdo->query('SELECT quantity_delta FROM nir_online_stock_effects WHERE nir_id='.(int)$confirmed['id'])->fetchColumn());
     }
 
     public function testStaleDraftCannotOverwriteAndConfirmedReceiptCannotBeDeleted(): void
@@ -64,7 +77,7 @@ final class NirDomainTest extends DatabaseTestCase
         self::assertSame(1,$this->countRows('nir_documents')); self::assertSame(30000,$this->balance());
     }
 
-    public function testNegativeStockReceiptAndStornoRestoreMinusOneWithoutChangingStorefront(): void
+    public function testNegativeStockReceiptAndStornoRestoreMinusOneAndOnlineQuantity(): void
     {
         $commercial=$this->pdo->query('SELECT * FROM inventory ORDER BY variant_id')->fetchAll();
         $draft=$this->draft(['invoice_quantity'=>'2','received_quantity'=>'2','accepted_quantity'=>'2']); $line=$draft['lines'][0];
@@ -79,9 +92,13 @@ final class NirDomainTest extends DatabaseTestCase
         self::assertSame(-10000,$this->balance());
         self::assertSame(10000,(int)$this->pdo->query('SELECT SUM(quantity_units) FROM nir_pending_consumptions')->fetchColumn());
         self::assertSame($sales,$this->pdo->query("SELECT * FROM nir_stock_movements WHERE source_type='invoice_line'")->fetchAll());
-        self::assertSame($commercial,$this->pdo->query('SELECT * FROM inventory ORDER BY variant_id')->fetchAll());
+        $after=$this->pdo->query('SELECT variant_id,physical_quantity,reserved_quantity FROM inventory ORDER BY variant_id')->fetchAll();
+        $before=array_map(static fn(array $row):array=>array_intersect_key($row,array_flip(['variant_id','physical_quantity','reserved_quantity'])),$commercial);
+        self::assertSame($before,$after);
         self::assertTrue($this->service->fifo([],$this->actor)['reconciliation'][0]['balanced']);
-        self::assertSame('-1',(new AccountingStockReadModel($this->pdo))->quantities([(int)$line['product_id']])[$line['product_id']]);
+        // The synthetic consumption has no issued invoice behind it, so it is
+        // deliberately excluded from the document-only admin read model.
+        self::assertSame('0',(new AccountingStockReadModel($this->pdo))->quantities([(int)$line['product_id']])[$line['product_id']]);
         $next=$this->draft([],['invoice_number'=>'REPLACEMENT']);
         $next=$this->service->confirm($next['id'],$next['row_version'],'replacement-purchase',true,$this->actor);
         self::assertNotSame($confirmed['number'],$next['number']); self::assertSame(20000,$this->balance());
@@ -140,7 +157,7 @@ final class NirDomainTest extends DatabaseTestCase
         self::assertSame(1,$this->countRows('nir_fifo_consumptions'));
     }
 
-    public function testInvoiceBeforeFirstReceiptRetainsLegacyShortage(): void
+    public function testInvoiceBeforeFirstReceiptIgnoresUndocumentedLegacyShortage(): void
     {
         $now=gmdate('c');
         $this->pdo->prepare("INSERT INTO accounting_stock_balances(scope_type,scope_id,product_id,variant_id,sku,quantity,created_at,updated_at) VALUES ('product',:id,:id,NULL,'OLD',-1,:now,:now)")->execute(['id'=>$this->variant['product_id'],'now'=>$now]);
@@ -148,13 +165,13 @@ final class NirDomainTest extends DatabaseTestCase
         $order=$this->order(1);
         $accounting=new AccountingStockService($this->pdo);
         $accounting->recordInvoice($order,'LEGACY-NEXT-INVOICE',$this->actor['id']);
-        self::assertSame(-20000,$this->balance());
+        self::assertSame(-10000,$this->balance());
         $accounting->recordInvoice($order,'LEGACY-NEXT-INVOICE',$this->actor['id']);
-        self::assertSame(-20000,$this->balance());
+        self::assertSame(-10000,$this->balance());
         $confirmed=$this->service->confirm($draft['id'],$draft['row_version'],'legacy-purchase-later',true,$this->actor);
-        self::assertSame(10000,$this->balance());
+        self::assertSame(20000,$this->balance());
         $this->assertConfirmedDeletionBlocked($confirmed);
-        self::assertSame(10000,$this->balance());
+        self::assertSame(20000,$this->balance());
         self::assertTrue($this->service->fifo([],$this->actor)['reconciliation'][0]['balanced']);
     }
 
@@ -171,14 +188,14 @@ final class NirDomainTest extends DatabaseTestCase
         self::assertTrue($this->service->fifo([],$this->actor)['reconciliation'][0]['balanced']);
     }
 
-    public function testFirstReceiptPreservesLegacyDeficitAndCannotBeDeleted(): void
+    public function testFirstReceiptDoesNotImportUndocumentedLegacyDeficit(): void
     {
         $now=gmdate('c');
         $this->pdo->prepare("INSERT INTO accounting_stock_balances(scope_type,scope_id,product_id,variant_id,sku,quantity,created_at,updated_at) VALUES ('product',:id,:id,NULL,'OLD',-1,:now,:now)")->execute(['id'=>$this->variant['product_id'],'now'=>$now]);
         $confirmed=$this->confirmed(['invoice_quantity'=>'1','received_quantity'=>'1','accepted_quantity'=>'1']);
-        self::assertSame(0,$this->balance());
+        self::assertSame(10000,$this->balance());
         $this->assertConfirmedDeletionBlocked($confirmed);
-        self::assertSame(0,$this->balance());
+        self::assertSame(10000,$this->balance());
         self::assertSame(-1,(int)$this->pdo->query('SELECT quantity FROM accounting_stock_balances')->fetchColumn());
         self::assertTrue($this->service->fifo([],$this->actor)['reconciliation'][0]['balanced']);
     }
@@ -381,12 +398,12 @@ final class NirDomainTest extends DatabaseTestCase
     {
         $now=gmdate('c');
         $this->pdo->prepare("INSERT INTO accounting_stock_balances(scope_type,scope_id,product_id,variant_id,sku,quantity,created_at,updated_at) VALUES ('product',:product,:product,NULL,'OLD',-100,:now,:now)")->execute(['product'=>$this->variant['product_id'],'now'=>$now]);
-        $read=new AccountingStockReadModel($this->pdo); self::assertSame(1,$read->negativeProductsCount());
+        $read=new AccountingStockReadModel($this->pdo); self::assertSame(0,$read->negativeProductsCount());
         $this->service->opening(['warehouse_id'=>$this->base['warehouse_id'],'product_id'=>$this->variant['product_id'],'variant_id'=>$this->variant['id'],'quantity'=>'1.25','unit_cost_ron'=>'10','reason'=>'Inventar verificat','date'=>gmdate('Y-m-d')],'opening-display-001',$this->actor);
         self::assertSame('1.25',$read->quantities([(int)$this->variant['product_id']])[$this->variant['product_id']]); self::assertSame(0,$read->negativeProductsCount());
         $catalog=(new CatalogAdminService($this->pdo))->paginateProductsForAdmin(1,100); $product=array_values(array_filter($catalog['items'],fn(array $row):bool=>(int)$row['id']===(int)$this->variant['product_id']))[0]; self::assertSame('1.25',$product['physical_quantity']);
         $this->pdo->prepare("INSERT INTO accounting_stock_balances(scope_type,scope_id,product_id,variant_id,sku,quantity,created_at,updated_at) VALUES ('variant',:variant,:product,:variant,'OLD-VARIANT',-1,:now,:now)")->execute(['variant'=>$this->variant['id'],'product'=>$this->variant['product_id'],'now'=>$now]);
-        self::assertSame('0.25',$read->quantities([(int)$this->variant['product_id']])[$this->variant['product_id']]);
+        self::assertSame('1.25',$read->quantities([(int)$this->variant['product_id']])[$this->variant['product_id']]);
     }
 
     public function testRegistryPeriodUsesBucharestDatesAcrossUtcMidnight(): void

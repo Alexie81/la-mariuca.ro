@@ -177,6 +177,7 @@ final class NirService
             }
             foreach($old['lines'] as $line) {
                 if(!$line['tracked'] || $line['scope_type']===null) { continue; }
+                (new NirOnlineStockService($this->pdo))->setLineEffect($old,$line,0,$actor,'Corectare NIR '.$old['number']);
                 $this->changeBalance($old,$line,-(int)$line['stock_quantity_units']);
             }
             $this->repository->delete('nir_stock_movements',['nir_id'=>$id]);
@@ -285,6 +286,7 @@ final class NirService
                 }
                 $before=$this->changeBalance($reverse,$line,(int)$line['stock_quantity_units']);
                 $this->movement($reverse,$line,(int)$line['stock_quantity_units'],$before,'NIR_RETURN',$actor);
+                (new NirOnlineStockService($this->pdo))->setLineEffect($reverse,$line,(int)$line['stock_quantity_units'],$actor,'Retur furnizor prin NIR '.$invoiceNumber);
                 $this->repository->update('nir_lines',['inventory_bani'=>-$allocatedValue],['id'=>$line['id']]);
                 $this->recalculateCost((int)$reverse['warehouse_id'],$line);
             }
@@ -473,7 +475,6 @@ final class NirService
             $hash=$this->requestHash('consume',[$warehouseId,$target,$quantityUnits,$sourceType,$sourceId]); $request=$this->repository->one('nir_consumption_requests',['request_key'=>$key]);
             if($request!==null) { if($request['request_hash']!==$hash) { throw new NirConflictException('Cheia consumului a fost folosită pentru altă factură.'); } return; }
             if($this->repository->one('company_warehouses',['id'=>$warehouseId,'is_active'=>1])===null) { throw new NirValidationException(['warehouse_id'=>'Gestiunea facturii nu este activă.']); }
-            $this->carryLegacyDeficit(['warehouse_id'=>$warehouseId],$target,$actor);
             $remaining=$this->allocateConsumption($warehouseId,$target,$quantityUnits,$sourceType,$sourceId,$key,$actor);
             if($remaining>0) {
                 $this->repository->insert('nir_pending_consumptions',['event_key'=>$key,'warehouse_id'=>$warehouseId,'scope_type'=>$target['scope_type'],'scope_id'=>$target['scope_id'],'product_id'=>$target['product_id'],'variant_id'=>$target['variant_id'] ?? null,'sku'=>$target['sku'],'source_type'=>$sourceType,'source_id'=>$sourceId,'quantity_units'=>$remaining,'created_at'=>$this->repository->now()]);
@@ -891,10 +892,10 @@ final class NirService
             $computed=NirDecimal::line($line,$document['exchange_rate'],(bool)$document['vat_in_cost']);
             foreach(self::MONEY as $field) { if((int)$computed[$field] !== (int)$line[$field]) { throw new NirConflictException('Valorile documentului necesită recalculare. Salvează din nou ciorna.'); } }
             if($line['tracked'] && $line['scope_type']!==null) {
-                if($document['type']==='supplier_receipt') { $this->carryLegacyDeficit($document,$line,$actor); }
                 $before=$this->changeBalance($document,$line,(int)$line['stock_quantity_units']);
                 $this->movement($document,$line,(int)$line['stock_quantity_units'],$before,'NIR_IN',$actor);
                 $this->repository->insert('nir_fifo_layers',['nir_id'=>$id,'line_id'=>$line['id'],'warehouse_id'=>$document['warehouse_id'],'scope_type'=>$line['scope_type'],'scope_id'=>$line['scope_id'],'initial_units'=>$line['stock_quantity_units'],'remaining_units'=>$line['stock_quantity_units'],'initial_value_bani'=>$line['inventory_bani'],'remaining_value_bani'=>$line['inventory_bani'],'unit_cost_ron'=>$line['unit_cost_ron'],'received_at'=>$document['received_at'],'created_at'=>$now]);
+                (new NirOnlineStockService($this->pdo))->setLineEffect($document,$line,(int)$line['stock_quantity_units'],$actor,($document['type']==='opening_balance'?'Sold inițial':'Recepție furnizor').' · '.$number);
             }
             if($line['product_id']) {
                 $reference=$this->findReference((int)$document['supplier_id'],$line);
@@ -909,20 +910,6 @@ final class NirService
         }
         $this->repository->compactDraftNumbers();
         $this->audit($id,$correction?'reconfirmed':'confirmed',$actor,null,['number'=>$number,'row_version'=>(int)$document['row_version']+1]); $this->event($id,$correction?'nir.corrected':'nir.confirmed');
-    }
-
-    /** Carry a pre-existing shortage into the first warehouse ledger, once.
-     * @param array<string,mixed> $document @param array<string,mixed> $line @param array<string,mixed> $actor
-     */
-    private function carryLegacyDeficit(array $document,array $line,array $actor): void
-    {
-        $units=$this->repository->legacyDeficit($line['scope_type'],(int)$line['scope_id']);
-        if($units===0) { return; }
-        $key='legacy-deficit:'.$line['scope_type'].':'.$line['scope_id'];
-        $before=$this->changeBalance($document,$line,-$units);
-        $target=$line; unset($target['id']);
-        $this->movement(['warehouse_id'=>$document['warehouse_id']],$target,-$units,$before,'LEGACY_DEFICIT',$actor,$key,'legacy_balance',(int)$line['scope_id']);
-        $this->repository->insert('nir_pending_consumptions',['event_key'=>$key,'warehouse_id'=>$document['warehouse_id'],'scope_type'=>$line['scope_type'],'scope_id'=>$line['scope_id'],'product_id'=>$line['product_id'],'variant_id'=>$line['variant_id'],'sku'=>$line['sku'],'source_type'=>'legacy_balance','source_id'=>$line['scope_id'],'quantity_units'=>$units,'created_at'=>$this->repository->now()]);
     }
 
     /** @param list<array<string,mixed>> $lines @param array<string,mixed> $actor */

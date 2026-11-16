@@ -33,9 +33,8 @@ final class StockLedgerService
     public function detail(int $id,array $filters,array $actor): array
     {
         $this->allow($actor); $product=$this->repository->product($id) ?? throw new InvoiceException('Produsul nu este disponibil.',404);
-        $scopes=$this->repository->scopes($id); $variants=$this->repository->variants($id);
-        if(!(bool)$product['track_in_conta'] && $scopes===[]) { throw new InvoiceException('Produsul nu este urmărit contabil.',404); }
-        $rows=$this->repository->movements($id); $balance=0; $incoming=0; $outgoing=0; $journal=[];
+        $rows=$this->repository->movements($id); $scopes=$this->repository->scopes($id); $variants=$this->repository->variants($id);
+        $balance=0; $incoming=0; $outgoing=0; $journal=[];
         $fiscalOnly=(bool)($filters['documented_only'] ?? false);
         $openingValue=0; $incomingValue=0; $outgoingValue=0; $runningValue=0; $pending=0; $openingPending=0;
         $from=$this->date((string)($filters['from'] ?? '')); $to=$this->date((string)($filters['to'] ?? ''));
@@ -70,7 +69,7 @@ final class StockLedgerService
             $row['unit']=$row['unit'] ?? 'buc';
             $journal[]=$row;
         }
-        $current=array_sum(array_column($scopes,'quantity_units'));
+        $current=$balance;
         $onlineAdjustments=$this->repository->onlineAdjustments($id);
         foreach($onlineAdjustments as &$adjustment) {
             $adjustment['operator']=trim((string)$adjustment['first_name'].' '.(string)$adjustment['last_name']) ?: 'Sistem';
@@ -78,10 +77,12 @@ final class StockLedgerService
         } unset($adjustment);
         return ['product'=>$product,'scopes'=>$scopes,'variants'=>$variants,'movements'=>$journal,'online_adjustments'=>$onlineAdjustments,'opening_units'=>$opening,'incoming_units'=>$incoming,'outgoing_units'=>$outgoing,
             'closing_units'=>$opening+$incoming-$outgoing,'current_units'=>$current,'consistent'=>$balance===$current,'minimum'=>InvoiceCalculator::quantity((int)$product['accounting_minimum_units']),
-            'online'=>array_sum(array_column(array_filter($variants,static fn(array $v):bool=>$v['status']==='active'),'online_quantity')),
+            'online'=>array_sum(array_column(array_filter($variants,static fn(array $v):bool=>$v['status']==='active' && !(bool)$v['stock_unlimited']),'online_quantity')),
             'opening_value_bani'=>$openingValue,'incoming_value_bani'=>$incomingValue,'outgoing_value_bani'=>$outgoingValue,'closing_value_bani'=>$openingValue+$incomingValue-$outgoingValue,
             'pending_cost_units'=>$openingPending+array_sum(array_column($journal,'pending_cost_units')),'documented_only'=>$fiscalOnly,
-            'unlimited'=>in_array(1,array_map('intval',array_column(array_filter($variants,static fn(array $v):bool=>$v['status']==='active'),'stock_unlimited')),true),'filters'=>['from'=>$from,'to'=>$to]];
+            'unlimited'=>in_array(1,array_map('intval',array_column(array_filter($variants,static fn(array $v):bool=>$v['status']==='active'),'stock_unlimited')),true),
+            'accounting_tracked'=>(bool)$product['track_in_conta'] || in_array(1,array_map('intval',array_column($variants,'track_in_conta')),true),
+            'filters'=>['from'=>$from,'to'=>$to]];
     }
 
     /** A consistent read snapshot for all worksheets in the accounting export.

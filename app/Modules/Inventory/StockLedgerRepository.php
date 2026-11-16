@@ -20,15 +20,13 @@ final class StockLedgerRepository
 
     private function balancesSql(): string
     {
-        return 'SELECT product_id,quantity_units FROM nir_stock_balances UNION ALL
-            SELECT l.product_id,l.quantity*10000 FROM accounting_stock_balances l WHERE NOT EXISTS
-            (SELECT 1 FROM nir_stock_balances b WHERE b.scope_type=l.scope_type AND b.scope_id=l.scope_id)';
+        return AccountingStockReadModel::documentMovementsSql();
     }
 
     /** @param array<string,mixed> $filters @return array<string,mixed> */
     public function registry(array $filters, bool $export=false): array
     {
-        $params=[]; $where=["(p.track_in_conta=1 OR EXISTS(SELECT 1 FROM product_variants av WHERE av.product_id=p.id AND av.track_in_conta=1 AND av.options_json NOT IN ('','{}','[]')))"];
+        $params=[]; $where=["p.status<>'archived'"];
         $search=trim(mb_substr((string)($filters['q'] ?? ''),0,150));
         if ($search!=='') {
             $exact=$this->pdo->prepare("SELECT DISTINCT p.id FROM products p WHERE LOWER(p.name)=LOWER(:name) OR LOWER(p.primary_sku)=LOWER(:sku)
@@ -52,14 +50,32 @@ final class StockLedgerRepository
         if($alert==='negative') { $where[]='COALESCE(b.units,0)<0'; }
         elseif($alert==='low') { $where[]='COALESCE(b.units,0)<=p.accounting_minimum_units'; }
         $from=' FROM products p LEFT JOIN suppliers s ON s.id=p.supplier_id LEFT JOIN categories c ON c.id=p.primary_category_id
-            LEFT JOIN (SELECT product_id,SUM(quantity_units) units FROM ('.$this->balancesSql().') all_balances GROUP BY product_id) b ON b.product_id=p.id
+            LEFT JOIN categories parent_category ON parent_category.id=c.parent_id
+            LEFT JOIN categories grandparent_category ON grandparent_category.id=parent_category.parent_id
+            LEFT JOIN media category_media ON category_media.id=c.image_media_id
+            LEFT JOIN media parent_category_media ON parent_category_media.id=parent_category.image_media_id
+            LEFT JOIN media grandparent_category_media ON grandparent_category_media.id=grandparent_category.image_media_id
+            LEFT JOIN (SELECT product_id,SUM(quantity_units) units,
+                SUM(CASE WHEN quantity_units>0 THEN quantity_units ELSE 0 END) incoming_units,
+                SUM(CASE WHEN quantity_units<0 THEN -quantity_units ELSE 0 END) outgoing_units
+                FROM ('.$this->balancesSql().') all_movements GROUP BY product_id) b ON b.product_id=p.id
             WHERE '.implode(' AND ',$where);
         $q=$this->pdo->prepare('SELECT COUNT(*)'.$from); $q->execute($params); $count=(int)$q->fetchColumn();
         $size=24; $pages=max(1,(int)ceil($count/$size)); $page=max(1,min($pages,(int)($filters['page'] ?? 1)));
-        $sql="SELECT p.id,p.name,p.slug,p.status,p.primary_sku AS sku,p.accounting_minimum_units,c.name AS category,s.alias AS supplier,
-            COALESCE(b.units,0) AS accounting_units,
-            (SELECT m.public_path FROM product_images pi JOIN media m ON m.id=pi.media_id WHERE pi.product_id=p.id ORDER BY pi.position,pi.media_id LIMIT 1) AS image_path,
+        $sql="SELECT p.id,p.name,p.slug,p.status,p.primary_sku AS sku,p.track_in_conta,p.accounting_minimum_units,c.name AS category,
+            CASE WHEN p.track_in_conta=1 OR EXISTS(SELECT 1 FROM product_variants tracked_variant WHERE tracked_variant.product_id=p.id AND tracked_variant.track_in_conta=1 AND tracked_variant.options_json NOT IN ('','{}','[]')) THEN 1 ELSE 0 END AS accounting_tracked,
+            COALESCE(b.units,0) AS accounting_units,COALESCE(b.incoming_units,0) AS incoming_units,COALESCE(b.outgoing_units,0) AS outgoing_units,
+            COALESCE(
+                (SELECT m.public_path FROM product_images pi JOIN media m ON m.id=pi.media_id WHERE pi.product_id=p.id AND m.public_path IS NOT NULL ORDER BY pi.position,pi.media_id LIMIT 1),
+                (SELECT vm.public_path FROM product_variants image_variant JOIN media vm ON vm.id=image_variant.image_media_id WHERE image_variant.product_id=p.id AND vm.public_path IS NOT NULL ORDER BY image_variant.is_default DESC,image_variant.id LIMIT 1),
+                category_media.public_path,parent_category_media.public_path,grandparent_category_media.public_path
+            ) AS image_path,
+            CASE WHEN EXISTS(SELECT 1 FROM product_images pi WHERE pi.product_id=p.id) OR EXISTS(SELECT 1 FROM product_variants image_variant WHERE image_variant.product_id=p.id AND image_variant.image_media_id IS NOT NULL) THEN 0 ELSE 1 END AS image_fallback,
             COALESCE((SELECT SUM(i.physical_quantity-i.reserved_quantity) FROM product_variants v JOIN inventory i ON i.variant_id=v.id WHERE v.product_id=p.id AND v.status='active'),0) AS online_quantity,
+            COALESCE((SELECT SUM(i.physical_quantity) FROM product_variants v JOIN inventory i ON i.variant_id=v.id WHERE v.product_id=p.id AND v.status='active' AND v.stock_unlimited=0),0) AS online_physical,
+            COALESCE((SELECT SUM(i.reserved_quantity) FROM product_variants v JOIN inventory i ON i.variant_id=v.id WHERE v.product_id=p.id AND v.status='active' AND v.stock_unlimited=0),0) AS online_reserved,
+            (SELECT COUNT(*) FROM product_variants v WHERE v.product_id=p.id AND v.status='active' AND v.stock_unlimited=1) AS unlimited_variants,
+            (SELECT COUNT(*) FROM product_variants v WHERE v.product_id=p.id AND v.status='active' AND v.stock_unlimited=0) AS numeric_variants,
             CASE WHEN EXISTS(SELECT 1 FROM product_variants v WHERE v.product_id=p.id AND v.status='active' AND v.stock_unlimited=1) THEN 1 ELSE 0 END AS unlimited,
             COALESCE((SELECT SUM(f.remaining_value_bani) FROM nir_fifo_layers f JOIN nir_lines nl ON nl.id=f.line_id WHERE nl.product_id=p.id),0) AS value_bani,
             COALESCE((SELECT SUM(pc.quantity_units) FROM nir_pending_consumptions pc WHERE pc.product_id=p.id),0) AS pending_units".$from.' ORDER BY p.name,p.id';
@@ -71,19 +87,35 @@ final class StockLedgerRepository
     /** @return array<string,mixed>|null */
     public function product(int $id): ?array
     {
-        $q=$this->pdo->prepare('SELECT p.*,s.alias AS supplier,c.name AS category,
-            (SELECT m.public_path FROM product_images pi JOIN media m ON m.id=pi.media_id WHERE pi.product_id=p.id ORDER BY pi.position,pi.media_id LIMIT 1) AS image_path
-            FROM products p LEFT JOIN suppliers s ON s.id=p.supplier_id LEFT JOIN categories c ON c.id=p.primary_category_id WHERE p.id=:id');
+        $q=$this->pdo->prepare("SELECT p.*,c.name AS category,
+            COALESCE(
+                (SELECT m.public_path FROM product_images pi JOIN media m ON m.id=pi.media_id WHERE pi.product_id=p.id AND m.public_path IS NOT NULL ORDER BY pi.position,pi.media_id LIMIT 1),
+                (SELECT vm.public_path FROM product_variants image_variant JOIN media vm ON vm.id=image_variant.image_media_id WHERE image_variant.product_id=p.id AND vm.public_path IS NOT NULL ORDER BY image_variant.is_default DESC,image_variant.id LIMIT 1),
+                category_media.public_path,parent_category_media.public_path,grandparent_category_media.public_path
+            ) AS image_path,
+            CASE WHEN EXISTS(SELECT 1 FROM product_images pi WHERE pi.product_id=p.id) OR EXISTS(SELECT 1 FROM product_variants image_variant WHERE image_variant.product_id=p.id AND image_variant.image_media_id IS NOT NULL) THEN 0 ELSE 1 END AS image_fallback
+            FROM products p LEFT JOIN categories c ON c.id=p.primary_category_id
+            LEFT JOIN categories parent_category ON parent_category.id=c.parent_id
+            LEFT JOIN categories grandparent_category ON grandparent_category.id=parent_category.parent_id
+            LEFT JOIN media category_media ON category_media.id=c.image_media_id
+            LEFT JOIN media parent_category_media ON parent_category_media.id=parent_category.image_media_id
+            LEFT JOIN media grandparent_category_media ON grandparent_category_media.id=grandparent_category.image_media_id
+            WHERE p.id=:id");
         $q->execute(['id'=>$id]); return $q->fetch() ?: null;
     }
 
     /** @return list<array<string,mixed>> */
     public function scopes(int $id): array
     {
-        $q=$this->pdo->prepare("SELECT b.scope_type,b.scope_id,b.sku,b.quantity_units,w.name AS warehouse FROM nir_stock_balances b JOIN company_warehouses w ON w.id=b.warehouse_id WHERE b.product_id=:canonical
-            UNION ALL SELECT l.scope_type,l.scope_id,l.sku,l.quantity*10000,'Evidență anterioară' FROM accounting_stock_balances l WHERE l.product_id=:legacy
-            AND NOT EXISTS(SELECT 1 FROM nir_stock_balances b WHERE b.scope_type=l.scope_type AND b.scope_id=l.scope_id)");
-        $q->execute(['canonical'=>$id,'legacy'=>$id]); return $q->fetchAll();
+        $rows=$this->movements($id); $scopes=[];
+        foreach($rows as $row) {
+            $key=$row['warehouse_id'].'|'.$row['scope_type'].'|'.$row['scope_id'];
+            if(!isset($scopes[$key])) {
+                $scopes[$key]=['scope_type'=>$row['scope_type'],'scope_id'=>$row['scope_id'],'sku'=>$row['nir_sku'] ?? $row['invoice_sku'] ?? '','quantity_units'=>0,'warehouse'=>$row['warehouse']];
+            }
+            $scopes[$key]['quantity_units']+=(int)$row['quantity_units'];
+        }
+        return array_values($scopes);
     }
 
     /** Quantities are chronological; before/after values of individual warehouses are never summed as a running balance.
@@ -100,13 +132,11 @@ final class StockLedgerRepository
             FROM nir_stock_movements m JOIN company_warehouses w ON w.id=m.warehouse_id LEFT JOIN users u ON u.id=m.actor_id
             LEFT JOIN nir_documents n ON n.id=m.nir_id LEFT JOIN nir_lines nl ON nl.id=m.line_id
             LEFT JOIN invoice_lines il ON m.source_type='invoice_line' AND il.id=m.source_id LEFT JOIN invoices i ON i.id=il.invoice_id LEFT JOIN orders o ON o.id=i.order_id
-            WHERE (m.scope_type='product' AND m.scope_id=:product) OR (m.scope_type='variant' AND EXISTS(SELECT 1 FROM product_variants v WHERE v.id=m.scope_id AND v.product_id=:variant_product)) ORDER BY m.created_at,m.id");
+            WHERE ((m.scope_type='product' AND m.scope_id=:product) OR (m.scope_type='variant' AND EXISTS(SELECT 1 FROM product_variants v WHERE v.id=m.scope_id AND v.product_id=:variant_product)))
+              AND ((m.nir_id IS NOT NULL AND n.status='confirmed') OR (m.source_type='invoice_line' AND i.id IS NOT NULL AND i.deleted_at IS NULL)
+                OR (m.source_type='order_item' AND EXISTS(SELECT 1 FROM order_items source_item JOIN invoices source_invoice ON (source_invoice.order_id=source_item.order_id OR source_invoice.primary_order_id=source_item.order_id) WHERE source_item.id=m.source_id AND source_invoice.deleted_at IS NULL)))
+            ORDER BY m.created_at,m.id");
         $q->execute(['product'=>$id,'variant_product'=>$id]); $rows=$q->fetchAll();
-        $q=$this->pdo->prepare("SELECT m.id,m.created_at,m.type,m.quantity_delta*10000 AS quantity_units,m.reference_type AS source_type,m.reference_id AS source_id,m.sku AS nir_sku,u.first_name,u.last_name
-            FROM accounting_stock_movements m LEFT JOIN users u ON u.id=m.actor_user_id WHERE m.product_id=:id
-            AND NOT EXISTS(SELECT 1 FROM nir_stock_balances b WHERE b.scope_type=m.scope_type AND b.scope_id=m.scope_id) ORDER BY m.created_at,m.id");
-        $q->execute(['id'=>$id]);
-        foreach($q->fetchAll() as $row) { $rows[]=$row+['legacy'=>true,'warehouse'=>'Evidență anterioară','unit'=>'buc']; }
         foreach($rows as &$row) {
             // Keep the audit timestamp intact; the source document determines the reporting period.
             $row['movement_at']=!empty($row['nir_registered_at'])?$row['nir_registered_at']:
@@ -118,7 +148,7 @@ final class StockLedgerRepository
     /** @return list<array<string,mixed>> */
     public function variants(int $id): array
     {
-        $q=$this->pdo->prepare('SELECT v.id,v.sku,v.option_summary,v.stock_unlimited,v.status,COALESCE(i.physical_quantity-i.reserved_quantity,0) online_quantity FROM product_variants v LEFT JOIN inventory i ON i.variant_id=v.id WHERE v.product_id=:id ORDER BY v.is_default DESC,v.id');
+        $q=$this->pdo->prepare('SELECT v.id,v.sku,v.option_summary,v.stock_unlimited,v.track_in_conta,v.status,COALESCE(i.physical_quantity,0) physical_quantity,COALESCE(i.reserved_quantity,0) reserved_quantity,COALESCE(i.physical_quantity-i.reserved_quantity,0) online_quantity FROM product_variants v LEFT JOIN inventory i ON i.variant_id=v.id WHERE v.product_id=:id ORDER BY v.is_default DESC,v.id');
         $q->execute(['id'=>$id]); return $q->fetchAll();
     }
 

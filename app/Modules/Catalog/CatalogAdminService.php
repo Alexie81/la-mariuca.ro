@@ -654,7 +654,7 @@ final class CatalogAdminService
             COALESCE((SELECT dv.discount_value FROM product_variants dv WHERE dv.product_id=p.id ORDER BY dv.is_default DESC,dv.id LIMIT 1), 0) AS discount_value,
             COALESCE((SELECT SUM(i.physical_quantity-i.reserved_quantity) FROM product_variants sv LEFT JOIN inventory i ON i.variant_id=sv.id WHERE sv.product_id=p.id AND sv.status='active'),0) AS online_quantity,
             CASE WHEN EXISTS (SELECT 1 FROM product_variants uv WHERE uv.product_id=p.id AND uv.status='active' AND uv.stock_unlimited=1) THEN 1 ELSE 0 END AS has_unlimited_stock,
-            COALESCE((SELECT SUM(ab.quantity) FROM accounting_stock_balances ab WHERE ab.product_id=p.id),(SELECT SUM(i.physical_quantity) FROM product_variants sv LEFT JOIN inventory i ON i.variant_id=sv.id WHERE sv.product_id=p.id),0) AS physical_quantity,
+            0 AS physical_quantity,
             COALESCE((SELECT SUM(i.reserved_quantity) FROM product_variants sv LEFT JOIN inventory i ON i.variant_id=sv.id WHERE sv.product_id=p.id),0) AS reserved_quantity,
             COALESCE(NULLIF(p.supplier_code,''),(SELECT sr.supplier_code FROM nir_supplier_references sr WHERE sr.product_id=p.id ORDER BY sr.is_primary DESC,sr.updated_at DESC,sr.id DESC LIMIT 1),'') AS supplier_code,
             CASE WHEN p.source_price_bani IS NOT NULL THEN p.source_price_bani/100.0 ELSE COALESCE((SELECT sr.last_price FROM nir_supplier_references sr WHERE sr.product_id=p.id ORDER BY sr.is_primary DESC,sr.updated_at DESC,sr.id DESC LIMIT 1),'') END AS source_price,

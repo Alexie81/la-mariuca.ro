@@ -211,7 +211,11 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         $this->purchase(2,'40','LATE-EXACT');
         self::assertSame(0,$this->balance());
         self::assertSame(0,$this->service->document($invoice['id'],$this->actor)['lines'][0]['pending_units']);
-        self::assertSame($online,$this->pdo->query('SELECT * FROM inventory ORDER BY variant_id')->fetchAll());
+        $after=$this->pdo->query('SELECT * FROM inventory ORDER BY variant_id')->fetchAll();
+        foreach($online as $index=>$before) {
+            self::assertSame((int)$before['reserved_quantity'],(int)$after[$index]['reserved_quantity']);
+            self::assertSame((int)$before['physical_quantity']+((int)$before['variant_id']===(int)$this->variant['id']?2:0),(int)$after[$index]['physical_quantity']);
+        }
     }
     public function testIssuanceConfirmationRejectsChangesAndNeverConsumesANumber(): void
     {
@@ -1866,7 +1870,13 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         self::assertSame(0,$after['lines'][0]['pending_units']);
         self::assertSame('REPLACEMENT-AFTER-STORNO',$after['lines'][0]['trace'][0]['origin']['invoice_number']);
         self::assertSame(5500,(int)$after['lines'][0]['trace'][0]['value_bani']);
-        foreach($before as $table=>$rows) { self::assertSame($rows,$this->pdo->query('SELECT * FROM '.$table)->fetchAll(),$table); }
+        foreach($before as $table=>$rows) {
+            $current=$this->pdo->query('SELECT * FROM '.$table)->fetchAll();
+            if($table==='inventory') {
+                $shape=static fn(array $row):array=>array_intersect_key($row,array_flip(['variant_id','physical_quantity','reserved_quantity']));
+                self::assertSame(array_map($shape,$rows),array_map($shape,$current),$table);
+            } else { self::assertSame($rows,$current,$table); }
+        }
     }
 
     private function assertReceivedCreditCannotBeDeleted(int $id,int $version): void

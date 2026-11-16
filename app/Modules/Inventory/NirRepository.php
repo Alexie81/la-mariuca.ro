@@ -219,14 +219,6 @@ final class NirRepository
         $this->pdo->prepare('UPDATE nir_idempotency SET nir_id=NULL WHERE nir_id=:id OR result_id=:result')->execute(['id'=>$id,'result'=>$id]);
     }
 
-    /** A legacy negative balance is a shortage, never an invented zero-cost purchase. */
-    public function legacyDeficit(string $scopeType,int $scopeId): int
-    {
-        $query=$this->pdo->prepare('SELECT quantity FROM accounting_stock_balances b WHERE scope_type=:type AND scope_id=:id AND quantity<0 AND NOT EXISTS (SELECT 1 FROM nir_stock_balances n WHERE n.scope_type=b.scope_type AND n.scope_id=b.scope_id)');
-        $query->execute(['type'=>$scopeType,'id'=>$scopeId]);
-        return max(0,-(int)$query->fetchColumn()*10000);
-    }
-
     /** @return array{total:int,draft:int,confirmed:int} */
     public function counts(): array
     {
