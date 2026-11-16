@@ -24,6 +24,27 @@ final class InvoicePresentation
         return compact('label','description','tone','icon');
     }
 
+    /** @param array<string,mixed>|null $job @return array{label:string,at:?string,tone:string,description:string} */
+    public static function schedule(string $state,?array $job): array
+    {
+        $at=$job['available_at'] ?? null;
+        if($at && in_array($state,['scheduled','queued','awaiting_configuration'],true)) {
+            return ['label'=>'Trimitere programată','at'=>$at,'tone'=>'gold',
+                'description'=>$state==='awaiting_configuration'?'Suspendată până la conectarea ANAF.':''];
+        }
+        if($at && $state==='transient_error' && (int)($job['attempts'] ?? 0)<5) {
+            return ['label'=>'Reîncercare programată','at'=>$at,'tone'=>'gold','description'=>''];
+        }
+        [$label,$tone]=match($state) {
+            'processing'=>['Trimitere în curs','blue'],
+            'submitted','accepted'=>['Trimitere efectuată','green'],
+            'queued'=>['În coada de trimitere','gold'],
+            'rejected','uncertain','transient_error'=>['Retrimitere neprogramată','neutral'],
+            default=>['Trimitere neprogramată','neutral'],
+        };
+        return ['label'=>$label,'at'=>null,'tone'=>$tone,'description'=>''];
+    }
+
     /** @return array{label:string,tone:string} */
     public static function email(string $state): array
     {

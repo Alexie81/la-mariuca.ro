@@ -1,0 +1,5 @@
+{% import 'admin/partials/nir-ui.twig' as n %}
+<div class="iv-spv-schedule is-{{ schedule.tone }}" data-spv-schedule>
+  {{ n.icon(schedule.at ? 'clock' : (schedule.label == 'Trimitere efectuată' ? 'check' : 'info')) }}
+  <span><strong>{{ schedule.label }}</strong>{% if schedule.at %}<time datetime="{{ schedule.at }}">{{ schedule.at|date('d.m.Y, H:i','Europe/Bucharest') }} <span class="iv-spv-timezone">· ora României</span></time>{% endif %}{% if schedule.description %}<span class="iv-spv-schedule-note">{{ schedule.description }}</span>{% endif %}</span>
+</div>

@@ -200,6 +200,8 @@ final class InvoiceRepository
         $pages=max(1,(int)ceil($total/$perPage)); $page=max(1,min($pages,(int)($filters['page'] ?? 1))); $offset=($page-1)*$perPage;
         $q=$this->pdo->prepare("SELECT invoices.*,n.id AS receipt_nir_id,n.number AS receipt_nir_number,
             (SELECT environment FROM invoice_fiscal_jobs WHERE invoice_id=invoices.id) AS fiscal_environment,
+            (SELECT available_at FROM invoice_fiscal_jobs WHERE invoice_id=invoices.id) AS fiscal_available_at,
+            (SELECT attempts FROM invoice_fiscal_jobs WHERE invoice_id=invoices.id) AS fiscal_attempts,
             EXISTS(SELECT 1 FROM invoice_lines l WHERE l.invoice_id=invoices.id AND l.kind='product' AND l.quantity_units<0) AS has_return_products
             FROM invoices LEFT JOIN nir_documents n ON n.id=".$this->receiptNirSql().' WHERE '.$scope.' ORDER BY invoices.id DESC'.($export?'':' LIMIT '.$perPage.' OFFSET '.$offset)); $q->execute($args);
         return ['items'=>$q->fetchAll(),'total'=>$total,'page'=>$page,'pages'=>$pages,'from'=>$total===0?0:$offset+1,'to'=>min($offset+$perPage,$total),'per_page'=>$perPage,'search'=>$search];

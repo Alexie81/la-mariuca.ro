@@ -72,6 +72,44 @@ final class SpvTransmissionTest extends DatabaseTestCase
         self::assertTrue($this->invoices->document($id,$this->actor)['editable']);
     }
 
+    public function testInvoiceAndRegisterShowTheSameScheduleInRomanianTimeWithoutSchedulingOnRead(): void
+    {
+        $id=$this->invoice['id']; $paths=['/admin/facturi/','/admin/facturi/'.$id.'/'];
+        foreach($paths as $path) { self::assertStringContainsString('Trimitere neprogramată',$this->page($path)); }
+        self::assertNull($this->repository->one('invoice_fiscal_jobs',['invoice_id'=>$id]));
+        $this->pdo->exec("UPDATE spv_settings SET sale_mode='scheduled',sale_days=1,return_mode='scheduled',return_days=1,holidays_json='[]' WHERE id=1");
+        $this->repository->update('invoices',['issued_at'=>'2026-03-27T09:00:00Z'],['id'=>$id]);
+        $scheduler=new \App\Modules\Invoicing\SpvSchedule($this->pdo); $scheduler->sync($this->invoices->load($id));
+        $job=$this->repository->one('invoice_fiscal_jobs',['invoice_id'=>$id]);
+        self::assertSame('awaiting_configuration',$job['state']);
+        self::assertSame('2026-03-30T08:00:00Z',$job['available_at']);
+        foreach($paths as $path) {
+            $html=$this->page($path);
+            self::assertStringContainsString('Trimitere programată',$html);
+            self::assertStringContainsString('30.03.2026, 11:00',$html);
+            self::assertStringContainsString('ora României',$html);
+            self::assertStringContainsString('Suspendată până la conectarea ANAF.',$html);
+        }
+        self::assertSame($job,$this->repository->one('invoice_fiscal_jobs',['invoice_id'=>$id]));
+        self::assertNull($this->invoices->load($id)['fiscal_attempted_at']);
+        self::assertStringContainsString('Trimite manual în SPV',$this->page($paths[1]));
+
+        $this->pdo->exec("UPDATE spv_settings SET sale_mode='manual' WHERE id=1");
+        $scheduler->sync($this->invoices->load($id));
+        $credit=$this->invoices->credit($id,['request_key'=>'schedule-return','version'=>$this->invoice['row_version'],'reason'=>'Retur test','quantities'=>[$this->invoice['lines'][0]['id']=>'1']],$this->actor);
+        $this->repository->update('invoices',['issued_at'=>'2026-10-23T08:00:00Z'],['id'=>$credit['id']]);
+        $scheduler->sync($this->invoices->load($credit['id']));
+        $register=$this->invoices->registry([],$this->actor); $items=array_column($register['items'],null,'id');
+        self::assertSame('Trimitere neprogramată',$items[$id]['spv_schedule']['label']);
+        self::assertSame('2026-10-26T09:00:00Z',$items[$credit['id']]['spv_schedule']['at']);
+        foreach(['/admin/facturi/','/admin/facturi/'.$credit['id'].'/'] as $path) {
+            self::assertStringContainsString('26.10.2026, 11:00',$this->page($path));
+        }
+        $html=$this->page('/admin/facturi/');
+        self::assertSame(1,substr_count($html,'<strong>Trimitere neprogramată</strong>'));
+        self::assertSame(1,substr_count($html,'<strong>Trimitere programată</strong>'));
+    }
+
     public function testManualConsumerTransmissionPollsWithoutDuplicateUploadsAndLabelsTestMode(): void
     {
         $this->authorize();
@@ -230,6 +268,8 @@ final class SpvTransmissionTest extends DatabaseTestCase
         self::assertStringContainsString('data-spv-can-delete="0"',$submitted['html']);
         self::assertStringContainsString('data-spv-locked="1"',$submitted['html']);
         self::assertStringNotContainsString('/trimite/',$submitted['html']);
+        self::assertStringContainsString('Trimitere efectuată',$submitted['html']);
+        self::assertStringNotContainsString('Trimitere programată',$submitted['html']);
         $auditCount=(int)$this->pdo->query("SELECT COUNT(*) FROM invoice_audit WHERE action='fiscal_result'")->fetchColumn();
         self::assertSame('submitted',$send('verifica')['state']);
         self::assertSame($auditCount,(int)$this->pdo->query("SELECT COUNT(*) FROM invoice_audit WHERE action='fiscal_result'")->fetchColumn());

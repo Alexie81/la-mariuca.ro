@@ -845,6 +845,7 @@ final class InvoiceService
         return $invoice+['display_number'=>$invoice['series_code'].' '.$invoice['number'],'kind_label'=>self::KINDS[$invoice['kind']],'customer'=>$snapshot['customer'],'order_number'=>$snapshot['order_number'],
             'total_display'=>InvoiceCalculator::money((int)$invoice['gross_bani'],$invoice['currency']),'date_display'=>(new DateTimeImmutable($invoice['issued_at']))->setTimezone(new DateTimeZone('Europe/Bucharest'))->format('d.m.Y, H:i'),
             'fiscal'=>InvoicePresentation::fiscal((string)$invoice['fiscal_state']),'email'=>InvoicePresentation::email((string)$invoice['email_state']),
+            'spv_schedule'=>InvoicePresentation::schedule((string)$invoice['fiscal_state'],['available_at'=>$invoice['fiscal_available_at'] ?? null,'attempts'=>$invoice['fiscal_attempts'] ?? 0]),
             'payment_label'=>['paid'=>'Achitată','partial'=>'Achitată parțial','unpaid'=>'Neachitată','credit'=>'Retur / corecție'][$invoice['payment_state']]];
     }
     /** @param array<string,mixed> $invoice @return array<string,mixed> */
@@ -855,6 +856,7 @@ final class InvoiceService
         $invoice['receipt_nir']=(new \App\Modules\Inventory\ReturnStockLinks($this->repository->pdo()))->nirForInvoice((int)$invoice['id']);
         $invoice['receipt_expected']=in_array($invoice['kind'],['return','correction_negative'],true) && count(array_filter($invoice['lines'],static fn(array $line):bool=>$line['kind']==='product' && (int)$line['quantity_units']<0))>0;
         $invoice['fiscal_job']=$this->repository->one('invoice_fiscal_jobs',['invoice_id'=>$invoice['id']]);
+        $invoice['spv_schedule']=InvoicePresentation::schedule((string)$invoice['fiscal_state'],$invoice['fiscal_job']);
         $invoice['requires_nir']=count(array_filter($invoice['lines'],static fn(array $line):bool=>$line['kind']==='product' && !empty($line['scope_type'])))>0;
         $invoice['order_return']=$this->repository->one('order_return_documents',['invoice_id'=>$invoice['id']]);
         $invoice['receipt']=$this->repository->one('invoice_receipts',['invoice_id'=>$invoice['id']]);

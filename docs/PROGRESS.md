@@ -14,6 +14,12 @@ La revenirea la PC, începem în ordinea cerută explicit de utilizator la 2026-
 
 Lista este salvată pentru reluarea lucrului, fără pornirea implementării în această sesiune. Modificare numai de documentație; verificare prin diff, fără teste de aplicație necesare.
 
+### 2026-11-16 — Programarea SPV vizibilă pe fiecare factură
+- Fișa facturii și fiecare rând din **Facturi de ieșire** afișează aceeași programare: **Trimitere programată** cu data și ora României sau **Trimitere neprogramată**, inclusiv pentru facturile de retur. Datele provin din coada reală; afișarea paginii nu creează programări și nu trimite documente.
+- Programarea păstrează data planificată și explică suspendarea dacă lipsește conectarea ANAF. După încărcare apare **Trimitere efectuată**, separat de acceptarea ANAF; în curs, la reîncercare automată sau după epuizarea încercărilor se afișează starea corespunzătoare, fără o dată veche prezentată drept programare viitoare.
+- Butonul **Trimite manual în SPV** rămâne în fișă, cu regulile existente de autorizare. Actualizarea panoului după trimitere înlocuiește și informația despre programare.
+- Verificări: **26 teste PHP / 283 aserțiuni**, PHPStan, lint PHP și **195 șabloane Twig** compilate. Acoperire pentru afișarea identică în listă/fișă, documente programate și neprogramate simultan, facturi de retur, ambele schimbări de oră, lipsa autorizării, lipsa mutațiilor la citire și încheierea programării după trimitere. ANAF simulat în teste; accesul real rămâne indisponibil. TODO-ul nu a fost bifat automat.
+
 ### 2026-11-16 — Verificarea fișei facturii și remedierea golurilor
 - Restabilit **Șterge document** în fișa facturii, numai pentru administrator și documentul eligibil conform regulilor serverului. Facturile anterioare din serie, cele transmise fiscal și cele aferente cardurilor plătite nu primesc acțiunea.
 - Încasările și restituirile din fișă folosesc evidența actuală a comenzii, inclusiv plățile înregistrate după transmiterea în SPV. Sunt afișate sumele efectiv încasate, restituite și soldurile rămase, separat de snapshotul fiscal, care nu este rescris. Legătură directă către gestionarea plății în comandă.
