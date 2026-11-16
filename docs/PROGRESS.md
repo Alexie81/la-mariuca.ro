@@ -1,5 +1,14 @@
 # Progres
 
+### TODO pentru 2026-11-17
+
+La revenirea la calculator, urmăm în această ordine lista cerută explicit la 2026-11-16:
+
+1. [ ] **Design pentru interfața modulului Mijloace fixe și pentru modalele sale**, în stilul admin aprobat, compact și adaptat pentru telefon și calculator.
+2. [ ] **Modul pentru consumabile și designul interfeței sale.**
+
+Această listă are prioritate față de TODO-ul din 2026-11-16 și roadmapul general. Punctele anterioare rămân păstrate; nu sunt bifate implicit. Planul se reia la cererea utilizatorului, fără pornirea automată a implementării. Mementourile existente de la 10:40 și 19:30, Europe/Bucharest, trebuie să înceapă cu aceste două puncte cât timp sunt nebifate.
+
 ### 2026-11-16 — Categorii protejate la ștergere și secțiuni condiționate pe prima pagină
 - „Costume tradiționale” și „Botez” au o legătură internă stabilă cu secțiunile lor de pe prima pagină. Migrarea **073** identifică înregistrările existente și păstrează legătura după schimbarea numelui, slugului sau părintelui. Este aplicată local numai această migrare; fișierele de lucru pentru modulul FixedAssets nu au fost incluse sau modificate.
 - Ștergerea este refuzată pe server inclusiv când categoria nu mai are produse sau subcategorii. Lista afișează „Protejată la ștergere” și lacăt, iar editorul explică regula. Numele, slugul, descrierea, imaginea, ordinea, părintele, SEO, metodele de plată, publicarea și vizibilitatea rămân editabile. Formularul nu poate modifica legătura internă sau elimina protecția.
@@ -1706,7 +1715,7 @@ atribute și filtre fără schimbarea contractelor existente.
 - Au trecut **8 teste / 366 aserțiuni**, lintul fișierelor PHP modificate, sintaxa JS și compilarea celor **99 template-uri Twig**. Verificat în browser: cotă ascunsă la pornire, afișată/editabilă la activare și ascunsă la dezactivare. Pagina completă, cu date demonstrative exclusiv QA, a fost inspectată pe 390/768/1280 px; formularul și acțiunile au fost verificate și la 320 px. Fișa, contactul, banca, ștampila și gestiunile păstrează marginile ecranului, iar headerul/footerul modalului rămân fixe. Sesiunea principală Paula rămâne deschisă pentru completarea datelor reale.
 
 ### 2026-11-08 — Ordinea următoarelor module
-**Prioritate actualizată explicit la 2026-11-15:** la următoarea reluare se urmează întâi [TODO pentru 2026-11-16](#todo-pentru-2026-11-16), în ordinea sa, inclusiv în reamintirile despre lucrul rămas. După această listă, se continuă roadmapul general de mai jos.
+**Prioritate actualizată explicit la 2026-11-16:** la următoarea reluare se urmează întâi [TODO pentru 2026-11-17](#todo-pentru-2026-11-17), în ordinea sa, inclusiv în reamintirile despre lucrul rămas. Apoi se verifică punctele încă nebifate din [TODO pentru 2026-11-16](#todo-pentru-2026-11-16) și roadmapul general de mai jos.
 
 Priorități generale cerute de utilizator, actualizate cu clarificările despre NIR-uri, reverificarea fiscală, SEO și cataloage. Lista nu pornește implementarea automat. Un punct se bifează numai după confirmarea explicită a utilizatorului că este gata, nu doar pentru că implementarea sau verificările au fost încheiate.
 

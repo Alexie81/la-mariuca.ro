@@ -63,6 +63,7 @@
 
 ## Agreed next implementation order (2026-11-08)
 - When work resumes, consult the ordered TODO in `docs/PROGRESS.md` under "Ordinea următoarelor module" before starting a new module.
+- Latest explicit priority (2026-11-16), for returning on 2026-11-17: first design the Fixed Assets interface and its modals; then implement the consumables module and its design. Consult "TODO pentru 2026-11-17" first, including in reminders. This saved TODO does not start implementation automatically or mark older items complete.
 - The agreed order is: purchase invoices + NIR/stock entry as one stage; outgoing invoices; stock/product ledger; exports; returns/cancellations/fiscal rules; card payments; a dedicated fiscal-rules recheck after card implementation; product SEO and internal search; Google Merchant with automatic Merchant API synchronization; then the Stripe product catalog.
 - Mark a roadmap TODO complete only after the user explicitly confirms that item is done; implementation or passing checks alone do not authorize checking it off.
 - Daily reminders are requested at 10:40 and 19:30 Europe/Bucharest. Each reminder must consult the current TODO and mention only unfinished items, in the agreed order; reminders do not start implementation automatically.
