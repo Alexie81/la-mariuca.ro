@@ -37,6 +37,7 @@
   {% if category_modal|default(false) %}<div class="admin-category-form__scroll">{% endif %}
 
   <section class="admin-category-form__section" id="category-identity" data-category-section="identity">
+    {% if category.homepage_section|default(null) %}<p class="admin-category-protection-note"><strong>Protejată doar la ștergere.</strong> Poți modifica numele, slugul, ordinea, imaginea, SEO și toate celelalte setări. Dacă o ascunzi, o arhivezi sau o treci în draft, secțiunea ei dispare de pe prima pagină.</p>{% endif %}
     <header><span class="admin-category-form__step" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5h7l9 9-6 6-10-10V5Z"/><circle cx="8" cy="9" r="1"/></svg></span><div><small>01 · Identitate</small><h3>Începe cu un nume</h3><p>Așa va apărea categoria în magazin. Linkul se completează automat.</p></div></header>
     <div class="admin-category-form__grid">
       <label class="admin-category-field" data-category-availability="idle"><span>Nume categorie <b>*</b></span><input name="name" value="{{ category_name }}" maxlength="190" autocomplete="off" placeholder="Ex: Rochițe de vară" required data-admin-category-name><small data-admin-category-name-status>Scrie denumirea pe care o va vedea clientul.</small></label>

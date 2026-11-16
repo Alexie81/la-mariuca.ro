@@ -39,7 +39,16 @@ final class CatalogAdminService
             throw new RuntimeException('Descrierea scurtă este obligatorie. Spune pe scurt ce găsește clientul în această categorie.');
         }
         if (mb_strlen($description) > 100) {
-            throw new RuntimeException('Descrierea scurtă poate avea maximum 100 de caractere.');
+            $existingDescription = null;
+            if ($id !== null) {
+                $existing = $this->pdo->prepare('SELECT description FROM categories WHERE id=:id');
+                $existing->execute(['id'=>$id]);
+                $existingDescription = $existing->fetchColumn();
+            }
+            // Old seeded text must not block an unrelated edit; new text still has the 100-character limit.
+            if (!is_string($existingDescription) || trim($existingDescription) !== $description) {
+                throw new RuntimeException('Descrierea scurtă poate avea maximum 100 de caractere.');
+            }
         }
         $slugInput = trim((string) ($data['slug'] ?? ''));
         $slug = $this->normalizeCategorySlug($slugInput !== '' ? $slugInput : $name);
@@ -203,7 +212,7 @@ final class CatalogAdminService
     public function categoriesForAdmin(string $search = ''): array
     {
         $rows = $this->pdo->query("SELECT c.id,c.parent_id,c.name,c.slug,c.description,c.position,c.status,c.visibility,
-                c.seo_title,c.meta_description,c.indexable,c.image_media_id,c.updated_at,c.allow_card,c.allow_cod,
+                c.seo_title,c.meta_description,c.indexable,c.image_media_id,c.updated_at,c.allow_card,c.allow_cod,c.homepage_section,
                 parent.name AS parent_name,media.public_path AS image_path,media.alt_text AS image_alt,
                 (SELECT COUNT(*) FROM categories child WHERE child.parent_id=c.id) AS child_count,
                 (SELECT COUNT(*) FROM product_categories pc WHERE pc.category_id=c.id) AS product_count
@@ -359,11 +368,14 @@ final class CatalogAdminService
 
     public function deleteCategory(int $id): string
     {
-        $statement = $this->pdo->prepare('SELECT name,slug FROM categories WHERE id=:id');
+        $statement = $this->pdo->prepare('SELECT name,slug,homepage_section FROM categories WHERE id=:id');
         $statement->execute(['id' => $id]);
         $category = $statement->fetch();
         if (!is_array($category)) {
             throw new RuntimeException('Categoria nu mai există.');
+        }
+        if ($category['homepage_section'] !== null) {
+            throw new RuntimeException('Categoria este protejată la ștergere. Poți modifica toate setările sau o poți ascunde din magazin.');
         }
         $children = $this->pdo->prepare('SELECT COUNT(*) FROM categories WHERE parent_id=:id');
         $children->execute(['id' => $id]);

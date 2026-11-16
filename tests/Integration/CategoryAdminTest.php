@@ -361,6 +361,93 @@ final class CategoryAdminTest extends DatabaseTestCase
         self::assertStringContainsString('împreună cu regulile categoriilor părinte', $modal);
     }
 
+    public function testHomepageCategoriesRemainEditableButCannotBeDeletedEvenWhenEmpty(): void
+    {
+        $categories=$this->pdo->query('SELECT * FROM categories WHERE homepage_section IS NOT NULL')->fetchAll();
+        self::assertCount(2,$categories);
+        $parent=(int)$this->pdo->query("SELECT id FROM categories WHERE slug='nou-nascuti'")->fetchColumn();
+        foreach($categories as $category) {
+            $id=(int)$category['id'];$section=$category['homepage_section'];
+            $image=(int)$this->pdo->query('SELECT id FROM media WHERE id<>'.(int)$category['image_media_id'].' ORDER BY id LIMIT 1')->fetchColumn();
+            $data=['_csrf'=>$_SESSION['_csrf'],'name'=>'Colecție specială '.$section,'slug'=>'colectie-'.$section,
+                'description'=>'Descriere nouă pentru colecție.','parent_id'=>'','position'=>'73','status'=>'draft','visibility'=>'hidden',
+                'image_media_id'=>(string)$image,'seo_title'=>'Titlu SEO '.$section,'meta_description'=>'Descriere SEO '.$section,
+                'indexable'=>'1','payment_rules_present'=>'1','allow_card'=>'1','homepage_section'=>''];
+            self::assertSame(200,$this->request('POST','/admin/categorii/'.$id.'/editare/',$data,['Accept'=>'application/json'])->getStatusCode());
+            $saved=$this->category($id);
+            foreach(['name','slug','description','status','visibility','seo_title','meta_description'] as $field) { self::assertSame($data[$field],$saved[$field]); }
+            self::assertSame(73,(int)$saved['position']);self::assertSame($image,(int)$saved['image_media_id']);
+            self::assertSame(1,(int)$saved['indexable']);self::assertSame(0,(int)$saved['allow_cod']);
+            self::assertSame($section,$saved['homepage_section'],'Editable fields cannot remove the deletion protection.');
+            $data['parent_id']=(string)$parent;$data['remove_image']='1';unset($data['indexable']);
+            self::assertSame(200,$this->request('POST','/admin/categorii/'.$id.'/editare/',$data,['Accept'=>'application/json'])->getStatusCode());
+            $saved=$this->category($id);self::assertSame($parent,(int)$saved['parent_id']);self::assertNull($saved['image_media_id']);self::assertSame(0,(int)$saved['indexable']);
+            $modal=(string)$this->get('/admin/categorii/'.$id.'/editare/modal/')->getBody();
+            self::assertStringContainsString('Protejată doar la ștergere.',$modal);
+            // Remove ordinary blockers in the isolated test DB: the permanent protection must suffice.
+            $this->pdo->exec('UPDATE categories SET parent_id=NULL WHERE parent_id='.$id);
+            $this->pdo->exec('DELETE FROM product_categories WHERE category_id='.$id);
+            $this->pdo->exec('UPDATE products SET primary_category_id='.$parent.' WHERE primary_category_id='.$id);
+            self::assertSame(303,$this->post('/admin/categorii/'.$id.'/sterge/',['_csrf'=>$_SESSION['_csrf']])->getStatusCode());
+            self::assertSame($saved,$this->category($id));
+            $page=(string)$this->get('/admin/categorii/')->getBody();
+            self::assertStringContainsString('Categoria este protejată la ștergere.',$page);
+            self::assertStringNotContainsString('action="/admin/categorii/'.$id.'/sterge/"',$page);
+            self::assertStringContainsString('aria-label="Editează '.$data['name'].'"',$page);
+        }
+    }
+
+    public function testExistingLongDescriptionDoesNotBlockVisibilityChanges(): void
+    {
+        $id=(int)$this->pdo->query("SELECT id FROM categories WHERE homepage_section='traditional'")->fetchColumn();
+        $legacy='Descoperă costume tradiționale românești pentru copii, cu broderii delicate și croieli potrivite celor mici.';
+        $this->pdo->prepare('UPDATE categories SET description=:description WHERE id=:id')->execute(['description'=>$legacy,'id'=>$id]);
+        $category=$this->category($id);
+        $form=['_csrf'=>$_SESSION['_csrf'],'name'=>$category['name'],'slug'=>$category['slug'],'description'=>$legacy,'status'=>'published','visibility'=>'hidden'];
+        self::assertSame(200,$this->request('POST','/admin/categorii/'.$id.'/editare/',$form,['Accept'=>'application/json'])->getStatusCode());
+        self::assertSame($legacy,$this->category($id)['description']);
+        self::assertStringNotContainsString('class="traditional-story section"',(string)$this->get('/')->getBody());
+        $form['description']=$legacy.' Nou.';
+        self::assertSame(422,$this->request('POST','/admin/categorii/'.$id.'/editare/',$form,['Accept'=>'application/json'])->getStatusCode());
+        $form['description']='Descriere nouă și scurtă.';$form['visibility']='public';
+        self::assertSame(200,$this->request('POST','/admin/categorii/'.$id.'/editare/',$form,['Accept'=>'application/json'])->getStatusCode());
+        self::assertSame($form['description'],$this->category($id)['description']);
+    }
+
+    public function testHomepageStoriesFollowCategoryVisibilityAndCanonicalPathsAfterEdits(): void
+    {
+        $service=new \App\Modules\Catalog\CatalogAdminService($this->pdo);
+        $parent=(int)$this->pdo->query("SELECT id FROM categories WHERE slug='nou-nascuti'")->fetchColumn();
+        foreach(['traditional'=>'traditional-story','baptism'=>'baptism-story'] as $section=>$css) {
+            $category=$this->pdo->query("SELECT * FROM categories WHERE homepage_section=".$this->pdo->quote($section))->fetch();
+            $id=(int)$category['id'];$other=$section==='traditional'?'baptism-story':'traditional-story';
+            $form=['name'=>'Colecție nouă '.$section,'slug'=>'nou-'.$section,'description'=>'O selecție nouă.',
+                'parent_id'=>(string)$parent,'status'=>'published','visibility'=>'public'];
+            $service->saveCategory($form,$id);
+            $path='/categorie/nou-nascuti/nou-'.$section.'/';
+            $body=(string)$this->get('/')->getBody();
+            self::assertStringContainsString('class="'.$css.' section"',$body);
+            self::assertStringContainsString('class="'.$css.'-action" href="'.$path.'"',$body);
+            self::assertStringContainsString('class="eyebrow '.$css.'-label">'.$form['name'].'</span>',$body);
+            self::assertSame(200,$this->get($path)->getStatusCode());
+            foreach([['draft','public'],['archived','public'],['published','hidden']] as [$status,$visibility]) {
+                $service->saveCategory(array_replace($form,['status'=>$status,'visibility'=>$visibility]),$id);
+                $hidden=(string)$this->get('/')->getBody();
+                self::assertStringNotContainsString('class="'.$css.' section"',$hidden);
+                self::assertStringNotContainsString('href="'.$path.'"',$hidden);
+                self::assertStringContainsString('class="'.$other.' section"',$hidden);
+                self::assertSame(404,$this->get($path)->getStatusCode());
+            }
+            $service->saveCategory($form,$id);
+            self::assertStringContainsString('class="'.$css.' section"',(string)$this->get('/')->getBody());
+            $this->pdo->exec("UPDATE categories SET visibility='hidden' WHERE id=".$parent);
+            self::assertStringNotContainsString('class="'.$css.' section"',(string)$this->get('/')->getBody());
+            $this->pdo->exec("UPDATE categories SET visibility='public' WHERE id=".$parent);
+            // Restore its root placement so the next case also checks independent sections.
+            $service->saveCategory(array_replace($form,['parent_id'=>'']),$id);
+        }
+    }
+
     /** @return array<string,mixed> */
     private function category(int $id): array
     {

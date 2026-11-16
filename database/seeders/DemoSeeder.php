@@ -41,6 +41,9 @@ final class DemoSeeder
             foreach (['nou-nascuti' => 1, 'fetite' => 2, 'baieti' => 3, 'costume-traditionale' => 4, 'botez' => 5, 'incaltaminte' => 6, 'accesorii' => 7] as $slug => $position) {
                 $this->pdo->prepare('UPDATE categories SET position = :position WHERE slug = :slug')->execute(['position' => $position, 'slug' => $slug]);
             }
+            foreach (['costume-traditionale' => 'traditional', 'botez' => 'baptism'] as $slug => $section) {
+                $this->pdo->prepare('UPDATE categories SET homepage_section=:section WHERE id=:id')->execute(['section'=>$section, 'id'=>$ids[$slug]]);
+            }
             $this->pdo->prepare('UPDATE categories SET position = :position WHERE slug = :slug')->execute(['position' => 1, 'slug' => 'costume-traditionale-fetite']);
             $this->pdo->prepare('UPDATE categories SET position = :position WHERE slug = :slug')->execute(['position' => 2, 'slug' => 'costume-traditionale-baietei']);
             $this->archiveAccessoryCategories();

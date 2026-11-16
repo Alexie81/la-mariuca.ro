@@ -39,13 +39,6 @@ final class StorefrontController
     public function home(ServerRequestInterface $request): ResponseInterface
     {
         $categories = $this->categoryPaths->addRootPaths($this->catalog->homepageCategories());
-        $baptismCategory = null;
-        foreach ($categories as $category) {
-            if (($category['slug'] ?? '') === 'botez') {
-                $baptismCategory = $category;
-                break;
-            }
-        }
         $products = $this->catalog->featuredProducts(8);
 
         return $this->view->render('storefront/pages/home.twig', [
@@ -54,7 +47,8 @@ final class StorefrontController
             'categories' => $categories,
             'products' => $products,
             'new_products' => $this->catalog->latestProducts(15),
-            'baptism_category' => $baptismCategory,
+            'baptism_category' => $this->categoryPaths->homepageCategory('baptism'),
+            'traditional_category' => $this->categoryPaths->homepageCategory('traditional'),
         ]);
     }
 

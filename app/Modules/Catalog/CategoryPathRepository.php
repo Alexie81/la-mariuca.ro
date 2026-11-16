@@ -18,6 +18,17 @@ final class CategoryPathRepository
     {
     }
 
+    /** @return array<string, mixed>|null */
+    public function homepageCategory(string $section): ?array
+    {
+        $statement = $this->pdo->prepare('SELECT id FROM categories WHERE homepage_section = :section');
+        $statement->execute(['section' => $section]);
+        $id = $statement->fetchColumn();
+        // A hidden ancestor also makes the category inaccessible in the storefront.
+        $trail = $id === false ? [] : $this->trailForId((int) $id);
+        return $trail === [] ? null : $trail[array_key_last($trail)];
+    }
+
     /**
      * @return array{category: array<string, mixed>, trail: list<array<string, mixed>>, path: string}|null
      */

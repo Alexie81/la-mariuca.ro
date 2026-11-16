@@ -17,7 +17,7 @@
       <p>De la primele hăinuțe la cele mai frumoase momente ale copilăriei, descoperă seturi pentru nou-născuți, rochițe, costumașe, trusouri și ținute de botez, încălțăminte și accesorii pentru copii 0–8 ani, toate alese cu drag.</p>
       <div class="button-row hero-actions">
         <a class="button hero-primary-action" href="{{ url('magazin/') }}">Descoperă produsele <span aria-hidden="true">›</span></a>
-        <a class="button button-secondary hero-secondary-action" href="{{ url('categorie/botez/') }}">Colecția de botez <span aria-hidden="true">›</span></a>
+        {% if baptism_category %}<a class="button button-secondary hero-secondary-action" href="{{ url('categorie/' ~ baptism_category.path ~ '/') }}">{{ baptism_category.name }} <span aria-hidden="true">›</span></a>{% endif %}
       </div>
       <div class="hero-benefits" aria-label="Avantajele magazinului">
     <article class="hero-benefit-card">
@@ -263,9 +263,10 @@
   </div>
 </section>
 
+{% if baptism_category %}
 <section class="baptism-story section" aria-labelledby="baptism-story-title">
   <div class="container baptism-story-shell has-image">
-    <a class="baptism-story-media" href="{{ url('categorie/botez/') }}" aria-label="Descoperă colecția de botez">
+    <a class="baptism-story-media" href="{{ url('categorie/' ~ baptism_category.path ~ '/') }}" aria-label="Descoperă {{ baptism_category.name }}">
       <img src="{{ url('assets/images/editorial/botez-colectie-costumas-rochita-trusou-2026.webp') }}"
            alt="Costumaș elegant pentru băieți, rochiță din dantelă și trusou complet de botez"
            width="1918" height="820" loading="lazy" decoding="async">
@@ -280,7 +281,7 @@
             <path class="baptism-story-candle-ribbon" d="M11.4 21.2c-4.2-2.5-4.8 2.8-.2 2.3M20.6 21.2c4.2-2.5 4.8 2.8.2 2.3"></path>
           </svg>
         </span>
-        <span class="eyebrow baptism-story-label">Colecția de botez</span>
+        <span class="eyebrow baptism-story-label">{{ baptism_category.name }}</span>
         <span class="baptism-story-edition"><span aria-hidden="true">✦</span>Aleasă cu drag</span>
       </div>
       <h2 id="baptism-story-title"><span>Botezul,</span><em>o poveste de neuitat.</em></h2>
@@ -293,7 +294,7 @@
         <li><span aria-hidden="true"></span>Rochițe</li>
         <li><span aria-hidden="true"></span>Trusouri</li>
       </ul>
-      <a class="baptism-story-action" href="{{ url('categorie/botez/') }}">
+      <a class="baptism-story-action" href="{{ url('categorie/' ~ baptism_category.path ~ '/') }}">
         <span>Descoperă colecția</span>
         <span class="baptism-story-action-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"></path></svg>
@@ -308,6 +309,7 @@
   </div>
 </section>
 
+{% endif %}
 <section class="new-arrivals section" aria-labelledby="new-arrivals-title">
   <div class="container">
     <header class="new-arrivals-heading">
@@ -351,9 +353,10 @@
   </div>
 </section>
 
+{% if traditional_category %}
 <section id="costume-traditionale" class="traditional-story section" aria-labelledby="traditional-story-title">
   <div class="container traditional-story-shell">
-    <a class="traditional-story-media" href="{{ url('categorie/costume-traditionale/') }}" aria-label="Descoperă colecția de costume tradiționale">
+    <a class="traditional-story-media" href="{{ url('categorie/' ~ traditional_category.path ~ '/') }}" aria-label="Descoperă {{ traditional_category.name }}">
       <img src="{{ url('assets/images/categories/costume-traditionale-editorial-2026.webp') }}"
            alt="Costume tradiționale românești pentru fetițe și băieței"
            width="1122" height="1402" loading="lazy" decoding="async">
@@ -374,7 +377,7 @@
             </g>
           </svg>
         </span>
-        <span class="eyebrow traditional-story-label">Costume tradiționale</span>
+        <span class="eyebrow traditional-story-label">{{ traditional_category.name }}</span>
       </div>
 
       <h2 id="traditional-story-title"><span>Tradiția,</span><em>purtată cu bucurie.</em></h2>
@@ -407,7 +410,7 @@
         </li>
       </ul>
 
-      <a class="traditional-story-action" href="{{ url('categorie/costume-traditionale/') }}">
+      <a class="traditional-story-action" href="{{ url('categorie/' ~ traditional_category.path ~ '/') }}">
         <span>Descoperă colecția</span>
         <span class="traditional-story-action-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"></path></svg>
@@ -421,4 +424,5 @@
     </div>
   </div>
 </section>
+{% endif %}
 {% endblock %}

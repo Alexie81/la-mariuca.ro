@@ -36,6 +36,9 @@
 - Keep acquisition-cost coverage distinct from quantities, and keep online availability/reservations distinct from accounting stock. A customer-return receipt is an **intrare din retur client**, never “Necontabilizat” for an associated product.
 - For customer-return NIRs, display and export the amount recorded on the NIR, including **0,00 Lei**, in the document, stock ledger, PDF, XLSX and ZIP. Missing historical FIFO coverage must not replace that amount with an unknown-cost label or blank cell. Preserve the actual internal lot coverage; do not create fictitious cost layers.
 
+## Homepage category protection (2026-11-16)
+- The Botez and Costume tradiționale categories are protected only against deletion through their stable `homepage_section` binding. All normal category fields remain editable. Their homepage sections and links follow publication, visibility (including ancestors) and the current canonical path, never a hardcoded name or slug.
+
 ## Commands
 - Install: `php composer.phar install`
 - Configure: copy `.env.example` to `.env`, then `php bin/generate-key.php`

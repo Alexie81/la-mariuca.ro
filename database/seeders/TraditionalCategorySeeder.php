@@ -23,7 +23,7 @@ final class TraditionalCategorySeeder
                 'name' => 'Costume tradiționale',
                 'parent' => null,
                 'position' => 4,
-                'description' => 'Descoperă costume tradiționale românești pentru copii, cu broderii delicate și croieli potrivite celor mici.',
+                'description' => 'Costume tradiționale românești pentru copii, cu broderii delicate și croieli confortabile.',
                 'seo' => 'Costume tradiționale pentru copii',
                 'meta' => 'Costume tradiționale românești pentru fetițe și băieței, alese cu drag de La Măriuca Boutique.',
                 'filename' => 'costume-traditionale-editorial-2026.webp',
@@ -94,6 +94,9 @@ final class TraditionalCategorySeeder
                     ]);
                 }
                 $categoryIds[$definition['slug']] = $categoryId;
+                if ($definition['parent'] === null) {
+                    $this->pdo->prepare("UPDATE categories SET homepage_section='traditional' WHERE id=:id")->execute(['id'=>$categoryId]);
+                }
 
                 $filename = (string) $definition['filename'];
                 $publicPath = 'assets/images/categories/' . $filename;
@@ -155,7 +158,9 @@ final class TraditionalCategorySeeder
 
     private function categoryId(string $slug): ?int
     {
-        $statement = $this->pdo->prepare('SELECT id FROM categories WHERE slug = :slug LIMIT 1');
+        $statement = $this->pdo->prepare($slug === 'costume-traditionale'
+            ? "SELECT id FROM categories WHERE homepage_section='traditional' OR slug=:slug ORDER BY CASE WHEN homepage_section='traditional' THEN 0 ELSE 1 END LIMIT 1"
+            : 'SELECT id FROM categories WHERE slug = :slug LIMIT 1');
         $statement->execute(['slug' => $slug]);
         $id = $statement->fetchColumn();
         return $id === false ? null : (int) $id;

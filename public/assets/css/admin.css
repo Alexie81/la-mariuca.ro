@@ -1041,6 +1041,9 @@ html.has-admin-category-editor{overflow:hidden}.admin-category-editor-dialog{wid
 .admin-category-order small,.admin-category-products small{font-size:10.5px;line-height:1.2}
 .admin-category-status{min-height:31px;font-size:10.5px}
 .admin-category-hidden{font-size:10.5px;line-height:1.3}
+.admin-category-tree-cell__copy>.admin-category-protection{display:inline-flex;align-items:center;gap:4px;width:fit-content;margin-top:4px;padding:3px 7px;border:1px solid #e7d9e6;border-radius:7px;background:#f6eff6;color:#77546f;font:600 10px/1.3 var(--admin-sans)}
+.admin-category-protection svg{width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:1.7;flex:none}
+.admin-categories-table__actions button:disabled{cursor:not-allowed;color:#8e7489;opacity:.65}
 .admin-category-modal__header p{font-size:11px;line-height:1.45}
 .admin-category-form__section>header small{font-size:10px;letter-spacing:.1em}
 .admin-category-form__section>header p{font-size:10.5px;line-height:1.5}
