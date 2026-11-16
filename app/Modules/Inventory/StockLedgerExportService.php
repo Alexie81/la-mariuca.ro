@@ -62,7 +62,7 @@ final class StockLedgerExportService
         $headers=['Data și ora','Operațiune','Document','Gestiune','Partener','Intrare','Ieșire','Sold','Cost contabil (Lei)','Valoare vânzare (Lei)','Operator'];
         $sheet->fromArray($headers,null,'A10'); $this->header($sheet,'A10:K10'); $row=11;
         foreach($detail['movements'] as $index=>$movement) {
-            $date=(new \DateTimeImmutable((string)$movement['created_at']))->setTimezone(new \DateTimeZone('Europe/Bucharest'))->format('d.m.Y H:i');
+            $date=(new \DateTimeImmutable((string)$movement['movement_at']))->setTimezone(new \DateTimeZone('Europe/Bucharest'))->format('d.m.Y H:i');
             $units=(int)$movement['quantity_units'];
             $values=[$date,$movement['label'],$movement['document'],$movement['warehouse'],$movement['partner'],
                 $units>0?(float)$movement['quantity']:'',$units<0?(float)ltrim((string)$movement['quantity'],'-'):'',(float)$movement['balance'],

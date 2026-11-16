@@ -79,6 +79,63 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         }
         $this->expectException(InvoiceException::class); $ledger->threshold($id,'4',['id'=>0,'role'=>'administrator']);
     }
+    public function testAccountingExportsUseSourceDocumentDatesAndRebuildPeriodBalances(): void
+    {
+        $this->purchase(10,'40','PERIOD-OPENING');
+        $sale=$this->service->issue($this->order(2),['request_key'=>'period-sale'],$this->actor);
+        $credit=$this->service->credit($sale['id'],['request_key'=>'period-return','version'=>1,'reason'=>'Retur','quantities'=>[$sale['lines'][0]['id']=>1],'notify_customer'=>'0'],$this->actor);
+        $received=$this->service->receive($credit['id'],['request_key'=>'period-receipt','version'=>1,'received'=>[$credit['lines'][0]['id']=>1],'restock'=>[$credit['lines'][0]['id']=>1]],$this->actor);
+        $this->purchase(3,'40','PERIOD-CLOSING');
+        $laterSale=$this->service->issue($this->order(1),['request_key'=>'period-next-month'],$this->actor);
+        $repo=new InvoiceRepository($this->pdo); $nirs=new \App\Modules\Inventory\NirRepository($this->pdo);
+        $opening=$nirs->one('nir_documents',['invoice_number'=>'PERIOD-OPENING']); $closing=$nirs->one('nir_documents',['invoice_number'=>'PERIOD-CLOSING']);
+        $nirs->update('nir_documents',['nir_at'=>'2026-10-31T21:59:59Z'],['id'=>$opening['id']]);
+        $nirs->update('nir_documents',['nir_at'=>'2026-11-30T21:59:59Z','received_at'=>'2026-12-05T08:00:00Z','invoice_date'=>'2026-10-01'],['id'=>$closing['id']]);
+        $nirs->update('nir_documents',['nir_at'=>'2026-11-20T08:00:00Z'],['id'=>$received['receipt_nir']['id']]);
+        $repo->update('invoices',['issued_at'=>'2026-10-31T22:00:00Z'],['id'=>$sale['id']]);
+        $repo->update('invoices',['issued_at'=>'2026-11-05T08:00:00Z'],['id'=>$credit['id']]);
+        $repo->update('invoices',['issued_at'=>'2026-11-30T22:00:00Z'],['id'=>$laterSale['id']]);
+        // Deliberately different audit/order timestamps prove that they cannot select the reporting month.
+        $this->pdo->exec("UPDATE nir_stock_movements SET created_at='2027-01-10T10:00:00Z'; UPDATE nir_documents SET created_at='2027-01-10T10:00:00Z',confirmed_at='2027-01-11T10:00:00Z'; UPDATE orders SET created_at='2025-01-01T10:00:00Z'");
+        $before=[$nirs->all('nir_stock_movements'),$nirs->all('nir_stock_balances'),$nirs->all('nir_fifo_layers'),$repo->all('invoices'),$repo->all('outbox_messages')];
+        $filters=['from'=>'2026-11-01','to'=>'2026-11-30']; $product=(int)$this->variant['product_id'];
+        $ledger=new \App\Modules\Inventory\StockLedgerService(new \App\Modules\Inventory\StockLedgerRepository($this->pdo));
+        $detail=$ledger->detail($product,$filters+['documented_only'=>true],$this->actor);
+        self::assertSame(100000,$detail['opening_units']); self::assertSame(40000,$detail['incoming_units']); self::assertSame(20000,$detail['outgoing_units']);
+        self::assertSame(120000,$detail['closing_units']); self::assertSame(110000,$detail['current_units']); self::assertTrue($detail['consistent']);
+        self::assertSame(40000,$detail['opening_value_bani']); self::assertSame(16000,$detail['incoming_value_bani']); self::assertSame(8000,$detail['outgoing_value_bani']); self::assertSame(48000,$detail['closing_value_bani']);
+        self::assertSame(['01.11.2026, 00:00','20.11.2026, 10:00','30.11.2026, 23:59'],array_column($detail['movements'],'date_display'));
+        self::assertSame([80000,90000,120000],array_column($detail['movements'],'balance_units'));
+        self::assertSame(['2027-01-10T10:00:00Z'],array_values(array_unique(array_column($detail['movements'],'created_at'))));
+        $next=$ledger->detail($product,['from'=>'2026-12-01','to'=>'2026-12-01','documented_only'=>true],$this->actor);
+        self::assertSame(120000,$next['opening_units']); self::assertSame(10000,$next['outgoing_units']); self::assertSame(110000,$next['closing_units']);
+        $selected=(new NirService($this->pdo))->registryForExport($filters,$this->actor);
+        self::assertEqualsCanonicalizing([$closing['id'],$received['receipt_nir']['id']],array_column($selected,'id'));
+        self::assertEqualsCanonicalizing([$sale['id'],$credit['id']],array_column($repo->registry($filters,true)['items'],'id'));
+        $_SESSION['user_id']=$this->actor['id']; $app=\App\AppFactory::create($this->root); $factory=new \Slim\Psr7\Factory\ServerRequestFactory();
+        foreach(['/admin/stoc/export/xlsx/','/admin/stoc/'.$product.'/export/xlsx/'] as $path) {
+            $response=$app->handle($factory->createServerRequest('GET','http://localhost'.$path)->withQueryParams($filters));
+            self::assertSame(200,$response->getStatusCode()); self::assertStringContainsString('attachment;',$response->getHeaderLine('Content-Disposition'));
+            $file=tempnam(sys_get_temp_dir(),'stock-period-'); file_put_contents($file,(string)$response->getBody());
+            try {
+                $book=\PhpOffice\PhpSpreadsheet\IOFactory::load($file);
+                if($book->getSheetCount()===6) {
+                    $sheet=$book->getSheetByName('Mișcări stoc'); self::assertSame(9,$sheet->getHighestDataRow());
+                    self::assertSame('01.11.2026 00:00',\PhpOffice\PhpSpreadsheet\Shared\Date::excelToDateTimeObject($sheet->getCell('C7')->getValue())->format('d.m.Y H:i'));
+                    self::assertSame('30.11.2026 23:59',\PhpOffice\PhpSpreadsheet\Shared\Date::excelToDateTimeObject($sheet->getCell('C9')->getValue())->format('d.m.Y H:i'));
+                    self::assertSame('20.11.2026 10:00',\PhpOffice\PhpSpreadsheet\Shared\Date::excelToDateTimeObject($book->getSheetByName('Documente sursă')->getCell('E8')->getValue())->format('d.m.Y H:i'));
+                    $stock=$book->getSheetByName('Stoc pe produse'); $found=false;
+                    foreach($stock->getRowIterator(7) as $row) { $r=$row->getRowIndex(); if($stock->getCell('B'.$r)->getValue()===$this->variant['sku']) { self::assertEquals(12,$stock->getCell('H'.$r)->getValue()); self::assertEquals(480,$stock->getCell('N'.$r)->getValue()); $found=true; } }
+                    self::assertTrue($found);
+                } else {
+                    $sheet=$book->getActiveSheet(); self::assertSame(13,$sheet->getHighestDataRow());
+                    self::assertSame('01.11.2026 00:00',$sheet->getCell('A11')->getValue()); self::assertSame('30.11.2026 23:59',$sheet->getCell('A13')->getValue()); self::assertEquals(12,$sheet->getCell('D7')->getValue());
+                }
+                $book->disconnectWorksheets();
+            } finally { unlink($file); }
+        }
+        self::assertSame($before,[$nirs->all('nir_stock_movements'),$nirs->all('nir_stock_balances'),$nirs->all('nir_fifo_layers'),$repo->all('invoices'),$repo->all('outbox_messages')]);
+    }
     public function testIssueFreezesSnapshotAndDeduplicatesWithoutOnlineStockChanges(): void
     {
         $order=$this->order(2); $online=$this->pdo->query('SELECT * FROM inventory ORDER BY variant_id')->fetchAll();
@@ -774,6 +831,7 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         $repo->update('invoices',['issued_at'=>'2026-10-31T22:00:00Z','fiscal_state'=>'accepted','fiscal_reference'=>'=1+1','notes'=>'=HYPERLINK("test")'],['id'=>$sale['id']]);
         $repo->update('invoices',['issued_at'=>'2026-11-30T21:59:59Z'],['id'=>$credit['id']]);
         $repo->update('invoices',['issued_at'=>'2026-11-30T22:00:00Z'],['id'=>$next['id']]);
+        $this->pdo->exec("UPDATE orders SET created_at='2025-01-01T08:00:00Z'; UPDATE invoices SET updated_at='2027-01-01T08:00:00Z'");
         $before=['invoices'=>$repo->all('invoices'),'jobs'=>$repo->all('invoice_fiscal_jobs'),'outbox'=>$repo->all('outbox_messages'),'balance'=>$this->balance()];
         $_SESSION['user_id']=$this->actor['id']; $factory=new \Slim\Psr7\Factory\ServerRequestFactory(); $app=\App\AppFactory::create($this->root);
         $get=static fn(string $path,array $query=[],array $headers=[])=>$app->handle(array_reduce(array_keys($headers),static fn($request,$key)=>$request->withHeader($key,$headers[$key]),$factory->createServerRequest('GET','http://localhost'.$path)->withQueryParams($query)));

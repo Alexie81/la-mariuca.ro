@@ -92,7 +92,7 @@ final class StockLedgerRepository
     public function movements(int $id): array
     {
         $q=$this->pdo->prepare("SELECT m.id,m.created_at,m.type,m.quantity_units,m.source_type,m.source_id,m.scope_type,m.scope_id,m.warehouse_id,
-            w.name AS warehouse,u.first_name,u.last_name,n.id AS nir_id,n.number AS nir_number,n.supplier_snapshot,n.invoice_series,n.invoice_number,n.status AS nir_status,n.invoice_date,n.notes AS nir_notes,
+            w.name AS warehouse,u.first_name,u.last_name,n.id AS nir_id,n.number AS nir_number,n.supplier_snapshot,n.invoice_series,n.invoice_number,n.status AS nir_status,n.invoice_date,n.notes AS nir_notes,n.nir_at AS nir_registered_at,
             il.invoice_id,i.series_code,i.number AS invoice_number_out,i.deleted_at AS invoice_deleted,i.issued_at AS invoice_date_out,i.order_id,i.snapshot_json AS invoice_snapshot,o.order_number,il.quantity_units AS invoice_units,il.gross_bani AS sale_bani,
             nl.stock_quantity_units AS nir_units,nl.inventory_bani AS acquisition_bani,nl.stock_unit AS unit,nl.sku AS nir_sku,il.sku AS invoice_sku,
             (SELECT SUM(c.value_bani) FROM nir_fifo_consumptions c WHERE c.source_type='invoice_line' AND c.source_id=il.id) AS allocated_bani,
@@ -107,7 +107,12 @@ final class StockLedgerRepository
             AND NOT EXISTS(SELECT 1 FROM nir_stock_balances b WHERE b.scope_type=m.scope_type AND b.scope_id=m.scope_id) ORDER BY m.created_at,m.id");
         $q->execute(['id'=>$id]);
         foreach($q->fetchAll() as $row) { $rows[]=$row+['legacy'=>true,'warehouse'=>'Evidență anterioară','unit'=>'buc']; }
-        usort($rows,static fn(array $a,array $b):int=>[strtotime($a['created_at']),(int)$a['id']]<=>[strtotime($b['created_at']),(int)$b['id']]); return $rows;
+        foreach($rows as &$row) {
+            // Keep the audit timestamp intact; the source document determines the reporting period.
+            $row['movement_at']=!empty($row['nir_registered_at'])?$row['nir_registered_at']:
+                (in_array($row['type'],['INVOICE_OUT','INVOICE_OUT_PENDING'],true) && !empty($row['invoice_date_out'])?$row['invoice_date_out']:$row['created_at']);
+        } unset($row);
+        usort($rows,static fn(array $a,array $b):int=>[strtotime($a['movement_at']),strtotime($a['created_at']),(int)$a['id']]<=>[strtotime($b['movement_at']),strtotime($b['created_at']),(int)$b['id']]); return $rows;
     }
 
     /** @return list<array<string,mixed>> */

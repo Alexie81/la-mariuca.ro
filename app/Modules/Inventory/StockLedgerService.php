@@ -45,7 +45,7 @@ final class StockLedgerService
             $row['documented']=(!empty($row['nir_id']) && ($row['nir_status'] ?? '')==='confirmed') || (!empty($row['invoice_id']) && empty($row['invoice_deleted']) && in_array($row['type'],['INVOICE_OUT','INVOICE_OUT_PENDING'],true));
             if($fiscalOnly && !$row['documented']) { continue; }
             $delta=(int)$row['quantity_units']; $balance+=$delta;
-            $localDate=(new \DateTimeImmutable($row['created_at']))->setTimezone(new \DateTimeZone('Europe/Bucharest'))->format('Y-m-d');
+            $localDate=(new \DateTimeImmutable($row['movement_at']))->setTimezone(new \DateTimeZone('Europe/Bucharest'))->format('Y-m-d');
             $row['balance_units']=$balance; $row['quantity']=InvoiceCalculator::quantity($delta); $row['balance']=InvoiceCalculator::quantity($balance);
             $row['document']=$row['nir_number'] ?? (isset($row['invoice_number_out'])?$row['series_code'].' '.$row['invoice_number_out']:'');
             $row['document_path']=!empty($row['nir_id'])?'admin/nir-uri/'.$row['nir_id'].'/':(!empty($row['invoice_id']) && empty($row['invoice_deleted'])?'admin/facturi/'.$row['invoice_id'].'/':null);
@@ -64,7 +64,7 @@ final class StockLedgerService
             if($delta>0) { $incomingValue+=$row['cost_bani'] ?? 0; } else { $outgoingValue+=$row['cost_bani'] ?? 0; }
             $row['sale_value_bani']=isset($row['sale_bani']) && !empty($row['invoice_units'])?InvoiceCalculator::ratio((int)$row['sale_bani'],abs($delta),abs((int)$row['invoice_units'])):null;
             $row['operator']=trim(($row['first_name'] ?? '').' '.($row['last_name'] ?? '')) ?: 'Sistem';
-            $row['date_display']=(new \DateTimeImmutable($row['created_at']))->setTimezone(new \DateTimeZone('Europe/Bucharest'))->format('d.m.Y, H:i');
+            $row['date_display']=(new \DateTimeImmutable($row['movement_at']))->setTimezone(new \DateTimeZone('Europe/Bucharest'))->format('d.m.Y, H:i');
             $row['partner']=json_decode((string)($row['supplier_snapshot'] ?? '{}'),true)['company_name'] ?? json_decode((string)($row['invoice_snapshot'] ?? '{}'),true)['customer']['name'] ?? '';
             $row['sku']=$row['nir_sku'] ?? $row['invoice_sku'] ?? $product['primary_sku'];
             $row['unit']=$row['unit'] ?? 'buc';
