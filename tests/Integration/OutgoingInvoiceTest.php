@@ -680,7 +680,7 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
     }
     public static function returnCostCoverage(): array { return ['missing'=>[0,false],'partial'=>[1,false],'free acquisition'=>[2,true]]; }
     #[\PHPUnit\Framework\Attributes\DataProvider('returnCostCoverage')]
-    public function testReturnCostIsUnknownUntilCoveredByActualAcquisitionLots(int $purchased,bool $complete): void
+    public function testReturnRetainsLotCoverageAndDisplaysRecordedValuesIncludingZero(int $purchased,bool $complete): void
     {
         if($purchased>0) { $this->purchase($purchased,'0','RETURN-COVERAGE'); }
         $sale=$this->service->issue($this->order(2),['request_key'=>'cost-coverage-sale'],$this->actor);
@@ -691,8 +691,38 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         self::assertSame($purchased*10000,(int)$this->pdo->query('SELECT COALESCE(SUM(initial_units),0) FROM nir_fifo_layers WHERE nir_id='.(int)$nir['id'])->fetchColumn());
         $twig=new \Twig\Environment(new \Twig\Loader\FilesystemLoader($this->root.'/resources/views'),['autoescape'=>'html']);
         $html=$twig->render('admin/nir/pdf.twig',['nir'=>$nir,'lines'=>$nir['lines'],'view_costs'=>true,'logo'=>null,'stamp'=>null,'nir_date'=>'15.11.2026','type_label'=>'Recepție retur client','status_label'=>'Confirmat','number'=>$nir['number']]);
-        if(!$complete) { self::assertStringContainsString('Cost de achiziție neînregistrat',$html); self::assertStringNotContainsString('0,00 lei',$html); }
-        else { self::assertStringNotContainsString('Cost de achiziție neînregistrat',$html); self::assertStringContainsString('0,00 lei',$html); }
+        self::assertStringNotContainsString('Cost de achiziție neînregistrat',$html);
+        self::assertStringContainsString('0,00 lei',$html);
+        $repository=new \App\Modules\Inventory\StockLedgerRepository($this->pdo);
+        $ledger=new \App\Modules\Inventory\StockLedgerService($repository);
+        $detail=$ledger->detail((int)$this->variant['product_id'],[],$this->actor);
+        $entry=array_values(array_filter($detail['movements'],static fn(array $row):bool=>(int)($row['nir_id'] ?? 0)===(int)$nir['id']))[0];
+        self::assertSame(0,$entry['cost_bani']);
+        self::assertSame(0,$entry['pending_cost_units']);
+        if($purchased===0) {
+            $exporter=new \App\Modules\Inventory\NirExportService($this->root);
+            foreach(['individual','registry'] as $kind) {
+                $file=$kind==='individual'?$exporter->individual($nir,'xlsx'):$exporter->registry([$nir],'xlsx');
+                try {
+                    $book=\PhpOffice\PhpSpreadsheet\IOFactory::load($file['path']);$sheet=$book->getActiveSheet();
+                    foreach($kind==='individual'?['I13','J13','L13','M13']:['X7','Y7','Z7','AA7','AB7','AC7','AD7'] as $cell) {
+                        self::assertSame('n',$sheet->getCell($cell)->getDataType(),$cell);
+                        self::assertEquals(0,$sheet->getCell($cell)->getValue(),$cell);
+                    }
+                    if($kind==='individual') { self::assertEquals(0,$sheet->getCell('M14')->getCalculatedValue()); self::assertStringContainsString('Lei',$sheet->getCell('M13')->getFormattedValue()); }
+                    $book->disconnectWorksheets();
+                } finally { $exporter->cleanup($file['path']); }
+            }
+            // Include only the return entry so the initial sale's cost state cannot mask this assertion.
+            $returnDetail=array_replace($detail,['movements'=>[$entry],'pending_cost_units'=>0]);
+            $book=(new \App\Modules\Inventory\StockAccountingWorkbook($this->root))->build(['details'=>[$returnDetail],'filters'=>['from'=>'','to'=>''],'generated_at'=>gmdate('c')],$repository->companyProfile());
+            try {
+                $journal=$book->getSheetByName('Mișcări stoc');
+                foreach(['U7','V7','Z7'] as $cell) { self::assertSame('n',$journal->getCell($cell)->getDataType());self::assertEquals(0,$journal->getCell($cell)->getValue()); }
+                self::assertSame('Valoare NIR',$journal->getCell('Y7')->getValue());
+                self::assertEquals(0,$book->getSheetByName('Documente sursă')->getCell('N7')->getValue());
+            } finally { $book->disconnectWorksheets(); }
+        }
         $resale=$this->service->issue($this->order(2),['request_key'=>'cost-coverage-resale'],$this->actor);
         self::assertSame((2-$purchased)*10000,$resale['lines'][0]['pending_units']);
     }
@@ -857,18 +887,23 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         self::assertSame(200,$nirPage->getStatusCode()); self::assertStringContainsString('Factura inițială',(string)$nirPage->getBody());
         self::assertStringContainsString('nir-linked-invoice',(string)$nirPage->getBody());
         if(!$tracked) {
-            self::assertStringContainsString('Valoare înregistrată',(string)$nirPage->getBody());
+            self::assertStringContainsString('Totalul recepției',(string)$nirPage->getBody());
             self::assertStringContainsString('0,00 <small>Lei</small>',(string)$nirPage->getBody());
-            self::assertStringContainsString('Costul de achiziție nu este încă asociat.',(string)$nirPage->getBody());
+            self::assertStringNotContainsString('Costul de achiziție nu este încă asociat.',(string)$nirPage->getBody());
             self::assertStringNotContainsString('<strong>Neînregistrat</strong>',(string)$nirPage->getBody());
             $registry=$app->handle($factory->createServerRequest('GET','http://localhost/admin/nir-uri/'));
             self::assertStringContainsString('0,00 <span>Lei</span>',(string)$registry->getBody());
             self::assertStringNotContainsString('Cost neînregistrat',(string)$registry->getBody());
+            $twig=new \Twig\Environment(new \Twig\Loader\FilesystemLoader($this->root.'/resources/views'),['autoescape'=>'html']);
+            $pdfHtml=$twig->render('admin/nir/pdf.twig',['nir'=>$nir,'lines'=>$nir['lines'],'view_costs'=>true,'logo'=>null,'stamp'=>null,'nir_date'=>'15.11.2026','type_label'=>'Recepție retur client','status_label'=>'Confirmat','number'=>$nir['number']]);
+            self::assertStringNotContainsString('Fără intrare în stoc',$pdfHtml);
+            self::assertStringNotContainsString('Cost de achiziție neînregistrat',$pdfHtml);
+            self::assertStringContainsString('0,00 lei',$pdfHtml);
         }
         $exporter=new \App\Modules\Inventory\NirExportService($this->root); $file=$exporter->individual($nir,'xlsx');
         try {
             $book=\PhpOffice\PhpSpreadsheet\IOFactory::load($file['path']);
-            if(!$tracked) { self::assertNull($book->getActiveSheet()->getCell('J13')->getValue()); self::assertSame('—',$book->getActiveSheet()->getCell('M14')->getValue()); }
+            if(!$tracked) { self::assertEquals(0,$book->getActiveSheet()->getCell('J13')->getValue()); self::assertEquals(0,$book->getActiveSheet()->getCell('M14')->getCalculatedValue()); }
             $book->disconnectWorksheets();
         } finally { $exporter->cleanup($file['path']); }
         self::assertSame($nir['id'],$this->service->receive($credit['id'],$input,$this->actor)['receipt_nir']['id']);

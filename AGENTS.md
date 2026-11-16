@@ -34,6 +34,7 @@
 - Accounting quantities come from confirmed NIR lines (supplier receipts and customer returns) minus active positive outgoing invoice lines. A return/negative invoice does not receive goods; its confirmed customer-return NIR does. Existing supplier NIR reversals reverse their original entry.
 - Do not exclude a documented quantity because a legacy catalog/FIFO `track_in_conta` or `tracked` flag is disabled, or because its acquisition cost is unknown. The registry, product record and exports must agree on the source documents, without counting auxiliary stock/audit rows again.
 - Keep acquisition-cost coverage distinct from quantities, and keep online availability/reservations distinct from accounting stock. A customer-return receipt is an **intrare din retur client**, never “Necontabilizat” for an associated product.
+- For customer-return NIRs, display and export the amount recorded on the NIR, including **0,00 Lei**, in the document, stock ledger, PDF, XLSX and ZIP. Missing historical FIFO coverage must not replace that amount with an unknown-cost label or blank cell. Preserve the actual internal lot coverage; do not create fictitious cost layers.
 
 ## Commands
 - Install: `php composer.phar install`

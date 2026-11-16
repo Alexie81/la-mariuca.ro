@@ -162,6 +162,7 @@ final class NirExportService
         $border = ['borderStyle'=>'thin','color'=>['rgb'=>'E7D9DD']];
         $company = $document['company'] ?? [];
         $isSupplierReturn = ($document['type'] ?? '') === 'supplier_return';
+        $recordedReturn = ($document['type'] ?? '') === 'customer_return';
         $merge('A1:B3');
         $this->draw($sheet, $this->publicImage('/assets/images/logo-la-mariuca-transparent.png'), 'A1', 72, 122);
         $merge('C1:F1', ($company['trade_name'] ?? '') ?: ($company['legal_name'] ?? 'La Măriuca Boutique'));
@@ -225,18 +226,19 @@ final class NirExportService
         $sheet->getStyle('A12:M12')->getFont()->setSize(8)->setBold(true)->getColor()->setRGB('FFFFFF');
         $sheet->getStyle('A12:M12')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)->setVertical(Alignment::VERTICAL_CENTER)->setWrapText(true);
         $currency = preg_match('/^[A-Z]{3}$/D', (string)($document['currency'] ?? 'RON')) ? $document['currency'] : 'RON';
-        $moneyFormat = '#,##0.00 "' . $currency . '";[Red]-#,##0.00 "' . $currency . '"';
+        $moneyLabel = $currency==='RON'?'Lei':$currency;
+        $moneyFormat = '#,##0.00 "' . $moneyLabel . '";[Red]-#,##0.00 "' . $moneyLabel . '"';
         $lines = $document['lines'] ?? [];
         $rates = [];
         $observations = empty($document['notes']) ? [] : [(string)$document['notes']];
-        if($viewCosts && !($document['cost_complete'] ?? true)) { $observations[]='Cost de achiziție neînregistrat pentru unele produse. Lipsesc loturile de achiziție ale vânzării inițiale; nu reprezintă un cost zero.'; }
+        if($viewCosts && !$recordedReturn && !($document['cost_complete'] ?? true)) { $observations[]='Cost de achiziție neînregistrat pentru unele produse. Lipsesc loturile de achiziție ale vânzării inițiale; nu reprezintă un cost zero.'; }
         foreach ($lines as $i => $line) {
             $row = 13 + $i;
             $name = (string)(($line['supplier_name'] ?? '') ?: ($line['product_name'] ?? ''));
             $sku = (string)(($line['sku'] ?? '') ?: ($line['supplier_code'] ?? ''));
             $values = [$i+1,$sku,null,$name,$line['purchase_unit'] ?? 'buc',self::numeric($line['invoice_quantity'] ?? 0),self::numeric($line['received_quantity'] ?? 0),null];
-            $lineCosts=$viewCosts && ($line['cost_complete'] ?? true);
-            array_push($values, $lineCosts ? self::unitPrice($line) : null, $lineCosts ? self::money($line,'net_bani') : null, $lineCosts ? self::numeric($line['vat_percent'] ?? null) : null, $lineCosts ? self::money($line,'tax_bani') : null, $lineCosts ? self::money($line,'total_bani') : null);
+            $lineCosts=$viewCosts && ($recordedReturn || ($line['cost_complete'] ?? true));
+            array_push($values, $lineCosts ? self::unitPrice($line) : null, $lineCosts ? self::money($line,'net_bani',$recordedReturn) : null, $lineCosts ? self::numeric($line['vat_percent'] ?? null) : null, $lineCosts ? self::money($line,'tax_bani',$recordedReturn) : null, $lineCosts ? self::money($line,'total_bani',$recordedReturn) : null);
             $this->putRow($sheet, $row, $values);
             $sheet->setCellValue('H'.$row, '=ROUND(G'.$row.'-F'.$row.',4)');
             $difference = BigDecimal::of($line['received_quantity'] ?? '0')->minus($line['invoice_quantity'] ?? '0');
@@ -265,7 +267,7 @@ final class NirExportService
         $sheet->getStyle('A'.$total.':M'.$total)->getFont()->setBold(true);
         $sheet->getStyle('A'.$total.':I'.$total)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT)->setIndent(1);
         if ($viewCosts) {
-            foreach (['J','L','M'] as $column) { $sheet->setCellValue($column.$total, ($document['cost_complete'] ?? true)?'=ROUND(SUM('.$column.'13:'.$column.$last.'),2)':'—'); }
+            foreach (['J','L','M'] as $column) { $sheet->setCellValue($column.$total, ($recordedReturn || ($document['cost_complete'] ?? true))?'=ROUND(SUM('.$column.'13:'.$column.$last.'),2)':'—'); }
             $this->cell($sheet, 11, $total, count($rates) === 1 ? array_key_first($rates).'%' : (count($rates) > 1 ? 'Mixte' : ''));
             $fill('M'.$total, 'B05D73');
             $sheet->getStyle('M'.$total)->getFont()->getColor()->setRGB('FFFFFF');
@@ -336,7 +338,7 @@ final class NirExportService
         foreach($documents as $index=>$d){
             $row=$index+7;
             $values=[$index+1,self::number($d),self::type($d),self::status($d),self::excelDate($d['nir_at']??''),self::excelDate($d['nir_at']??''),self::excelDate($d['received_at']??''),self::excelDate($d['received_at']??''),$d['supplier']['company_name']??$d['supplier']['alias']??'',$d['supplier']['tax_id']??'',$d['invoice_series']??'',$d['invoice_number']??'',self::excelDate($d['invoice_date']??''),$d['warehouse']['name']??'',$d['currency']??'RON',self::numeric($d['exchange_rate']??1),self::excelDate($d['exchange_rate_date']??''),count($d['lines']??[]),$this->quantity($d,'invoice_quantity'),$this->quantity($d,'received_quantity'),$this->quantity($d,'accepted_quantity'),$this->quantity($d,'rejected_quantity'),$this->quantity($d,'received_quantity')-$this->quantity($d,'invoice_quantity')];
-            foreach(['net_bani','tax_bani','total_bani','net_ron_bani','tax_ron_bani','total_ron_bani','inventory_bani'] as $key){$values[]=$costs?self::money($d,$key):null;}
+            foreach(['net_bani','tax_bani','total_bani','net_ron_bani','tax_ron_bani','total_ron_bani','inventory_bani'] as $key){$values[]=$costs?self::money($d,$key,($d['type'] ?? '')==='customer_return'):null;}
             $values[]=null;
             array_push($values,count($d['attachments']??[]),$d['original_number']??$d['original_id']??'',trim(($d['notes']??'').' '.($d['reason']??'')),self::excelDate($d['confirmed_at']??''),$d['confirmed_by_name']??$d['confirmed_by']??'',self::excelDate($d['created_at']??''),$d['created_by_name']??$d['created_by']??'');
             $this->putRow($sheet,$row,$values);
@@ -572,7 +574,7 @@ final class NirExportService
 
     private static function numeric(mixed $value): ?float { return $value===null||$value===''?null:(is_numeric($value)?(float)$value:null); }
     /** @param array<string,mixed> $data */
-    private static function money(array $data,string $key): ?float { return ($data['cost_complete'] ?? true) && array_key_exists($key,$data)?((int)$data[$key])/100:null; }
+    private static function money(array $data,string $key,bool $recordedReturn=false): ?float { return ($recordedReturn || ($data['cost_complete'] ?? true)) && array_key_exists($key,$data)?((int)$data[$key])/100:null; }
     /** @param array<string,mixed> $document */
     private static function number(array $document): string { return (string)(($document['number']??'')?:($document['display_number']??(!empty($document['draft_sequence'])?'Draft #'.(int)$document['draft_sequence']:($document['temp_number']??'NIR')))); }
     /** @param array<string,mixed> $document */

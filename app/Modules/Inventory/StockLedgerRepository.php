@@ -127,7 +127,7 @@ final class StockLedgerRepository
             w.name AS warehouse,u.first_name,u.last_name,n.id AS nir_id,n.number AS nir_number,n.supplier_snapshot,n.invoice_series,n.invoice_number,n.status AS nir_status,n.invoice_date,n.notes AS nir_notes,n.nir_at AS nir_registered_at,
             il.invoice_id,i.series_code,i.number AS invoice_number_out,i.deleted_at AS invoice_deleted,i.issued_at AS invoice_date_out,i.order_id,i.snapshot_json AS invoice_snapshot,o.order_number,il.quantity_units AS invoice_units,il.gross_bani AS sale_bani,
             nl.stock_quantity_units AS nir_units,
-            CASE WHEN nl.tracked=0 OR (n.type='customer_return' AND COALESCE((SELECT SUM(fl.initial_units) FROM nir_fifo_layers fl WHERE fl.line_id=nl.id),0)<ABS(nl.stock_quantity_units)) THEN NULL ELSE nl.inventory_bani END AS acquisition_bani,nl.stock_unit AS unit,nl.sku AS nir_sku,il.sku AS invoice_sku,
+            CASE WHEN n.type='customer_return' THEN COALESCE(nl.inventory_bani,0) WHEN nl.tracked=0 THEN NULL ELSE nl.inventory_bani END AS acquisition_bani,nl.stock_unit AS unit,nl.sku AS nir_sku,il.sku AS invoice_sku,
             (SELECT SUM(c.value_bani) FROM nir_fifo_consumptions c WHERE c.source_type='invoice_line' AND c.source_id=il.id) AS allocated_bani,
             (SELECT SUM(pc.quantity_units) FROM nir_pending_consumptions pc WHERE pc.source_type='invoice_line' AND pc.source_id=il.id) AS pending_units
             FROM (".AccountingStockReadModel::documentMovementsSql().") m LEFT JOIN company_warehouses w ON w.id=m.warehouse_id LEFT JOIN users u ON u.id=m.actor_id
