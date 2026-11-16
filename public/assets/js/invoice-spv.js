@@ -3,6 +3,14 @@
   let busy = false, timer = null, delay = 15000, stopped = false;
   const panel = () => document.querySelector('[data-spv-document]');
   const pollingForm = () => panel()?.querySelector('[data-spv-poll]');
+  const syncDocumentActions = () => {
+    const current = panel();
+    if (current?.dataset.spvCanDelete === '0') document.querySelectorAll('[data-invoice-delete]').forEach(action => action.remove());
+    if (current?.dataset.spvLocked === '1') {
+      const notice = document.querySelector('[data-invoice-fiscal-lock]');
+      if (notice) notice.textContent = 'Document blocat pentru modificări după transmiterea fiscală.';
+    }
+  };
   const feedback = (message, failed = false) => {
     const target = panel()?.querySelector('[data-spv-feedback]');
     if (!target) return;
@@ -37,7 +45,7 @@
       const result = await response.json();
       if (typeof result.html === 'string') {
         const next = new DOMParser().parseFromString(result.html, 'text/html').querySelector('[data-spv-document]');
-        if (next) panel()?.replaceWith(next);
+        if (next) { panel()?.replaceWith(next); syncDocumentActions(); }
       }
       if (result.state === null) stopped = true;
       feedback(automatic && result.ok && result.state === 'submitted' ? 'ANAF încă procesează factura. Verificarea continuă automat.' : result.message, !result.ok);

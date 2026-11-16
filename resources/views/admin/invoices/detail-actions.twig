@@ -1,5 +1,5 @@
 {% import 'admin/partials/nir-ui.twig' as n %}
 <footer class="iv-sheet-actions">
-<a class="iv-btn iv-btn--quiet" href="{{ url('admin/comenzi/'~doc.order_id~'/') }}">{{ n.icon('box') }}Comanda</a>
+<div><a class="iv-btn iv-btn--quiet" href="{{ url('admin/comenzi/'~doc.order_id~'/') }}">{{ n.icon('box') }}Comanda</a>{% if doc.can_delete %}<a class="iv-btn iv-btn--quiet iv-btn--delete" data-invoice-delete href="{{ url('admin/facturi/'~doc.id~'/delete/') }}" data-iv-modal>{{ n.icon('trash') }}Șterge document</a>{% endif %}</div>
 <div>{% if can_manage %}<a class="iv-btn iv-btn--link" href="{{ url('admin/facturi/'~doc.id~'/link/') }}" data-iv-modal>{{ n.icon('link') }}Link client</a><a class="iv-btn iv-btn--email" href="{{ url('admin/facturi/'~doc.id~'/email/') }}" data-iv-modal>{{ n.icon('mail') }}Email</a>{% endif %}<a class="iv-btn iv-btn--pdf" href="{{ url('admin/facturi/'~doc.id~'/pdf/') }}?view=1" target="_blank" rel="noopener">{{ n.icon('external') }}Vezi PDF</a><div class="iv-exports">{% for format,label in {'pdf':'PDF','xlsx':'Excel','xml':'XML','zip':'ZIP'} %}<a href="{{ url('admin/facturi/'~doc.id~'/'~format~'/') }}" data-iv-download>{{ n.icon('download') }}{{ label }}</a>{% endfor %}</div></div>
 </footer>

@@ -976,7 +976,7 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         }
         $credit=$this->service->credit($invoice['id'],['request_key'=>'http-forms-credit','version'=>1,'reason'=>'Retur test','quantities'=>[$invoice['lines'][0]['id']=>'1']],$this->actor);
         self::assertSame(200,$get('/admin/facturi/'.$credit['id'].'/receive/')->getStatusCode());
-        foreach(['pdf'=>'%PDF','xlsx'=>'PK','zip'=>'PK'] as $format=>$magic) {
+        foreach(['pdf'=>'%PDF','xlsx'=>'PK','xml'=>'<?xml','zip'=>'PK'] as $format=>$magic) {
             $response=$get('/admin/facturi/'.$invoice['id'].'/'.$format.'/');
             self::assertSame(200,$response->getStatusCode()); self::assertStringStartsWith($magic,(string)$response->getBody());
             self::assertStringStartsWith('attachment;',$response->getHeaderLine('Content-Disposition'));
@@ -991,6 +991,25 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         unset($_SESSION['user_id']);
         self::assertContains($get('/admin/facturi/'.$invoice['id'].'/pdf/')->getStatusCode(),[302,303,401,403]);
         unset($get); gc_collect_cycles();
+    }
+    public function testInvoiceSheetOffersDeleteOnlyForAuthorizedEligibleLastDocument(): void
+    {
+        $first=$this->service->issue($this->order(1),['request_key'=>'sheet-first-delete'],$this->actor);
+        $last=$this->service->issue($this->order(1),['request_key'=>'sheet-last-delete'],$this->actor);
+        $_SESSION['user_id']=$this->actor['id']; $factory=new \Slim\Psr7\Factory\ServerRequestFactory();
+        $page=function(int $id)use($factory):string {
+            $app=\App\AppFactory::create($this->root);
+            $response=$app->handle($factory->createServerRequest('GET','http://localhost/admin/facturi/'.$id.'/'));
+            self::assertSame(200,$response->getStatusCode()); unset($app); gc_collect_cycles(); return (string)$response->getBody();
+        };
+        self::assertStringNotContainsString('/'.$first['id'].'/delete/',$page($first['id']));
+        $html=$page($last['id']); self::assertStringContainsString('/'.$last['id'].'/delete/',$html);
+        self::assertStringContainsString('Șterge document',$html); self::assertStringNotContainsString('Șterge ultimul',$html);
+        $this->pdo->exec("UPDATE users SET role='operator' WHERE id=".$this->actor['id']);
+        self::assertStringNotContainsString('/'.$last['id'].'/delete/',$page($last['id']));
+        $this->pdo->exec("UPDATE users SET role='administrator' WHERE id=".$this->actor['id']);
+        $this->pdo->exec("UPDATE orders SET payment_method='stripe',payment_status='paid' WHERE id=".$last['order_id']);
+        self::assertStringNotContainsString('/'.$last['id'].'/delete/',$page($last['id']));
     }
     public function testStaleVersionAndNonLatestDeletionLeaveDocumentsAndStockUntouched(): void
     {
@@ -1183,6 +1202,18 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         self::assertSame((int)$before['gross_bani'],$repo->orderCash($order)['received']);
         self::assertSame(0,$repo->summary()['outstanding']);
         self::assertSame((int)$before['gross_bani'],$repo->summary()['collected']);
+        $document=$this->service->document($invoice['id'],$this->actor);
+        self::assertSame('Achitată',$document['payment_summary']['label']);
+        self::assertSame((int)$before['gross_bani'],$document['payment_summary']['received']);
+        self::assertSame(0,$document['payment_summary']['outstanding']);
+        $_SESSION['user_id']=$this->actor['id'];
+        $app=\App\AppFactory::create($this->root);
+        $page=$app->handle((new \Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('GET','http://localhost/admin/facturi/'.$invoice['id'].'/'));
+        self::assertSame(200,$page->getStatusCode()); $html=(string)$page->getBody();
+        self::assertStringContainsString('title="Plata comenzii">Achitată</span>',$html);
+        self::assertStringContainsString('Încasat pe comandă</dt><dd>'.number_format((int)$before['gross_bani']/100,2,',','.').' RON',$html);
+        self::assertStringNotContainsString('/'.$invoice['id'].'/delete/',$html);
+        unset($app); gc_collect_cycles();
         try { $this->service->setOrderPayment($order,['request_key'=>'payment-fiscal-stale','order_version'=>$version,'payment_status'=>'pending'],$this->actor); self::fail('Stale payment form accepted'); }
         catch(InvoiceException $e) { self::assertSame(409,$e->getCode()); }
         self::assertSame('paid',$repo->one('orders',['id'=>$order])['payment_status']);
@@ -1203,6 +1234,10 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         self::assertSame(2000,$repo->summary()['collected']);
         self::assertSame((int)$before['gross_bani']-2000,$repo->summary()['outstanding']);
         self::assertSame('partial',$repo->one('orders',['id'=>$order])['payment_status']);
+        $document=$this->service->document($invoice['id'],$this->actor);
+        self::assertSame('Achitată parțial',$document['payment_summary']['label']);
+        self::assertSame(2000,$document['payment_summary']['received']);
+        self::assertSame((int)$before['gross_bani']-2000,$document['payment_summary']['outstanding']);
     }
     public function testOrderReturnNirUsesInvoiceAllocationsAndCannotBeReceivedTwice(): void
     {

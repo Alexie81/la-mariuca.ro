@@ -6,6 +6,8 @@ const path = require('node:path');
 
 function setup(initial = 'not_sent', responses = []) {
   const timers = new Map(), events = {}, calls = [];
+  const deleteAction = {removed:false, remove() {this.removed = true;}};
+  const lockNotice = {textContent:'Starea transmiterii este afișată în panoul SPV.'};
   let sequence = 0, current;
   const makePanel = (state, disabled = false) => {
     const operation = state === 'submitted' ? 'verifica' : 'trimite';
@@ -17,13 +19,18 @@ function setup(initial = 'not_sent', responses = []) {
       matches:() => state === 'submitted' && !disabled,
       closest:() => form,
     };
-    return {state, form, button, message, replaceWith(next) {current = next;}, querySelector(selector) {
+    const locked = !['not_sent','queued','scheduled','unconfigured','awaiting_configuration'].includes(state);
+    return {state, form, button, message, dataset:{spvCanDelete:locked?'0':'1',spvLocked:locked?'1':'0'}, replaceWith(next) {current = next;}, querySelector(selector) {
       if (selector === '[data-spv-feedback]') return message;
       return state === 'submitted' && !disabled ? form : null;
     }};
   };
   current = makePanel(initial);
-  const document = {hidden:false, querySelector:() => current, addEventListener:(name, handler) => {events[name] = handler;}};
+  const document = {hidden:false,
+    querySelector:selector => selector === '[data-invoice-fiscal-lock]' ? lockNotice : current,
+    querySelectorAll:selector => selector === '[data-invoice-delete]' ? [deleteAction] : [],
+    addEventListener:(name, handler) => {events[name] = handler;},
+  };
   const context = vm.createContext({
     document, AbortController,
     setTimeout(fn, ms) {const id = ++sequence; timers.set(id, {fn, ms}); return id;},
@@ -41,7 +48,7 @@ function setup(initial = 'not_sent', responses = []) {
   vm.runInContext(fs.readFileSync(path.resolve(__dirname, '../../public/assets/js/invoice-spv.js'), 'utf8'), context);
   const flush = () => new Promise(resolve => setImmediate(resolve));
   return {
-    calls, timers, document, get panel() {return current;},
+    calls, timers, document, deleteAction, lockNotice, get panel() {return current;},
     async submit() {events.submit({target:current.form, preventDefault() {}}); await flush();},
     async tick() {const [id, timer] = [...timers.entries()].sort((a, b) => a[1].ms - b[1].ms)[0] || []; if (!timer) return; timers.delete(id); timer.fn(); await flush();},
   };
@@ -56,11 +63,21 @@ test('manual send happens once, then automatic requests only check the response 
   assert.equal(fixture.timers.size, 0, 'an unsent invoice is never uploaded automatically by its page');
   await fixture.submit();
   assert.equal(fixture.panel.state, 'submitted');
+  assert.equal(fixture.deleteAction.removed, true, 'an invoice becomes undeletable immediately after its first upload');
+  assert.match(fixture.lockNotice.textContent, /blocat/);
   await fixture.tick(); await fixture.tick();
   assert.deepEqual(fixture.calls.map(call => call.url.split('/').at(-2)), ['trimite', 'verifica', 'verifica']);
   assert.equal(fixture.calls[0].options.method, 'POST');
   assert.equal(fixture.calls[0].options.body.csrf, 'csrf-from-form');
   assert.equal(fixture.panel.state, 'accepted');
+  assert.equal(fixture.timers.size, 0);
+});
+
+test('a preflight failure keeps an unsent invoice editable and deletable', async () => {
+  const fixture = setup('not_sent', [{ok:false, state:'not_sent', html:'not_sent', message:'Lipsește autorizarea ANAF.'}]);
+  await fixture.submit();
+  assert.equal(fixture.deleteAction.removed, false);
+  assert.doesNotMatch(fixture.lockNotice.textContent, /blocat/);
   assert.equal(fixture.timers.size, 0);
 });
 

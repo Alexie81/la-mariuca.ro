@@ -27,6 +27,8 @@ final class InvoiceService
         $this->allow($actor); $document=$this->decorate($this->load($id));
         $user=$this->repository->one('users',['id'=>(int)$actor['id']]);
         $document['can_view_acquisition_cost']=in_array($user['role'] ?? '',['administrator','manager'],true);
+        $document['can_delete']=($user['role'] ?? '')==='administrator' && $document['delete_blocker']==='';
+        $document['payment_summary']=InvoicePaymentSummary::forDocument($document,$this->repository->orderCash((int)$document['order_id']),$this->repository->orderNet((int)$document['order_id']));
         if(!$document['can_view_acquisition_cost']) {
             foreach($document['lines'] as &$line) { $line['trace']=[]; } unset($line);
         }

@@ -227,14 +227,19 @@ final class SpvTransmissionTest extends DatabaseTestCase
         self::assertTrue($submitted['ok']); self::assertSame('submitted',$submitted['state']);
         self::assertStringContainsString('Referință ANAF <b>7001</b>',$submitted['html']);
         self::assertStringContainsString('data-spv-poll',$submitted['html']);
+        self::assertStringContainsString('data-spv-can-delete="0"',$submitted['html']);
+        self::assertStringContainsString('data-spv-locked="1"',$submitted['html']);
         self::assertStringNotContainsString('/trimite/',$submitted['html']);
+        $auditCount=(int)$this->pdo->query("SELECT COUNT(*) FROM invoice_audit WHERE action='fiscal_result'")->fetchColumn();
         self::assertSame('submitted',$send('verifica')['state']);
+        self::assertSame($auditCount,(int)$this->pdo->query("SELECT COUNT(*) FROM invoice_audit WHERE action='fiscal_result'")->fetchColumn());
         $accepted=$send('verifica');
         self::assertTrue($accepted['ok']); self::assertSame('accepted',$accepted['state']);
         self::assertStringContainsString('Acceptată de ANAF',$accepted['html']);
         self::assertStringContainsString('7001',$accepted['html']);
         self::assertStringContainsString('/arhiva/',$accepted['html']);
         self::assertStringNotContainsString('data-spv-poll',$accepted['html']);
+        self::assertSame($auditCount+1,(int)$this->pdo->query("SELECT COUNT(*) FROM invoice_audit WHERE action='fiscal_result'")->fetchColumn());
         self::assertCount(3,$http->requests);
         self::assertArrayNotHasKey('_flash',$_SESSION);
     }

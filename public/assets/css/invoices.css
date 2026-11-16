@@ -530,6 +530,15 @@ body:has(.iv-dialog[open]),body:has(.iv-lightbox[open]){overflow:hidden}
 .iv-spv-actions .iv-btn{white-space:normal;text-align:left;max-width:100%;font-size:11px;padding:10px 12px}
 .iv-spv-actions [data-spv-feedback]{flex-basis:100%;padding-top:5px}
 .iv-spv-actions [data-spv-feedback].is-error{color:#a03859}
+.iv-sheet-actions .iv-btn--delete{color:#a03859!important;border-color:#efd4dd;background:#fff7fa}
+.iv-current-payment{padding:20px}
+.iv-current-payment h2{font-size:16px}
+.iv-current-payment p{font-size:12px}
+.iv-current-payment dl{display:grid;gap:12px;margin:18px 0}
+.iv-current-payment dl>div{display:flex;justify-content:space-between;gap:14px;font-size:12px}
+.iv-current-payment dt{color:var(--iv-muted)}
+.iv-current-payment dd{margin:0;text-align:right;font-weight:700;white-space:nowrap}
+.iv-current-payment .iv-btn{margin-top:14px;font-size:12px;white-space:normal}
 .iv-state-icon{display:grid;place-items:center;width:36px;height:38px;flex:none;border-radius:12px;background:#eee5f0;color:#96779b}
 .iv-document-states .iv-icon{width:29px;height:29px;border-radius:9px;flex:none}
 .iv-document-states .is-green{background:#f1f9f5;border-color:#d4e7df}

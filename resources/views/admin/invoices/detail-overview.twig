@@ -1,7 +1,7 @@
 {% import 'admin/partials/nir-ui.twig' as n %}
 <header class="iv-sheet-hero">
   <div class="iv-sheet-title"><span class="iv-register-symbol">{{ n.icon(negative ? 'return' : 'document') }}</span><div><span class="iv-eyebrow">{{ doc.kind_label }}</span><h1>{{ doc.display_number }}<button class="iv-icon" type="button" data-iv-copy="{{ doc.display_number }}" aria-label="Copiază numărul facturii">{{ n.icon('copy') }}</button></h1><p><a href="{{ url('admin/comenzi/'~doc.order_id~'/') }}">{{ doc.order_number }}</a> · {{ doc.date_display }}</p>{% if doc.parent %}<p class="iv-original-reference">Retur pentru factura <a href="{{ url('admin/facturi/'~doc.parent.id~'/') }}">{{ doc.parent.series_code }} {{ doc.parent.number }}</a> · {{ doc.parent.issued_at|date('d.m.Y','Europe/Bucharest') }}</p>{% endif %}</div></div>
-  <div class="iv-sheet-total"><span class="iv-status {{ doc.payment_state == 'paid' ? 'is-green' : (negative ? 'is-rose' : 'is-gold') }}">{{ doc.payment_label }}</span><small>{{ negative ? 'Total factură de retur' : 'Total factură' }}</small><strong>{{ doc.total_display }}</strong></div>
+  <div class="iv-sheet-total"><span class="iv-status is-{{ doc.payment_summary.tone }}" title="{{ doc.payment_summary.scope }}">{{ doc.payment_summary.label }}</span><small>{{ doc.payment_summary.scope }}</small><small>{{ negative ? 'Total factură de retur' : 'Total factură' }}</small><strong>{{ doc.total_display }}</strong></div>
 </header>
 <div class="iv-document-states">
   {% include 'admin/invoices/fiscal-state.twig' %}

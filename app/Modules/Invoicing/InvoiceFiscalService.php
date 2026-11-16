@@ -81,6 +81,7 @@ final class InvoiceFiscalService
     private function record(int $id,string $state,?string $reference,array $response,bool $poll=false): void
     {
         $this->repository->transaction(function()use($id,$state,$reference,$response,$poll):void {
+            $previous=$poll?$this->repository->one('invoice_fiscal_jobs',['invoice_id'=>$id]):null;
             if($poll) {
                 $current=$this->invoices->load($id);
                 // Another tab/worker may have completed this upload or started an explicit retry.
@@ -88,7 +89,9 @@ final class InvoiceFiscalService
             }
             $this->repository->update('invoice_fiscal_jobs',['state'=>$state,'external_reference'=>$reference,'response_json'=>InvoiceSnapshot::json($response),'download_reference'=>$response['id_descarcare'] ?? null,'last_error'=>$response['message'] ?? null,'polled_at'=>$this->repository->now(),'available_at'=>$state==='transient_error' && $this->gateway instanceof AnafFiscalGateway?gmdate('Y-m-d\TH:i:s\Z',time()+120):null,'updated_at'=>$this->repository->now()],['invoice_id'=>$id]);
             $this->repository->update('invoices',['fiscal_state'=>$state,'fiscal_reference'=>$reference],['id'=>$id]);
-            $this->audit($id,'fiscal_result',null,['state'=>$state,'reference'=>$reference,'response'=>$response]);
+            if(!$poll || ($previous['state'] ?? null)!==$state || ($previous['external_reference'] ?? null)!==$reference || ($previous['download_reference'] ?? null)!==($response['id_descarcare'] ?? null) || ($previous['last_error'] ?? null)!==($response['message'] ?? null)) {
+                $this->audit($id,'fiscal_result',null,['state'=>$state,'reference'=>$reference,'response'=>$response]);
+            }
         });
     }
     /** @param array<string,mixed> $data */

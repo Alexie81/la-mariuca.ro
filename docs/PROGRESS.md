@@ -14,6 +14,13 @@ La revenirea la PC, începem în ordinea cerută explicit de utilizator la 2026-
 
 Lista este salvată pentru reluarea lucrului, fără pornirea implementării în această sesiune. Modificare numai de documentație; verificare prin diff, fără teste de aplicație necesare.
 
+### 2026-11-16 — Verificarea fișei facturii și remedierea golurilor
+- Restabilit **Șterge document** în fișa facturii, numai pentru administrator și documentul eligibil conform regulilor serverului. Facturile anterioare din serie, cele transmise fiscal și cele aferente cardurilor plătite nu primesc acțiunea.
+- Încasările și restituirile din fișă folosesc evidența actuală a comenzii, inclusiv plățile înregistrate după transmiterea în SPV. Sunt afișate sumele efectiv încasate, restituite și soldurile rămase, separat de snapshotul fiscal, care nu este rescris. Legătură directă către gestionarea plății în comandă.
+- După trimiterea manuală în SPV, acțiunea de ștergere dispare imediat și mesajul de blocare fiscală se actualizează. O eroare înaintea transmiterii nu blochează documentul. Verificările repetate cu același răspuns ANAF nu mai aglomerează istoricul; schimbările de stare/referință/eroare rămân înregistrate.
+- Verificări: **109 teste PHP / 1.252 aserțiuni**, **5 teste JavaScript**, PHPStan, lint PHP și **194 șabloane Twig** compilate. Regresia acoperă PDF/Excel/XML/ZIP, formulare cu CSRF, acces privat, email cu transport injectat, retururi, NIR, plăți și SPV simulat. Reparată și o valoare de rol neacceptată de schemă în noul test de permisiuni.
+- Randare locală prin GET verificată pentru **LM 1 și LM 2**, cu HTTP 200, panou de încasări, SPV și XML; ștergerea apare numai la LM 2. Browserul intern a fost deschis la fișa LM 2, dar nu există instrument de inspecție vizuală a acelui tab. Fără trimitere SMTP/ANAF reală, fără modificarea documentelor locale și fără deploy. Accesul ANAF rămâne blocaj extern; TODO 3 rămâne nebifat până la confirmarea utilizatorului.
+
 ### 2026-11-16 — SPV în fișa facturii, pagină de configurare simplificată
 - La cererea utilizatorului, eliminate **Facturi și răspunsuri ANAF** și **Calendar și alerte** din pagina SPV. Eliminată și interogarea duplicată a documentelor. Pagina rămâne pentru conectare, mediu și reguli; valorile de calendar deja configurate se păstrează la salvarea formularului simplificat.
 - Fiecare factură are butonul **Trimite manual în SPV**, starea și referința ANAF în propria fișă. Fără autorizare, butonul este dezactivat și motivul este afișat. Mediul de test rămâne etichetat. După trimitere, acțiunea devine verificarea răspunsului; după acceptare, rămân statusul, referința și arhiva disponibilă.

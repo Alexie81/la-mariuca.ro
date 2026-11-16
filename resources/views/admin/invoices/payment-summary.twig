@@ -1,0 +1,14 @@
+{% import 'admin/partials/nir-ui.twig' as n %}
+{% set payment = doc.payment_summary %}
+<section class="iv-panel iv-current-payment" aria-labelledby="invoice-payment-title">
+  <header><span class="iv-eyebrow">Evidența actuală a banilor</span><h2 id="invoice-payment-title">Încasări și restituiri</h2><p>{{ doc.payment_method == 'stripe' ? 'Card online · Stripe' : 'Ramburs' }}</p></header>
+  <dl>
+    <div><dt>Încasat pe comandă</dt><dd>{{ (payment.received/100)|number_format(2,',','.') }} {{ doc.currency }}</dd></div>
+    <div><dt>Restituit pe comandă</dt><dd>{{ (payment.refunded/100)|number_format(2,',','.') }} {{ doc.currency }}</dd></div>
+    <div><dt>Rămas de încasat</dt><dd>{{ (payment.outstanding/100)|number_format(2,',','.') }} {{ doc.currency }}</dd></div>
+    {% if payment.refundDue > 0 %}<div><dt>Rămas de restituit</dt><dd>{{ (payment.refundDue/100)|number_format(2,',','.') }} {{ doc.currency }}</dd></div>{% endif %}
+    {% if negative %}<div><dt>Restituit pentru acest retur</dt><dd>{{ (payment.document_refunded/100)|number_format(2,',','.') }} {{ doc.currency }}</dd></div>{% endif %}
+  </dl>
+  <p>Încasările și restituirile sunt cele înregistrate pentru comandă, inclusiv după emiterea facturii.</p>
+  <a class="iv-btn iv-btn--quiet" href="{{ url('admin/comenzi/'~doc.order_id~'/') }}#order-payment-title">{{ n.icon('money') }}{{ can_manage ? 'Gestionează plata în comandă' : 'Vezi plata în comandă' }}</a>
+</section>
