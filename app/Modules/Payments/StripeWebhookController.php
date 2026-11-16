@@ -230,7 +230,7 @@ final class StripeWebhookController
             return new Response(500);
         }
         if ($paymentNotificationOrderId !== null) {
-            try { \App\Modules\Invoicing\InvoiceModule::process($this->pdo, dirname(__DIR__, 3), 5); } catch (\Throwable) { /* Persistent invoice intent remains retryable. */ }
+            try { \App\Modules\Invoicing\InvoiceModule::process($this->pdo, dirname(__DIR__, 3), 1, $paymentNotificationOrderId); } catch (\Throwable) { /* Persistent invoice intent remains retryable. */ }
             try {
                 $this->push?->processPending(20);
             } catch (\Throwable) {
@@ -284,13 +284,13 @@ final class StripeWebhookController
                 || (!empty($attempt['provider_payment_id']) && $attempt['provider_payment_id'] !== $intentId)) {
                 return $this->finishEvent($eventId, $now, 'Stripe checkout attempt PaymentIntent mismatch');
             }
-            $attempts->complete((int) $attempt['id'], $intentId, $association);
+            $completedOrderId=$attempts->complete((int) $attempt['id'], $intentId, $association);
         } elseif (in_array($type, ['checkout.session.expired', 'checkout.session.async_payment_failed', 'payment_intent.canceled'], true)) {
             $attempts->release((int) $attempt['id'], $type === 'checkout.session.expired' ? 'expired' : 'failed');
         }
         $response = $this->finishEvent($eventId, $now);
         if ($success) {
-            try { \App\Modules\Invoicing\InvoiceModule::process($this->pdo, dirname(__DIR__, 3), 5); } catch (\Throwable) { /* Persistent invoice intent remains retryable. */ }
+            try { \App\Modules\Invoicing\InvoiceModule::process($this->pdo, dirname(__DIR__, 3), 1, $completedOrderId); } catch (\Throwable) { /* Persistent invoice intent remains retryable. */ }
             try { $this->push?->processPending(20); } catch (\Throwable) { /* Payment persistence never depends on push delivery. */ }
         }
         return $response;

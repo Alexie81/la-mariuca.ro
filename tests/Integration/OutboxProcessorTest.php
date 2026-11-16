@@ -364,6 +364,30 @@ final class OutboxProcessorTest extends DatabaseTestCase
         return (int) $this->pdo->lastInsertId();
     }
 
+    public function testAutomationErrorsUseOrderRecipientsAndSmtpWithBrandedEmailWithoutDuplicates(): void
+    {
+        $_ENV['MAIL_MESSAGE_TYPES']='internal_order_notification';
+        $this->pdo->exec("UPDATE order_notification_settings SET recipients_json='[\"owner@example.test\"]'");
+        $alerts=new \App\Shared\Automation\AutomationAlerts($this->pdo);
+        $alerts->report('spv:42','SPV necesită atenție · LM 42','Răspuns neclar <test>','admin/facturi/42/');
+        $alerts->report('spv:42','SPV necesită atenție · LM 42','Răspuns neclar <test>','admin/facturi/42/');
+        $transport=new RecordingOutboxTransport($this->pdo);
+        $processor=new OutboxProcessor($this->pdo,Config::load($this->root),$this->root,$transport);
+        self::assertSame(1,$processor->process(3,['automation_alert'])['sent']);
+        self::assertCount(1,$transport->messages); self::assertSame([false],$transport->transactionStates);
+        $email=$transport->messages[0]->getOriginalMessage();
+        self::assertInstanceOf(Email::class,$email);
+        self::assertSame('owner@example.test',$email->getTo()[0]->getAddress());
+        self::assertStringContainsString('https://shop.example.test/boutique/admin/facturi/42/',$email->getHtmlBody());
+        self::assertStringContainsString('Răspuns neclar &lt;test&gt;',$email->getHtmlBody());
+        self::assertStringContainsString('La Măriuca Boutique',$email->getHtmlBody());
+        self::assertStringNotContainsString('Rezumatul comenzii',$email->getHtmlBody());
+        self::assertSame(0,$processor->process(3,['automation_alert'])['sent']);
+        $alerts->resolve('spv:42');
+        $alerts->report('spv:42','SPV necesită atenție · LM 42','Răspuns neclar <test>','admin/facturi/42/');
+        self::assertSame(1,$processor->process(3,['automation_alert'])['sent'],'A new incident after resolution is notified again.');
+    }
+
     /** @return array<string,mixed> */
     private function message(int $id): array
     {

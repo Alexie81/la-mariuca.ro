@@ -327,7 +327,7 @@ final class CheckoutService
             } catch (\Throwable) {
                 // Comanda rămâne validă chiar dacă serviciul push este temporar indisponibil.
             }
-            try { \App\Modules\Invoicing\InvoiceModule::process($this->pdo, dirname(__DIR__, 3), 5); } catch (\Throwable) { /* Retry through invoices:process; order remains valid. */ }
+            try { \App\Modules\Invoicing\InvoiceModule::process($this->pdo, dirname(__DIR__, 3), 1, $orderId); } catch (\Throwable) { /* Site activity retries the persisted intent; the order remains valid. */ }
             unset($_SESSION['cart_token']);
             return ['order_number' => $orderNumber, 'token' => $token, 'id' => $orderId, 'payment_method' => $method, 'idempotency_key' => $idempotencyKey];
         } catch (\Throwable $exception) {

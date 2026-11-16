@@ -233,6 +233,12 @@ final class AdminNotificationService
     private function events(array $preferences,int $adminUserId): array
     {
         $events = [];
+        if($preferences['plati']) {
+            foreach($this->pdo->query('SELECT * FROM automation_alerts WHERE resolved_at IS NULL ORDER BY id DESC LIMIT 200')->fetchAll() as $alert) {
+                $events[]=['key'=>'automation:'.$alert['id'].':'.$alert['revision'],'type'=>'plati','tone'=>'attention','priority'=>3,
+                    'title'=>$alert['title'],'detail'=>$alert['message'],'meta'=>'Facturare / SPV','occurred_at'=>$alert['created_at'],'target_path'=>$alert['target_path']];
+            }
+        }
         if ($preferences['comenzi'] || $preferences['plati']) {
             $orders = $this->pdo->query(
                 'SELECT id,order_number,email,first_name,last_name,total_bani,status,payment_status,created_at,updated_at '

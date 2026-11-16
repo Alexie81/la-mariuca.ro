@@ -39,6 +39,7 @@ final class Config
             'CART_MAX_DISTINCT_PRODUCTS' => '50',
             'STRIPE_ENABLED' => 'false',
             'ANAF_ALLOW_PRODUCTION' => 'false',
+            'REQUEST_AUTOMATIONS_ENABLED' => 'true',
             'ANAF_CLIENT_ID' => '',
             'ANAF_CLIENT_SECRET' => '',
             'STRIPE_MODE' => 'test',

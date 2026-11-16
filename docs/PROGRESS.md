@@ -1,5 +1,14 @@
 # Progres
 
+### 2026-11-16 — Automatizări de facturare și SPV pornite de accesările site-ului
+- Emiterea automată procesează explicit comanda tocmai confirmată (ramburs / Stripe verificat), indiferent de comenzile vechi din coadă. Intențiile rămân idempotente; erorile se reiau cu pauză, fără facturi duplicate și fără activarea retroactivă pentru comenzile vechi.
+- Accesările reușite ale site-ului/adminului procesează loturi mici după răspuns, fără daemon sau cron obligatoriu pentru facturare/SPV. Migrarea **070** adaugă o rezervare comună cu expirare pentru vizite simultane și incidente persistente. Nu există un endpoint public de executare a cozii.
+- Programarea păstrează zilele lucrătoare/sărbătorile configurate, dar este eligibilă de la **00:00 Europe/Bucharest** în ziua aleasă. Facturile scadente se procesează și la prima vizită ulterioară. Programările vechi neîncercate sunt normalizate; override-urile manuale cu XML pregătit și documentele încercate sunt păstrate.
+- Erorile de emitere/SPV și alertele opționale înainte de termen apar în notificările admin și folosesc destinatarii existenți ai comenzilor. Același incident nu repetă emailul la fiecare vizită. Template-ul reutilizează identitatea emailurilor Măriuca. Emailurile facturilor, confirmările și alertele se procesează prin accesări; configurarea SMTP, filtrul existent și pragul ID rămân respectate.
+- Răspunsurile ANAF incerte nu sunt retransmise automat. Descărcarea eșuată a arhivei unei facturi acceptate se poate relua separat de încărcarea facturii.
+- Verificări până aici: **133 teste / 1.575 aserțiuni** (facturi, automatizări, SPV, outbox), apoi **25 teste / 219 aserțiuni** pentru mecanismul din accesări, alerte, recuperarea arhivei și starea trimiterii emailurilor. PHPStan fără erori; migrarea 070 aplicată local. Testele ANAF și SMTP folosesc transporturi simulate, fără rețea.
+- Accesul ANAF real încă lipsește: acceptarea oficială nu este verificată. Fără deploy, schimbarea acreditărilor sau validare MySQL/Apache. TODO-urile rămân nebifate până la confirmarea utilizatorului.
+
 ### 2026-11-16 — Centralizatoare și ecran comun pentru exporturi
 - Analizate cele patru modele Excel/ZIP furnizate. Păstrată structura: registru la rădăcina arhivei, dosar pentru fiecare document, PDF + Excel + XML pentru facturi, respectiv PDF + Excel și subdosarul `documente` pentru justificativele NIR. Registrul NIR existent are aceleași 38 de coloane ca referința, în tema La Măriuca.
 - Centralizatorul facturilor primește logo, antet cu perioada după data emiterii, rezumate numerice, total cu retururi, coloane grupate cromatic, rânduri aerisite și evidențierea stării SPV. Datele de emitere/scadență sunt valori Excel numerice, afișate în ora României; filtrele, cantitățile, valorile negative și protecția textelor contra formulelor sunt păstrate. Monedele diferite nu sunt însumate într-un total comun.

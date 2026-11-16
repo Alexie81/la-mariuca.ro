@@ -399,9 +399,22 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         $this->pdo->exec("UPDATE companies SET tax_id=''"); $second=$this->order(1);
         self::assertSame('new',$this->pdo->query('SELECT status FROM orders WHERE id='.$second)->fetchColumn());
         self::assertSame('failed',$this->pdo->query('SELECT state FROM invoice_automation_intents WHERE order_id='.$second)->fetchColumn());
-        $this->pdo->exec("UPDATE companies SET tax_id='12345678'"); \App\Modules\Invoicing\InvoiceModule::process($this->pdo,$this->root);
+        $this->pdo->exec("UPDATE companies SET tax_id='12345678'"); \App\Modules\Invoicing\InvoiceModule::process($this->pdo,$this->root,1,$second);
         self::assertSame(2,(int)$this->pdo->query('SELECT COUNT(*) FROM invoices')->fetchColumn());
     }
+    public function testCheckoutIssuesCurrentInvoiceEvenWithOlderPendingOrders(): void
+    {
+        $automation=new \App\Modules\Invoicing\InvoiceAutomationService(new \App\Modules\Invoicing\InvoiceAutomationRepository($this->pdo));
+        $orders=[]; for($i=0;$i<6;$i++) { $orders[]=$this->order(1); }
+        $automation->save(['revision'=>$automation->settings()['revision'],'cod_issue'=>1,'cod_email'=>1],$this->actor['id']);
+        foreach($orders as $id) { $automation->prepareForOrder($id); }
+        $latest=$this->order(1);
+        self::assertSame(1,(int)$this->pdo->query('SELECT COUNT(*) FROM invoices WHERE order_id='.$latest)->fetchColumn());
+        self::assertSame('complete',$this->pdo->query('SELECT state FROM invoice_automation_intents WHERE order_id='.$latest)->fetchColumn());
+        self::assertSame(6,(int)$this->pdo->query("SELECT COUNT(*) FROM invoice_automation_intents WHERE state='pending'")->fetchColumn());
+        self::assertSame(1,(int)$this->pdo->query("SELECT COUNT(*) FROM outbox_messages WHERE message_type='invoice'")->fetchColumn());
+    }
+
     public function testAutomationSeparatesIssuanceAndEmailForCardAndCod(): void
     {
         $automation=new \App\Modules\Invoicing\InvoiceAutomationService(new \App\Modules\Invoicing\InvoiceAutomationRepository($this->pdo));

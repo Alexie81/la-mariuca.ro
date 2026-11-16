@@ -4,7 +4,7 @@ namespace App\Modules\Invoicing;
 
 use App\Shared\Config\Config;
 
-/** Bounded cron command, compatible with PHP shared hosting. */
+/** Bounded dispatcher used by site activity and optional maintenance commands. */
 final class SpvWorker
 {
     public function __construct(private readonly InvoiceRepository $repository,private readonly InvoiceService $invoices,private readonly SpvConnection $connection,private readonly SpvHttpClient $http,private readonly Config $config,private readonly string $root) {}
@@ -20,12 +20,13 @@ final class SpvWorker
                 $this->repository->update('invoices',['fiscal_state'=>'uncertain'],['id'=>$id]);
             }
         });
-        $q=$pdo->prepare("SELECT invoice_id,environment,state FROM invoice_fiscal_jobs WHERE ((state IN ('queued','scheduled','transient_error') AND attempts<5 AND (available_at IS NULL OR available_at<=:now)) OR (state='submitted' AND (polled_at IS NULL OR polled_at<:cutoff))) ORDER BY created_at,invoice_id LIMIT ".max(1,min(50,$limit)));
-        $q->execute(['now'=>$now,'cutoff'=>gmdate('Y-m-d\TH:i:s\Z',time()-120)]); $result=['processed'=>0,'errors'=>0];
+        $q=$pdo->prepare("SELECT invoice_id,environment,state FROM invoice_fiscal_jobs WHERE ((state IN ('queued','scheduled','transient_error') AND attempts<5 AND (available_at IS NULL OR available_at<=:now)) OR (state='submitted' AND (polled_at IS NULL OR polled_at<:cutoff)) OR (state IN ('accepted','rejected') AND download_reference IS NOT NULL AND archive_path IS NULL AND (available_at IS NULL OR available_at<=:archive_due))) ORDER BY created_at,invoice_id LIMIT ".max(1,min(50,$limit)));
+        $q->execute(['now'=>$now,'archive_due'=>$now,'cutoff'=>gmdate('Y-m-d\TH:i:s\Z',time()-120)]); $result=['processed'=>0,'errors'=>0];
         foreach($q->fetchAll() as $job) {
             try {
                 $gateway=new AnafFiscalGateway($this->connection,$this->http,$this->config,$job['environment']); $service=new InvoiceFiscalService($this->repository,$this->invoices,$gateway);
-                if($job['state']==='submitted') { $service->poll((int)$job['invoice_id']); } else { $service->process((int)$job['invoice_id']); }
+                if($job['state']==='submitted') { $service->poll((int)$job['invoice_id']); }
+                elseif(!in_array($job['state'],['accepted','rejected'],true)) { $service->process((int)$job['invoice_id']); }
                 $current=$this->repository->one('invoice_fiscal_jobs',['invoice_id'=>$job['invoice_id']]);
                 if(!empty($current['download_reference']) && empty($current['archive_path'])) { $this->archive((int)$job['invoice_id'],$gateway); }
                 $result['processed']++;
@@ -47,6 +48,8 @@ final class SpvWorker
             try { if(file_put_contents($temp,$bytes,LOCK_EX)!==strlen($bytes) || !rename($temp,$path)) { throw new InvoiceException('Arhiva ANAF nu a putut fi păstrată.'); } }
             finally { if(is_file($temp)) { unlink($temp); } }
         }
-        $this->repository->update('invoice_fiscal_jobs',['archive_path'=>$path],['invoice_id'=>$id]); return $path;
+        $data=['archive_path'=>$path];
+        if($job['state']==='accepted') { $data['last_error']=null; }
+        $this->repository->update('invoice_fiscal_jobs',$data,['invoice_id'=>$id]); return $path;
     }
 }

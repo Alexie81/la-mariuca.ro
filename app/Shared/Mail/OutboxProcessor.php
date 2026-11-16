@@ -33,8 +33,8 @@ final class OutboxProcessor
         private readonly ?TransportInterface $transport = null,
     ) {}
 
-    /** @return array{processed:int,sent:int,previewed:int,failed:int} */
-    public function process(int $limit = 20): array
+    /** @param list<string> $onlyTypes @return array{processed:int,sent:int,previewed:int,failed:int} */
+    public function process(int $limit = 20,array $onlyTypes=[],?int $timeout=null): array
     {
         if ($this->pdo->inTransaction()) { throw new RuntimeException('Emailurile se procesează numai în afara tranzacțiilor.'); }
         $mode = MailDeliveryPolicy::resolve($this->config);
@@ -42,9 +42,15 @@ final class OutboxProcessor
         if (!ctype_digit($floor)) { throw new RuntimeException('MAIL_SEND_AFTER_ID trebuie să fie un ID pozitiv sau zero.'); }
         $types = array_values(array_filter(array_map('trim', explode(',', $this->config->get('MAIL_MESSAGE_TYPES')))));
         foreach ($types as $type) {
-            if (!in_array($type, ['dispatch_note', 'invoice', 'invoice_return_notice', 'order_confirmation', 'order_details_changed', 'internal_order_notification', 'order_status_update', 'verify_email', ...OrderCancellationEmail::TYPES], true)) {
+            if (!in_array($type, ['automation_alert', 'dispatch_note', 'invoice', 'invoice_return_notice', 'order_confirmation', 'order_details_changed', 'internal_order_notification', 'order_status_update', 'verify_email', ...OrderCancellationEmail::TYPES], true)) {
                 throw new RuntimeException('MAIL_MESSAGE_TYPES conține un tip necunoscut.');
             }
+        }
+        // Operational alerts follow the existing internal-order notification authorization/filter.
+        if(in_array('internal_order_notification',$types,true) && !in_array('automation_alert',$types,true)) { $types[]='automation_alert'; }
+        if($onlyTypes!==[]) {
+            $types=$types===[]?$onlyTypes:array_values(array_intersect($types,$onlyTypes));
+            if($types===[]) { return ['processed'=>0,'sent'=>0,'previewed'=>0,'failed'=>0]; }
         }
         $params = ['floor' => (int) $floor, 'now' => gmdate('c')];
         $scope = 'id > :floor';
@@ -63,6 +69,10 @@ final class OutboxProcessor
         if ($mode === 'smtp') {
             try { $transport = $this->transport ?? Transport::fromDsn($this->config->get('MAILER_DSN')); }
             catch (Throwable) { throw new RuntimeException('Transportul SMTP nu a putut fi inițializat. Verifică configurația privată.'); }
+            if($timeout!==null && $transport instanceof \Symfony\Component\Mailer\Transport\Smtp\SmtpTransport) {
+                $stream=$transport->getStream();
+                if($stream instanceof \Symfony\Component\Mailer\Transport\Smtp\Stream\SocketStream) { $stream->setTimeout($timeout); }
+            }
         }
         $tracking = new OrderTrackingService(new OrderTrackingRepository($this->pdo), new OrderService($this->pdo), $this->config, $this->root);
         $confirmation = new OrderConfirmationEmail($tracking, $this->config,
@@ -99,7 +109,10 @@ final class OutboxProcessor
             try {
                 $payload = json_decode((string) $message['payload_json'], true, 512, JSON_THROW_ON_ERROR);
                 $html = null; $attachment = null; $attachmentName = null;
-                if ($message['message_type'] === 'dispatch_note') {
+                if ($message['message_type'] === 'automation_alert') {
+                    $rendered=(new \App\Shared\Automation\AutomationAlertEmail($this->config,$this->root))->render($payload,(string)$message['recipient']);
+                    $subject=$rendered['subject']; $body=$rendered['text']; $html=$rendered['html'];
+                } elseif ($message['message_type'] === 'dispatch_note') {
                     $rendered=$dispatchEmail->render($payload,(string)$message['recipient']);
                     $subject=$rendered['subject'];$body=$rendered['text'];$html=$rendered['html'];$attachment=$rendered['attachment'];$attachmentName=$rendered['attachment_name'];
                 } elseif (in_array($message['message_type'], ['invoice','invoice_return_notice'], true)) {

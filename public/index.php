@@ -12,3 +12,4 @@ require $root . '/vendor/autoload.php';
 
 $app = App\AppFactory::create($root);
 $app->run();
+App\Shared\Automation\RequestAutomation::afterResponse($root);

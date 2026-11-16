@@ -11,8 +11,10 @@ final class MailQueueHealth
     public function warning(string $type): string
     {
         $types=array_values(array_filter(array_map('trim',explode(',',$this->config->get('MAIL_MESSAGE_TYPES')))));
+        if(in_array('internal_order_notification',$types,true)) { $types[]='automation_alert'; }
         if($types!==[] && !in_array($type,$types,true)) { return 'Acest tip de email este exclus de filtrul de trimitere. Mesajele rămân în așteptare până la actualizarea configurației procesorului.'; }
         if(MailDeliveryPolicy::resolve($this->config)!=='smtp') { return 'Emailurile sunt în modul de previzualizare locală. Nu se livrează în căsuța clientului.'; }
+        if($this->config->bool('REQUEST_AUTOMATIONS_ENABLED',true) && in_array($type,\App\Shared\Automation\RequestAutomation::MAIL_TYPES,true)) { return ''; }
         $file=$this->root.'/storage/private/mail-worker-heartbeat.json';
         $heartbeat=is_file($file)?json_decode((string)file_get_contents($file),true):null;
         if(!is_array($heartbeat) || (int)($heartbeat['at'] ?? 0)<time()-180) { return 'Procesorul de email nu a confirmat activitate în ultimele 3 minute. Mesajele sunt păstrate în coadă; verifică procesorul de trimitere.'; }

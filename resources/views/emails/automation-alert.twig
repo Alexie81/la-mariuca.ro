@@ -1,0 +1,13 @@
+{% extends 'emails/order-confirmation.twig' %}
+{% block brand_note %}Notificare internă<br><span style="color:#76536f;">Facturare și SPV</span>{% endblock %}
+{% block introduction %}
+<p style="margin:24px 0 12px;color:#a34663;font-size:13px;font-weight:bold;letter-spacing:1px;">NECESITĂ ATENȚIE</p>
+<h1 class="greeting" style="margin:0 0 20px;color:#50394e;font-size:28px;line-height:36px;font-weight:600;">{{ alert_title }}</h1>
+<div style="padding:20px 22px;background:#faf5f9;border:1px solid #eadfea;border-radius:18px;color:#62536a;font-size:16px;line-height:27px;">{{ alert_message|nl2br }}</div>
+<p style="margin:24px 0;"><a href="{{ admin_url }}" style="display:inline-block;padding:16px 24px;background:#75506e;border-radius:28px;color:#fff;font-size:16px;font-weight:bold;text-decoration:none;">Verifică în administrare →</a></p>
+<p style="color:#7c7181;font-size:14px;line-height:23px;">Accesul necesită autentificare. Această notificare este trimisă la adresele configurate pentru comenzile magazinului.</p>
+{% endblock %}
+{% block order_contents %}{% endblock %}
+{% block customer_footer %}
+<tr><td style="padding:24px 30px;text-align:center;color:#8d7c8c;font-size:13px;line-height:23px;border-top:1px solid #eadfea;">La Măriuca Boutique · {{ year }}<br>Notificare pentru {{ email }}</td></tr>
+{% endblock %}

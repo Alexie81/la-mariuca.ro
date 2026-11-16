@@ -82,11 +82,11 @@ final class SpvTransmissionTest extends DatabaseTestCase
         $scheduler=new \App\Modules\Invoicing\SpvSchedule($this->pdo); $scheduler->sync($this->invoices->load($id));
         $job=$this->repository->one('invoice_fiscal_jobs',['invoice_id'=>$id]);
         self::assertSame('awaiting_configuration',$job['state']);
-        self::assertSame('2026-03-30T08:00:00Z',$job['available_at']);
+        self::assertSame('2026-03-29T21:00:00Z',$job['available_at']);
         foreach($paths as $path) {
             $html=$this->page($path);
             self::assertStringContainsString('Trimitere programată',$html);
-            self::assertStringContainsString('30.03.2026, 11:00',$html);
+            self::assertStringContainsString('30.03.2026, 00:00',$html);
             self::assertStringContainsString('ora României',$html);
             self::assertStringContainsString('Suspendată până la conectarea ANAF.',$html);
         }
@@ -101,9 +101,9 @@ final class SpvTransmissionTest extends DatabaseTestCase
         $scheduler->sync($this->invoices->load($credit['id']));
         $register=$this->invoices->registry([],$this->actor); $items=array_column($register['items'],null,'id');
         self::assertSame('Trimitere neprogramată',$items[$id]['spv_schedule']['label']);
-        self::assertSame('2026-10-26T09:00:00Z',$items[$credit['id']]['spv_schedule']['at']);
+        self::assertSame('2026-10-25T22:00:00Z',$items[$credit['id']]['spv_schedule']['at']);
         foreach(['/admin/facturi/','/admin/facturi/'.$credit['id'].'/'] as $path) {
-            self::assertStringContainsString('26.10.2026, 11:00',$this->page($path));
+            self::assertStringContainsString('26.10.2026, 00:00',$this->page($path));
         }
         $html=$this->page('/admin/facturi/');
         self::assertSame(1,substr_count($html,'<strong>Trimitere neprogramată</strong>'));
@@ -308,6 +308,135 @@ final class SpvTransmissionTest extends DatabaseTestCase
         $this->act($controller,'verifica');
         self::assertSame('accepted',$this->invoices->load($this->invoice['id'])['fiscal_state']);
         self::assertSame('8002',$this->repository->one('invoice_fiscal_jobs',['invoice_id'=>$this->invoice['id']])['download_reference']);
+    }
+
+    public function testTrafficSendsOverdueInvoiceAndConcurrentVisitCannotUploadItAgain(): void
+    {
+        $this->authorize();
+        $this->pdo->exec("UPDATE spv_settings SET sale_mode='instant'");
+        (new \App\Modules\Invoicing\SpvSchedule($this->pdo))->sync($this->invoice);
+        $this->pdo->exec("UPDATE invoice_fiscal_jobs SET available_at='2020-01-01T00:00:00Z'");
+        $http=new TransmissionHttpStub([['status'=>200,'body'=>'<header index_incarcare="9011"/>'],['status'=>200,'body'=>'<header stare="ok"/>']]);
+        $runtime=$this->traffic($http);
+        $http->beforeResponse=function()use($runtime):void {
+            self::assertFalse($this->pdo->inTransaction());
+            self::assertFalse($runtime->run()['ran'],'A simultaneous visit must not acquire the active lease.');
+        };
+        self::assertSame(1,$runtime->run()['spv']);
+        self::assertSame('submitted',$this->invoices->load($this->invoice['id'])['fiscal_state']);
+        self::assertSame('9011',$this->invoices->load($this->invoice['id'])['fiscal_reference']);
+        self::assertCount(1,$http->requests);
+        self::assertFalse($runtime->run()['ran']);
+        $http->beforeResponse=null;
+        $this->pdo->exec('UPDATE request_automation_state SET next_run_at=0');
+        $this->pdo->exec('UPDATE invoice_fiscal_jobs SET polled_at=NULL');
+        self::assertSame(1,$runtime->run()['spv']);
+        self::assertSame('accepted',$this->invoices->load($this->invoice['id'])['fiscal_state']);
+        self::assertCount(2,$http->requests);
+        self::assertSame('GET',$http->requests[1]['method']);
+    }
+
+    public function testTrafficPreservesFutureScheduleAndManualImmediateOverride(): void
+    {
+        $this->authorize();
+        $this->pdo->exec("UPDATE spv_settings SET sale_mode='scheduled',sale_days=5");
+        (new \App\Modules\Invoicing\SpvSchedule($this->pdo))->sync($this->invoice);
+        $http=new TransmissionHttpStub([]);
+        self::assertSame(0,$this->traffic($http)->run()['spv']); self::assertCount(0,$http->requests);
+        $job=$this->repository->one('invoice_fiscal_jobs',['invoice_id'=>$this->invoice['id']]);
+        self::assertSame('00:00',(new \DateTimeImmutable($job['available_at']))->setTimezone(new \DateTimeZone('Europe/Bucharest'))->format('H:i'));
+        $service=new \App\Modules\Invoicing\InvoiceFiscalService($this->repository,$this->invoices,new \App\Modules\Invoicing\AnafFiscalGateway(new SpvConnection($this->pdo,Config::load($this->root),$http),$http,Config::load($this->root)));
+        $service->queue($this->invoice['id'],$this->actor);
+        $manual=$this->repository->one('invoice_fiscal_jobs',['invoice_id'=>$this->invoice['id']]);
+        $this->pdo->exec('UPDATE request_automation_state SET next_run_at=0,schedule_version=0');
+        $send=new TransmissionHttpStub([['status'=>200,'body'=>'<header index_incarcare="9012"/>']]);
+        self::assertSame(1,$this->traffic($send)->run()['spv']);
+        self::assertSame($manual['payload_xml'],$send->requests[0]['body']);
+    }
+
+    public function testMissingAnafAccessNotifiesConfiguredOrderRecipientsOnceAndKeepsInvoiceEditable(): void
+    {
+        $this->pdo->exec("UPDATE spv_settings SET sale_mode='instant'");
+        $this->pdo->exec("UPDATE order_notification_settings SET recipients_json='[\"operations@example.test\",\"owner@example.test\"]'");
+        (new \App\Modules\Invoicing\SpvSchedule($this->pdo))->sync($this->invoice);
+        $http=new TransmissionHttpStub([]); $runtime=$this->traffic($http); $runtime->run();
+        $this->pdo->exec('UPDATE request_automation_state SET next_run_at=0'); $runtime->run();
+        self::assertCount(0,$http->requests);
+        self::assertSame(1,(int)$this->pdo->query('SELECT COUNT(*) FROM automation_alerts WHERE resolved_at IS NULL')->fetchColumn());
+        self::assertSame(['operations@example.test','owner@example.test'],$this->pdo->query("SELECT recipient FROM outbox_messages WHERE message_type='automation_alert' ORDER BY recipient")->fetchAll(\PDO::FETCH_COLUMN));
+        self::assertNull($this->invoices->load($this->invoice['id'])['fiscal_attempted_at']);
+        $feed=(new \App\Modules\Admin\AdminNotificationService($this->pdo))->feed($this->actor['id']);
+        self::assertContains('Trimiterea SPV așteaptă conectarea ANAF',array_column($feed['items'],'title'));
+    }
+
+    public function testUncertainUploadNotifiesOnceAndNeverAutomaticallyResends(): void
+    {
+        $this->authorize(); $this->pdo->exec("UPDATE spv_settings SET sale_mode='instant'");
+        (new \App\Modules\Invoicing\SpvSchedule($this->pdo))->sync($this->invoice);
+        $http=new TransmissionHttpStub([]); $runtime=$this->traffic($http); $runtime->run();
+        self::assertSame('uncertain',$this->invoices->load($this->invoice['id'])['fiscal_state']);
+        $this->pdo->exec('UPDATE request_automation_state SET next_run_at=0'); $runtime->run();
+        self::assertCount(1,$http->requests);
+        self::assertSame(1,(int)$this->pdo->query("SELECT COUNT(*) FROM automation_alerts WHERE source_key='spv:".$this->invoice['id']."'")->fetchColumn());
+        self::assertSame(1,(int)$this->pdo->query('SELECT revision FROM automation_alerts')->fetchColumn());
+    }
+
+    public function testScheduledMidnightRespectsBusinessDaysHolidaysAndClockChanges(): void
+    {
+        self::assertSame('2026-03-29T21:00:00Z',\App\Modules\Invoicing\SpvSchedule::afterBusinessDays('2026-03-27T09:32:15Z',1,[],true));
+        self::assertSame('2026-10-25T22:00:00Z',\App\Modules\Invoicing\SpvSchedule::afterBusinessDays('2026-10-23T08:32:15Z',1,[],true));
+        self::assertSame('2026-12-28T22:00:00Z',\App\Modules\Invoicing\SpvSchedule::afterBusinessDays('2026-12-24T15:32:15Z',1,['2026-12-25','2026-12-28'],true));
+        self::assertSame('2026-12-24T15:32:15Z',\App\Modules\Invoicing\SpvSchedule::afterBusinessDays('2026-12-24T15:32:15Z',0));
+    }
+
+    public function testTrafficRetriesArchiveDownloadWithoutUploadingAcceptedInvoiceAgain(): void
+    {
+        $this->authorize(); $this->pdo->exec("UPDATE spv_settings SET sale_mode='instant'");
+        (new \App\Modules\Invoicing\SpvSchedule($this->pdo))->sync($this->invoice);
+        $download=(string)random_int(100000000,999999999);
+        $http=new TransmissionHttpStub([
+            ['status'=>200,'body'=>'<header index_incarcare="9014"/>'],
+            ['status'=>200,'body'=>'<header stare="ok" id_descarcare="'.$download.'"/>'],
+            ['status'=>503,'body'=>'Unavailable'],
+            ['status'=>200,'body'=>"PK\x03\x04traffic-archive"],
+        ]);
+        $runtime=$this->traffic($http); $runtime->run();
+        $this->pdo->exec('UPDATE request_automation_state SET next_run_at=0');
+        $this->pdo->exec('UPDATE invoice_fiscal_jobs SET polled_at=NULL'); $runtime->run();
+        self::assertSame('accepted',$this->invoices->load($this->invoice['id'])['fiscal_state']);
+        self::assertCount(3,$http->requests);
+        $this->pdo->exec('UPDATE request_automation_state SET next_run_at=0');
+        $this->pdo->exec("UPDATE invoice_fiscal_jobs SET available_at='2020-01-01T00:00:00Z'"); $runtime->run();
+        self::assertCount(4,$http->requests); self::assertSame('GET',$http->requests[3]['method']);
+        self::assertStringContainsString('/descarcare?',$http->requests[3]['url']);
+        $job=$this->repository->one('invoice_fiscal_jobs',['invoice_id'=>$this->invoice['id']]);
+        try {
+            self::assertSame("PK\x03\x04traffic-archive",file_get_contents($job['archive_path']));
+            self::assertNull($job['last_error']);
+            self::assertSame(0,(int)$this->pdo->query('SELECT COUNT(*) FROM automation_alerts WHERE resolved_at IS NULL')->fetchColumn());
+        } finally { if(is_file($job['archive_path'])) { unlink($job['archive_path']); } }
+    }
+
+    public function testDeadlineAlertIsOptionalDeduplicatedAndResolvedAfterSubmission(): void
+    {
+        $this->repository->update('invoices',['issued_at'=>'2020-01-01T10:20:00Z'],['id'=>$this->invoice['id']]);
+        $alerts=new \App\Shared\Automation\AutomationAlerts($this->pdo);
+        $this->pdo->exec('UPDATE spv_settings SET alerts=0'); $alerts->synchronize();
+        self::assertSame(0,(int)$this->pdo->query('SELECT COUNT(*) FROM automation_alerts')->fetchColumn());
+        $this->pdo->exec('UPDATE spv_settings SET alerts=1'); $alerts->synchronize(); $alerts->synchronize();
+        self::assertSame(1,(int)$this->pdo->query('SELECT COUNT(*) FROM automation_alerts')->fetchColumn());
+        self::assertSame(1,(int)$this->pdo->query('SELECT revision FROM automation_alerts')->fetchColumn());
+        $this->repository->update('invoices',['fiscal_reference'=>'9015','fiscal_state'=>'submitted'],['id'=>$this->invoice['id']]); $alerts->synchronize();
+        self::assertSame(0,(int)$this->pdo->query('SELECT COUNT(*) FROM automation_alerts WHERE resolved_at IS NULL')->fetchColumn());
+    }
+
+    private function traffic(TransmissionHttpStub $http): \App\Shared\Automation\RequestAutomation
+    {
+        $env=$_ENV;
+        try {
+            $_ENV['REQUEST_AUTOMATIONS_ENABLED']='true'; $_ENV['MAIL_MESSAGE_TYPES']='verify_email'; $_ENV['MAIL_SEND_AFTER_ID']='0'; $_ENV['MAIL_DELIVERY_MODE']='preview';
+            return new \App\Shared\Automation\RequestAutomation($this->pdo,Config::load($this->root),$this->root,$http);
+        } finally { $_ENV=$env; }
     }
 
     private function authorize(): void
