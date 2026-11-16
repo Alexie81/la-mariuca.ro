@@ -430,6 +430,30 @@ final class SpvTransmissionTest extends DatabaseTestCase
         self::assertSame(0,(int)$this->pdo->query('SELECT COUNT(*) FROM automation_alerts WHERE resolved_at IS NULL')->fetchColumn());
     }
 
+    public function testDeadlineNotificationsCountDownAndExplainUnscheduledInvoicesWithoutRepeatingVisits(): void
+    {
+        $this->repository->update('invoices',['issued_at'=>'2026-11-10T10:20:00Z'],['id'=>$this->invoice['id']]);
+        $this->pdo->exec("UPDATE spv_settings SET alerts=1,deadline_days=5,holidays_json='[]'");
+        $alerts=new \App\Shared\Automation\AutomationAlerts($this->pdo);
+        foreach([
+            ['2026-11-13T09:00:00Z','Mai sunt 2 zile lucrătoare',1],
+            ['2026-11-14T09:00:00Z','Mai sunt 2 zile lucrătoare',1],
+            ['2026-11-16T09:00:00Z','Mai ai o zi lucrătoare',2],
+            ['2026-11-16T19:00:00Z','Mai ai o zi lucrătoare',2],
+            ['2026-11-17T21:59:00Z','Astăzi este ultima zi',3],
+            ['2026-11-17T22:00:00Z','Termenul de trimitere SPV a fost depășit',4],
+        ] as [$at,$title,$revision]) {
+            $alerts->synchronize(new \DateTimeImmutable($at));
+            $alert=$this->pdo->query('SELECT * FROM automation_alerts')->fetch();
+            self::assertStringStartsWith($title,$alert['title']);
+            self::assertStringContainsString('Factura nu este programată',$alert['message']);
+            self::assertStringContainsString('Trimite-o acum',$alert['message']);
+            self::assertStringContainsString('17.11.2026',$alert['message']);
+            self::assertSame($revision,(int)$alert['revision']);
+        }
+        self::assertSame(0,(int)$this->pdo->query("SELECT COUNT(*) FROM outbox_messages WHERE message_type='automation_alert'")->fetchColumn(),'An empty recipient list must stay empty and send nothing.');
+    }
+
     private function traffic(TransmissionHttpStub $http): \App\Shared\Automation\RequestAutomation
     {
         $env=$_ENV;

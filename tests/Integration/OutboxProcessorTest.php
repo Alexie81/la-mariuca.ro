@@ -253,6 +253,7 @@ final class OutboxProcessorTest extends DatabaseTestCase
         self::assertStringStartsWith('Ai primit o nouă comandă!', (string) $internal->getSubject());
         self::assertStringContainsString('Deschide comanda', (string) $internal->getHtmlBody());
         self::assertStringContainsString('src="cid:', (string) $internal->getHtmlBody());
+        self::assertStringNotContainsString('src=""', (string) $internal->getHtmlBody());
         self::assertStringNotContainsString('urmarire-comanda', (string) $internal->getHtmlBody());
         self::assertStringNotContainsString('orders-first@example.test', (string) $internal->getHtmlBody());
         self::assertSame('failed', $this->message($first)['status']);
@@ -381,6 +382,7 @@ final class OutboxProcessorTest extends DatabaseTestCase
         self::assertStringContainsString('https://shop.example.test/boutique/admin/facturi/42/',$email->getHtmlBody());
         self::assertStringContainsString('Răspuns neclar &lt;test&gt;',$email->getHtmlBody());
         self::assertStringContainsString('La Măriuca Boutique',$email->getHtmlBody());
+        self::assertStringNotContainsString('src=""',$email->getHtmlBody());
         self::assertStringNotContainsString('Rezumatul comenzii',$email->getHtmlBody());
         self::assertSame(0,$processor->process(3,['automation_alert'])['sent']);
         $alerts->resolve('spv:42');

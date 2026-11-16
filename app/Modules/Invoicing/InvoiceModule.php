@@ -29,16 +29,19 @@ final class InvoiceModule
         foreach($intents as $intent) {
             try {
                 // Each intent is locked together with the invoice; retries cannot issue twice.
-                $repository->transaction(function()use($intent,$repository,$service,$actor,&$result):void {
+                $completed=$repository->transaction(function()use($intent,$repository,$service,$actor):array {
+                    $counts=['issued'=>0,'emails'=>0];
                     $current=$repository->one('invoice_automation_intents',['order_id'=>$intent['order_id']]);
-                    if(!$current || $current['state']==='complete' || (int)$current['attempts']>=5) { return; }
+                    if(!$current || $current['state']==='complete' || (int)$current['attempts']>=5) { return $counts; }
                     $invoice=$current['invoice_id']?$service->load((int)$current['invoice_id']):$service->issue((int)$current['order_id'],['request_key'=>$current['issue_key']],$actor);
-                    if(!$current['invoice_id']) { $result['issued']++; }
+                    if(!$current['invoice_id']) { $counts['issued']++; }
                     if($current['send_email'] && in_array($invoice['email_state'],['not_sent','needs_resend'],true)) {
-                        $service->queueEmail((int)$invoice['id'],$current['email_key'],$actor,true); $result['emails']++;
+                        $service->queueEmail((int)$invoice['id'],$current['email_key'],$actor,true); $counts['emails']++;
                     }
                     $repository->update('invoice_automation_intents',['invoice_id'=>$invoice['id'],'state'=>'complete','last_error'=>null,'updated_at'=>$repository->now()],['order_id'=>$current['order_id']]);
+                    return $counts;
                 });
+                $result['issued']+=$completed['issued']; $result['emails']+=$completed['emails'];
             } catch(\Throwable $e) {
                 $repository->transaction(function()use($repository,$intent,$e):void {
                     $current=$repository->one('invoice_automation_intents',['order_id'=>$intent['order_id']]);

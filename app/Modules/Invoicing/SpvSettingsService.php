@@ -33,7 +33,7 @@ final class SpvSettingsService
             if(!in_array($mode,['manual','instant','scheduled'],true) || !preg_match('/^[1-5]$/D',$days)) { throw new InvoiceException('Alege regula și un interval între 1 și 5 zile lucrătoare.'); }
             $data[$type.'_mode']=$mode; $data[$type.'_days']=(int)$days;
         }
-        $deadline=(string)($input['deadline_days'] ?? $current['deadline_days']); if(!preg_match('/^[1-9]$|^1[0-5]$/D',$deadline)) { throw new InvoiceException('Termenul configurat trebuie să fie între 1 și 15 zile lucrătoare.'); }
+        $deadline=(string)($input['deadline_days'] ?? min(5,(int)$current['deadline_days'])); if(!preg_match('/^[1-5]$/D',$deadline)) { throw new InvoiceException('Termenul configurat trebuie să fie între 1 și 5 zile lucrătoare.'); }
         $data['deadline_days']=(int)$deadline; $data['alerts']=($input['alerts'] ?? '')==='1'?1:0;
         $holidays=array_values(array_unique(array_filter(array_map('trim',preg_split('/[\s,;]+/',(string)($input['holidays'] ?? $current['holidays'])) ?: []))));
         if(count($holidays)>200) { throw new InvoiceException('Lista zilelor nelucrătoare este prea lungă.'); }

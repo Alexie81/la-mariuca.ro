@@ -17,6 +17,8 @@ final class AutomationAlertEmail
         $title=(string)$payload['title']; $message=(string)$payload['message']; $url=$base.'/'.$path;
         $data=['subject'=>$title.' · La Măriuca','preheader'=>$message,'alert_title'=>$title,'alert_message'=>$message,'admin_url'=>$url,
             'shop_url'=>$base.'/','logo_url'=>$base.'/assets/images/logo-la-mariuca-transparent.png','year'=>date('Y'),'email'=>$recipient,
+            'status_icon'=>$base.'/assets/images/email-status-review.png','status_color'=>'#a34663','badge'=>'Notificare administrare',
+            'heart_icon_url'=>$base.'/assets/images/icon-favorite-hearts.png',
             'number'=>'Facturare și SPV','date'=>(new \DateTimeImmutable())->setTimezone(new \DateTimeZone('Europe/Bucharest'))->format('d.m.Y · H:i')];
         $twig=new Environment(new FilesystemLoader($this->root.'/resources/views'),['autoescape'=>'html']);
         return ['subject'=>$data['subject'],'text'=>$title."\n\n".$message."\n\nDeschide administrarea: ".$url,'html'=>$twig->render('emails/automation-alert.twig',$data)];

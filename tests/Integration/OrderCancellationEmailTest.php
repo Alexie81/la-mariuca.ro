@@ -94,6 +94,7 @@ final class OrderCancellationEmailTest extends DatabaseTestCase
 
     public function testInternalRequestHasCustomerNameExactCtaAndNoCustomerFooterOrPrivateTrackingLink(): void
     {
+        self::assertStringNotContainsString('src=""',$this->render('internal_order_cancellation')['html']);
         $mail = $this->render('internal_order_cancellation', 'orders@example.test');
         self::assertStringStartsWith('Ana Pop solicită anularea comenzii LM-', $mail['subject']);
         foreach (['Ana Pop', 'Vezi solicitarea de anulare', 'Am ales o mărime nepotrivită.', '180,00 Lei', 'SKU:', '100,00 Lei'] as $text) {

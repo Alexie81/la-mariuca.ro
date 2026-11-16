@@ -57,6 +57,27 @@ final class StripeAttemptWebhookTest extends DatabaseTestCase
         $_ENV = $this->environment;
     }
 
+    public function testEnabledCardAutomationIssuesOnlyAfterVerifiedPaidWebhookAndOnlyOnce(): void
+    {
+        $this->pdo->exec("INSERT INTO users(email,password_hash,first_name,last_name,role,status,created_at,updated_at) VALUES('card.invoice@example.test','disabled','Ana','QA','administrator','active','2026-01-01','2026-01-01')");
+        $actor=(int)$this->pdo->lastInsertId();
+        $companies=new \App\Modules\Companies\CompanyAdminService(new \App\Modules\Companies\CompanyRepository($this->pdo),new \App\Modules\Companies\CompanyStampStorage($this->root));
+        $company=$companies->saveCompany(['legal_name'=>'Firma QA','trade_name'=>'La Măriuca QA','tax_id'=>'12345678','registered_address'=>'Strada Test 1','city'=>'București','county'=>'București','country'=>'România','is_vat_payer'=>'1','vat_rate'=>'21'],null,null);
+        $companies->saveWarehouse($company,['name'=>'Gestiune QA'],null);
+        $automation=new \App\Modules\Invoicing\InvoiceAutomationService(new \App\Modules\Invoicing\InvoiceAutomationRepository($this->pdo));
+        $automation->save(['revision'=>$automation->settings()['revision'],'card_issue'=>1,'card_email'=>1],$actor);
+        self::assertSame(200,$this->send('evt_auto_unpaid',changes:['payment_status'=>'unpaid']));
+        self::assertSame(0,(int)$this->pdo->query('SELECT COUNT(*) FROM orders')->fetchColumn());
+        self::assertSame(0,(int)$this->pdo->query('SELECT COUNT(*) FROM invoices')->fetchColumn());
+        self::assertSame(200,$this->send('evt_auto_paid'));
+        self::assertSame(1,(int)$this->pdo->query('SELECT COUNT(*) FROM invoices')->fetchColumn());
+        self::assertSame('complete',$this->pdo->query('SELECT state FROM invoice_automation_intents')->fetchColumn());
+        self::assertSame(200,$this->send('evt_auto_paid'));
+        self::assertSame(200,$this->send('evt_auto_paid_second','checkout.session.async_payment_succeeded'));
+        self::assertSame(1,(int)$this->pdo->query('SELECT COUNT(*) FROM invoices')->fetchColumn());
+        self::assertSame(1,(int)$this->pdo->query("SELECT COUNT(*) FROM outbox_messages WHERE message_type='invoice'")->fetchColumn());
+    }
+
     public function testPendingCheckoutCreatesOnlyAnAttemptAndHolds(): void
     {
         self::assertSame($this->attempt['id'], $this->attempt['attempt_id']);

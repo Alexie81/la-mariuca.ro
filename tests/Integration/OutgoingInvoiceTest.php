@@ -402,6 +402,21 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         $this->pdo->exec("UPDATE companies SET tax_id='12345678'"); \App\Modules\Invoicing\InvoiceModule::process($this->pdo,$this->root,1,$second);
         self::assertSame(2,(int)$this->pdo->query('SELECT COUNT(*) FROM invoices')->fetchColumn());
     }
+    public function testFailedAtomicIssuanceIsNotReportedAsIssuedAndCanBeRecovered(): void
+    {
+        $order=$this->order(1);
+        $automation=new \App\Modules\Invoicing\InvoiceAutomationService(new \App\Modules\Invoicing\InvoiceAutomationRepository($this->pdo));
+        $automation->save(['revision'=>$automation->settings()['revision'],'cod_issue'=>1,'cod_email'=>1],$this->actor['id']);
+        $automation->prepareForOrder($order);
+        $this->pdo->exec("CREATE TRIGGER fail_invoice_email BEFORE INSERT ON outbox_messages WHEN NEW.message_type='invoice' BEGIN SELECT RAISE(ABORT,'Simulated database failure'); END");
+        self::assertSame(['issued'=>0,'failed'=>1,'emails'=>0],\App\Modules\Invoicing\InvoiceModule::process($this->pdo,$this->root,1,$order));
+        self::assertSame(0,(int)$this->pdo->query('SELECT COUNT(*) FROM invoices')->fetchColumn());
+        self::assertSame(['issued'=>0,'failed'=>0,'emails'=>0],\App\Modules\Invoicing\InvoiceModule::process($this->pdo,$this->root),'Traffic respects the retry delay.');
+        $this->pdo->exec('DROP TRIGGER fail_invoice_email');
+        self::assertSame(['issued'=>1,'failed'=>0,'emails'=>1],\App\Modules\Invoicing\InvoiceModule::process($this->pdo,$this->root,1,$order));
+        self::assertSame(1,(int)$this->pdo->query('SELECT COUNT(*) FROM invoices')->fetchColumn());
+    }
+
     public function testCheckoutIssuesCurrentInvoiceEvenWithOlderPendingOrders(): void
     {
         $automation=new \App\Modules\Invoicing\InvoiceAutomationService(new \App\Modules\Invoicing\InvoiceAutomationRepository($this->pdo));
