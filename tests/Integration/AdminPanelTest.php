@@ -110,15 +110,30 @@ final class AdminPanelTest extends DatabaseTestCase
         self::assertSame(303, $login->getStatusCode());
 
         $this->pdo->exec("UPDATE product_variants SET price_bani=10710,compare_price_bani=11900,discount_type='percent',discount_value=1000 WHERE sku='LM-NB-001'");
-        $accountingScope = $this->pdo->query("SELECT p.id AS product_id, v.id AS variant_id, v.sku FROM products p JOIN product_variants v ON v.product_id=p.id WHERE v.sku='LM-NB-001' LIMIT 1")->fetch();
+        $accountingScope = $this->pdo->query("SELECT p.id AS product_id,v.id AS variant_id,v.sku FROM products p JOIN product_variants v ON v.product_id=p.id WHERE v.sku='LM-NB-001' LIMIT 1")->fetch();
         self::assertIsArray($accountingScope);
-        $balance = $this->pdo->prepare("INSERT INTO accounting_stock_balances (scope_type,scope_id,product_id,variant_id,sku,quantity,created_at,updated_at) VALUES ('variant',:scope_id,:product_id,:variant_id,:sku,-1,:now,:now)");
-        $balance->execute([
+        $warehouseId = (int) $this->pdo->query('SELECT id FROM company_warehouses ORDER BY id LIMIT 1')->fetchColumn();
+        $now = gmdate('c');
+        if ($warehouseId === 0) {
+            $this->pdo->prepare("INSERT INTO companies(legal_name,is_default,created_at,updated_at) VALUES('Firma test stoc',1,:created_at,:updated_at)")->execute(['created_at' => $now, 'updated_at' => $now]);
+            $companyId = (int) $this->pdo->lastInsertId();
+            $this->pdo->prepare("INSERT INTO company_warehouses(company_id,name,name_key,is_default,created_at,updated_at) VALUES(:company_id,'Gestiune test','gestiune-test',1,:created_at,:updated_at)")->execute(['company_id' => $companyId, 'created_at' => $now, 'updated_at' => $now]);
+            $warehouseId = (int) $this->pdo->lastInsertId();
+        }
+        $this->pdo->prepare("INSERT INTO nir_documents(number,temp_number,type,status,warehouse_id,notes,reason,supplier_snapshot,company_snapshot,warehouse_snapshot,location_snapshot,created_by,updated_by,confirmed_by,created_at,updated_at,confirmed_at) VALUES('ADMIN-NIR-STORNO','ADMIN-NIR-STORNO-TEMP','supplier_return','confirmed',:warehouse_id,'','','{}','{}','{}','{}',:actor_id,:actor_id,:actor_id,:created_at,:updated_at,:confirmed_at)")->execute([
+            'warehouse_id' => $warehouseId,
+            'actor_id' => (int) $_SESSION['user_id'],
+            'created_at' => $now,
+            'updated_at' => $now,
+            'confirmed_at' => $now,
+        ]);
+        $nirId = (int) $this->pdo->lastInsertId();
+        $this->pdo->prepare("INSERT INTO nir_stock_movements(nir_id,line_id,warehouse_id,scope_type,scope_id,type,quantity_units,before_units,after_units,event_key,source_type,source_id,actor_id,created_at) VALUES(:nir_id,NULL,:warehouse_id,'variant',:scope_id,'STORNO_OUT',-10000,0,-10000,'admin-panel-stock-fixture','nir_storno',:nir_id,:actor_id,:created_at)")->execute([
+            'nir_id' => $nirId,
+            'warehouse_id' => $warehouseId,
             'scope_id' => (int) $accountingScope['variant_id'],
-            'product_id' => (int) $accountingScope['product_id'],
-            'variant_id' => (int) $accountingScope['variant_id'],
-            'sku' => (string) $accountingScope['sku'],
-            'now' => gmdate('c'),
+            'actor_id' => (int) $_SESSION['user_id'],
+            'created_at' => $now,
         ]);
         $body = (string) $this->get('/admin/produse/')->getBody();
         self::assertStringContainsString('Registrul catalogului', $body);
@@ -314,6 +329,17 @@ final class AdminPanelTest extends DatabaseTestCase
         self::assertStringContainsString('Cum aleg mărimea?', (string) $productDetail->getBody());
         self::assertStringContainsString('1 vizualizări publice', (string) $productDetail->getBody());
         self::assertStringContainsString('/admin/stoc/' . $createdId . '/', (string) $productDetail->getBody());
+        $stockRegistry = (string) $this->get('/admin/stoc/')->getBody();
+        self::assertStringNotContainsString('Comanda rezervă stocul online', $stockRegistry);
+        self::assertStringNotContainsString('NIR-ul și returul îl readuc', $stockRegistry);
+        $stockDetail = (string) $this->get('/admin/stoc/' . $createdId . '/')->getBody();
+        self::assertStringContainsString('Intrări din NIR-uri', $stockDetail);
+        self::assertStringContainsString('Mișcări de stoc', $stockDetail);
+        self::assertStringNotContainsString('Sold contabil documentat', $stockDetail);
+        self::assertStringNotContainsString('Disponibilitate pe variante', $stockDetail);
+        self::assertStringNotContainsString('Ajustează stocul online', $stockDetail);
+        self::assertStringNotContainsString('Prag minim contabil', $stockDetail);
+        self::assertStringNotContainsString('Aplică perioada', $stockDetail);
         $createdVariantId = (int) $this->pdo->query("SELECT id FROM product_variants WHERE sku='LM-MODAL-001'")->fetchColumn();
 
         $duplicateAvailability = json_decode((string) $this->get('/admin/produse/verifica-nume/?nume=PRODUS%20CREAT%20DIN%20MODAL')->getBody(), true, 512, JSON_THROW_ON_ERROR);
@@ -441,7 +467,7 @@ final class AdminPanelTest extends DatabaseTestCase
                 ],
                 [
                     'options_json' => json_encode(['Mărime' => '3-4 ani', 'Culoare' => 'Albastru'], JSON_UNESCAPED_UNICODE),
-                    'sku' => '', 'ean' => '5940000000002', 'full_price' => '150,00', 'stock' => '0',
+                    'sku' => '', 'ean' => '5940000000002', 'full_price' => '150,00',
                     'stock_unlimited' => '1', 'track_in_conta' => '0', 'discount_enabled' => '1',
                     'discount_type' => 'fixed', 'discount_value' => '20,00',
                 ],
@@ -471,12 +497,15 @@ final class AdminPanelTest extends DatabaseTestCase
         self::assertSame(2000, (int) $savedVariants[1]['discount_value']);
         self::assertSame(1, (int) $savedVariants[1]['stock_unlimited']);
         self::assertSame(0, (int) $savedVariants[1]['track_in_conta']);
+        self::assertSame(0, (int) $this->pdo->query('SELECT physical_quantity FROM inventory WHERE variant_id=' . (int) $savedVariants[1]['id'])->fetchColumn());
         self::assertSame(4, count(array_unique(array_column($savedVariants, 'sku'))));
         $variantEditModal = (string) $this->get('/admin/produse/' . $variantProductId . '/editare/modal/')->getBody();
         self::assertStringContainsString('2 alegeri configurate', $variantEditModal);
         self::assertStringContainsString('4 combinații', $variantEditModal);
         self::assertStringContainsString('Sumă fixă (lei)', $variantEditModal);
         self::assertStringContainsString('Preț final', $variantEditModal);
+        self::assertStringContainsString('value="" disabled aria-disabled="true" data-product-variant-stock', $variantEditModal);
+        self::assertStringContainsString('Stocul nelimitat nu folosește o cantitate numerică.', $variantEditModal);
 
         $product = $this->pdo->query("SELECT p.id,p.name FROM products p JOIN product_variants v ON v.product_id=p.id WHERE v.sku='LM-SH-002' LIMIT 1")->fetch();
         self::assertIsArray($product);

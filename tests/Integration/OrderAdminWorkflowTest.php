@@ -26,6 +26,21 @@ final class OrderAdminWorkflowTest extends DatabaseTestCase
         $admin = $this->pdo->prepare("INSERT INTO users (email,password_hash,first_name,last_name,role,status,email_verified_at,created_at,updated_at) VALUES ('orders.admin@example.test',:password,'Maria','Admin','administrator','active',:now,:now,:now)");
         $admin->execute(['password' => password_hash(self::PASSWORD, PASSWORD_DEFAULT), 'now' => $now]);
         $this->adminId = (int) $this->pdo->lastInsertId();
+        $companies = new \App\Modules\Companies\CompanyAdminService(
+            new \App\Modules\Companies\CompanyRepository($this->pdo),
+            new \App\Modules\Companies\CompanyStampStorage($this->root)
+        );
+        $companyId = $companies->saveCompany([
+            'legal_name' => 'Firma QA comenzi',
+            'trade_name' => 'La Măriuca QA',
+            'tax_id' => '12345678',
+            'registered_address' => 'Strada Test 1',
+            'city' => 'București',
+            'country' => 'România',
+            'is_vat_payer' => '1',
+            'vat_rate' => '21',
+        ], null, null);
+        $companies->saveWarehouse($companyId, ['name' => 'Gestiune QA'], null);
 
         $catalog = $this->pdo->query(
             "SELECT product.id AS product_id,product.name,product.slug,variant.id AS variant_id,variant.sku "
@@ -358,7 +373,9 @@ final class OrderAdminWorkflowTest extends DatabaseTestCase
         self::assertSame('returned', $this->pdo->query('SELECT status FROM orders WHERE id=' . $this->deliveredOrderId)->fetchColumn());
         self::assertSame('paid', $this->pdo->query('SELECT payment_status FROM orders WHERE id=' . $this->deliveredOrderId)->fetchColumn());
         self::assertSame(0, (int) $this->pdo->query('SELECT refunded_bani FROM payments WHERE order_id=' . $this->deliveredOrderId)->fetchColumn());
-        self::assertSame(0, (int) $this->pdo->query('SELECT COUNT(*) FROM invoices')->fetchColumn());
+        self::assertSame(3, (int) $this->pdo->query('SELECT COUNT(*) FROM invoices')->fetchColumn());
+        self::assertSame(1, (int) $this->pdo->query("SELECT COUNT(*) FROM invoices WHERE kind='sale'")->fetchColumn());
+        self::assertSame(2, (int) $this->pdo->query("SELECT COUNT(*) FROM invoices WHERE kind='return'")->fetchColumn());
         self::assertSame(2, (int) $this->pdo->query('SELECT COALESCE(SUM(quantity),0) FROM order_return_items WHERE order_item_id=' . $itemId)->fetchColumn());
     }
 

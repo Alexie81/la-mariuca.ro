@@ -1252,12 +1252,12 @@ final class CatalogAdminService
                 $reservedEans[$ean] = true;
             }
 
+            $stockUnlimited = (string) ($rawVariant['stock_unlimited'] ?? '0') === '1';
             $fullPrice = Money::parse((string) ($rawVariant['full_price'] ?? $rawVariant['price'] ?? ''));
-            $stock = filter_var($rawVariant['stock'] ?? null, FILTER_VALIDATE_INT);
+            $stock = $stockUnlimited ? 0 : filter_var($rawVariant['stock'] ?? null, FILTER_VALIDATE_INT);
             if ($stock === false || $stock < 0) {
                 throw new RuntimeException('Stocul trebuie să fie un număr întreg pozitiv sau zero.');
             }
-            $stockUnlimited = (string) ($rawVariant['stock_unlimited'] ?? '0') === '1';
             $trackInConta = $groups === []
                 ? $parentTrackInConta
                 : (string) ($rawVariant['track_in_conta'] ?? '0') === '1';

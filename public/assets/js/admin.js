@@ -1068,9 +1068,24 @@
     const toggle = card.querySelector('[data-product-stock-unlimited]');
     const stock = card.querySelector('[data-product-variant-stock]');
     if (!toggle || !stock) return;
-    stock.readOnly = toggle.checked;
-    stock.setAttribute('aria-readonly', toggle.checked ? 'true' : 'false');
-    card.classList.toggle('has-unlimited-stock', toggle.checked);
+    const help = card.querySelector('[data-product-stock-help]');
+    const unlimited = toggle.checked;
+    if (unlimited) {
+      if (!stock.disabled && stock.value !== '') stock.dataset.lastNumericStock = stock.value;
+      stock.value = '';
+    } else if (stock.disabled && stock.value === '') {
+      stock.value = stock.dataset.lastNumericStock || '0';
+    }
+    stock.disabled = unlimited;
+    stock.required = !unlimited;
+    stock.setAttribute('aria-disabled', unlimited ? 'true' : 'false');
+    stock.removeAttribute('aria-readonly');
+    if (help) {
+      help.textContent = unlimited
+        ? 'Stocul nelimitat nu folosește o cantitate numerică.'
+        : 'Cantitatea disponibilă pentru comenzile online.';
+    }
+    card.classList.toggle('has-unlimited-stock', unlimited);
   };
 
   const updateProductOptionsSummary = (form, state) => {

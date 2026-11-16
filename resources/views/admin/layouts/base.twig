@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>{% block title %}Dashboard{% endblock %} · Administrare La Măriuca</title>
-  <link rel="stylesheet" href="{{ url('assets/css/admin.css?v=20261114-spv-logo-2') }}">
+  <link rel="stylesheet" href="{{ url('assets/css/admin.css?v=20261116-unlimited-stock') }}">
   {% if admin_section|default('') == 'categories' %}<link rel="stylesheet" href="{{ url('assets/css/category-editor.css?v=20261107-payment-rules') }}">{% endif %}
   {% if admin_section|default('') in ['customers', 'newsletter'] %}<link rel="stylesheet" href="{{ url('assets/css/customer-admin.css?v=20261101-v15') }}">{% endif %}
   {% if admin_section|default('') == 'newsletter' %}<link rel="stylesheet" href="{{ url('assets/css/newsletter-admin.css?v=20261103-v2') }}">{% endif %}
@@ -214,7 +214,7 @@
   {% include 'admin/partials/nir-export-loader.twig' %}
   <script src="{{ url('assets/js/nir-export.js?v=20261116-shared') }}" defer></script>
   <script src="{{ url('assets/js/admin-rich-editor.js?v=20261031-rich-description-v1') }}" defer></script>
-  <script src="{{ url('assets/js/admin.js?v=20261107-category-payments') }}" defer></script>
+  <script src="{{ url('assets/js/admin.js?v=20261116-unlimited-stock') }}" defer></script>
   {% if admin_section|default('') == 'reviews' %}<script src="{{ url('assets/js/review-admin.js?v=20261115-2') }}" defer></script>{% endif %}
   {% if admin_section|default('') == 'products' %}<script src="{{ url('assets/js/admin-product-details.js?v=20261115-1') }}" defer></script>{% endif %}
   {% if admin_section|default('') == 'payment_methods' %}<script src="{{ url('assets/js/payment-methods-admin.js?v=20261108-fees') }}" defer></script>{% endif %}

@@ -258,6 +258,22 @@ final class OrderTrackingTest extends DatabaseTestCase
 
     public function testDirectCancellationPreservesPaymentAndIgnoresPostedOrderIdentity(): void
     {
+        $companies = new \App\Modules\Companies\CompanyAdminService(
+            new \App\Modules\Companies\CompanyRepository($this->pdo),
+            new \App\Modules\Companies\CompanyStampStorage($this->root)
+        );
+        $companyId = $companies->saveCompany([
+            'legal_name' => 'Firma QA urmărire',
+            'trade_name' => 'La Măriuca QA',
+            'tax_id' => '87654321',
+            'registered_address' => 'Strada Test 2',
+            'city' => 'București',
+            'country' => 'România',
+            'is_vat_payer' => '1',
+            'vat_rate' => '21',
+        ], null, null);
+        $companies->saveWarehouse($companyId, ['name' => 'Gestiune QA urmărire'], null);
+
         $this->cancellationActor();$this->request('GET');
         $_SESSION['tracked_order']=['id'=>$this->orderId,'expires'=>time()+1800];
         $this->pdo->exec("UPDATE orders SET payment_method='stripe',payment_status='paid' WHERE id=".$this->orderId);
@@ -272,6 +288,8 @@ final class OrderTrackingTest extends DatabaseTestCase
         self::assertSame('released',$this->pdo->query('SELECT status FROM inventory_reservations WHERE order_id='.$this->orderId)->fetchColumn());
         self::assertSame(0,(int)$this->pdo->query('SELECT COUNT(*) FROM order_cancellation_requests')->fetchColumn());
         self::assertSame(1,(int)$this->pdo->query("SELECT COUNT(*) FROM outbox_messages WHERE message_type='order_status_update'")->fetchColumn());
+        self::assertSame(2,(int)$this->pdo->query('SELECT COUNT(*) FROM invoices WHERE order_id='.$this->orderId)->fetchColumn());
+        self::assertSame(1,(int)$this->pdo->query("SELECT COUNT(*) FROM invoices WHERE order_id={$this->orderId} AND kind='return'")->fetchColumn());
     }
 
     public function testDirectCancellationHasOptionalNoteAndUsableNonJavascriptForm(): void

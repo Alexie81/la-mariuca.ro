@@ -70,7 +70,7 @@ final class NirAdminHttpTest extends DatabaseTestCase
         self::assertSame(0,(int) $this->pdo->query('SELECT COUNT(*) FROM nir_documents')->fetchColumn());
     }
 
-    public function testSavingDraftAndConfirmingThroughHttpKeepsCommercialStock(): void
+    public function testSavingDraftAndConfirmingThroughHttpAddsNumericOnlineStock(): void
     {
         $service=new NirService($this->pdo);
         $defaults=$service->defaults(['id'=>$this->adminId,'role'=>'administrator']);
@@ -88,7 +88,7 @@ final class NirAdminHttpTest extends DatabaseTestCase
         $confirm=$this->request('POST','/admin/nir-uri/'.$document['id'].'/confirma/',['_csrf'=>$_SESSION['_csrf'],'row_version'=>$document['row_version'],'idempotency_key'=>'http-confirm-key-001','accept_warnings'=>'1'],true);
         self::assertSame(200,$confirm->getStatusCode(),(string) $confirm->getBody());
         self::assertSame('confirmed',json_decode((string) $confirm->getBody(),true)['document']['status']);
-        self::assertSame((int) $variant['physical_quantity'],(int) $this->pdo->query('SELECT physical_quantity FROM inventory WHERE variant_id='.(int) $variant['id'])->fetchColumn());
+        self::assertSame((int) $variant['physical_quantity']+2,(int) $this->pdo->query('SELECT physical_quantity FROM inventory WHERE variant_id='.(int) $variant['id'])->fetchColumn());
         $detail=$this->request('GET','/admin/nir-uri/'.$document['id'].'/');
         self::assertSame(200,$detail->getStatusCode(),(string) $detail->getBody());
     }

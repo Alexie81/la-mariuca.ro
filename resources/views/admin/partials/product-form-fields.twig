@@ -236,14 +236,16 @@
                 <span class="admin-product-field__suffix"><input name="variants[{{ loop.index0 }}][full_price]" inputmode="decimal" value="{{ variant.full_price_bani ? '%d,%02d'|format(variant.full_price_bani // 100, variant.full_price_bani % 100) : '' }}" placeholder="0,00" required data-product-variant-full-price><em>RON</em></span>
                 <small>Prețul înainte de o eventuală reducere.</small>
               </label>
+              {% set unlimited_stock = variant.stock_unlimited|default(false) %}
               <div class="admin-product-variant__stock">
-                <label class="admin-product-field">
+                <label class="admin-product-field" data-product-stock-field>
                   <span>Stoc disponibil <b>*</b></span>
-                  <span class="admin-product-field__suffix"><input type="number" min="0" name="variants[{{ loop.index0 }}][stock]" value="{{ variant.stock|default(0) }}" required data-product-variant-stock><em>buc.</em></span>
+                  <span class="admin-product-field__suffix"><input type="number" min="0" name="variants[{{ loop.index0 }}][stock]" value="{{ unlimited_stock ? '' : variant.stock|default(0) }}"{{ unlimited_stock ? ' disabled aria-disabled="true"' : ' required aria-disabled="false"' }} data-product-variant-stock><em>buc.</em></span>
+                  <small data-product-stock-help>{{ unlimited_stock ? 'Stocul nelimitat nu folosește o cantitate numerică.' : 'Cantitatea disponibilă pentru comenzile online.' }}</small>
                 </label>
                 <label class="admin-product-mini-switch">
                   <input type="hidden" name="variants[{{ loop.index0 }}][stock_unlimited]" value="0">
-                  <input type="checkbox" name="variants[{{ loop.index0 }}][stock_unlimited]" value="1" {{ variant.stock_unlimited|default(false) ? 'checked' }} data-product-stock-unlimited>
+                  <input type="checkbox" name="variants[{{ loop.index0 }}][stock_unlimited]" value="1" {{ unlimited_stock ? 'checked' }} data-product-stock-unlimited>
                   <i aria-hidden="true"><b></b></i><span>Stoc nelimitat</span>
                 </label>
               </div>

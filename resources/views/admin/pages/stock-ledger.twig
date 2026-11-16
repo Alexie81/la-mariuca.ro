@@ -7,12 +7,6 @@
     <div class="stock-hero__actions"><div class="stock-hero__metric"><span>Produse în registru</span><strong>{{ total }}</strong><small>inclusiv stoc nelimitat</small></div><a class="stock-btn stock-btn--export" href="{{ url('admin/stoc/export/xlsx/?period=month') }}" data-stock-export><svg viewBox="0 0 24 24"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 19h14"/></svg>Exportă registrul</a></div>
   </section>
 
-  <section class="stock-rules" aria-label="Regulile stocului">
-    <article><span class="stock-rule__step">01</span><div><strong>Comanda rezervă stocul online</strong><p>La stoc numeric, disponibilul scade imediat ce comanda este plasată.</p></div></article>
-    <article><span class="stock-rule__step">02</span><div><strong>NIR-ul și returul îl readuc</strong><p>Recepția confirmată adaugă cantitatea înapoi în stocul online numeric.</p></div></article>
-    <article><span class="stock-rule__step">∞</span><div><strong>Nelimitat rămâne nelimitat</strong><p>Comenzile, NIR-urile și retururile nu modifică o cantitate numerică.</p></div></article>
-    <article class="stock-rule--accounting"><span class="stock-rule__step"><svg viewBox="0 0 24 24"><path d="M5 3h10l4 4v14H5zM14 3v5h5M8 12h8M8 16h5"/></svg></span><div><strong>Contabil: numai documente</strong><p>NIR-urile adaugă, facturile scad; soldul poate fi temporar negativ.</p></div></article>
-  </section>
 
   <section class="stock-card">
     <header class="stock-card__head"><div><span class="stock-eyebrow">Registru produse</span><h2>Soldurile curente</h2></div><span>{{ from }}–{{ to }} din {{ total }}</span></header>
