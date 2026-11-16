@@ -1,5 +1,12 @@
 # Progres
 
+### 2026-11-16 — Stoc nelimitat fără cantitate și fișe de stoc simplificate
+- În formularele de adăugare și editare produs, activarea **Stoc nelimitat** golește și dezactivează câmpul numeric. Dezactivarea opțiunii restaurează cantitatea introdusă anterior; fără JavaScript, serverul acceptă corect lipsa câmpului numeric și persistă intern zero pentru varianta nelimitată.
+- Din fișa produsului din stocuri au fost eliminate blocurile cerute: **Sold contabil documentat**, **Disponibilitate pe variante**, ajustarea manuală a stocului online, pragul minim contabil și filtrul de perioadă. Au rămas jurnalul complet și intrările justificative din NIR-uri, fără modificarea regulilor documentare.
+- Din registrul principal de stoc au fost eliminate cele patru carduri explicative despre rezervare, NIR/retur, stoc nelimitat și contabilitate. Interfața este mai compactă, iar logica de stoc nu a fost eliminată.
+- Verificare în browserul intern: stocul numeric devine gol și indisponibil la activarea opțiunii, revine la zero la dezactivare, fișa nu mai conține secțiunile eliminate, iar registrul nu mai afișează banda explicativă. Nu au fost salvate produse sau documente în timpul controlului vizual.
+- Regresiile vechi au fost aliniate cu regulile deja aprobate: NIR-ul eligibil actualizează stocul online numeric, iar anularea/returul unei comenzi Stripe plătite emite automat documentele fiscale fără a modifica plata. Suita completă trece **943 teste / 10.189 aserțiuni**; modulul de urmărire trece separat **17 / 177**. PHPStan, lint PHP, compilarea șabloanelor Twig, verificarea JavaScript și diff check au trecut. Fără deploy sau operațiuni reale Stripe/SMTP/ANAF; TODO-urile nu sunt bifate automat.
+
 ### 2026-11-16 — Stoc online separat de soldul contabil documentar
 - Sursa soldului contabil este acum exclusiv jurnalul documentelor active: NIR-urile confirmate adaugă, facturile active scad. Soldurile vechi din tabelele de compatibilitate și cantitatea online nu mai completează ori înlocuiesc soldul contabil. Acesta poate rămâne temporar negativ până la intrarea justificată de un NIR.
 - Stocul online păstrează regula comercială separată: la variantele numerice comanda rezervă imediat cantitatea, iar NIR-ul eligibil sau recepția returului o adaugă înapoi. Variantele cu stoc nelimitat nu sunt incrementate, decrementate sau însumate ca număr. Migrarea **071** păstrează idempotent efectele NIR-urilor asupra disponibilității online și a fost aplicată bazei SQLite locale.
