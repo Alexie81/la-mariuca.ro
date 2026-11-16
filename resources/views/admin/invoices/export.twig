@@ -9,7 +9,7 @@
       <label class="iv-export-format"><input type="radio" name="format" value="zip"{{ selection.format == 'zip' ? ' checked' : '' }}><span class="iv-export-choice-icon">{{ n.icon('layers') }}</span><span><strong>Centralizator + toate facturile</strong><small>ZIP · dosar Serie–Număr cu PDF, Excel și XML.</small></span><i></i></label>
     </div>
   </fieldset>
-  <fieldset class="iv-export-step"><legend><span class="iv-export-step-number">02</span><span>Pentru ce perioadă?<small>Alege o perioadă rapidă sau introdu exact intervalul dorit.</small></span></legend>
+  <fieldset class="iv-export-step"><legend><span class="iv-export-step-number">02</span><span>Pentru ce perioadă?<small>Perioada se aplică datei vânzării: emiterea facturii. Facturile de retur folosesc propria dată de emitere.</small></span></legend>
     <div class="iv-export-periods">{% for key,period in periods %}<label class="iv-export-period"><input type="radio" name="period" value="{{ key }}" data-from="{{ period.from }}" data-to="{{ period.to }}" data-label="{{ period.label }}"{{ selection.period == key ? ' checked' : '' }}><span class="iv-export-period-icon">{{ n.icon(period.icon) }}</span><span><strong>{{ period.label }}</strong><small>{{ period.description }}</small></span><i></i></label>{% endfor %}</div>
     <div class="iv-export-custom" data-iv-export-custom><div class="iv-fields"><label>De la<input type="date" name="from" value="{{ selection.from ?: periods.month.from }}"></label><label>Până la<input type="date" name="to" value="{{ selection.to ?: periods.month.to }}"></label></div><small>Intervalul include ambele zile și folosește data emiterii, ora României.</small></div>
   </fieldset>

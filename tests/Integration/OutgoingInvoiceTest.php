@@ -45,7 +45,8 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         $this->purchase(3,'40','JOURNAL-PURCHASE');
         $detail=$ledger->detail($id,[],$this->actor);
         self::assertSame(10000,$detail['current_units']); self::assertSame(10000,$detail['closing_units']); self::assertTrue($detail['consistent']);
-        self::assertSame(8000,$detail['movements'][0]['cost_bani']);
+        $saleMovement=array_values(array_filter($detail['movements'],static fn(array $row):bool=>(int)($row['invoice_id'] ?? 0)===(int)$invoice['id']))[0];
+        self::assertSame(8000,$saleMovement['cost_bani']);
         $online=$detail['online'];
         $this->service->delete($invoice['id'],['request_key'=>'journal-delete','version'=>$invoice['row_version'],'reason'=>'Verificare jurnal'],$this->actor);
         $detail=$ledger->detail($id,[],$this->actor); self::assertSame(30000,$detail['current_units']); self::assertTrue($detail['consistent']); self::assertSame($online,$detail['online']);
@@ -763,6 +764,40 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         self::assertSame(0,(int)$this->pdo->query('SELECT COUNT(*) FROM invoice_fiscal_jobs')->fetchColumn());
     }
 
+    public function testRegisterSummaryCountsOnlyCollectedCashAndDeductsReturnsOnce(): void
+    {
+        $repo=new InvoiceRepository($this->pdo);
+        foreach(['count','credit_count','collected','outstanding','credits'] as $field) { self::assertSame(0,(int)$repo->summary()[$field]); }
+        $this->pdo->exec('UPDATE product_variants SET stock_unlimited=1 WHERE id='.(int)$this->variant['id']);
+        $paid=$this->service->issue($this->order(2),['request_key'=>'summary-paid'],$this->actor);
+        $partial=$this->service->issue($this->order(1),['request_key'=>'summary-partial'],$this->actor);
+        $unpaid=$this->service->issue($this->order(1),['request_key'=>'summary-unpaid'],$this->actor);
+        self::assertSame(0,$repo->summary()['collected']);
+        $this->service->payment($paid['id'],['request_key'=>'summary-cash-full','version'=>1,'amount'=>(string)($paid['gross_bani']/100),'reason'=>'Încasare'],$this->actor);
+        $this->service->payment($partial['id'],['request_key'=>'summary-cash-partial','version'=>1,'amount'=>'10','reason'=>'Încasare'],$this->actor);
+        self::assertSame((int)$paid['gross_bani']+1000,$repo->summary()['collected']);
+        self::assertSame((int)$partial['gross_bani']+(int)$unpaid['gross_bani']-1000,$repo->summary()['outstanding']);
+        $current=$this->service->load($paid['id']);
+        $credit=$this->service->credit($paid['id'],['request_key'=>'summary-credit','version'=>$current['row_version'],'reason'=>'Retur','quantities'=>[$paid['lines'][0]['id']=>1],'notify_customer'=>'0'],$this->actor);
+        $retained=(int)$paid['gross_bani']-abs((int)$credit['gross_bani'])+1000;
+        self::assertSame($retained,$repo->summary()['collected']);
+        self::assertSame(4,(int)$repo->summary()['count']); self::assertSame(1,(int)$repo->summary()['credit_count']);
+        self::assertSame(abs((int)$credit['gross_bani']),(int)$repo->summary()['credits']);
+        $this->service->payment($credit['id'],['request_key'=>'summary-refund','version'=>1,'amount'=>(string)(abs($credit['gross_bani'])/100),'reason'=>'Restituire'],$this->actor);
+        self::assertSame($retained,$repo->summary()['collected']);
+        // A return on an unpaid order cannot reduce another customer's collected cash.
+        $unpaidCredit=$this->service->credit($unpaid['id'],['request_key'=>'summary-unpaid-credit','version'=>1,'reason'=>'Retur','quantities'=>[$unpaid['lines'][0]['id']=>1],'notify_customer'=>'0'],$this->actor);
+        self::assertSame($retained,$repo->summary()['collected']); self::assertSame(2,(int)$repo->summary()['credit_count']);
+        $this->service->delete($unpaidCredit['id'],['request_key'=>'summary-delete','version'=>1,'reason'=>'Corectare'],$this->actor);
+        self::assertSame($retained,$repo->summary()['collected']); self::assertSame(1,(int)$repo->summary()['credit_count']);
+        self::assertSame(4,(int)$repo->summary()['count']); self::assertSame(abs((int)$credit['gross_bani']),(int)$repo->summary()['credits']);
+        $_SESSION['user_id']=$this->actor['id']; $app=\App\AppFactory::create($this->root);
+        $response=$app->handle((new \Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('GET','http://localhost/admin/facturi/'));
+        self::assertSame(200,$response->getStatusCode()); $html=(string)$response->getBody();
+        foreach(['Documente emise','Rămas de încasat','<small>Încasat</small>','Valoare retururi','1 factură de retur',number_format($retained/100,2,',','.')] as $text) { self::assertStringContainsString($text,$html); }
+        unset($_SESSION['user_id']);
+    }
+
     public function testRegisterPaginationFiscalGroupsAndFullPageStatuses(): void
     {
         $repo=new InvoiceRepository($this->pdo); $ids=[];
@@ -1096,6 +1131,7 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         self::assertSame($before,$repo->one('invoices',['id'=>$invoice['id']]));
         self::assertSame((int)$before['gross_bani'],$repo->orderCash($order)['received']);
         self::assertSame(0,$repo->summary()['outstanding']);
+        self::assertSame((int)$before['gross_bani'],$repo->summary()['collected']);
         try { $this->service->setOrderPayment($order,['request_key'=>'payment-fiscal-stale','order_version'=>$version,'payment_status'=>'pending'],$this->actor); self::fail('Stale payment form accepted'); }
         catch(InvoiceException $e) { self::assertSame(409,$e->getCode()); }
         self::assertSame('paid',$repo->one('orders',['id'=>$order])['payment_status']);
@@ -1113,6 +1149,7 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         }
         self::assertSame($before,$repo->one('invoices',['id'=>$invoice['id']]));
         self::assertSame(2000,$repo->orderCash($order)['received']);
+        self::assertSame(2000,$repo->summary()['collected']);
         self::assertSame((int)$before['gross_bani']-2000,$repo->summary()['outstanding']);
         self::assertSame('partial',$repo->one('orders',['id'=>$order])['payment_status']);
     }

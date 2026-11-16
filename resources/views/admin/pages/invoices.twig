@@ -8,9 +8,10 @@
   </div><span class="iv-register-seal" aria-hidden="true">{{ n.icon('document') }}</span>
 </header>
 <div class="iv-register-metrics">
-  <article><span class="iv-mark">{{ n.icon('document') }}</span><div><small>Documente emise</small><strong>{{ summary.count }}</strong><span>{{ (summary.sales/100)|number_format(2,',','.') }} Lei facturat</span></div></article>
+  <article><span class="iv-mark">{{ n.icon('document') }}</span><div><small>Documente emise</small><strong>{{ summary.count }}</strong><span>Facturi și facturi de retur</span></div></article>
   <article><span class="iv-mark iv-mark--gold">{{ n.icon('clock') }}</span><div><small>Rămas de încasat</small><strong>{{ (summary.outstanding/100)|number_format(2,',','.') }} <em>Lei</em></strong><span>După plăți, retururi și corecții</span></div></article>
-  <article><span class="iv-mark iv-mark--rose">{{ n.icon('return') }}</span><div><small>Facturi de retur și corecții</small><strong>{{ (summary.credits/100)|number_format(2,',','.') }} <em>Lei</em></strong><span>Valoarea documentelor emise</span></div></article>
+  <article><span class="iv-mark iv-mark--green">{{ n.icon('check') }}</span><div><small>Încasat</small><strong>{{ (summary.collected/100)|number_format(2,',','.') }} <em>Lei</em></strong><span>Încasări nete, fără valoarea returnată</span></div></article>
+  <article><span class="iv-mark iv-mark--rose">{{ n.icon('return') }}</span><div><small>Valoare retururi</small><strong>{{ (summary.credits/100)|number_format(2,',','.') }} <em>Lei</em></strong><span>{{ summary.credit_count }} {{ summary.credit_count == 1 ? 'factură de retur' : 'facturi de retur' }}</span></div></article>
 </div>
 <section class="iv-register-tools" aria-label="Căutare și filtrare facturi">
 <form method="get" class="iv-search-form" id="invoice-filters"><div class="iv-search">{{ n.icon('search') }}<label><span>Caută în facturi</span><input type="search" name="cautare" value="{{ filters.cautare|default('') }}" placeholder="Factură, comandă, client, CUI sau referință ANAF…" autocomplete="off"></label><button type="button" class="iv-icon" data-iv-clear aria-label="Golește căutarea"{% if not filters.cautare|default('') %} hidden{% endif %}>{{ n.icon('close') }}</button><button class="iv-btn iv-btn--primary">Caută {{ n.icon('arrow') }}</button></div>

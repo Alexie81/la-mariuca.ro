@@ -374,7 +374,7 @@ final class NirExportService
         $this->cell($sheet,3,2,'LA MĂRIUCA BOUTIQUE · Recepții și stornări');
         $identity=implode(' · ',array_filter([$company['legal_name']??'',empty($company['tax_id'])?'':'CUI '.$company['tax_id']]));
         $this->cell($sheet,3,3,$identity);
-        $this->cell($sheet,9,1,'PERIOADA SELECTATĂ');
+        $this->cell($sheet,9,1,'PERIOADA · DATA NIR');
         $from=empty($period['from'])?'Toate datele':substr(self::displayDate($period['from']),0,10);
         $to=empty($period['to'])?'prezent':substr(self::displayDate($period['to']),0,10);
         $this->cell($sheet,9,2,$from.' — '.$to);

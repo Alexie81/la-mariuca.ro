@@ -343,6 +343,48 @@ final class NirDomainTest extends DatabaseTestCase
         $registry=$this->service->registry(['from'=>'2026-11-12','to'=>'2026-11-12'],$this->actor); self::assertSame(1,$registry['total']); self::assertSame($included['id'],$registry['items'][0]['id']);
     }
 
+    public function testExportSelectionUsesNirRegistrationAcrossBothDaylightSavingChanges(): void
+    {
+        $repo=new \App\Modules\Inventory\NirRepository($this->pdo);
+        foreach([
+            '2026-03-29'=>['2026-03-28T21:59:59Z','2026-03-28T22:00:00Z','2026-03-29T20:59:59Z','2026-03-29T21:00:00Z'],
+            '2026-10-25'=>['2026-10-24T20:59:59Z','2026-10-24T21:00:00Z','2026-10-25T21:59:59Z','2026-10-25T22:00:00Z'],
+        ] as $day=>$timestamps) {
+            $documents=[];
+            foreach($timestamps as $index=>$timestamp) {
+                $draft=$this->draft([],['invoice_number'=>'DATE-'.$day.'-'.$index]);
+                $document=$this->service->confirm($draft['id'],$draft['row_version'],'date-confirm-'.$day.'-'.$index,true,$this->actor);
+                $repo->update('nir_documents',['nir_at'=>$timestamp,'received_at'=>'2026-12-01T08:00:00Z','invoice_date'=>'2026-01-01','created_at'=>'2026-11-16T08:00:00Z','confirmed_at'=>'2026-11-17T08:00:00Z'],['id'=>$document['id']]);
+                $documents[]=$document;
+            }
+            $filters=['from'=>$day,'to'=>$day,'page'=>999,'per_page'=>1];
+            $selected=$this->service->registryForExport($filters,$this->actor);
+            self::assertEqualsCanonicalizing([$documents[1]['id'],$documents[2]['id']],array_column($selected,'id'));
+            $_SESSION['user_id']=$this->actor['id']; $app=\App\AppFactory::create($this->root); $factory=new \Slim\Psr7\Factory\ServerRequestFactory();
+            foreach(['xlsx','zip'] as $format) {
+                $response=$app->handle($factory->createServerRequest('GET','http://localhost/admin/nir-uri/export/'.$format.'/')->withQueryParams($filters+['period'=>'custom']));
+                self::assertSame(200,$response->getStatusCode());
+                $file=tempnam(sys_get_temp_dir(),'nir-period-'); file_put_contents($file,(string)$response->getBody());
+                try {
+                    if($format==='xlsx') {
+                        $book=\PhpOffice\PhpSpreadsheet\IOFactory::load($file); $sheet=$book->getActiveSheet();
+                        self::assertEqualsCanonicalizing([$documents[1]['number'],$documents[2]['number']],[$sheet->getCell('B7')->getValue(),$sheet->getCell('B8')->getValue()]);
+                        self::assertSame('A6:AL8',$sheet->getAutoFilter()->getRange());
+                        foreach([7,8] as $row) { self::assertSame((new \DateTimeImmutable($day))->format('d.m.Y'),$sheet->getCell('E'.$row)->getFormattedValue()); self::assertSame('01.12.2026',$sheet->getCell('G'.$row)->getFormattedValue()); }
+                        $book->disconnectWorksheets();
+                    } else {
+                        $zip=new \ZipArchive(); self::assertTrue($zip->open($file)); $entries=[];
+                        for($entry=0;$entry<$zip->numFiles;$entry++) { $entries[]=$zip->getNameIndex($entry); }
+                        self::assertContains('Registru_NIR.xlsx',$entries);
+                        self::assertEqualsCanonicalizing([$documents[1]['number'],$documents[2]['number']],array_values(array_unique(array_map(static fn(string $name):string=>explode('/',$name)[0],array_filter($entries,static fn(string $name):bool=>str_contains($name,'/'))))));
+                        $zip->close();
+                    }
+                } finally { unlink($file); }
+            }
+            unset($app); gc_collect_cycles();
+        }
+    }
+
     public function testMultipartReplayIgnoresRandomUploadNamesAndDoesNotRepeatSupplierReturn(): void
     {
         $original=$this->confirmed(); $file=['stored_name'=>'first-random.pdf','original_name'=>'factura.pdf','mime_type'=>'application/pdf','extension'=>'pdf','size_bytes'=>12,'sha256'=>hash('sha256','corrective invoice'),'extraction_status'=>'manual'];

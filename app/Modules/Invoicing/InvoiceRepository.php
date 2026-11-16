@@ -207,8 +207,8 @@ final class InvoiceRepository
     /** @return array<string,mixed> */
     public function summary(): array
     {
-        $summary=$this->pdo->query("SELECT COUNT(*) AS count,COALESCE(SUM(CASE WHEN gross_bani>0 THEN gross_bani ELSE 0 END),0) AS sales,COALESCE(SUM(CASE WHEN gross_bani<0 THEN -gross_bani ELSE 0 END),0) AS credits FROM invoices WHERE deleted_at IS NULL")->fetch();
-        $summary['outstanding']=0;
+        $summary=$this->pdo->query("SELECT COUNT(*) AS count,COALESCE(SUM(CASE WHEN gross_bani>0 THEN gross_bani ELSE 0 END),0) AS sales,COALESCE(SUM(CASE WHEN gross_bani<0 THEN -gross_bani ELSE 0 END),0) AS credits,COALESCE(SUM(CASE WHEN kind IN ('return','correction_negative') THEN 1 ELSE 0 END),0) AS credit_count FROM invoices WHERE deleted_at IS NULL")->fetch();
+        $summary['outstanding']=0; $summary['collected']=0;
         $received=[]; $refunded=[];
         foreach($this->pdo->query('SELECT order_id,paid_bani FROM invoices WHERE primary_order_id IS NOT NULL AND deleted_at IS NULL')->fetchAll() as $row) { $received[$row['order_id']]=(int)$row['paid_bani']; }
         foreach($this->pdo->query("SELECT i.order_id,a.after_json FROM invoice_audit a JOIN invoices i ON i.id=a.invoice_id WHERE i.kind='corrected_positive' AND i.deleted_at IS NULL AND a.action='payment_recorded'")->fetchAll() as $row) { $received[$row['order_id']]=($received[$row['order_id']] ?? 0)+(int)(json_decode($row['after_json'],true)['amount_bani'] ?? 0); }
@@ -220,7 +220,13 @@ final class InvoiceRepository
         foreach($this->pdo->query('SELECT order_id,SUM(refunded_bani) AS amount FROM payments GROUP BY order_id')->fetchAll() as $row) { $legacy[$row['order_id']]=(int)$row['amount']; }
         foreach($this->pdo->query('SELECT order_id,SUM(refund_bani) AS amount FROM order_returns WHERE voided_at IS NULL GROUP BY order_id')->fetchAll() as $row) { $legacy[$row['order_id']]=max($legacy[$row['order_id']] ?? 0,(int)$row['amount']); }
         foreach($legacy as $orderId=>$amount) { $refunded[$orderId]=($refunded[$orderId] ?? 0)+$amount; }
-        foreach($this->pdo->query('SELECT order_id,SUM(gross_bani) AS total FROM invoices WHERE deleted_at IS NULL GROUP BY order_id')->fetchAll() as $row) { $summary['outstanding']+=max(0,(int)$row['total']-($received[$row['order_id']] ?? 0)+($refunded[$row['order_id']] ?? 0)); }
+        foreach($this->pdo->query('SELECT order_id,SUM(gross_bani) AS total FROM invoices WHERE deleted_at IS NULL GROUP BY order_id')->fetchAll() as $row) {
+            $netCash=($received[$row['order_id']] ?? 0)-($refunded[$row['order_id']] ?? 0);
+            $netInvoiced=(int)$row['total'];
+            $summary['outstanding']+=max(0,$netInvoiced-$netCash);
+            // A credit reduces the invoiced amount once; its later refund must not subtract it twice.
+            $summary['collected']+=max(0,min($netInvoiced,$netCash));
+        }
         return $summary;
     }
     public function orderNet(int $orderId): int

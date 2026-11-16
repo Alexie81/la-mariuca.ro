@@ -14,6 +14,13 @@ La revenirea la PC, începem în ordinea cerută explicit de utilizator la 2026-
 
 Lista este salvată pentru reluarea lucrului, fără pornirea implementării în această sesiune. Modificare numai de documentație; verificare prin diff, fără teste de aplicație necesare.
 
+### 2026-11-16 — Datele exporturilor și rezumatul încasărilor din facturi
+- Confirmare explicită: **data vânzării este data emiterii facturii**. Exporturile NIR folosesc `nir_at` (data înregistrării NIR-ului); data primirii fizice, factura furnizorului și marcajele tehnice de creare/confirmare nu aleg perioada.
+- Fișele și exporturile de stoc ordonează intrările/retururile după NIR, iar ieșirile după emiterea facturii. Soldul inițial și final se reconstruiesc pentru perioada aleasă; mișcările ulterioare nu schimbă soldul istoric. Operațiunile fără document-sursă păstrează data operațiunii. Titlurile/explicațiile exporturilor indică regula folosită.
+- Registrul facturilor are patru rezumate: **Documente emise**, **Rămas de încasat**, **Încasat** și **Valoare retururi**, cu numărul facturilor de retur în ultimul card. Încasatul folosește numai plățile înregistrate, limitate pe comandă la valoarea facturată rămasă după retururi; restituirea ulterioară nu scade returul de două ori. Documentele șterse nu intră în totaluri. Layout cu patru coloane pe desktop și două pe ecrane mici.
+- Verificări țintite: exporturi **3 teste / 95 aserțiuni** (XLSX/ZIP reale, limitele lunii, ambele schimbări de oră, solduri istorice și lipsa mutațiilor); încasări și jurnal **4 teste / 54 aserțiuni** (neplătit/parțial/integral, retururi plătite/neplătite, restituire, ștergere, plăți înregistrate după SPV). Prima regresie extinsă a identificat o aserțiune bazată pe ordinea veche a jurnalului; corectată să identifice mișcarea prin factură.
+- Punctele din TODO rămân nebifate până la confirmarea utilizatorului. Fără deploy sau trimiteri SMTP/ANAF.
+
 ### 2026-11-15 — Popup de export contabil pentru facturile emise
 - Butonul **Exportă facturile** deschide modalul cerut după referința utilizatorului, în tema prună/roz și verde discret a aplicației: **Doar centralizatorul** sau **Centralizator + toate facturile**, șapte perioade rapide/personalizate, rezumat și descărcare. Fișa facturii rămâne pagină completă.
 - Perioade: toate documentele, anul curent, ultimele șase/trei luni, luna calendaristică anterioară, luna curentă și interval exact. Serverul calculează limitele în Europe/Bucharest, inclusiv trecerea anului și sfârșitul lunilor; filtrele existente pot fi păstrate sau eliminate. Filtrele cu o singură dată sunt completate pentru modal folosind prima emitere/data curentă, iar exportul include toate rezultatele, indiferent de paginare.
