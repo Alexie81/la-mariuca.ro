@@ -689,6 +689,12 @@ body:has(.iv-dialog[open]),body:has(.iv-lightbox[open]){overflow:hidden}
 .iv-register-tools .iv-search>.iv-btn{min-height:36px;padding:8px 15px}
 .iv-register-tools .iv-search-form{padding-top:14px}
 .iv-register-controls{padding-block:10px}
+.iv-workspace .iv-search-hint{font-size:11px;color:var(--iv-muted);margin:0 20px 12px}
+.iv-register-metrics .iv-mark--green{color:#358773;background:#edf7f3;border-color:#d6e9e2}
+.iv-search-meaning{display:flex;align-items:center;flex-wrap:wrap;gap:7px;margin:0 20px 13px;font-size:11px;color:var(--iv-muted)}
+.iv-search-meaning strong{padding:5px 10px;border:1px solid #e6d9e9;border-radius:20px;background:#f8f2fa;color:#745276;font-weight:600}
+.iv-search-meaning a{display:inline-flex;align-items:center;gap:5px;margin-left:auto;color:#81566f}
+.iv-search-meaning a svg{width:13px;height:13px}
 
 @media(min-width:761px){.iv-register-tools .iv-search-form{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:0 14px}
 .iv-register-tools .iv-search{grid-column:1/-1}

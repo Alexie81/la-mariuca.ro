@@ -156,27 +156,36 @@ final class InvoiceRepository
     {
         return $this->pdo->query("SELECT o.id,o.order_number,o.first_name,o.last_name,o.total_bani,o.currency FROM orders o WHERE o.status NOT IN ('cancelled','returned','manual_review') AND (o.payment_method='cod' OR o.payment_status='paid') AND NOT EXISTS(SELECT 1 FROM invoices i WHERE i.primary_order_id=o.id) ORDER BY o.id DESC LIMIT 100")->fetchAll();
     }
-    /** @param array<string,mixed> $filters @return array{items:list<array<string,mixed>>,total:int,page:int,pages:int,from:int,to:int,per_page:int} */
+    /** @param array<string,mixed> $filters @return array{items:list<array<string,mixed>>,total:int,page:int,pages:int,from:int,to:int,per_page:int,search:array<string,mixed>} */
     public function registry(array $filters,bool $export=false): array
     {
         $where=['invoices.deleted_at IS NULL']; $args=[];
-        foreach(['kind','payment_state','payment_method','email_state','fiscal_state'] as $field) {
-            if(!empty($filters[$field]) && is_string($filters[$field])) { $where[]='invoices.'.$field.'=:'.$field; $args[$field]=$filters[$field]; }
-        }
-        $spvStates=match(!empty($filters['fiscal_state'])?'':($filters['spv_group'] ?? '')) {
-            'not_sent'=>['unconfigured','not_sent','queued','scheduled','awaiting_configuration'],
-            'sent'=>['submitted','accepted'],
-            'attention'=>['rejected','transient_error','uncertain'],default=>[],
-        };
-        if($spvStates!==[]) { $where[]="fiscal_state IN ('".implode("','",$spvStates)."')"; }
-        if(in_array($filters['customer_type'] ?? '',['person','company'],true)) {
-            $expression=$this->pdo->getAttribute(PDO::ATTR_DRIVER_NAME)==='mysql'?"JSON_UNQUOTE(JSON_EXTRACT(snapshot_json,'$.customer.type'))":"json_extract(snapshot_json,'$.customer.type')";
-            $where[]=$expression.'=:customer_type'; $args['customer_type']=$filters['customer_type'];
-        }
-        if(in_array($filters['receipt'] ?? '',['pending','received'],true)) {
-            $where[]="invoices.kind IN ('return','correction_negative')";
-            $where[]="EXISTS(SELECT 1 FROM invoice_lines l WHERE l.invoice_id=invoices.id AND l.kind='product' AND l.quantity_units<0)";
-            $where[]=$this->receiptNirSql().($filters['receipt']==='pending'?' IS NULL':' IS NOT NULL');
+        $search=InvoiceSearch::parse($filters['cautare'] ?? ''); $scopes=[$filters];
+        foreach($search['conditions'] as $condition) { $scopes[]=[$condition['field']=>$condition['value']]; }
+        // Typed filters and recognised phrases intersect; a search never silently clears a chosen filter.
+        foreach($scopes as $scopeIndex=>$scope) {
+            foreach(['kind','payment_state','payment_method','email_state','fiscal_state'] as $field) {
+                if(!empty($scope[$field]) && is_string($scope[$field])) { $parameter=$field.'_'.$scopeIndex; $where[]='invoices.'.$field.'=:'.$parameter; $args[$parameter]=$scope[$field]; }
+            }
+            $spvStates=match(!empty($scope['fiscal_state'])?'':($scope['spv_group'] ?? '')) {
+                'not_sent'=>['unconfigured','not_sent','queued','scheduled','awaiting_configuration'],
+                'sent'=>['submitted','accepted'],
+                'attention'=>['rejected','transient_error','uncertain'],default=>[],
+            };
+            if($spvStates!==[]) { $where[]="fiscal_state IN ('".implode("','",$spvStates)."')"; }
+            if(($scope['document_group'] ?? '')==='credits') { $where[]="invoices.kind IN ('return','correction_negative')"; }
+            if(($scope['document_group'] ?? '')==='sales') { $where[]="invoices.kind IN ('sale','corrected_positive')"; }
+            if(($scope['payment_group'] ?? '')==='outstanding') { $where[]="invoices.payment_state IN ('unpaid','partial')"; }
+            if(($scope['email_group'] ?? '')==='not_sent') { $where[]="invoices.email_state IN ('not_sent','queued','failed','previewed','needs_resend')"; }
+            if(in_array($scope['customer_type'] ?? '',['person','company'],true)) {
+                $expression=$this->pdo->getAttribute(PDO::ATTR_DRIVER_NAME)==='mysql'?"JSON_UNQUOTE(JSON_EXTRACT(snapshot_json,'$.customer.type'))":"json_extract(snapshot_json,'$.customer.type')";
+                $parameter='customer_type_'.$scopeIndex; $where[]=$expression.'=:'.$parameter; $args[$parameter]=$scope['customer_type'];
+            }
+            if(in_array($scope['receipt'] ?? '',['pending','received'],true)) {
+                $where[]="invoices.kind IN ('return','correction_negative')";
+                $where[]="EXISTS(SELECT 1 FROM invoice_lines l WHERE l.invoice_id=invoices.id AND l.kind='product' AND l.quantity_units<0)";
+                $where[]=$this->receiptNirSql().($scope['receipt']==='pending'?' IS NULL':' IS NOT NULL');
+            }
         }
         foreach(['from'=>'>=','to'=>'<'] as $field=>$operator) {
             $value=(string)($filters[$field] ?? ''); if($value==='') { continue; }
@@ -185,8 +194,7 @@ final class InvoiceRepository
             if($field==='to') { $d=$d->modify('+1 day'); }
             $where[]='invoices.issued_at'.$operator.':'.$field; $args[$field]=$d->setTimezone(new \DateTimeZone('UTC'))->format('Y-m-d\TH:i:s\Z');
         }
-        $tokens=preg_split('/\s+/',self::normalize(substr((string)($filters['cautare'] ?? ''),0,300)),-1,PREG_SPLIT_NO_EMPTY) ?: [];
-        foreach(array_slice($tokens,0,8) as $n=>$token) { $where[]='(search_text LIKE :s'.$n.' OR LOWER(fiscal_reference) LIKE :f'.$n.')'; $args['s'.$n]='%'.str_replace(['%','_'],['',''],$token).'%'; $args['f'.$n]=$args['s'.$n]; }
+        foreach($search['terms'] as $n=>$token) { $where[]='(search_text LIKE :s'.$n.' OR LOWER(fiscal_reference) LIKE :f'.$n.')'; $args['s'.$n]='%'.str_replace(['%','_'],['',''],$token).'%'; $args['f'.$n]=$args['s'.$n]; }
         $scope=implode(' AND ',$where); $q=$this->pdo->prepare('SELECT COUNT(*) FROM invoices WHERE '.$scope); $q->execute($args); $total=(int)$q->fetchColumn();
         $perPage=(int)($filters['per_page'] ?? 15); if(!in_array($perPage,[10,15,25,50],true)) { $perPage=15; }
         $pages=max(1,(int)ceil($total/$perPage)); $page=max(1,min($pages,(int)($filters['page'] ?? 1))); $offset=($page-1)*$perPage;
@@ -194,7 +202,7 @@ final class InvoiceRepository
             (SELECT environment FROM invoice_fiscal_jobs WHERE invoice_id=invoices.id) AS fiscal_environment,
             EXISTS(SELECT 1 FROM invoice_lines l WHERE l.invoice_id=invoices.id AND l.kind='product' AND l.quantity_units<0) AS has_return_products
             FROM invoices LEFT JOIN nir_documents n ON n.id=".$this->receiptNirSql().' WHERE '.$scope.' ORDER BY invoices.id DESC'.($export?'':' LIMIT '.$perPage.' OFFSET '.$offset)); $q->execute($args);
-        return ['items'=>$q->fetchAll(),'total'=>$total,'page'=>$page,'pages'=>$pages,'from'=>$total===0?0:$offset+1,'to'=>min($offset+$perPage,$total),'per_page'=>$perPage];
+        return ['items'=>$q->fetchAll(),'total'=>$total,'page'=>$page,'pages'=>$pages,'from'=>$total===0?0:$offset+1,'to'=>min($offset+$perPage,$total),'per_page'=>$perPage,'search'=>$search];
     }
     /** Confirmed receipt document, including the older order-return entry point. */
     private function receiptNirSql(): string

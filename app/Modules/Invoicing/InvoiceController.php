@@ -22,11 +22,19 @@ final class InvoiceController
             $data['previous_url']=$data['page']>1?$this->url('?'.http_build_query(array_replace($filters,['page'=>$data['page']-1]))):null;
             $data['next_url']=$data['page']<$data['pages']?$this->url('?'.http_build_query(array_replace($filters,['page'=>$data['page']+1]))):null;
             $data['quick_filters']=[];
+            $activeFilters=$filters;
+            foreach($data['search']['conditions'] as $condition) {
+                $field=$condition['field']; $value=$condition['value'];
+                if($field==='document_group') { $field='kind'; $value=$value==='credits'?'return':'sale'; }
+                if(empty($activeFilters[$field])) { $activeFilters[$field]=$value; }
+            }
+            $data['clear_search_url']=$this->url('?'.http_build_query(array_diff_key($filters,array_flip(['cautare','page']))));
             foreach(['all'=>['Toate',[]],'sale'=>['Facturi',['kind'=>'sale']],'return'=>['Retururi',['kind'=>'return']],'spv'=>['SPV netrimise',['spv_group'=>'not_sent']],'nir'=>['NIR lipsă',['receipt'=>'pending']]] as $key=>[$label,$selection]) {
                 $base=array_diff_key($filters,array_flip(['page','kind','spv_group','fiscal_state','receipt']));
+                $base['cautare']=$data['search']['navigation_query'];
                 $active=$selection!==[];
-                foreach($selection as $field=>$value) { $active=$active && ($filters[$field] ?? '')===$value; }
-                if($key==='all') { $active=empty($filters['kind']) && empty($filters['spv_group']) && empty($filters['fiscal_state']) && empty($filters['receipt']); }
+                foreach($selection as $field=>$value) { $active=$active && ($activeFilters[$field] ?? '')===$value; }
+                if($key==='all') { $active=empty($activeFilters['kind']) && empty($activeFilters['spv_group']) && empty($activeFilters['fiscal_state']) && empty($activeFilters['receipt']); }
                 $data['quick_filters'][]=['label'=>$label,'url'=>$this->url('?'.http_build_query($base+$selection)),'active'=>$active];
             }
             return $this->render('admin/pages/invoices.twig',$data+['filters'=>$filters,'export_query'=>http_build_query($filters)]);

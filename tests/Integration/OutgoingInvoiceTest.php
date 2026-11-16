@@ -831,6 +831,57 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         unset($_SESSION['user_id']);
     }
 
+    public function testSemanticInvoiceSearchFiltersPaginationAndRealExports(): void
+    {
+        $repo=new InvoiceRepository($this->pdo); $credits=[]; $sales=[];
+        $this->pdo->exec('UPDATE product_variants SET stock_unlimited=1 WHERE id='.(int)$this->variant['id']);
+        for($i=0;$i<12;$i++) {
+            $order=$this->order(1);
+            if($i===0) { $repo->update('orders',['first_name'=>'Ștefania'],['id'=>$order]); }
+            $sale=$this->service->issue($order,['request_key'=>'semantic-sale-'.$i],$this->actor); $sales[]=$sale;
+            $credits[]=$this->service->credit($sale['id'],['request_key'=>'semantic-credit-'.$i,'version'=>1,'reason'=>'Retur','quantities'=>[$sale['lines'][0]['id']=>1],'notify_customer'=>'0'],$this->actor);
+        }
+        $first=$credits[0]; $line=$first['lines'][0]['id'];
+        $this->service->receive($first['id'],['request_key'=>'semantic-receipt','version'=>1,'received'=>[$line=>1],'restock'=>[$line=>1]],$this->actor);
+        $repo->update('invoices',['fiscal_state'=>'accepted','fiscal_reference'=>'QA-ANAF-321','email_state'=>'sent'],['id'=>$first['id']]);
+        // Return corrections belong to the same semantic return family.
+        $repo->update('invoices',['kind'=>'correction_negative'],['id'=>$credits[11]['id']]);
+        $before=[$repo->all('invoices'),$repo->all('outbox_messages'),$repo->all('invoice_fiscal_jobs'),$this->balance()];
+        foreach(['retururi'=>12,'retururi fara NIR'=>11,'retururi cu NIR'=>1,'retururi Pop'=>12,
+            'retururi Ștefania'=>1,'retururi netrimise în SPV'=>11,'trimise în SPV'=>1,
+            'acceptate de ANAF'=>1,'retururi trimise pe email'=>1,'retururi fara email'=>11,
+            'retururi ramburs'=>12,'retururi card'=>0,'facturi fara retururi'=>12,
+            'retururi client-inexistent'=>0,'"retururi"'=>0,'QA-ANAF-321'=>1] as $query=>$expected) {
+            self::assertSame($expected,$repo->registry(['cautare'=>$query])['total'],$query);
+        }
+        self::assertSame(0,$repo->registry(['cautare'=>'retururi','kind'=>'sale'])['total']);
+        self::assertSame(0,$repo->registry(['cautare'=>'acceptate de ANAF','fiscal_state'=>'rejected'])['total']);
+        $page=$repo->registry(['cautare'=>'retururi','per_page'=>10,'page'=>2]);
+        self::assertSame(12,$page['total']); self::assertCount(2,$page['items']); self::assertSame(11,$page['from']);
+        self::assertCount(12,$repo->registry(['cautare'=>'retururi','per_page'=>10,'page'=>2],true)['items']);
+        $_SESSION['user_id']=$this->actor['id']; $app=\App\AppFactory::create($this->root); $factory=new \Slim\Psr7\Factory\ServerRequestFactory();
+        $get=static fn(string $path,array $query=[])=>$app->handle($factory->createServerRequest('GET','http://localhost'.$path)->withQueryParams($query));
+        $response=$get('/admin/facturi/',['cautare'=>'retururi','per_page'=>10]); self::assertSame(200,$response->getStatusCode()); $html=(string)$response->getBody();
+        self::assertStringContainsString('Filtre din căutare',$html); self::assertStringContainsString('<strong>Facturi de retur</strong>',$html);
+        self::assertStringContainsString('cautare=retururi&amp;per_page=10&amp;page=2',$html);
+        $dom=new \DOMDocument(); @$dom->loadHTML('<?xml encoding="UTF-8">'.$html); $xpath=new \DOMXPath($dom);
+        self::assertSame(1,$xpath->query('//a[@aria-current="page" and text()="Retururi"]')->length);
+        $all=$xpath->query('//a[text()="Toate"]')->item(0); parse_str((string)parse_url($all->getAttribute('href'),PHP_URL_QUERY),$allQuery);
+        self::assertSame(24,$repo->registry($allQuery)['total']);
+        $query=['period'=>'all','format'=>'xlsx','keep_filters'=>'1','filters'=>['cautare'=>'retururi']];
+        $count=$get('/admin/facturi/export/rezumat/',$query); self::assertSame(12,json_decode((string)$count->getBody(),true)['count']);
+        $response=$get('/admin/facturi/export/descarca/',$query); self::assertSame(200,$response->getStatusCode());
+        $file=tempnam(sys_get_temp_dir(),'semantic-invoices-');
+        try {
+            file_put_contents($file,(string)$response->getBody()); $book=\PhpOffice\PhpSpreadsheet\IOFactory::load($file); $sheet=$book->getActiveSheet();
+            self::assertSame(17,$sheet->getHighestDataRow());
+            for($row=6;$row<=17;$row++) { self::assertLessThan(0,$sheet->getCell('P'.$row)->getValue()); }
+            $book->disconnectWorksheets();
+        } finally { @unlink($file); }
+        self::assertSame($before,[$repo->all('invoices'),$repo->all('outbox_messages'),$repo->all('invoice_fiscal_jobs'),$this->balance()]);
+        unset($_SESSION['user_id']); self::assertContains($get('/admin/facturi/',['cautare'=>'retururi'])->getStatusCode(),[302,303,401,403]);
+    }
+
     public function testRegisterRequiresConfirmedNirEvenForPreviouslyVerifiedReturn(): void
     {
         $repo=new InvoiceRepository($this->pdo);
