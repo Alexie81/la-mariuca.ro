@@ -284,7 +284,9 @@ final class AdminController
         $search = trim(mb_substr((string) ($query['cautare'] ?? ''), 0, 120));
         $file = null;
         try {
-            $file = $this->catalogExports->export($this->catalogAdmin->productsForAdminExport($search, $this->productFilters($query)));
+            $products=$this->catalogAdmin->productsForAdminExport($search, $this->productFilters($query));
+            if (\App\Shared\Http\ExportSummary::requested($request)) { return \App\Shared\Http\ExportSummary::response(count($products),count($products),1,'Produse'); }
+            $file = $this->catalogExports->export($products);
             $source = fopen($file['path'], 'rb');
             $buffer = tmpfile();
             if ($source === false || $buffer === false) {
@@ -295,7 +297,7 @@ final class AdminController
             rewind($buffer);
             $this->catalogExports->cleanup($file['path']);
             $file = null;
-            return (new Response())->withBody(new Stream($buffer))
+            return (new Response())->withBody(new Stream($buffer))->withHeader('Content-Length',(string)(fstat($buffer)['size'] ?? 0))
                 ->withHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
                 ->withHeader('Content-Disposition', 'attachment; filename="Catalog-produse-' . date('Y-m-d') . '.xlsx"')
                 ->withHeader('Cache-Control', 'private, no-store')

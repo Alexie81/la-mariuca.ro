@@ -98,13 +98,25 @@ final class InvoiceExportService
         finally { $book->disconnectWorksheets(); if(is_file($temporary)) { unlink($temporary); } }
         return $path;
     }
-    /** @param list<array<string,mixed>> $invoices */
-    public function registry(array $invoices): string
+    /** @param list<array<string,mixed>> $invoices @param array<string,mixed> $period */
+    public function registry(array $invoices, array $period=[]): string
     {
         $book=$this->workbook(); $sheet=$book->getActiveSheet()->setTitle('Registru facturi');
-        $sheet->mergeCells('A1:H3'); $sheet->setCellValue('A1','La Măriuca · Centralizator facturi');
-        $sheet->getStyle('A1:H3')->getFont()->setSize(22)->setBold(true)->getColor()->setRGB('60445C');
-        $sheet->mergeCells('A4:H4'); $this->text($sheet,'A4',count($invoices).' documente · Starea SPV și recepțiile la momentul exportului');
+        $sheet->mergeCells('A1:B3'); $this->logo($sheet,$this->asset('assets/images/logo-la-mariuca-transparent.png'));
+        foreach(['C1:H1','C2:H2','C3:H3','A4:H4'] as $range) { $sheet->mergeCells($range); }
+        $this->text($sheet,'C1','Centralizator facturi emise');
+        $this->text($sheet,'C2','LA MĂRIUCA BOUTIQUE');
+        $from=empty($period['from'])?'Început':(new DateTimeImmutable((string)$period['from']))->format('d.m.Y');
+        $to=empty($period['to'])?'Prezent':(new DateTimeImmutable((string)$period['to']))->format('d.m.Y');
+        $this->text($sheet,'C3',empty($period['from'])&&empty($period['to'])?'Toată perioada · după data emiterii':'Data emiterii: '.$from.' — '.$to);
+        $this->text($sheet,'A4','Generat la '.(new DateTimeImmutable('now',new DateTimeZone('Europe/Bucharest')))->format('d.m.Y, H:i').' · SPV și recepții la momentul exportului');
+        $sheet->getStyle('C1:H1')->getFont()->setSize(24)->setBold(true)->getColor()->setRGB('60445C');
+        $sheet->getStyle('C2:H2')->getFont()->setSize(11)->setBold(true)->getColor()->setRGB('A34E72');
+        $sheet->getStyle('C3:H3')->getFont()->getColor()->setRGB('827087');
+        $sheet->getStyle('A4:H4')->getFont()->setSize(10)->getColor()->setRGB('827087');
+        $sheet->getStyle('A1:H4')->getAlignment()->setVertical('center')->setIndent(1);
+        foreach([1=>32,2=>24,3=>24,4=>28] as $r=>$height) { $sheet->getRowDimension($r)->setRowHeight($height); }
+        $sheet->getTabColor()->setRGB('75485F'); $sheet->getSheetView()->setZoomScale(85); $sheet->setSelectedCell('A1');
         $headers=['Factură','Stare SPV','Tip','Emisă la','Scadență','Comandă','Client','Tip client','CUI client','Email client','Telefon','Adresă facturare','Monedă','Fără TVA','TVA','Total','Reducere','Încasat','Rest de plată','Metodă plată','Stare plată','Stare email','Referință ANAF','Document original','Motiv','Note','Articole','Cantități','SKU','Furnizor legal','CUI emitent','Sediu emitent','Bancă','IBAN','TVA emitent','Creat de','Versiune','Primire retur','NIR de retur','Data recepției','Mediu SPV'];
         $last=\PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(count($headers));
         $sheet->fromArray($headers,null,'A5'); $this->header($sheet,'A5:'.$last.'5'); $sheet->getRowDimension(5)->setRowHeight(32); $row=6;
@@ -121,15 +133,41 @@ final class InvoiceExportService
             foreach($values as $column=>$value) {
                 $cell=\PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($column+1).$row;
                 if($column>=13 && $column<=18) { $sheet->setCellValue($cell,$value); $sheet->getStyle($cell)->getNumberFormat()->setFormatCode('#,##0.00'); }
-                else { $this->text($sheet,$cell,(string)$value); }
+                elseif(in_array($column,[3,4],true)) {
+                    $date=new DateTimeImmutable($column===3?$invoice['issued_at']:$invoice['due_date'],new DateTimeZone('UTC'));
+                    if($column===3) { $date=$date->setTimezone(new DateTimeZone('Europe/Bucharest')); }
+                    $sheet->setCellValue($cell,\PhpOffice\PhpSpreadsheet\Shared\Date::PHPToExcel($date));
+                    $sheet->getStyle($cell)->getNumberFormat()->setFormatCode($column===3?'dd.mm.yyyy hh:mm':'dd.mm.yyyy');
+                } else { $this->text($sheet,$cell,(string)$value); }
             }
             $sheet->getStyle('A'.$row.':'.$last.$row)->getFill()->setFillType('solid')->getStartColor()->setRGB($row%2?'FBF5F8':'FFFFFF');
             $sheet->getStyle('B'.$row)->getFont()->setBold(true)->getColor()->setRGB(match($fiscal['tone']) {'green'=>'26846D','rose'=>'B94D6E','gold'=>'947036',default=>'62465E'});
-            $sheet->getRowDimension($row)->setRowHeight(36); $row++;
+            $sheet->getStyle('A'.$row)->getFont()->setBold(true)->getColor()->setRGB('75485F');
+            $sheet->getStyle('P'.$row)->getFill()->setFillType('solid')->getStartColor()->setRGB('F4EDF2');
+            $sheet->getStyle('P'.$row)->getFont()->setBold(true)->getColor()->setRGB('75485F');
+            $sheet->getStyle('A'.$row.':'.$last.$row)->getBorders()->getBottom()->setBorderStyle('hair')->getColor()->setRGB('E8DFE6');
+            $sheet->getRowDimension($row)->setRowHeight(54); $row++;
         }
         foreach($headers as $index=>$label) { $sheet->getColumnDimension(\PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($index+1))->setWidth(in_array($label,['Client','Email client','Adresă facturare','Motiv','Note','Articole'],true)?35:($label==='Stare SPV'?27:18)); }
         $sheet->getStyle('A5:'.$last.max(5,$row-1))->getAlignment()->setVertical('center')->setWrapText(true);
         $sheet->freezePane('C6')->setAutoFilter('A5:'.$last.max(5,$row-1)); $sheet->getPageSetup()->setRowsToRepeatAtTopByStartAndEnd(5,5)->setFitToWidth(4);
+        $sheet->getColumnDimension('D')->setWidth(23);
+        $sheet->getRowDimension(5)->setRowHeight(46);
+        foreach(['A5:F5'=>'75485F','G5:L5'=>'8C6277','M5:S5'=>'507C75','T5:AC5'=>'81718D','AD5:AK5'=>'75485F','AL5:AO5'=>'737686'] as $range=>$color) { $sheet->getStyle($range)->getFill()->getStartColor()->setRGB($color); }
+        $end=max(6,$row-1); $currencies=array_unique(array_column($invoices,'currency'));
+        $cards=[
+            ['I1:L1','I2:L3','DOCUMENTE',$invoices?'=SUBTOTAL(103,A6:A'.$end.')':0,'0','F4EDF2','75485F'],
+            ['M1:P1','M2:P3','TOTAL CU RETURURI',count($currencies)>1?'Monede multiple':($invoices?'=SUBTOTAL(109,P6:P'.$end.')':0),'#,##0.00" '.($currencies[0]??'RON').'"','75485F','FFFFFF'],
+            ['Q1:T1','Q2:T3','FACTURI DE RETUR',count(array_filter($invoices,static fn(array $i):bool=>in_array($i['kind'],['return','correction_negative'],true))),'0','FCEEF3','A34E72'],
+            ['U1:X1','U2:X3','POZIȚII',array_sum(array_map(static fn(array $i):int=>count($i['lines']),$invoices)),'0','EAF5F0','347C68'],
+        ];
+        foreach($cards as [$labelRange,$valueRange,$label,$value,$format,$background,$foreground]) {
+            $sheet->mergeCells($labelRange)->mergeCells($valueRange); $labelCell=explode(':',$labelRange)[0]; $valueCell=explode(':',$valueRange)[0];
+            $this->text($sheet,$labelCell,$label); $sheet->setCellValue($valueCell,$value); $sheet->getStyle($valueCell)->getNumberFormat()->setFormatCode($format);
+            foreach([$labelRange,$valueRange] as $range) { $sheet->getStyle($range)->applyFromArray(['fill'=>['fillType'=>'solid','startColor'=>['rgb'=>$background]],'font'=>['bold'=>true,'color'=>['rgb'=>$foreground]],'alignment'=>['horizontal'=>'center','vertical'=>'center']]); }
+            $sheet->getStyle($labelRange)->getFont()->setSize(10); $sheet->getStyle($valueRange)->getFont()->setSize(20);
+        }
+        $sheet->getPageSetup()->setPaperSize(8)->setPrintArea('A1:'.$last.$end)->setColumnsToRepeatAtLeftByStartAndEnd('A','B');
         $path=$this->temporary('Registru-facturi','xlsx');
         try { (new Xlsx($book))->save($path); } finally { $book->disconnectWorksheets(); }
         return $path;
@@ -143,14 +181,14 @@ final class InvoiceExportService
         if(file_put_contents($path,(new SpvInvoiceXml())->build($invoice,false),LOCK_EX)===false) { throw new InvoiceException('XML-ul facturii nu a putut fi pregătit.'); }
         return $path;
     }
-    /** @param list<array<string,mixed>> $invoices */
-    public function zip(array $invoices,bool $registry=true): string
+    /** @param list<array<string,mixed>> $invoices @param array<string,mixed> $period */
+    public function zip(array $invoices,bool $registry=true,array $period=[]): string
     {
         if(!class_exists(\ZipArchive::class)) { throw new InvoiceException('Extensia PHP ZIP trebuie activată pe server.'); }
         $path=$this->temporary('Facturi','zip'); $zip=new \ZipArchive(); if($zip->open($path,\ZipArchive::CREATE|\ZipArchive::OVERWRITE)!==true) { throw new InvoiceException('Dosarul ZIP nu poate fi creat.'); }
         $registryPath=null;
         try {
-            if($registry) { $registryPath=$this->registry($invoices); $zip->addFile($registryPath,'Registru-facturi.xlsx'); }
+            if($registry) { $registryPath=$this->registry($invoices,$period); $zip->addFile($registryPath,'Registru-facturi.xlsx'); }
             foreach($invoices as $invoice) { $name=$this->filename($invoice); $prefix=$registry?(preg_replace('/[^a-zA-Z0-9 _-]/','-',$invoice['series_code']) ?: 'LM').'-'.(int)$invoice['number'].'/':''; $zip->addFile($this->pdf($invoice),$prefix.$name.'.pdf'); $zip->addFile($this->xlsx($invoice),$prefix.$name.'.xlsx'); $zip->addFile($this->xml($invoice),$prefix.$name.'.xml'); }
             if(!$zip->close()) { throw new InvoiceException('Dosarul ZIP nu a putut fi finalizat.'); }
         } finally { if($registryPath && is_file($registryPath)) { unlink($registryPath); } }

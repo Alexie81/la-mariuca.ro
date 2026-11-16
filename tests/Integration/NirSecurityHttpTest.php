@@ -425,6 +425,22 @@ final class NirSecurityHttpTest extends DatabaseTestCase
         return $response;
     }
 
+    public function testExportSummaryCountsDocumentsWithoutGeneratingFilesAndRequiresPermission(): void
+    {
+        [$draft]=$this->draft('EXPORT-SUMMARY');
+        $document=$this->service()->confirm((int)$draft['id'],(int)$draft['row_version'],'export-summary-confirm',true,$this->actor());
+        $before=$this->pdo->query('SELECT * FROM nir_stock_movements')->fetchAll();
+        $files=glob($this->root.'/storage/private/nir-exports/*') ?: [];
+        $url='/admin/nir-uri/'.$document['id'].'/export/zip/?export_info=1';
+        $response=$this->request('GET',$url,[],true);
+        self::assertSame(200,$response->getStatusCode());
+        self::assertSame(['documents'=>1,'positions'=>count($document['lines']),'files'=>2+count($document['attachments']),'label'=>'NIR-uri'],json_decode((string)$response->getBody(),true)['export']);
+        self::assertSame($files,glob($this->root.'/storage/private/nir-exports/*') ?: []);
+        self::assertSame($before,$this->pdo->query('SELECT * FROM nir_stock_movements')->fetchAll());
+        unset($_SESSION['user_id']);
+        self::assertContains($this->request('GET',$url,[],true)->getStatusCode(),[302,303,401,403]);
+    }
+
     private function html(string $html): \DOMXPath
     {
         $previous = libxml_use_internal_errors(true);

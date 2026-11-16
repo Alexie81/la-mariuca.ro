@@ -7,14 +7,16 @@ const deferred=()=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve
 
 function fixture(){
   const elements={};
-  for(const key of ['title','copy','cancel','retry','progress','bar','amount'])elements[key]={hidden:false,listeners:{},addEventListener(type,fn){this.listeners[type]=fn;}};
+  for(const key of ['title','copy','cancel','retry','progress','bar','amount','stats','stage','documents','positions','files','label'])elements[key]={hidden:false,listeners:{},removeAttribute(name){delete this[name];},addEventListener(type,fn){this.listeners[type]=fn;}};
+  elements.stats.querySelector=selector=>elements[selector.replace('[data-export-','').replace(']','')];
   const selectors={'[data-export-title]':'title','[data-export-copy]':'copy','[data-export-cancel]':'cancel','[data-export-retry]':'retry','[data-transfer-progress]':'progress','[data-transfer-bar]':'bar','[data-transfer-amount]':'amount'};
+  selectors['[data-export-stats]']='stats';selectors['[data-export-stage]']='stage';
   const classes=new Set(),timers=new Map(),requests=[],downloads=[],notifications=[],revoked=[];
   let nextTimer=0,opened=0,focusCount=0;
   const dialog={open:false,listeners:{},classList:{add:v=>classes.add(v),remove:v=>classes.delete(v)},querySelector:s=>elements[selectors[s]],showModal(){this.open=true;opened++;},close(){this.open=false;},addEventListener(type,fn){this.listeners[type]=fn;}};
   const trigger={isConnected:true,attrs:{},setAttribute(k,v){this.attrs[k]=v;},removeAttribute(k){delete this.attrs[k];},focus(){focusCount++;}};
   class TestURL extends URL {static createObjectURL(){return 'blob:local-test';}static revokeObjectURL(url){revoked.push(url);}}
-  const context=vm.createContext({URL:TestURL,AbortController,location:{href:'http://localhost/admin/nir-uri/'},FormData:class{constructor(form){return form.data;}},
+  const context=vm.createContext({URL:TestURL,AbortController,Blob,location:{href:'http://localhost/admin/nir-uri/'},FormData:class{constructor(form){return form.data;}},
     CustomEvent:class{constructor(type,options){this.type=type;this.detail=options.detail;}},
     setTimeout(fn,delay){const id=++nextTimer;timers.set(id,{fn,delay});return id;},clearTimeout:id=>timers.delete(id),
     document:{querySelector:()=>dialog,body:{append(){}},createElement(){return {click(){downloads.push({href:this.href,name:this.download});},remove(){}};},dispatchEvent:event=>notifications.push(event)},
@@ -50,10 +52,34 @@ test('cancel aborts the request and repeated clicks do not start duplicate downl
   const f=fixture(),pending=f.download('/zip',f.trigger);await f.download('/zip',f.trigger);assert.equal(f.requests.length,1);f.tick(300);
   f.elements.cancel.listeners.click();await pending;assert.equal(f.requests[0].options.signal.aborted,true);assert.equal(f.dialog.open,false);assert.equal(f.downloads.length,0);assert.equal(f.trigger.attrs['aria-busy'],undefined);
 });
-test('registry export keeps the selected format and date filters',async()=>{
+test('registry export checks counts and keeps the selected format and date filters',async()=>{
   const f=fixture(),pending=f.fromForm({action:'/admin/nir-uri/export/',data:new Map([['format','zip'],['period','custom'],['from','2026-11-01'],['to','2026-11-12']]),querySelector:()=>f.trigger});
   const url=new URL(f.requests[0].url);assert.equal(url.searchParams.get('format'),'zip');assert.equal(url.searchParams.get('from'),'2026-11-01');assert.equal(url.searchParams.get('to'),'2026-11-12');
-  f.requests[0].resolve(response());await pending;
+  assert.equal(url.searchParams.get('export_info'),'1');
+  f.requests[0].resolve(response({type:'application/json',json:{ok:true,export:{documents:8,positions:13,files:25,label:'NIR-uri'}}}));
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(f.elements.documents.textContent,'8');assert.equal(f.elements.positions.textContent,'13');assert.equal(f.elements.files.textContent,'25');
+  assert.equal(f.elements.stage.textContent,'02 · Generăm fișierele');assert.equal(f.elements.bar.value,undefined);
+  assert.equal(new URL(f.requests[1].url).searchParams.has('export_info'),false);
+  f.requests[1].resolve(response());await pending;
+});
+
+test('cancel during selection does not start document generation',async()=>{
+  const f=fixture(),pending=f.download('/admin/facturi/1/zip/',f.trigger);f.elements.cancel.listeners.click();
+  assert.equal(await pending,false);assert.equal(f.requests.length,1);assert.equal(f.downloads.length,0);
+});
+
+test('external links never forward an authenticated export request',async()=>{
+  const f=fixture();assert.equal(await f.download('https://example.test/export',f.trigger),false);assert.equal(f.requests.length,0);
+});
+
+test('transfer percentage is based on actual received bytes',async()=>{
+  const f=fixture(),step=deferred(),pending=f.download('/export/zip',f.trigger);let read=0;
+  const result=response();result.headers.get=key=>({'Content-Type':'application/zip','Content-Disposition':'attachment; filename="test.zip"','Content-Length':'8'}[key]);
+  result.body={getReader:()=>({read:async()=>++read===1?{done:false,value:new Uint8Array(4)}:read===2?step.promise:{done:true}})};
+  f.requests[0].resolve(result);await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(f.elements.bar.value,50);assert.equal(f.downloads.length,0);
+  step.resolve({done:false,value:new Uint8Array(4)});assert.equal(await pending,true);assert.equal(f.elements.bar.value,100);assert.equal(f.downloads.length,1);
 });
 test('empty files are reported as errors and unsafe filename separators are removed',async()=>{
   const f=fixture(),pending=f.download('/export',f.trigger);f.requests[0].resolve(response({body:Promise.resolve(new Blob([]))}));await pending;assert.equal(f.downloads.length,0);assert.match(f.elements.copy.textContent,/gol/);

@@ -45,7 +45,7 @@
       </p>
     </div>
     <div class="admin-products-hero__actions">
-      <a class="admin-products-export" href="{{ url('admin/produse/export/xlsx/' ~ (export_query ? '?' ~ export_query : '')) }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M8 11l4 4 4-4M5 19h14"/></svg><span>Exportă Excel</span></a>
+      <a class="admin-products-export" data-admin-export href="{{ url('admin/produse/export/xlsx/' ~ (export_query ? '?' ~ export_query : '')) }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M8 11l4 4 4-4M5 19h14"/></svg><span>Exportă Excel</span></a>
       <a class="admin-products-add" href="{{ url('admin/produse/nou/') }}" data-admin-product-editor-trigger data-modal-url="{{ url('admin/produse/nou/modal/') }}">
         <span>Adaugă produs</span>
         <i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></i>

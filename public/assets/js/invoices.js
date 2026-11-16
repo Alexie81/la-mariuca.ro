@@ -12,6 +12,7 @@
   const endLoader=()=>{clearTimeout(timer);if(loader?.open)loader.close();};
   const copy=async text=>{try{await navigator.clipboard.writeText(text);toast('Copiat cu succes');}catch{toast('Copierea nu este disponibilă. Selectează textul pentru copiere.');}};
   const downloadFile=async(url,trigger,form=null)=>{
+    if(window.AdminExports){if(busy)return false;busy=true;try{return await window.AdminExports.download(url,trigger);}finally{busy=false;}}
     if(busy)return false;busy=true;trigger.setAttribute('aria-busy','true');if(trigger.tagName==='BUTTON')trigger.disabled=true;startLoader();
     try{
       const response=await fetch(url,{credentials:'same-origin',headers:{Accept:'application/json, application/pdf, application/zip, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}});

@@ -1,11 +1,13 @@
 <dialog class="nir-export-loader" data-nir-export-loader aria-labelledby="nir-export-title" aria-describedby="nir-export-copy">
  <div class="nir-export-orbit" aria-hidden="true">
   <svg viewBox="0 0 112 112"><circle class="nir-export-orbit__track" cx="56" cy="56" r="51"/><circle class="nir-export-orbit__arc" cx="56" cy="56" r="51"/></svg>
-  <img src="{{ url('assets/images/favicon-lm-192.png') }}" width="74" height="74" alt="">
+  <img src="{{ url('assets/images/logo-la-mariuca-transparent.png') }}" width="130" height="78" alt="La Măriuca Boutique">
  </div>
- <span class="nir-export-loader__eyebrow">La Măriuca · Documentele tale</span>
+ <span class="nir-export-loader__eyebrow">Export în curs · La Măriuca Boutique</span>
  <h2 id="nir-export-title" data-export-title>Pregătim fișierul tău</h2>
  <p id="nir-export-copy" data-export-copy role="status" aria-live="polite">Un moment, aranjăm documentele pentru descărcare.</p>
- <div class="nir-transfer-progress" data-transfer-progress hidden><progress data-transfer-bar max="100" value="0" aria-label="Progresul încărcării"></progress><span data-transfer-amount>0%</span></div>
+ <div class="nir-export-stats" data-export-stats hidden><div><strong data-export-documents>—</strong><span data-export-label>Documente</span></div><div><strong data-export-positions>—</strong><span>Poziții</span></div><div><strong data-export-files>—</strong><span>Fișiere</span></div></div>
+ <div class="nir-transfer-progress" data-transfer-progress hidden><div class="nir-transfer-status"><span data-export-stage>Verificăm selecția</span><span data-transfer-amount>În pregătire</span></div><progress data-transfer-bar max="100" aria-label="Progresul transferului"></progress></div>
+ <small class="nir-export-loader__hint">Păstrează această pagină deschisă. Descărcarea pornește automat când fișierul este gata.</small>
  <div class="nir-export-loader__actions"><button type="button" data-export-cancel>Anulează</button><button type="button" data-export-retry hidden>Reîncearcă</button></div>
 </dialog>

@@ -927,6 +927,10 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         self::assertStringContainsString('name="from" value="2026-10-31"',(string)$toOnly->getBody());
         self::assertSame(200,$get('/admin/facturi/export/',['from'=>'2026-11-01','to'=>''],['X-Invoice-Modal'=>'1'])->getStatusCode());
         $query=['period'=>'custom','format'=>'xlsx','from'=>'2026-11-01','to'=>'2026-11-30','page'=>'2','per_page'=>'1'];
+        $metadata=$get('/admin/facturi/export/descarca/',array_replace($query,['format'=>'zip','export_info'=>'1']));
+        self::assertSame(200,$metadata->getStatusCode());
+        self::assertSame(['documents'=>2,'positions'=>count($sale['lines'])+count($credit['lines']),'files'=>7,'label'=>'Facturi'],json_decode((string)$metadata->getBody(),true)['export']);
+        self::assertFalse($metadata->hasHeader('Content-Disposition'));
         $preview=$get('/admin/facturi/export/rezumat/',$query,['Accept'=>'application/json']); self::assertSame(2,json_decode((string)$preview->getBody(),true)['count']);
         $filtered=$get('/admin/facturi/export/rezumat/',$query+['keep_filters'=>'1','filters'=>['kind'=>'return']],['Accept'=>'application/json']); self::assertSame(1,json_decode((string)$filtered->getBody(),true)['count']);
         $bad=$get('/admin/facturi/export/descarca/',array_replace($query,['from'=>'2026-12-01']),['Accept'=>'application/json']); self::assertSame(422,$bad->getStatusCode());
@@ -936,6 +940,12 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
             $response=$get('/admin/facturi/export/descarca/',$query); self::assertSame(200,$response->getStatusCode()); self::assertStringContainsString('attachment;',$response->getHeaderLine('Content-Disposition')); file_put_contents($file,(string)$response->getBody());
             $book=\PhpOffice\PhpSpreadsheet\IOFactory::load($file); $sheet=$book->getActiveSheet();
             self::assertSame('Stare SPV',$sheet->getCell('B5')->getValue()); self::assertSame('Acceptată de ANAF',$sheet->getCell('B7')->getValue());
+            self::assertSame('Centralizator facturi emise',$sheet->getCell('C1')->getValue());
+            self::assertSame('Data emiterii: 01.11.2026 — 30.11.2026',$sheet->getCell('C3')->getValue());
+            self::assertEquals(2,$sheet->getCell('I2')->getCalculatedValue());
+            self::assertEquals(($sale['gross_bani']+$credit['gross_bani'])/100,$sheet->getCell('M2')->getCalculatedValue());
+            self::assertSame('n',$sheet->getCell('D7')->getDataType()); self::assertSame('01.11.2026 00:00',$sheet->getCell('D7')->getFormattedValue());
+            self::assertCount(1,$sheet->getDrawingCollection());
             self::assertSame($credit['display_number'],$sheet->getCell('A6')->getValue()); self::assertSame($sale['display_number'],$sheet->getCell('A7')->getValue()); self::assertSame(7,$sheet->getHighestDataRow());
             self::assertSame('n',$sheet->getCell('P6')->getDataType()); self::assertEquals($credit['gross_bani']/100,$sheet->getCell('P6')->getValue());
             self::assertSame('s',$sheet->getCell('W7')->getDataType()); self::assertSame('=1+1',$sheet->getCell('W7')->getValue()); self::assertSame('s',$sheet->getCell('Z7')->getDataType());

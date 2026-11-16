@@ -72,7 +72,7 @@ final class DispatchNoteController
         try {
             $note=$this->service->publicNote($args['token']);$path=$this->service->publicPdf($args['token']);$handle=fopen($path,'rb');
             if($handle===false) { throw new InvoiceException('Avizul nu este disponibil.',404); }
-            return (new Response())->withBody(new Stream($handle))->withHeader('Content-Type','application/pdf')->withHeader('Content-Disposition',(($request->getQueryParams()['view']??'')==='1'?'inline':'attachment').'; filename="Aviz-'.$note['series_code'].'-'.$note['number'].'.pdf"')->withHeader('Cache-Control','private, no-store')->withHeader('X-Content-Type-Options','nosniff')->withHeader('X-Robots-Tag','noindex, nofollow')->withHeader('Referrer-Policy','no-referrer');
+            return (new Response())->withBody(new Stream($handle))->withHeader('Content-Length',(string)(fstat($handle)['size'] ?? 0))->withHeader('Content-Type','application/pdf')->withHeader('Content-Disposition',(($request->getQueryParams()['view']??'')==='1'?'inline':'attachment').'; filename="Aviz-'.$note['series_code'].'-'.$note['number'].'.pdf"')->withHeader('Cache-Control','private, no-store')->withHeader('X-Content-Type-Options','nosniff')->withHeader('X-Robots-Tag','noindex, nofollow')->withHeader('Referrer-Policy','no-referrer');
         } catch(\Throwable) { $result=new Response(404);$result->getBody()->write('Linkul avizului nu mai este disponibil. Contactează magazinul pentru o copie.');return $result->withHeader('Content-Type','text/plain; charset=utf-8')->withHeader('Cache-Control','no-store'); }
     }
 
@@ -131,8 +131,10 @@ final class DispatchNoteController
     public function pdf(ServerRequestInterface $request,ResponseInterface $response,array $args): ResponseInterface
     {
         try {
-            $id=(int)$args['id']; $note=$this->service->forOrder($id,$this->actor())??throw new InvoiceException('Avizul nu există.',404); $path=$this->service->pdf($id,$this->actor()); $handle=fopen($path,'rb'); if($handle===false){throw new InvoiceException('PDF-ul avizului nu poate fi deschis.');}
-            $inline=($request->getQueryParams()['deschide']??'')==='1'; return (new Response())->withBody(new Stream($handle))->withHeader('Content-Type','application/pdf')->withHeader('Content-Disposition',($inline?'inline':'attachment').'; filename="Aviz-'.$note['series_code'].'-'.$note['number'].'.pdf"')->withHeader('Cache-Control','private, no-store')->withHeader('X-Content-Type-Options','nosniff')->withHeader('X-Robots-Tag','noindex, nofollow');
+            $id=(int)$args['id']; $note=$this->service->forOrder($id,$this->actor())??throw new InvoiceException('Avizul nu există.',404);
+            if (\App\Shared\Http\ExportSummary::requested($request)) { return \App\Shared\Http\ExportSummary::response(1,count($note['snapshot']['lines'] ?? []),1,'Avize'); }
+            $path=$this->service->pdf($id,$this->actor()); $handle=fopen($path,'rb'); if($handle===false){throw new InvoiceException('PDF-ul avizului nu poate fi deschis.');}
+            $inline=($request->getQueryParams()['deschide']??'')==='1'; return (new Response())->withBody(new Stream($handle))->withHeader('Content-Length',(string)(fstat($handle)['size'] ?? 0))->withHeader('Content-Type','application/pdf')->withHeader('Content-Disposition',($inline?'inline':'attachment').'; filename="Aviz-'.$note['series_code'].'-'.$note['number'].'.pdf"')->withHeader('Cache-Control','private, no-store')->withHeader('X-Content-Type-Options','nosniff')->withHeader('X-Robots-Tag','noindex, nofollow');
         } catch(\Throwable $error) {
             $status=$error instanceof InvoiceException?$error->getCode():500; $result=new Response($status?:500); $result->getBody()->write($error instanceof InvoiceException?$error->getMessage():'Avizul nu a putut fi pregătit.'); return $result->withHeader('Content-Type','text/plain; charset=utf-8')->withHeader('Cache-Control','no-store');
         }

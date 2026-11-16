@@ -251,7 +251,7 @@ final class InvoiceController
         try {
             $this->service->allow($this->actor()); $selection=InvoiceExportSelection::resolve($request->getQueryParams());
             if($this->repository->registry($selection['filters'])['total']===0) { throw new InvoiceException('Nu există facturi pentru perioada și filtrele alese.'); }
-            return $this->export($request->withQueryParams($selection['filters']),new Response(),['format'=>$selection['format']]);
+            return $this->export($request->withQueryParams(array_replace($selection['filters'],['export_info'=>$request->getQueryParams()['export_info'] ?? ''])),new Response(),['format'=>$selection['format']]);
         } catch(\Throwable $e) { return $this->failure($request,$e); }
     }
     /** @param array<string,string> $args */
@@ -261,9 +261,11 @@ final class InvoiceController
             $this->service->allow($this->actor()); $format=$args['format']; $registry=!isset($args['id']);
             if($registry) {
                 $rows=$this->repository->registry($request->getQueryParams(),true)['items']; $invoices=array_map(fn(array $row):array=>$this->service->load((int)$row['id']),$rows);
-                $path=match($format) {'xlsx'=>$this->exports->registry($invoices),'zip'=>$this->exports->zip($invoices),default=>throw new InvoiceException('Format necunoscut.',404)}; $name='Registru-facturi-'.(new \DateTimeImmutable('now',new \DateTimeZone('Europe/Bucharest')))->format('Y-m-d').'.'.$format;
+                if(\App\Shared\Http\ExportSummary::requested($request)) { return \App\Shared\Http\ExportSummary::response(count($invoices),array_sum(array_map(static fn(array $invoice):int=>count($invoice['lines']),$invoices)),$format==='zip'?1+3*count($invoices):1,'Facturi'); }
+                $path=match($format) {'xlsx'=>$this->exports->registry($invoices,$request->getQueryParams()),'zip'=>$this->exports->zip($invoices,true,$request->getQueryParams()),default=>throw new InvoiceException('Format necunoscut.',404)}; $name='Registru-facturi-'.(new \DateTimeImmutable('now',new \DateTimeZone('Europe/Bucharest')))->format('Y-m-d').'.'.$format;
             } else {
                 $invoice=$this->service->document((int)$args['id'],$this->actor());
+                if(\App\Shared\Http\ExportSummary::requested($request)) { return \App\Shared\Http\ExportSummary::response(1,count($invoice['lines']),$format==='zip'?3:1,'Facturi'); }
                 $path=match($format) {'pdf'=>$this->exports->pdf($invoice),'xlsx'=>$this->exports->xlsx($invoice),'xml'=>$this->exports->xml($invoice),'zip'=>$this->exports->zip([$invoice],false),default=>throw new InvoiceException('Format necunoscut.',404)};
                 $name=$this->exports->filename($invoice).'.'.$format;
             }
@@ -283,7 +285,7 @@ final class InvoiceController
     {
         $source=fopen($path,'rb'); $buffer=tmpfile(); if(!$source || !$buffer) { throw new InvoiceException('Documentul nu a putut fi pregătit.'); }
         stream_copy_to_stream($source,$buffer); fclose($source); rewind($buffer);
-        return (new Response())->withBody(new Stream($buffer))->withHeader('Content-Type',match($format){'pdf'=>'application/pdf','xml'=>'application/xml; charset=utf-8','zip'=>'application/zip',default=>'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'})
+        return (new Response())->withBody(new Stream($buffer))->withHeader('Content-Length',(string)(fstat($buffer)['size'] ?? 0))->withHeader('Content-Type',match($format){'pdf'=>'application/pdf','xml'=>'application/xml; charset=utf-8','zip'=>'application/zip',default=>'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'})
             ->withHeader('Content-Disposition',($inline ? 'inline' : 'attachment').'; filename="'.$name.'"')->withHeader('Cache-Control','private, no-store')->withHeader('X-Content-Type-Options','nosniff')->withHeader('X-Robots-Tag','noindex, nofollow')->withHeader('Referrer-Policy','no-referrer');
     }
     /** @return array<string,mixed> */

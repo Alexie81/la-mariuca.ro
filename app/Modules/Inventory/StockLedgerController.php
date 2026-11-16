@@ -75,10 +75,15 @@ final class StockLedgerController
     {
         try {
             $actor=$this->actor(); $this->service->allow($actor,true); $company=$this->repository->companyProfile();
-            $file=isset($args['id'])?$this->exports->product($this->service->detail((int)$args['id'],array_replace($this->service->period($request->getQueryParams()),['documented_only'=>true]),$actor),$company):$this->exports->accounting($this->service->accountingReport($request->getQueryParams(),$actor),$company);
+            $report=isset($args['id'])?$this->service->detail((int)$args['id'],array_replace($this->service->period($request->getQueryParams()),['documented_only'=>true]),$actor):$this->service->accountingReport($request->getQueryParams(),$actor);
+            if(\App\Shared\Http\ExportSummary::requested($request)) {
+                $details=isset($args['id'])?[$report]:$report['details'];
+                return \App\Shared\Http\ExportSummary::response(count($details),array_sum(array_map(static fn(array $detail):int=>count($detail['movements']),$details)),1,'Produse');
+            }
+            $file=isset($args['id'])?$this->exports->product($report,$company):$this->exports->accounting($report,$company);
             $source=fopen($file['path'],'rb'); $buffer=tmpfile(); if(!$source||!$buffer) { throw new InvoiceException('Exportul nu a putut fi deschis.'); }
             stream_copy_to_stream($source,$buffer); fclose($source); rewind($buffer); $this->exports->cleanup($file['path']);
-            return (new Response())->withBody(new Stream($buffer))->withHeader('Content-Type','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')->withHeader('Content-Disposition','attachment; filename="'.$file['name'].'"')->withHeader('Cache-Control','private, no-store')->withHeader('X-Content-Type-Options','nosniff');
+            return (new Response())->withBody(new Stream($buffer))->withHeader('Content-Length',(string)(fstat($buffer)['size'] ?? 0))->withHeader('Content-Type','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')->withHeader('Content-Disposition','attachment; filename="'.$file['name'].'"')->withHeader('Cache-Control','private, no-store')->withHeader('X-Content-Type-Options','nosniff');
         } catch(\Throwable $e) { return $this->failure($e); }
     }
 

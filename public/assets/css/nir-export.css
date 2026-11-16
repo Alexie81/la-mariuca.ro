@@ -30,3 +30,28 @@
 @keyframes nir-export-appear{from{opacity:0;transform:translateY(8px) scale(.97)}to{opacity:1;transform:none}}
 @media(max-width:480px){.nir-export-loader{padding:27px 22px 20px;border-radius:24px}.nir-export-loader h2{font-size:22px}.nir-export-orbit{margin-bottom:20px}.nir-export-loader__eyebrow{font-size:10px}}
 @media(prefers-reduced-motion:reduce){.nir-export-loader[open],.nir-export-orbit>svg,.nir-export-orbit__arc{animation:none!important}.nir-export-orbit__arc{stroke-dasharray:190 320}}
+
+/* Shared document exports: plum/rose surfaces from the NIR workspace. */
+.nir-export-loader{width:min(580px,calc(100% - 32px));padding:30px 32px 22px;border:1px solid #d9c4d8;border-top:3px solid #a26389;background:radial-gradient(ellipse at 50% 0,#f2e3ef,transparent 58%),#fffdfd;box-shadow:0 28px 90px #3423393b}
+.nir-export-orbit{width:154px;height:154px;margin-bottom:18px}
+.nir-export-orbit>svg{width:154px;height:154px}
+.nir-export-orbit>img{width:130px;height:78px;object-fit:contain;border-radius:0;box-shadow:none}
+.nir-export-loader h2{font-size:27px;font-weight:700}
+.nir-export-loader p{max-width:450px;color:#837489}
+.nir-export-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:24px 0}
+.nir-export-stats>div{padding:14px 8px;border:1px solid #e6dbe8;border-radius:17px;background:#fff9}
+.nir-export-stats strong{display:block;font-size:24px;font-weight:700;line-height:1.3;color:#60445c;font-variant-numeric:tabular-nums}
+.nir-export-stats span{display:block;margin-top:6px;font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#8d778f}
+.nir-transfer-progress{max-width:none;margin-top:22px}
+.nir-transfer-status{display:flex;justify-content:space-between;gap:12px;text-align:left;margin-bottom:12px}
+.nir-transfer-status span{margin:0;font-size:12px;color:#806d88}
+.nir-transfer-status span:last-child{text-align:right;color:#995b83}
+.nir-transfer-progress progress{height:8px}
+.nir-transfer-progress progress:not([value]){background:linear-gradient(90deg,#ede2ec 10%,#b77da4 45%,#ede2ec 80%);background-size:240% 100%;animation:nir-export-wait 1.8s ease-in-out infinite}
+.nir-transfer-progress progress:not([value])::-webkit-progress-bar{background:transparent}
+.nir-export-loader__hint{display:block;margin:18px auto 0;max-width:450px;color:#96869b;font-size:11px;line-height:1.6}
+.nir-export-loader.has-error .nir-export-loader__hint{display:none}
+.nir-export-loader__actions{margin-top:16px}
+@keyframes nir-export-wait{to{background-position:-240% 0}}
+@media(max-width:480px){.nir-export-loader{padding:24px 18px 18px}.nir-export-orbit,.nir-export-orbit>svg{width:130px;height:130px}.nir-export-orbit>img{width:108px;height:66px}.nir-export-loader h2{font-size:23px}.nir-export-stats{gap:8px;margin:20px 0}.nir-export-stats strong{font-size:21px}.nir-export-stats span{font-size:9px}.nir-transfer-status span{font-size:11px}}
+@media(prefers-reduced-motion:reduce){.nir-transfer-progress progress:not([value]){animation:none}}

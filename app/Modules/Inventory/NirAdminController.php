@@ -436,9 +436,15 @@ final class NirAdminController
             $this->requirePermission('export');
             $costs = !empty($this->nirs->permissions($this->actor())['costs']);
             $filters=$this->exportFilters($request->getQueryParams());
+            $documents = isset($args['id']) ? [$this->nirs->document((int)$args['id'],$this->actor())] : $this->nirs->registryForExport($filters,$this->actor());
+            if (\App\Shared\Http\ExportSummary::requested($request)) {
+                $positions=0; $files=isset($args['id'])?0:1;
+                foreach($documents as $document) { $positions+=count($document['lines']); $files+=2+($costs?count($document['attachments']):1); }
+                return \App\Shared\Http\ExportSummary::response(count($documents),$positions,$args['format']==='zip'?$files:1,'NIR-uri');
+            }
             $result = isset($args['id'])
-                ? $this->exports->individual($this->nirs->document((int) $args['id'],$this->actor()), $args['format'], $costs)
-                : $this->exports->registry($this->nirs->registryForExport($filters,$this->actor()),$args['format'],$filters,$costs);
+                ? $this->exports->individual($documents[0], $args['format'], $costs)
+                : $this->exports->registry($documents,$args['format'],$filters,$costs);
             $inline = isset($args['id']) && $args['format'] === 'pdf' && ($request->getQueryParams()['view'] ?? '') === '1';
             return $this->file($result['path'],$result['filename'],$result['mime'],$inline);
         } catch (\Throwable $e) { return $this->failure($request,$e); }
@@ -660,7 +666,7 @@ final class NirAdminController
         $buffer=tmpfile();
         if ($buffer===false) { fclose($source); throw new \RuntimeException('Fișierul nu poate fi pregătit.'); }
         stream_copy_to_stream($source,$buffer); fclose($source); rewind($buffer);
-        $response=(new Response())->withBody(new \Slim\Psr7\Stream($buffer));
+        $response=(new Response())->withBody(new \Slim\Psr7\Stream($buffer))->withHeader('Content-Length',(string)(fstat($buffer)['size'] ?? 0));
         $safe=preg_replace('/[^A-Za-z0-9._-]/','_', $name) ?: 'document';
         return $response->withHeader('Content-Type',$mime)->withHeader('Content-Disposition',($inline?'inline':'attachment').'; filename="'.$safe.'"; filename*=UTF-8\'\''.rawurlencode($name))->withHeader('Cache-Control','private, no-store')->withHeader('X-Content-Type-Options','nosniff')->withHeader('X-Robots-Tag','noindex, nofollow')->withHeader('Referrer-Policy','no-referrer');
     }
