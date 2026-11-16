@@ -1,18 +1,18 @@
 <div class="iv-spv-actions">
   {% if spv.operation %}
+    <form action="{{ url('admin/spv-efactura/facturi/'~doc.id~'/'~spv.operation~'/') }}" method="post" data-spv-invoice-action data-spv-operation="{{ spv.operation }}" {% if spv.operation == 'verifica' and spv.connection.ready and spv.environment_allowed %}data-spv-poll{% endif %}>
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <button class="iv-btn iv-btn--primary" type="submit" {{ not spv.connection.ready or not spv.environment_allowed ? 'disabled' : '' }}>{{ n.icon('arrow') }}{{ {'trimite':'Trimite manual în SPV','verifica':'Verifică răspunsul ANAF','reia':'Reia trimiterea'}[spv.operation] }}</button>
+    </form>
+    {% if spv.environment == 'test' %}<small>Transmitere în mediul de test ANAF.</small>{% endif %}
     {% if not spv.connection.ready %}
       <p>{{ spv.connection.problem }}</p>
       <a class="iv-btn" href="{{ url('admin/spv-efactura/') }}">Configurează conexiunea ANAF {{ n.icon('arrow') }}</a>
     {% elseif not spv.environment_allowed %}
       <p>Transmiterea în producție este dezactivată pe acest server.</p>
-    {% else %}
-      <form action="{{ url('admin/spv-efactura/facturi/'~doc.id~'/'~spv.operation~'/') }}" method="post">
-        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-        <input type="hidden" name="return_to" value="invoice">
-        <button class="iv-btn iv-btn--primary">{{ n.icon('arrow') }}{{ {'trimite':(spv.environment == 'test' ? 'Trimite în test ANAF' : 'Trimite în SPV'),'verifica':'Verifică răspunsul ANAF','reia':'Reia trimiterea'}[spv.operation] }}</button>
-      </form>
     {% endif %}
   {% endif %}
+  <p data-spv-feedback role="status" aria-live="polite" hidden></p>
   {% if doc.fiscal_job.download_reference|default('') %}
     <a class="iv-btn" href="{{ url('admin/spv-efactura/facturi/'~doc.id~'/arhiva/') }}">{{ n.icon('download') }}Descarcă răspunsul ANAF</a>
   {% endif %}

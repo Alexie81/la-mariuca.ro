@@ -14,6 +14,13 @@ La revenirea la PC, începem în ordinea cerută explicit de utilizator la 2026-
 
 Lista este salvată pentru reluarea lucrului, fără pornirea implementării în această sesiune. Modificare numai de documentație; verificare prin diff, fără teste de aplicație necesare.
 
+### 2026-11-16 — SPV în fișa facturii, pagină de configurare simplificată
+- La cererea utilizatorului, eliminate **Facturi și răspunsuri ANAF** și **Calendar și alerte** din pagina SPV. Eliminată și interogarea duplicată a documentelor. Pagina rămâne pentru conectare, mediu și reguli; valorile de calendar deja configurate se păstrează la salvarea formularului simplificat.
+- Fiecare factură are butonul **Trimite manual în SPV**, starea și referința ANAF în propria fișă. Fără autorizare, butonul este dezactivat și motivul este afișat. Mediul de test rămâne etichetat. După trimitere, acțiunea devine verificarea răspunsului; după acceptare, rămân statusul, referința și arhiva disponibilă.
+- Panoul facturii se actualizează în pagină, fără pierderea celorlalte formulare deschise. Pentru documentele încărcate și aflate în verificare, răspunsul este verificat automat la 15 secunde cât timp pagina este vizibilă, cu interval mărit la erori. Se verifică numai starea; pagina nu emite și nu retrimite automat factura. Funcționează și fără JavaScript, cu revenire în fișa facturii și verificare manuală.
+- Răspunsurile de verificare întârziate nu suprascriu o acceptare deja salvată de alt tab/procesor și nu se aplică unei încărcări cu altă referință.
+- Verificări: **22 teste PHP / 202 aserțiuni**, **4 teste JavaScript** (trimitere o singură dată, verificare până la acceptare, oprire la respingere/rezultat incert, tab ascuns, eroare de rețea și sesiune expirată), PHPStan, lint și **193 șabloane Twig** compilate. Inspecție a capturilor primite și verificare HTML prin teste; fără a pretinde captură nouă din browserul intern. Trimiterea reală ANAF rămâne neverificată până la obținerea accesului; TODO-ul rămâne nebifat.
+
 ### 2026-11-16 — Diagnostic și remediere SPV, accesul ANAF încă lipsește
 - Diagnostic local read-only: `ANAF_CLIENT_ID` și `ANAF_CLIENT_SECRET` lipsesc, nu există autorizare/tokenuri salvate și coada era goală; cele două facturi active erau netrimise. Utilizatorul a confirmat explicit **„Nu am încă accesul ANAF”**. Nu s-a transmis nicio factură către ANAF și nu s-a activat producția.
 - Reparată intrarea manuală în flux: acțiuni din fișa facturii, inclusiv verificarea răspunsului și descărcarea arhivei; pagina SPV include și facturile fără job. Linkul din fișă selectează factura explicit, inclusiv dacă este mai veche decât cele 40 de documente recente. Interfața indică lipsa configurării/autorizării, expirarea și mediul de test.

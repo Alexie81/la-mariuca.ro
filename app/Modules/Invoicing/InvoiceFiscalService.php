@@ -56,7 +56,7 @@ final class InvoiceFiscalService
         $invoice=$this->invoices->load($id); if(!$invoice['fiscal_reference'] || $invoice['fiscal_state']!=='submitted') { return; }
         $result=$this->gateway->status($invoice['fiscal_reference']);
         if(!in_array($result['state'],['submitted','accepted','rejected'],true)) { throw new InvoiceException('Răspuns fiscal necunoscut.'); }
-        $this->record($id,$result['state'],$invoice['fiscal_reference'],$result['response']);
+        $this->record($id,$result['state'],$invoice['fiscal_reference'],$result['response'],true);
     }
     /** Only definite rejection/failure may be retried; the locked payload stays byte-identical. */
     public function retry(int $id,array $actor): void
@@ -78,9 +78,14 @@ final class InvoiceFiscalService
         return json_decode($job['response_json'] ?? '{}',true,512,JSON_THROW_ON_ERROR);
     }
     /** @param array<string,mixed> $response */
-    private function record(int $id,string $state,?string $reference,array $response): void
+    private function record(int $id,string $state,?string $reference,array $response,bool $poll=false): void
     {
-        $this->repository->transaction(function()use($id,$state,$reference,$response):void {
+        $this->repository->transaction(function()use($id,$state,$reference,$response,$poll):void {
+            if($poll) {
+                $current=$this->invoices->load($id);
+                // Another tab/worker may have completed this upload or started an explicit retry.
+                if($current['fiscal_state']!=='submitted' || $current['fiscal_reference']!==$reference) { return; }
+            }
             $this->repository->update('invoice_fiscal_jobs',['state'=>$state,'external_reference'=>$reference,'response_json'=>InvoiceSnapshot::json($response),'download_reference'=>$response['id_descarcare'] ?? null,'last_error'=>$response['message'] ?? null,'polled_at'=>$this->repository->now(),'available_at'=>$state==='transient_error' && $this->gateway instanceof AnafFiscalGateway?gmdate('Y-m-d\TH:i:s\Z',time()+120):null,'updated_at'=>$this->repository->now()],['invoice_id'=>$id]);
             $this->repository->update('invoices',['fiscal_state'=>$state,'fiscal_reference'=>$reference],['id'=>$id]);
             $this->audit($id,'fiscal_result',null,['state'=>$state,'reference'=>$reference,'response'=>$response]);

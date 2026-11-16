@@ -19,8 +19,7 @@ final class SpvController
         try { $this->settings->allow($this->actor()); }
         catch(InvoiceException $error) { return $this->forbidden($response,$error); }
         $notice=$_SESSION['spv_notice'] ?? null; unset($_SESSION['spv_notice']);
-        $selected=filter_var($request->getQueryParams()['factura'] ?? null,FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]) ?: null;
-        return $this->view->render('admin/pages/spv.twig',['admin_section'=>'spv_preview','admin_context'=>'SPV · RO e-Factura','settings'=>$this->settings->state(),'connection'=>$this->connection->state(),'jobs'=>$this->settings->jobs($selected),'selected_invoice'=>$selected,'notice'=>$notice,'callback'=>$this->connection->callback()])->withHeader('Cache-Control','no-store');
+        return $this->view->render('admin/pages/spv.twig',['admin_section'=>'spv_preview','admin_context'=>'SPV · RO e-Factura','settings'=>$this->settings->state(),'connection'=>$this->connection->state(),'notice'=>$notice,'callback'=>$this->connection->callback()])->withHeader('Cache-Control','no-store');
     }
     public function action(ServerRequestInterface $request,ResponseInterface $response,array $args): ResponseInterface
     {
@@ -55,7 +54,7 @@ final class SpvController
     }
     public function invoiceAction(ServerRequestInterface $request,ResponseInterface $response,array $args): ResponseInterface
     {
-        $id=(int)$args['id']; $input=(array)$request->getParsedBody();
+        $id=(int)$args['id'];
         try {
             $this->settings->allow($this->actor());
             $invoice=$this->invoices->load($id); $job=$this->repository->one('invoice_fiscal_jobs',['invoice_id'=>$id]);
@@ -82,12 +81,19 @@ final class SpvController
             if(in_array($state,['accepted','submitted'],true) && $environment==='test') { $text='Test ANAF: '.$text.' Documentul nu a fost transmis în producție.'; }
             $_SESSION['spv_notice']=['ok'=>in_array($state,['accepted','submitted'],true),'text'=>$text];
         } catch(\Throwable $error) { if($error instanceof InvoiceException && $error->getCode()===403) { return $this->forbidden($response,$error); } $this->error($error); }
-        if(($input['return_to'] ?? '')==='invoice') {
-            $notice=$_SESSION['spv_notice']; unset($_SESSION['spv_notice']);
-            Flash::set($notice['ok']?'success':'error',$notice['text']);
-            return $this->view->redirect($this->config->path('admin/facturi/'.$id.'/'));
+        $notice=$_SESSION['spv_notice']; unset($_SESSION['spv_notice']);
+        if(str_contains($request->getHeaderLine('Accept'),'application/json')) {
+            $html=null; $state=null;
+            try {
+                $document=$this->invoices->document($id,$this->actor()); $state=$document['fiscal_state'];
+                $spv=['connection'=>$this->connection->state()]+$this->settings->documentAction($document,$document['fiscal_job']);
+                $html=(string)$this->view->render('admin/invoices/fiscal-state.twig',['doc'=>$document,'spv'=>$spv,'can_manage_spv'=>true])->getBody();
+            } catch(InvoiceException) { /* A concurrently deleted document has no panel to refresh. */ }
+            $json=new Response(); $json->getBody()->write(InvoiceSnapshot::json(['ok'=>$notice['ok'],'message'=>$notice['text'],'state'=>$state,'html'=>$html]));
+            return $json->withHeader('Content-Type','application/json; charset=utf-8')->withHeader('Cache-Control','private, no-store');
         }
-        return $this->view->redirect($this->config->path('admin/spv-efactura/').'?factura='.$id.'#document-'.$id);
+        Flash::set($notice['ok']?'success':'error',$notice['text']);
+        return $this->view->redirect($this->config->path('admin/facturi/'.$id.'/'));
     }
     public function archive(ServerRequestInterface $request,ResponseInterface $response,array $args): ResponseInterface
     {

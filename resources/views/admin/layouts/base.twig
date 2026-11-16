@@ -29,7 +29,7 @@
   {% if admin_section|default('') == 'invoice_automations' %}<link rel="stylesheet" href="{{ url('assets/css/invoice-automations.css?v=20261113-1') }}">{% endif %}
   {% if admin_section|default('') == 'spv_preview' %}<link rel="stylesheet" href="{{ url('assets/css/spv-preview.css?v=20261115-1') }}">{% endif %}
   {% if admin_section|default('') == 'orders' %}<link rel="stylesheet" href="{{ url('assets/css/order-registry.css?v=20261115-2') }}">{% endif %}
-  {% if admin_section|default('') in ['invoices','orders'] %}<link rel="stylesheet" href="{{ url('assets/css/invoices.css?v=20261116-3') }}">{% endif %}
+  {% if admin_section|default('') in ['invoices','orders'] %}<link rel="stylesheet" href="{{ url('assets/css/invoices.css?v=20261116-4') }}">{% endif %}
   {% if admin_section|default('') == 'stock' %}<link rel="stylesheet" href="{{ url('assets/css/stock-ledger.css?v=20261115-2') }}"><link rel="stylesheet" href="{{ url('assets/css/nir-export.css?v=20261112-v2') }}">{% endif %}
   {% if product_detail_page|default(false) %}<link rel="stylesheet" href="{{ url('assets/css/product-detail.css?v=20261115-1') }}"><link rel="stylesheet" href="{{ url('assets/css/product-detail-responsive.css?v=20261115-1') }}">{% endif %}
   {% if admin_section|default('') == 'reviews' %}<link rel="stylesheet" href="{{ url('assets/css/review-admin.css?v=20261115-3') }}">{% endif %}
@@ -223,6 +223,7 @@
   {% if admin_section|default('') == 'invoice_automations' %}<script src="{{ url('assets/js/invoice-automations.js?v=20261113-1') }}" defer></script>{% endif %}
   {% if admin_section|default('') == 'spv_preview' %}<script src="{{ url('assets/js/spv.js?v=20261115-1') }}" defer></script>{% endif %}
 {% if admin_section|default('') in ['invoices','orders'] %}<script src="{{ url('assets/js/invoices.js?v=20261115-9') }}" defer></script>{% endif %}
+{% if admin_section|default('') == 'invoices' %}<script src="{{ url('assets/js/invoice-spv.js?v=20261116-1') }}" defer></script>{% endif %}
 {% if admin_section|default('') == 'stock' %}{% include 'admin/partials/stock-modals.twig' %}{% include 'admin/partials/nir-export-loader.twig' %}<script src="{{ url('assets/js/nir-export.js?v=20261112-v2') }}" defer></script><script src="{{ url('assets/js/stock-ledger.js?v=20261115-1') }}" defer></script>{% endif %}
 </body>
 </html>

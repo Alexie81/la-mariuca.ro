@@ -33,9 +33,9 @@ final class SpvSettingsService
             if(!in_array($mode,['manual','instant','scheduled'],true) || !preg_match('/^[1-5]$/D',$days)) { throw new InvoiceException('Alege regula și un interval între 1 și 5 zile lucrătoare.'); }
             $data[$type.'_mode']=$mode; $data[$type.'_days']=(int)$days;
         }
-        $deadline=(string)($input['deadline_days'] ?? '5'); if(!preg_match('/^[1-9]$|^1[0-5]$/D',$deadline)) { throw new InvoiceException('Termenul configurat trebuie să fie între 1 și 15 zile lucrătoare.'); }
+        $deadline=(string)($input['deadline_days'] ?? $current['deadline_days']); if(!preg_match('/^[1-9]$|^1[0-5]$/D',$deadline)) { throw new InvoiceException('Termenul configurat trebuie să fie între 1 și 15 zile lucrătoare.'); }
         $data['deadline_days']=(int)$deadline; $data['alerts']=($input['alerts'] ?? '')==='1'?1:0;
-        $holidays=array_values(array_unique(array_filter(array_map('trim',preg_split('/[\s,;]+/',(string)($input['holidays'] ?? '')) ?: []))));
+        $holidays=array_values(array_unique(array_filter(array_map('trim',preg_split('/[\s,;]+/',(string)($input['holidays'] ?? $current['holidays'])) ?: []))));
         if(count($holidays)>200) { throw new InvoiceException('Lista zilelor nelucrătoare este prea lungă.'); }
         foreach($holidays as $date) { $parsed=\DateTimeImmutable::createFromFormat('!Y-m-d',$date); if(!$parsed || $parsed->format('Y-m-d')!==$date) { throw new InvoiceException('Scrie zilele nelucrătoare în formatul AAAA-LL-ZZ.'); } }
         sort($holidays); $data['holidays_json']=InvoiceSnapshot::json($holidays); $data['updated_at']=gmdate('Y-m-d\TH:i:s\Z'); $data['updated_by']=(int)$actor['id'];
@@ -47,18 +47,6 @@ final class SpvSettingsService
             (new SpvSchedule($this->pdo))->rebuild();
             $repo->insert('audit_log',['actor_user_id'=>$actor['id'],'action'=>'spv.settings','entity_type'=>'spv','entity_id'=>1,'context_json'=>InvoiceSnapshot::json(['before'=>$before,'after'=>$data]),'created_at'=>$repo->now()]);
         });
-    }
-    /** @return list<array<string,mixed>> */
-    public function jobs(?int $invoiceId=null): array
-    {
-        $q=$this->pdo->prepare('SELECT j.*,i.id AS invoice_id,i.series_code,i.number,i.order_id,i.issued_at,i.fiscal_state,i.fiscal_attempted_at FROM invoices i LEFT JOIN invoice_fiscal_jobs j ON j.invoice_id=i.id WHERE i.deleted_at IS NULL'.($invoiceId!==null?' AND i.id=:id':'').' ORDER BY COALESCE(j.updated_at,i.issued_at) DESC,i.id DESC LIMIT 40');
-        $q->execute($invoiceId!==null?['id'=>$invoiceId]:[]);
-        $environment=$this->state()['environment'];
-        return array_map(function(array $row)use($environment):array {
-            $row['state']=$row['state'] ?? $row['fiscal_state'];
-            $row['environment']=$row['environment'] ?? $environment;
-            return array_replace($row,$this->documentAction($row,$row));
-        },$q->fetchAll());
     }
     /** @param array<string,mixed> $invoice @param array<string,mixed>|null $job @return array<string,mixed> */
     public function documentAction(array $invoice,?array $job): array

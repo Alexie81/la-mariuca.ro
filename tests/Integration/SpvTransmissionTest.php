@@ -15,7 +15,8 @@ use Slim\Psr7\Factory\ServerRequestFactory;
 use Slim\Psr7\Response;
 use Tests\DatabaseTestCase;
 use Twig\Environment;
-use Twig\Loader\ArrayLoader;
+use Twig\Loader\FilesystemLoader;
+use Twig\TwigFunction;
 
 final class SpvTransmissionTest extends DatabaseTestCase
 {
@@ -23,6 +24,7 @@ final class SpvTransmissionTest extends DatabaseTestCase
     private InvoiceRepository $repository;
     private array $actor;
     private array $invoice;
+    private array $lastNotice;
 
     protected function setUp(): void
     {
@@ -50,12 +52,14 @@ final class SpvTransmissionTest extends DatabaseTestCase
         parent::tearDown();
     }
 
-    public function testManualInvoicesAppearWithoutJobsAndMissingAuthorizationDoesNotQueueOrFreezeThem(): void
+    public function testSpvSettingsExcludeDocumentListAndMissingAuthorizationDoesNotQueueOrFreezeInvoices(): void
     {
         $_ENV['ANAF_CLIENT_ID']=''; $_ENV['ANAF_CLIENT_SECRET']='';
         $id=$this->invoice['id'];
         $page=$this->page('/admin/spv-efactura/');
-        self::assertStringContainsString('id="document-'.$id.'"',$page);
+        self::assertStringNotContainsString('id="document-'.$id.'"',$page);
+        self::assertStringNotContainsString('Facturi și răspunsuri ANAF',$page);
+        self::assertStringNotContainsString('Calendar și alerte',$page);
         self::assertStringContainsString('Aplicația ANAF nu este configurată',$page);
         self::assertStringContainsString('Configurează conexiunea ANAF',$this->page('/admin/facturi/'.$id.'/'));
         $http=new TransmissionHttpStub([]); $controller=$this->controller($http);
@@ -79,16 +83,16 @@ final class SpvTransmissionTest extends DatabaseTestCase
         ]);
         $controller=$this->controller($http);
         $this->act($controller,'trimite');
-        self::assertTrue($_SESSION['spv_notice']['ok'],$_SESSION['spv_notice']['text']);
-        self::assertStringContainsString('Test ANAF:',$_SESSION['spv_notice']['text']);
+        self::assertTrue($this->lastNotice['ok'],$this->lastNotice['text']);
+        self::assertStringContainsString('Test ANAF:',$this->lastNotice['text']);
         self::assertSame('submitted',$this->invoices->load($id)['fiscal_state']);
         self::assertStringStartsWith('https://api.anaf.ro/test/FCTEL/rest/uploadb2c?',$http->requests[0]['url']);
         self::assertStringContainsString('0000000000000',$http->requests[0]['body']);
         $this->act($controller,'trimite');
-        self::assertFalse($_SESSION['spv_notice']['ok']); self::assertCount(1,$http->requests);
+        self::assertFalse($this->lastNotice['ok']); self::assertCount(1,$http->requests);
         self::assertStringContainsString('/verifica/',$this->page('/admin/facturi/'.$id.'/'));
         $this->act($controller,'verifica');
-        self::assertTrue($_SESSION['spv_notice']['ok'],$_SESSION['spv_notice']['text']);
+        self::assertTrue($this->lastNotice['ok'],$this->lastNotice['text']);
         self::assertSame('accepted',$this->invoices->load($id)['fiscal_state']);
         self::assertFalse($this->invoices->document($id,$this->actor)['editable']);
         self::assertSame('8128',$this->repository->one('invoice_fiscal_jobs',['invoice_id'=>$id])['download_reference']);
@@ -109,11 +113,11 @@ final class SpvTransmissionTest extends DatabaseTestCase
     {
         $this->authorize(); $http=new TransmissionHttpStub([['status'=>$status,'body'=>$body]]);
         $controller=$this->controller($http); $this->act($controller,'trimite');
-        self::assertFalse($_SESSION['spv_notice']['ok']);
+        self::assertFalse($this->lastNotice['ok']);
         self::assertSame($state,$this->invoices->load($this->invoice['id'])['fiscal_state']);
         self::assertNotEmpty($this->repository->one('invoice_fiscal_jobs',['invoice_id'=>$this->invoice['id']])['last_error']);
         if($state==='uncertain') {
-            $this->act($controller,'reia'); self::assertFalse($_SESSION['spv_notice']['ok']); self::assertCount(1,$http->requests);
+            $this->act($controller,'reia'); self::assertFalse($this->lastNotice['ok']); self::assertCount(1,$http->requests);
             $worker=new SpvWorker($this->repository,$this->invoices,new SpvConnection($this->pdo,Config::load($this->root),$http),$http,Config::load($this->root),$this->root);
             self::assertSame(['processed'=>0,'errors'=>0],$worker->run());
         }
@@ -127,16 +131,16 @@ final class SpvTransmissionTest extends DatabaseTestCase
             ['status'=>200,'body'=>'<header index_incarcare="4712"/>'],
         ]);
         $controller=$this->controller($http); $this->act($controller,'trimite'); $this->act($controller,'verifica');
-        self::assertFalse($_SESSION['spv_notice']['ok']);
+        self::assertFalse($this->lastNotice['ok']);
         $before=$this->repository->one('invoice_fiscal_jobs',['invoice_id'=>$this->invoice['id']]);
         self::assertStringContainsString('BR-TEST',$before['last_error']);
         self::assertStringContainsString('BR-TEST',$this->page('/admin/facturi/'.$this->invoice['id'].'/'));
         $this->pdo->exec('UPDATE spv_credentials SET expires_at=0,refresh_expires_at=0');
-        $this->act($controller,'reia'); self::assertFalse($_SESSION['spv_notice']['ok']);
+        $this->act($controller,'reia'); self::assertFalse($this->lastNotice['ok']);
         self::assertSame($before,$this->repository->one('invoice_fiscal_jobs',['invoice_id'=>$this->invoice['id']]));
         self::assertCount(2,$http->requests);
         $this->authorize(); $this->act($controller,'reia');
-        self::assertTrue($_SESSION['spv_notice']['ok'],$_SESSION['spv_notice']['text']);
+        self::assertTrue($this->lastNotice['ok'],$this->lastNotice['text']);
         self::assertSame($http->requests[0]['body'],$http->requests[2]['body']);
         self::assertSame('4712',$this->invoices->load($this->invoice['id'])['fiscal_reference']);
         self::assertSame(1,(int)$this->pdo->query('SELECT COUNT(*) FROM invoices')->fetchColumn());
@@ -202,6 +206,65 @@ final class SpvTransmissionTest extends DatabaseTestCase
         self::assertStringContainsString('Actualizat',$http->requests[0]['body']);
     }
 
+    public function testJsonActionsRefreshStatusReferenceAndControlsInsideInvoicePage(): void
+    {
+        $this->authorize(); $http=new TransmissionHttpStub([
+            ['status'=>200,'body'=>'<header index_incarcare="7001"/>'],
+            ['status'=>200,'body'=>'<header stare="in prelucrare"/>'],
+            ['status'=>200,'body'=>'<header stare="ok" id_descarcare="8001"/>'],
+        ]);
+        $controller=$this->controller($http);
+        $request=(new ServerRequestFactory())->createServerRequest('POST','http://localhost/')->withHeader('Accept','application/json');
+        $send=function(string $operation)use($controller,$request):array {
+            $response=$controller->invoiceAction($request,new Response(),['id'=>(string)$this->invoice['id'],'operation'=>$operation]);
+            self::assertSame(200,$response->getStatusCode());
+            self::assertSame('private, no-store',$response->getHeaderLine('Cache-Control'));
+            self::assertStringContainsString('application/json',$response->getHeaderLine('Content-Type'));
+            self::assertArrayNotHasKey('spv_notice',$_SESSION);
+            return json_decode((string)$response->getBody(),true,512,JSON_THROW_ON_ERROR);
+        };
+        $submitted=$send('trimite');
+        self::assertTrue($submitted['ok']); self::assertSame('submitted',$submitted['state']);
+        self::assertStringContainsString('Referință ANAF <b>7001</b>',$submitted['html']);
+        self::assertStringContainsString('data-spv-poll',$submitted['html']);
+        self::assertStringNotContainsString('/trimite/',$submitted['html']);
+        self::assertSame('submitted',$send('verifica')['state']);
+        $accepted=$send('verifica');
+        self::assertTrue($accepted['ok']); self::assertSame('accepted',$accepted['state']);
+        self::assertStringContainsString('Acceptată de ANAF',$accepted['html']);
+        self::assertStringContainsString('7001',$accepted['html']);
+        self::assertStringContainsString('/arhiva/',$accepted['html']);
+        self::assertStringNotContainsString('data-spv-poll',$accepted['html']);
+        self::assertCount(3,$http->requests);
+        self::assertArrayNotHasKey('_flash',$_SESSION);
+    }
+
+    public function testSavingSimplifiedSpvSettingsPreservesExistingCalendarValues(): void
+    {
+        $this->pdo->exec("UPDATE spv_settings SET deadline_days=4,holidays_json='[\"2026-12-25\"]'");
+        $settings=new SpvSettingsService($this->pdo,Config::load($this->root));
+        $settings->save(['revision'=>1,'environment'=>'test','sale_mode'=>'scheduled','sale_days'=>'2','return_mode'=>'manual','return_days'=>'1','alerts'=>'1'],$this->actor);
+        self::assertSame(4,(int)$settings->state()['deadline_days']);
+        self::assertSame('2026-12-25',$settings->state()['holidays']);
+    }
+
+    public function testLatePollingResponseCannotOverwriteAcceptanceFromAnotherWorker(): void
+    {
+        $this->authorize(); $http=new TransmissionHttpStub([
+            ['status'=>200,'body'=>'<header index_incarcare="7002"/>'],
+            ['status'=>200,'body'=>'<header stare="in prelucrare"/>'],
+        ]);
+        $controller=$this->controller($http); $this->act($controller,'trimite');
+        $http->beforeResponse=function():void {
+            self::assertFalse($this->pdo->inTransaction());
+            $this->repository->update('invoices',['fiscal_state'=>'accepted'],['id'=>$this->invoice['id']]);
+            $this->repository->update('invoice_fiscal_jobs',['state'=>'accepted','download_reference'=>'8002'],['invoice_id'=>$this->invoice['id']]);
+        };
+        $this->act($controller,'verifica');
+        self::assertSame('accepted',$this->invoices->load($this->invoice['id'])['fiscal_state']);
+        self::assertSame('8002',$this->repository->one('invoice_fiscal_jobs',['invoice_id'=>$this->invoice['id']])['download_reference']);
+    }
+
     private function authorize(): void
     {
         $cipher=(new SpvTokenVault($_ENV['APP_KEY']))->seal(['access_token'=>'workflow-access-token','refresh_token'=>'workflow-refresh-token']);
@@ -211,13 +274,20 @@ final class SpvTransmissionTest extends DatabaseTestCase
     private function controller(TransmissionHttpStub $http): SpvController
     {
         $config=Config::load($this->root);
-        return new SpvController(new SpvSettingsService($this->pdo,$config),new SpvConnection($this->pdo,$config,$http),$http,$this->repository,$this->invoices,$config,new Auth($this->pdo),new View(new Environment(new ArrayLoader())),$this->root);
+        $twig=new Environment(new FilesystemLoader($this->root.'/resources/views'),['autoescape'=>'html']);
+        $twig->addFunction(new TwigFunction('url',fn(string $path):string=>$config->path($path)));
+        $twig->addFunction(new TwigFunction('csrf_token',static fn():string=>'test-csrf'));
+        return new SpvController(new SpvSettingsService($this->pdo,$config),new SpvConnection($this->pdo,$config,$http),$http,$this->repository,$this->invoices,$config,new Auth($this->pdo),new View($twig),$this->root);
     }
 
     private function act(SpvController $controller,string $operation,array $input=[]): \Psr\Http\Message\ResponseInterface
     {
         $request=(new ServerRequestFactory())->createServerRequest('POST','http://localhost/')->withParsedBody($input);
-        return $controller->invoiceAction($request,new Response(),['id'=>(string)$this->invoice['id'],'operation'=>$operation]);
+        $response=$controller->invoiceAction($request,new Response(),['id'=>(string)$this->invoice['id'],'operation'=>$operation]);
+        $flash=$_SESSION['_flash'][array_key_last($_SESSION['_flash'])];
+        $this->lastNotice=['ok'=>$flash['type']==='success','text'=>$flash['message']];
+        self::assertSame('/admin/facturi/'.$this->invoice['id'].'/',$response->getHeaderLine('Location'));
+        return $response;
     }
 
     private function page(string $path): string
@@ -232,10 +302,12 @@ final class SpvTransmissionTest extends DatabaseTestCase
 final class TransmissionHttpStub implements SpvHttpClient
 {
     public array $requests=[];
+    public ?\Closure $beforeResponse=null;
     public function __construct(private array $responses) {}
     public function request(string $method,string $url,array $headers=[],string $body=''): array
     {
         $this->requests[]=compact('method','url','headers','body');
+        if($this->beforeResponse) { ($this->beforeResponse)(); }
         if(!$this->responses) { throw new SpvTransportException('Unexpected simulated HTTP request.'); }
         return array_shift($this->responses);
     }

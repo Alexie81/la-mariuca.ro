@@ -827,7 +827,7 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         self::assertStringNotContainsString('Integrarea fiscală electronică nu este configurată.',$html);
         $repo->update('users',['role'=>'operator'],['id'=>$this->actor['id']]);
         $html=(string)$get('/admin/facturi/'.$ids[1].'/')->getBody();
-        self::assertStringNotContainsString('Gestionează transmiterea SPV',$html); self::assertStringNotContainsString('Link client',$html);
+        self::assertStringNotContainsString('Setări SPV',$html); self::assertStringNotContainsString('Link client',$html);
         unset($_SESSION['user_id']);
     }
 

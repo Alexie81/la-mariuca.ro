@@ -17,7 +17,7 @@ final class InvoicePresentation
             'awaiting_configuration','unconfigured'=>['SPV · netrimisă','Conexiunea sau regulile SPV trebuie configurate înainte de transmitere.','neutral','shield'],
             'not_sent'=>['SPV · netrimisă','Transmiterea acestei facturi nu a fost încă inițiată.','neutral','shield'],
             'rejected'=>['Respinsă de ANAF','ANAF a respins documentul. Verifică răspunsul înainte de reluare.','rose','warning'],
-            'transient_error'=>['SPV · eroare','Transmiterea a întâmpinat o eroare. Verifică detaliile și reia din SPV.','rose','warning'],
+            'transient_error'=>['SPV · eroare','Transmiterea a întâmpinat o eroare. Verifică detaliile și reia trimiterea din această fișă.','rose','warning'],
             'uncertain'=>['SPV · de verificat','Răspuns incomplet. Verifică în SPV dacă factura a fost primită înainte de retrimitere.','gold','warning'],
             default=>['SPV · de verificat','Starea transmiterii necesită verificare în secțiunea SPV.','gold','info'],
         };
