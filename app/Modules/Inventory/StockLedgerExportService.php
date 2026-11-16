@@ -28,13 +28,14 @@ final class StockLedgerExportService
         $book=$this->book('Registru stoc contabil');
         $sheet=$book->getActiveSheet()->setTitle('Stoc pe produse');
         $this->brand($sheet,$company,'Registru stoc contabil','Situația curentă a produselor urmărite contabil');
-        $headers=['Produs','SKU','Categorie','Furnizor','Stoc contabil','În curs de acoperire','Prag alertă','Disponibilitate online','Valoare contabilă (Lei)','Stare'];
+        $headers=['Produs','SKU','Categorie','Mod stoc online','Stoc contabil','În curs de acoperire','Prag alertă','Disponibilitate online','Valoare contabilă (Lei)','Stare'];
         $sheet->fromArray($headers,null,'A6'); $this->header($sheet,'A6:J6');
         $row=7;
         foreach($registry['items'] as $index=>$item) {
-            $online=(bool)$item['unlimited']?'Disponibil la furnizor':(string)$item['online_quantity'];
+            $onlineMode=['unlimited'=>'Nelimitat','mixed'=>'Mixt: numeric + nelimitat','numeric'=>'Numeric','inactive'=>'Fără variantă activă'][$item['online_mode'] ?? 'numeric'];
+            $online=in_array($item['online_mode'] ?? 'numeric',['unlimited','inactive'],true)?$onlineMode:(string)$item['online_quantity'];
             $state=['negative'=>'Stoc negativ','low'=>'Sub prag','ok'=>'În regulă'][$item['alert']] ?? 'În regulă';
-            $values=[$item['name'],$item['sku'],$item['category'],$item['supplier'],(float)$item['quantity'],(float)$item['pending'],(float)$item['minimum'],$online,(int)$item['value_bani']/100,$state];
+            $values=[$item['name'],$item['sku'],$item['category'],$onlineMode,(float)$item['quantity'],(float)$item['pending'],(float)$item['minimum'],$online,(int)$item['value_bani']/100,$state];
             foreach($values as $column=>$value) {
                 $cell=$sheet->getCell([$column+1,$row]);
                 if(in_array($column,[4,5,6,8],true)) { $cell->setValue($value); $cell->getStyle()->getNumberFormat()->setFormatCode($column===8?'#,##0.00':$this->quantityFormat((float)$value)); }

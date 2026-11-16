@@ -11,6 +11,29 @@ use Tests\DatabaseTestCase;
 
 final class StockOnlineAdjustmentTest extends DatabaseTestCase
 {
+    public function testUnlimitedVariantsNeverExposeAQuantityInTheStockWorkspace(): void
+    {
+        $this->seed();
+        $variant = $this->pdo->query("SELECT v.id,v.product_id,v.sku FROM product_variants v JOIN (SELECT product_id FROM product_variants WHERE status='active' GROUP BY product_id HAVING COUNT(*)=1) single_variant ON single_variant.product_id=v.product_id JOIN inventory i ON i.variant_id=v.id WHERE v.status='active' ORDER BY v.id LIMIT 1")->fetch();
+        self::assertIsArray($variant);
+        $this->pdo->prepare('UPDATE product_variants SET stock_unlimited=1 WHERE id=:variant')->execute(['variant' => $variant['id']]);
+        $this->pdo->prepare('UPDATE inventory SET physical_quantity=987,reserved_quantity=123 WHERE variant_id=:variant')->execute(['variant' => $variant['id']]);
+        $service = new StockLedgerService(new StockLedgerRepository($this->pdo));
+        $actor = $this->administrator();
+
+        $registry = $service->registry(['q' => $variant['sku']], $actor);
+        self::assertCount(1, $registry['items']);
+        self::assertSame('unlimited', $registry['items'][0]['online_mode']);
+        self::assertSame(0, (int) $registry['items'][0]['online_quantity']);
+        self::assertSame('unlimited', $registry['items'][0]['online_state']);
+
+        $detail = $service->detail((int) $variant['product_id'], [], $actor);
+        self::assertSame('unlimited', $detail['online_mode']);
+        self::assertSame(0, $detail['online']);
+        self::assertSame(0, $detail['online_physical']);
+        self::assertSame(0, $detail['online_reserved']);
+    }
+
     public function testOnlineAdjustmentIsIdempotentAuditedAndAccountingNeutral(): void
     {
         $this->seed();

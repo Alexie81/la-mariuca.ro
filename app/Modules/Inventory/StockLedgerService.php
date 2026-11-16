@@ -25,7 +25,11 @@ final class StockLedgerService
             $row['quantity']=InvoiceCalculator::quantity((int)$row['accounting_units']);
             $row['minimum']=InvoiceCalculator::quantity((int)$row['accounting_minimum_units']);
             $row['pending']=InvoiceCalculator::quantity((int)$row['pending_units']);
-            $row['alert']=(int)$row['accounting_units']<0?'negative':((int)$row['accounting_units']<=(int)$row['accounting_minimum_units']?'low':'ok');
+            $row['alert']=(int)$row['accounting_units']<0?'negative':((int)$row['accounting_minimum_units']>0 && (int)$row['accounting_units']<=(int)$row['accounting_minimum_units']?'low':'ok');
+            $row['online_mode']=(int)$row['unlimited_variants']>0
+                ? ((int)$row['numeric_variants']>0?'mixed':'unlimited')
+                : ((int)$row['numeric_variants']>0?'numeric':'inactive');
+            $row['online_state']=$row['online_mode']==='unlimited'?'unlimited':($row['online_mode']==='mixed'?'available':((int)$row['online_quantity']>0?'available':'sold_out'));
         } unset($row); return $result;
     }
 
@@ -75,12 +79,21 @@ final class StockLedgerService
             $adjustment['operator']=trim((string)$adjustment['first_name'].' '.(string)$adjustment['last_name']) ?: 'Sistem';
             $adjustment['date_display']=(new \DateTimeImmutable((string)$adjustment['created_at']))->setTimezone(new \DateTimeZone('Europe/Bucharest'))->format('d.m.Y, H:i');
         } unset($adjustment);
+        $activeVariants=array_values(array_filter($variants,static fn(array $variant):bool=>$variant['status']==='active'));
+        $numericVariants=array_values(array_filter($activeVariants,static fn(array $variant):bool=>!(bool)$variant['stock_unlimited']));
+        $unlimitedCount=count(array_filter($activeVariants,static fn(array $variant):bool=>(bool)$variant['stock_unlimited']));
+        $numericCount=count($numericVariants);
+        $onlineAvailable=array_sum(array_map('intval',array_column($numericVariants,'online_quantity')));
+        $onlinePhysical=array_sum(array_map('intval',array_column($numericVariants,'physical_quantity')));
+        $onlineReserved=array_sum(array_map('intval',array_column($numericVariants,'reserved_quantity')));
+        $onlineMode=$unlimitedCount>0?($numericCount>0?'mixed':'unlimited'):($numericCount>0?'numeric':'inactive');
         return ['product'=>$product,'scopes'=>$scopes,'variants'=>$variants,'movements'=>$journal,'online_adjustments'=>$onlineAdjustments,'opening_units'=>$opening,'incoming_units'=>$incoming,'outgoing_units'=>$outgoing,
             'closing_units'=>$opening+$incoming-$outgoing,'current_units'=>$current,'consistent'=>$balance===$current,'minimum'=>InvoiceCalculator::quantity((int)$product['accounting_minimum_units']),
-            'online'=>array_sum(array_column(array_filter($variants,static fn(array $v):bool=>$v['status']==='active' && !(bool)$v['stock_unlimited']),'online_quantity')),
+            'online'=>$onlineAvailable,'online_physical'=>$onlinePhysical,'online_reserved'=>$onlineReserved,'online_mode'=>$onlineMode,
+            'numeric_variants'=>$numericCount,'unlimited_variants'=>$unlimitedCount,
             'opening_value_bani'=>$openingValue,'incoming_value_bani'=>$incomingValue,'outgoing_value_bani'=>$outgoingValue,'closing_value_bani'=>$openingValue+$incomingValue-$outgoingValue,
             'pending_cost_units'=>$openingPending+array_sum(array_column($journal,'pending_cost_units')),'documented_only'=>$fiscalOnly,
-            'unlimited'=>in_array(1,array_map('intval',array_column(array_filter($variants,static fn(array $v):bool=>$v['status']==='active'),'stock_unlimited')),true),
+            'unlimited'=>$unlimitedCount>0,
             'accounting_tracked'=>(bool)$product['track_in_conta'] || in_array(1,array_map('intval',array_column($variants,'track_in_conta')),true),
             'filters'=>['from'=>$from,'to'=>$to]];
     }

@@ -48,7 +48,7 @@ final class StockLedgerRepository
         }
         $alert=(string)($filters['alert'] ?? '');
         if($alert==='negative') { $where[]='COALESCE(b.units,0)<0'; }
-        elseif($alert==='low') { $where[]='COALESCE(b.units,0)<=p.accounting_minimum_units'; }
+        elseif($alert==='low') { $where[]='p.accounting_minimum_units>0 AND COALESCE(b.units,0)<=p.accounting_minimum_units'; }
         $from=' FROM products p LEFT JOIN suppliers s ON s.id=p.supplier_id LEFT JOIN categories c ON c.id=p.primary_category_id
             LEFT JOIN categories parent_category ON parent_category.id=c.parent_id
             LEFT JOIN categories grandparent_category ON grandparent_category.id=parent_category.parent_id
@@ -71,7 +71,7 @@ final class StockLedgerRepository
                 category_media.public_path,parent_category_media.public_path,grandparent_category_media.public_path
             ) AS image_path,
             CASE WHEN EXISTS(SELECT 1 FROM product_images pi WHERE pi.product_id=p.id) OR EXISTS(SELECT 1 FROM product_variants image_variant WHERE image_variant.product_id=p.id AND image_variant.image_media_id IS NOT NULL) THEN 0 ELSE 1 END AS image_fallback,
-            COALESCE((SELECT SUM(i.physical_quantity-i.reserved_quantity) FROM product_variants v JOIN inventory i ON i.variant_id=v.id WHERE v.product_id=p.id AND v.status='active'),0) AS online_quantity,
+            COALESCE((SELECT SUM(i.physical_quantity-i.reserved_quantity) FROM product_variants v JOIN inventory i ON i.variant_id=v.id WHERE v.product_id=p.id AND v.status='active' AND v.stock_unlimited=0),0) AS online_quantity,
             COALESCE((SELECT SUM(i.physical_quantity) FROM product_variants v JOIN inventory i ON i.variant_id=v.id WHERE v.product_id=p.id AND v.status='active' AND v.stock_unlimited=0),0) AS online_physical,
             COALESCE((SELECT SUM(i.reserved_quantity) FROM product_variants v JOIN inventory i ON i.variant_id=v.id WHERE v.product_id=p.id AND v.status='active' AND v.stock_unlimited=0),0) AS online_reserved,
             (SELECT COUNT(*) FROM product_variants v WHERE v.product_id=p.id AND v.status='active' AND v.stock_unlimited=1) AS unlimited_variants,
