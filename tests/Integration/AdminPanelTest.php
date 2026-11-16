@@ -98,6 +98,51 @@ final class AdminPanelTest extends DatabaseTestCase
         self::assertNotSame($cookie, $this->rememberCookie($dashboard), 'Tokenul persistent trebuie rotit la restaurarea sesiunii.');
     }
 
+    public function testStockPageSizeAndNumberedLinksPreserveFilters(): void
+    {
+        $insert = $this->pdo->prepare("INSERT INTO products(name,slug,status,accounting_minimum_units,created_at,updated_at) VALUES(:name,:slug,'draft',10000,'2026-11-16','2026-11-16')");
+        for ($i = 1; $i <= 125; $i++) {
+            $insert->execute(['name' => sprintf('Paginare QA %03d', $i), 'slug' => 'paginare-qa-' . $i]);
+        }
+        $repository = new \App\Modules\Inventory\StockLedgerRepository($this->pdo);
+        $filters = ['q' => 'Paginare', 'alert' => 'low', 'per_page' => '12'];
+        $first = $repository->registry($filters);
+        $second = $repository->registry($filters + ['page' => 2]);
+        self::assertCount(12, $first['items']);
+        self::assertCount(12, $second['items']);
+        self::assertSame([], array_intersect(array_column($first['items'], 'id'), array_column($second['items'], 'id')));
+        self::assertSame(125, $first['total']);
+        $last = $repository->registry($filters + ['page' => 999]);
+        self::assertSame(11, $last['page']);
+        self::assertSame(121, $last['from']);
+        self::assertSame(125, $last['to']);
+        self::assertCount(5, $last['items']);
+        self::assertCount(125, $repository->registry($filters, true)['items']);
+        self::assertSame(24, $repository->registry(['per_page' => ['96']])['per_page']);
+        self::assertSame(0, $repository->registry(['q' => 'absent-qa'])['from']);
+
+        $this->get('/admin');
+        $this->post('/admin', ['_csrf' => $_SESSION['_csrf'], 'email' => 'admin.panel@example.test', 'password' => self::PASSWORD], '127.0.0.86');
+        $response = $this->get('/admin/stoc/?q=Paginare&alert=low&per_page=12&page=6');
+        self::assertSame(200, $response->getStatusCode());
+        $html = (string) $response->getBody();
+        $document = new \DOMDocument();
+        @$document->loadHTML('<?xml encoding="utf-8" ?>' . $html);
+        $xpath = new \DOMXPath($document);
+        self::assertSame(12, $xpath->query('//tr[contains(@class,"stock-row ")]')->length);
+        self::assertSame('6', $xpath->evaluate('string(//nav[@aria-label="Paginare registru"]//*[@aria-current="page"])'));
+        $links = $xpath->query('//nav[@aria-label="Paginare registru"]//a');
+        self::assertGreaterThan(3, $links->length);
+        foreach ($links as $link) {
+            parse_str((string) parse_url($link->getAttribute('href'), PHP_URL_QUERY), $query);
+            self::assertSame('Paginare', $query['q']);
+            self::assertSame('low', $query['alert']);
+            self::assertSame('12', $query['per_page']);
+        }
+        self::assertStringContainsString('name="per_page"', $html);
+        self::assertStringContainsString('data-stock-page-size-apply', $html, 'Page size retains a no-JavaScript submit button.');
+    }
+
     public function testProductsRegistryUsesInventorySearchAndActiveNavigation(): void
     {
         $this->seed();

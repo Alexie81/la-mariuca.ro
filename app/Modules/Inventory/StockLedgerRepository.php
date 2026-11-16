@@ -61,7 +61,7 @@ final class StockLedgerRepository
                 FROM ('.$this->balancesSql().') all_movements GROUP BY product_id) b ON b.product_id=p.id
             WHERE '.implode(' AND ',$where);
         $q=$this->pdo->prepare('SELECT COUNT(*)'.$from); $q->execute($params); $count=(int)$q->fetchColumn();
-        $size=24; $pages=max(1,(int)ceil($count/$size)); $page=max(1,min($pages,(int)($filters['page'] ?? 1)));
+        $size=StockPagination::size($filters['per_page'] ?? null); $pages=max(1,(int)ceil($count/$size)); $page=max(1,min($pages,(int)($filters['page'] ?? 1)));
         $sql="SELECT p.id,p.name,p.slug,p.status,p.primary_sku AS sku,p.track_in_conta,p.accounting_minimum_units,c.name AS category,
             CASE WHEN p.track_in_conta=1 OR EXISTS(SELECT 1 FROM product_variants tracked_variant WHERE tracked_variant.product_id=p.id AND tracked_variant.track_in_conta=1 AND tracked_variant.options_json NOT IN ('','{}','[]')) THEN 1 ELSE 0 END AS accounting_tracked,
             COALESCE(b.units,0) AS accounting_units,COALESCE(b.incoming_units,0) AS incoming_units,COALESCE(b.outgoing_units,0) AS outgoing_units,
@@ -81,7 +81,7 @@ final class StockLedgerRepository
             COALESCE((SELECT SUM(pc.quantity_units) FROM nir_pending_consumptions pc WHERE pc.product_id=p.id),0) AS pending_units".$from.' ORDER BY p.name,p.id';
         if(!$export) { $sql.=' LIMIT '.$size.' OFFSET '.(($page-1)*$size); }
         $q=$this->pdo->prepare($sql); $q->execute($params);
-        return ['items'=>$q->fetchAll(),'total'=>$count,'page'=>$page,'pages'=>$pages,'from'=>$count ? ($page-1)*$size+1:0,'to'=>min($page*$size,$count)];
+        return ['items'=>$q->fetchAll(),'total'=>$count,'page'=>$page,'pages'=>$pages,'per_page'=>$size,'from'=>$count ? ($page-1)*$size+1:0,'to'=>min($page*$size,$count)];
     }
 
     /** @return array<string,mixed>|null */

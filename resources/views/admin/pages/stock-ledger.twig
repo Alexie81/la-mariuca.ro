@@ -3,22 +3,23 @@
 {% block content %}
 <div class="stock-page">
   <section class="stock-hero">
-    <div class="stock-hero__copy"><span class="stock-eyebrow">Disponibilitate și documente</span><h1>Stoc online și contabil</h1><p>Vezi separat ce poate cumpăra clientul și soldul justificat de NIR-uri și facturi.</p></div>
-    <div class="stock-hero__actions"><div class="stock-hero__metric"><span>Produse în registru</span><strong>{{ total }}</strong><small>inclusiv stoc nelimitat</small></div><a class="stock-btn stock-btn--export" href="{{ url('admin/stoc/export/xlsx/?period=month') }}" data-stock-export><svg viewBox="0 0 24 24"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 19h14"/></svg>Exportă registrul</a></div>
+    <div class="stock-hero__copy"><span class="stock-eyebrow">Gestiune · Registru de produse</span><h1>Stoc online și contabil</h1><p>Disponibilitatea din magazin și evidența documentelor, într-un singur loc.</p></div>
+    <div class="stock-hero__actions"><div class="stock-hero__metric"><strong>{{ total }}</strong><span>{{ filters.q|default('') or filters.alert|default('') ? 'produse găsite' : 'produse în registru' }}<small>numeric & nelimitat</small></span></div><a class="stock-btn stock-btn--export" href="{{ url('admin/stoc/export/xlsx/?period=month') }}" data-stock-export><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 19h14"/></svg>Exportă registrul</a></div>
   </section>
 
 
   <section class="stock-card">
-    <header class="stock-card__head"><div><span class="stock-eyebrow">Registru produse</span><h2>Soldurile curente</h2></div><span>{{ from }}–{{ to }} din {{ total }}</span></header>
+    <header class="stock-card__head"><div><h2>Soldurile curente</h2><p>Deschide un produs pentru documente și mișcări de stoc.</p></div><span class="stock-count">{{ from }}–{{ to }} din {{ total }}</span></header>
     <form class="stock-filters" action="{{ url('admin/stoc/') }}" method="get" role="search">
-      <label class="stock-search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m16.5 16.5 4 4"/></svg><span><small>Căutare inteligentă</small><input type="search" name="q" value="{{ filters.q|default('') }}" placeholder="Nume, SKU, cod de bare sau număr de document..."></span>{% if filters.q|default('') %}<a href="{{ url('admin/stoc/?alert=' ~ filters.alert|default('')) }}" aria-label="Șterge căutarea">×</a>{% endif %}</label>
-      <label class="stock-filter-select"><span>Alertă</span><select name="alert"><option value="">Toate produsele</option><option value="negative"{{ filters.alert|default('') == 'negative' ? ' selected' : '' }}>Stoc negativ</option><option value="low"{{ filters.alert|default('') == 'low' ? ' selected' : '' }}>La sau sub prag</option></select></label>
+      <input type="hidden" name="per_page" value="{{ per_page }}">
+      <label class="stock-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m16.5 16.5 4 4"/></svg><span><small>Caută un produs</small><input type="search" name="q" aria-label="Caută un produs" value="{{ filters.q|default('') }}" placeholder="Nume, SKU, cod de bare sau document…"></span>{% if filters.q|default('') %}<a href="{{ url('admin/stoc/?per_page=' ~ per_page ~ '&alert=' ~ filters.alert|default('')) }}" aria-label="Șterge căutarea">×</a>{% endif %}</label>
+      <div class="stock-filter-select" data-stock-select><label for="stock-alert">Alertă</label><select name="alert" id="stock-alert"><option value="">Toate produsele</option><option value="negative"{{ filters.alert|default('') == 'negative' ? ' selected' : '' }}>Stoc negativ</option><option value="low"{{ filters.alert|default('') == 'low' ? ' selected' : '' }}>La sau sub prag</option></select></div>
       <button class="stock-btn stock-btn--primary" type="submit">Afișează</button>
-      {% if filters.q|default('') or filters.alert|default('') %}<a class="stock-btn" href="{{ url('admin/stoc/') }}">Resetează</a>{% endif %}
+      {% if filters.q|default('') or filters.alert|default('') %}<a class="stock-btn" href="{{ url('admin/stoc/?per_page=' ~ per_page) }}">Resetează</a>{% endif %}
     </form>
 
     {% if items %}
-      <div class="stock-table-wrap"><table class="stock-table"><thead><tr><th>Produs</th><th>Stoc online</th><th>Stoc contabil</th><th>Intrări NIR</th><th>Ieșiri facturi</th><th>Valoare contabilă</th><th>Stare</th><th></th></tr></thead><tbody>
+      <div class="stock-table-wrap"><table class="stock-table" aria-label="Soldurile curente ale produselor"><thead><tr><th scope="col">Produs</th><th scope="col">Stoc online</th><th scope="col">Stoc contabil</th><th scope="col">Intrări NIR</th><th scope="col">Ieșiri facturi</th><th scope="col">Valoare contabilă</th><th scope="col">Stare</th><th scope="col"><span class="stock-sr-only">Fișa produsului</span></th></tr></thead><tbody>
       {% for item in items %}<tr class="stock-row stock-row--{{ item.alert }}">
         <td data-label="Produs"><a class="stock-product" data-stock-open href="{{ url('admin/stoc/' ~ item.id ~ '/') }}"><span class="stock-product__photo">{% if item.image_path %}<img src="{{ url(item.image_path|trim('/')) }}" alt="">{% else %}<svg viewBox="0 0 24 24"><path d="M4 5h16v14H4zM7 15l3-3 2 2 2-3 3 4"/></svg>{% endif %}</span><span><strong>{{ item.name }}</strong><small>{{ item.sku ?: 'Fără SKU' }}{% if item.category %} · {{ item.category }}{% endif %}</small>{% if item.image_fallback %}<em>Imagine reprezentativă din categorie</em>{% endif %}</span></a></td>
         <td data-label="Stoc online">
@@ -27,15 +28,26 @@
           {% elseif item.online_mode == 'inactive' %}<span class="stock-online stock-online--inactive">Fără variantă activă</span>
           {% else %}<strong class="stock-number {{ item.online_state == 'sold_out' ? 'is-negative' : '' }}">{{ item.online_quantity }} buc.</strong><small>{{ item.online_physical }} fizic · {{ item.online_reserved }} rezervat</small>{% endif %}
         </td>
-        <td data-label="Stoc contabil"><strong class="stock-number {{ item.accounting_units < 0 ? 'is-negative' : '' }}">{{ item.quantity|decimal_ro }} buc.</strong><small>{{ item.accounting_tracked ? 'din documente confirmate' : 'fără mișcări contabile' }}</small></td>
-        <td data-label="Intrări NIR"><strong class="stock-doc-number stock-doc-number--in">+{{ (item.incoming_units/10000)|decimal_ro }}</strong><small>cantitate recepționată</small></td>
-        <td data-label="Ieșiri facturi"><strong class="stock-doc-number stock-doc-number--out">{{ item.outgoing_units ? '−' : '' }}{{ (item.outgoing_units/10000)|decimal_ro }}</strong><small>cantitate facturată</small></td>
-        <td data-label="Valoare contabilă"><strong>{{ money(item.value_bani) }}</strong><small>{% if item.pending_units %}{{ item.pending|decimal_ro }} buc. fără cost asociat{% else %}cost rămas în loturi{% endif %}</small></td>
+        <td data-label="Stoc contabil"><strong class="stock-number {{ item.accounting_units < 0 ? 'is-negative' : '' }}">{{ item.quantity|decimal_ro }} buc.</strong><small>{{ item.accounting_tracked ? 'documente confirmate' : 'fără mișcări' }}</small></td>
+        <td data-label="Intrări NIR"><strong class="stock-doc-number stock-doc-number--in">+{{ (item.incoming_units/10000)|decimal_ro }}</strong></td>
+        <td data-label="Ieșiri facturi"><strong class="stock-doc-number stock-doc-number--out">{{ item.outgoing_units ? '−' : '' }}{{ (item.outgoing_units/10000)|decimal_ro }}</strong></td>
+        <td data-label="Valoare contabilă"><strong class="stock-value">{{ money(item.value_bani) }}</strong>{% if item.pending_units %}<small class="stock-pending">{{ item.pending|decimal_ro }} buc. fără cost asociat</small>{% endif %}</td>
         <td data-label="Stare"><div class="stock-state-stack"><span class="stock-state stock-state--{{ item.online_state }}"><i></i>{{ item.online_state == 'unlimited' ? 'Online nelimitat' : (item.online_state == 'available' ? 'Online disponibil' : 'Online epuizat') }}</span><span class="stock-state stock-state--{{ item.alert }}"><i></i>{{ item.alert == 'negative' ? 'Contabil negativ' : (item.alert == 'low' ? 'Contabil sub prag' : 'Contabil în regulă') }}</span></div></td>
         <td class="stock-row__open"><a data-stock-open href="{{ url('admin/stoc/' ~ item.id ~ '/') }}" aria-label="Deschide fișa {{ item.name }}"><svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></a></td>
       </tr>{% endfor %}
       </tbody></table></div>
-      {% if pages > 1 %}<nav class="stock-pagination" aria-label="Paginare registru">{% if previous_url %}<a href="{{ previous_url }}">‹</a>{% else %}<span>‹</span>{% endif %}<strong>Pagina {{ page }} din {{ pages }}</strong>{% if next_url %}<a href="{{ next_url }}">›</a>{% else %}<span>›</span>{% endif %}</nav>{% endif %}
+      <footer class="stock-register-foot">
+        <div class="stock-register-foot__summary"><form action="{{ url('admin/stoc/') }}" method="get" data-stock-page-size>
+          <input type="hidden" name="q" value="{{ filters.q|default('') }}"><input type="hidden" name="alert" value="{{ filters.alert|default('') }}">
+          <div class="stock-filter-select stock-filter-select--size" data-stock-select><label for="stock-page-size">Produse / pagină</label><select id="stock-page-size" name="per_page">{% for size in page_sizes %}<option value="{{ size }}"{{ size == per_page ? ' selected' : '' }}>{{ size }} produse</option>{% endfor %}</select></div>
+          <button type="submit" class="stock-btn" data-stock-page-size-apply>Aplică</button>
+        </form><span>{{ from }}–{{ to }} din {{ total }} produse</span></div>
+        <nav class="stock-register-pagination" aria-label="Paginare registru">
+          {% if previous_url %}<a class="stock-page-arrow" href="{{ previous_url }}" aria-label="Pagina precedentă" rel="prev"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6"/></svg><span>Înapoi</span></a>{% else %}<span class="stock-page-arrow is-disabled" aria-disabled="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6"/></svg><span>Înapoi</span></span>{% endif %}
+          <div class="stock-page-numbers">{% for link in page_links %}{% if link.number is null %}<span class="stock-page-gap" aria-hidden="true">…</span>{% elseif link.number == page %}<span class="stock-page-current" aria-current="page" aria-label="Pagina {{ page }}">{{ page }}</span>{% else %}<a href="{{ link.url }}" aria-label="Pagina {{ link.number }}">{{ link.number }}</a>{% endif %}{% endfor %}</div>
+          {% if next_url %}<a class="stock-page-arrow" href="{{ next_url }}" aria-label="Pagina următoare" rel="next"><span>Înainte</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m10 6 6 6-6 6"/></svg></a>{% else %}<span class="stock-page-arrow is-disabled" aria-disabled="true"><span>Înainte</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m10 6 6 6-6 6"/></svg></span>{% endif %}
+        </nav>
+      </footer>
     {% else %}<div class="stock-empty"><span><svg viewBox="0 0 24 24"><path d="M4 5h16v14H4zM8 9h8M8 13h5"/></svg></span><h3>Nu am găsit produse</h3><p>Modifică termenul sau filtrul. Produsele active și inactive contabil apar în acest registru.</p></div>{% endif %}
   </section>
 </div>

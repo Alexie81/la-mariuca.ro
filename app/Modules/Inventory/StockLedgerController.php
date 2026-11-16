@@ -21,6 +21,12 @@ final class StockLedgerController
     {
         try {
             $filters=$request->getQueryParams(); $data=$this->service->registry($filters,$this->actor());
+            $filters['per_page']=$data['per_page'];
+            $data['page_sizes']=StockPagination::SIZES;
+            $data['page_links']=array_map(fn(?int $number):array=>[
+                'number'=>$number,
+                'url'=>$number===null?null:$this->url('?'.http_build_query(array_replace($filters,['page'=>$number]))),
+            ],StockPagination::numbers($data['page'],$data['pages']));
             $data['previous_url']=$data['page']>1?$this->url('?'.http_build_query(array_replace($filters,['page'=>$data['page']-1]))):null;
             $data['next_url']=$data['page']<$data['pages']?$this->url('?'.http_build_query(array_replace($filters,['page'=>$data['page']+1]))):null;
             return $this->render('admin/pages/stock-ledger.twig',$data+['filters'=>$filters,'export_query'=>http_build_query(array_diff_key($filters,['page'=>true]))]);

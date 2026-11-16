@@ -1,4 +1,6 @@
-<nav class="stock-pagination" aria-label="{{ label }}">
-  <span class="stock-pagination__summary">5 / pagină · {{ pager.from }}–{{ pager.to }} din {{ pager.total }}</span>
-  <div>{% if pager.previous %}<a href="{{ pager.previous }}" data-stock-page aria-label="Pagina precedentă">‹</a>{% else %}<span aria-hidden="true">‹</span>{% endif %}<strong>{{ pager.page }}</strong>{% if pager.next %}<a href="{{ pager.next }}" data-stock-page aria-label="Pagina următoare">›</a>{% else %}<span aria-hidden="true">›</span>{% endif %}</div>
+{% if pager.total > 0 %}
+<nav class="stock-pagination stock-pagination--section" aria-label="{{ label }}">
+  <span class="stock-pagination__summary">{{ pager.from }}–{{ pager.to }} din {{ pager.total }}</span>
+  {% if pager.previous or pager.next %}<div>{% if pager.previous %}<a href="{{ pager.previous }}" data-stock-page aria-label="Pagina precedentă">‹</a>{% else %}<span aria-hidden="true">‹</span>{% endif %}<strong aria-label="Pagina curentă">{{ pager.page }}</strong>{% if pager.next %}<a href="{{ pager.next }}" data-stock-page aria-label="Pagina următoare">›</a>{% else %}<span aria-hidden="true">›</span>{% endif %}</div>{% endif %}
 </nav>
+{% endif %}
