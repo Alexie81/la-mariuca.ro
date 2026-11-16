@@ -449,7 +449,20 @@
       dialog.addEventListener('click',event=>{if(event.target===dialog){const rect=dialog.getBoundingClientRect();if(event.clientX<rect.left||event.clientX>rect.right||event.clientY<rect.top||event.clientY>rect.bottom)closeLocation(dialog);}});
     });
   }
-  function exportDates(form){const block=$('[data-export-dates]',form);if(block){block.hidden=form.elements.period.value!=='custom';$$('input',block).forEach(input=>{input.required=!block.hidden;input.disabled=block.hidden;});}}
+  function exportDates(form){
+    const period=form.elements.period.value;
+    const block=$('[data-export-dates]',form);
+    if(block){block.hidden=period!=='custom';$$('input',block).forEach(input=>{input.required=!block.hidden;input.disabled=block.hidden;});}
+    const selected=$('input[name="period"]:checked',form);
+    if(!selected)return;
+    const title=$('[data-export-preview-title]',form),dates=$('[data-export-preview-period]',form),status=$('[data-export-preview-status]',form);
+    const format=value=>/^\d{4}-\d{2}-\d{2}$/.test(value || '')?value.split('-').reverse().join('.'):'';
+    const from=period==='custom'?form.elements.from.value:selected.dataset.from;
+    const to=period==='custom'?form.elements.to.value:selected.dataset.to;
+    if(title)title.textContent=(form.elements.format.value==='zip'?'Arhivă completă':'Registru Excel')+' · '+selected.dataset.label;
+    if(dates)dates.textContent=period==='all'?'Toată perioada disponibilă':(format(from)&&format(to)?format(from)+' — '+format(to):'Alege data de început și de sfârșit.');
+    if(status)status.textContent=$('input[name="status"]:checked',form)?.closest('label')?.textContent.trim() || 'Toate stările';
+  }
 
   async function copyDocumentNumber(button) {
     if(button.disabled || !button.dataset.nirCopy)return;
@@ -524,7 +537,7 @@
     if(event.target.matches('[data-nir-files]')){acceptFiles(form,Array.from(event.target.files));}
     if(event.target.matches('[data-nir-camera]')){acceptFiles(form,Array.from(event.target.files));event.target.value='';}
     if(event.target.matches('[data-nir-import]'))importLines(event.target);
-    if(event.target.matches('[data-export-period]'))exportDates(form);
+    if(form.matches('[data-nir-export-form]'))exportDates(form);
     if(event.target.matches('[data-reverse-select]'))reverseSelection(event.target.closest('.nir-reverse-row'),true);
     if(event.target.matches('[data-reverse-quantity]'))reverseAlternative(form);
     if(event.target.closest('[data-nir-line]'))preview(form);

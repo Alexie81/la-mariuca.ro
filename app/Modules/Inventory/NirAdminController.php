@@ -79,6 +79,7 @@ final class NirAdminController
             if($kind==='delete' && empty($doc['can_delete'])) { throw new NirConflictException('Doar ciornele pot fi șterse. Pentru un NIR confirmat folosește corectarea sau stornarea disponibilă.'); }
             return $this->render($this->modal($request) ? 'admin/partials/nir-action-content.twig' : 'admin/pages/nir-action.twig', array_replace($this->nirs->defaults($this->actor()), [
                 'action_kind'=>$kind,'document'=>$doc,'values'=>[], 'errors'=>[], 'warnings'=>[],
+                'export_periods'=>$kind==='export'?$this->exportPeriods():[],
                 'products'=>$kind==='opening'?$this->nirs->selectProducts($this->actor()):[],
                 'form_action'=>preg_replace('~/modal/$~', '/', $request->getUri()->getPath()),
                 'idempotency_key'=>bin2hex(random_bytes(24)), 'back_url'=>$this->url($doc ? $doc['id'].'/' : ''),
@@ -449,6 +450,18 @@ final class NirAdminController
             return $this->file($result['path'],$result['filename'],$result['mime'],$inline);
         } catch (\Throwable $e) { return $this->failure($request,$e); }
         finally { if ($result !== null) { $this->exports->cleanup($result['path']); } }
+    }
+
+    /** @return array<string,array{from:string,to:string}> */
+    private function exportPeriods(): array
+    {
+        $periods=[];
+        foreach(['all','year','6months','3months','previous_month','month'] as $key) {
+            $filters=$this->exportFilters(['period'=>$key]);
+            $periods[$key]=['from'=>$filters['from'] ?? '','to'=>$filters['to'] ?? ''];
+        }
+        $periods['custom']=$periods['month'];
+        return $periods;
     }
 
     /** @param array<string,mixed> $filters @return array<string,mixed> */

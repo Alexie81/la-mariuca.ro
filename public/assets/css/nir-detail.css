@@ -12,6 +12,30 @@
 .nir-workspace .nir-form__mark{width:58px;height:62px;background:linear-gradient(145deg,#fff,#f7e2eb);color:#ad4765;border:1px solid #edcbd8;border-radius:19px;box-shadow:inset 0 1px #fff,0 5px 14px #97425e0a}
 .nir-workspace .nir-form__mark svg{width:29px;height:29px}
 .nir-workspace .nir-badge{font-size:13px;padding:7px 12px}
+.nir-workspace .nir-detail-meta{display:flex;align-items:center;gap:8px 16px;flex-wrap:wrap;margin:0}
+.nir-detail-meta>span{display:inline-flex;align-items:center;gap:6px;min-width:0;overflow-wrap:anywhere}
+.nir-detail-meta svg{width:14px;height:14px;color:#9b8293}
+.nir-linked-invoices{display:flex;align-items:center;gap:14px 24px;padding:14px 30px 20px;background:#fffafb;border-top:1px solid #f3e9ef}
+.nir-linked-invoices__label{display:flex;align-items:center;gap:8px;flex:none;color:#8a6b7e;font-size:12px;font-weight:600}
+.nir-linked-invoices__label svg{width:16px;height:16px}
+.nir-linked-invoices__list{display:flex;gap:10px;flex-wrap:wrap;min-width:0;flex:1}
+.nir-linked-invoice{display:flex;align-items:center;gap:11px;min-width:260px;padding:10px 12px;border:1px solid #eadce5;border-radius:13px;background:#fff;color:#67485d;text-decoration:none;transition:border-color .18s,background .18s}
+.nir-linked-invoice:hover{border-color:#c19ab0;background:#fcf6fa}
+.nir-linked-invoice__icon{display:grid;place-items:center;width:34px;height:38px;flex:none;border-radius:9px;background:#f4eaf1;color:#946080}
+.nir-linked-invoice__icon svg{width:18px;height:18px}
+.nir-linked-invoice strong,.nir-linked-invoice small{display:block;line-height:1.4}
+.nir-linked-invoice strong{font-size:14px;font-weight:650;overflow-wrap:anywhere}
+.nir-linked-invoice small{font-size:11px;color:#937d8b;margin-top:2px}
+.nir-linked-invoice__open{display:flex;align-items:center;gap:7px;margin-left:auto;padding-left:18px;white-space:nowrap;font-size:11px;font-weight:600}
+.nir-linked-invoice__open svg{width:15px;height:15px}
+.nir-cost-status{margin:0;background:#fcf9fb;min-width:0}
+.nir-cost-status>summary{display:flex;align-items:center;gap:7px;padding:16px 20px;font-size:12px;font-weight:600;color:#806579;cursor:pointer;list-style:none}
+.nir-cost-status>summary::-webkit-details-marker{display:none}
+.nir-cost-status svg{width:16px;height:16px}
+.nir-cost-status>summary>svg:last-child{margin-left:auto;width:12px;height:12px}
+.nir-cost-status[open]>summary>svg:last-child{transform:rotate(90deg)}
+.nir-cost-status p,.nir-item-cost-note{padding:0 20px 16px;margin:0;font-size:12px;line-height:1.6;color:#887685}
+.nir-item-cost-note{padding:0 0 14px}
 .nir-progress{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));list-style:none;padding:24px 30px 27px;margin:0;border-top:1px solid #f3eaf0;background:linear-gradient(#fffdfd,#fff)}
 .nir-progress li{position:relative;isolation:isolate;display:flex;gap:13px;align-items:center;min-width:0;padding-right:20px}
 .nir-progress li:not(:last-child)::after{content:"";position:absolute;z-index:-1;left:52px;right:10px;top:25px;height:1px;background:linear-gradient(90deg,#d8c6d0,#e8e2e8)}
@@ -150,6 +174,12 @@
 @media(max-width:1100px){.nir-facts-layout{grid-template-columns:minmax(0,1fr) 290px;gap:18px}.nir-workspace .nir-info-grid{padding-inline:20px;gap:0 16px}.nir-sheet__heading{padding:20px}.nir-workspace .nir-info-grid>div:nth-child(-n+2){padding:12px}.nir-observations{margin-inline:20px}.nir-value-card>header{padding:22px}.nir-value-card__amount{font-size:38px}.nir-progress{padding:22px}.nir-progress li{gap:10px;padding-right:10px}.nir-progress strong{font-size:14px}.nir-progress small{font-size:12px}.nir-progress__node{width:42px;height:42px}.nir-progress li:not(:last-child)::after{top:21px}.nir-progress__step{font-size:10px}.nir-downloads{margin-left:auto}}
 @media(max-width:850px){.nir-facts-layout{grid-template-columns:minmax(0,1fr)}.nir-value-card{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.nir-value-card>header{grid-row:1/3;display:flex;flex-direction:column;justify-content:center}.nir-value-card dl{padding:14px 22px 6px}.nir-value-card footer{padding:13px 22px}.nir-value-card__amount{font-size:40px}.nir-commandbar{gap:14px}.nir-downloads{flex:1;justify-content:flex-end}.nir-downloads__label{margin-right:auto}.nir-workspace-help .nir-button{flex-shrink:0}.nir-progress__node{width:42px;height:42px}.nir-progress strong{font-size:14px}.nir-progress small{font-size:12px}.nir-workspace .nir-detail-identity h1{font-size:29px}}
 @media(max-width:600px){
+ .nir-linked-invoices{display:block;padding:13px 17px 17px}
+ .nir-linked-invoices__label{margin-bottom:9px;font-size:11px}
+ .nir-linked-invoice{min-width:0;width:100%;gap:9px;padding:9px 10px}
+ .nir-linked-invoice__open{padding-left:5px;font-size:10px;gap:5px}
+ .nir-workspace .nir-detail-meta{gap:5px}
+ .nir-detail-meta>span{flex-basis:100%;font-size:12px}
  .nir-overview,.nir-sheet,.nir-value-card{border-radius:19px}
  .nir-workspace .nir-detail-hero{padding:21px 17px 18px;gap:13px;align-items:start;flex-wrap:wrap}
  .nir-workspace .nir-detail-identity{gap:12px}

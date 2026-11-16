@@ -1,0 +1,30 @@
+{% import 'admin/partials/nir-ui.twig' as ui %}
+{% set periods = {
+ 'all':['Toată perioada','Întregul registru NIR','layers'],
+ 'year':['Tot anul','De la 1 ianuarie până astăzi','document'],
+ '6months':['6 luni','Luna curentă și cele 5 anterioare','clock'],
+ '3months':['3 luni','Luna curentă și cele 2 anterioare','clock'],
+ 'previous_month':['Luna trecută','Luna calendaristică anterioară','back'],
+ 'month':['Luna curentă','De la începutul lunii până astăzi','document'],
+ 'custom':['Interval personalizat','Alegi exact datele','edit']
+} %}
+<form class="nir-form nir-export-form" method="get" action="{{ form_action }}" data-nir-export-form>
+ <header class="nir-form__header"><span class="nir-form__mark">{{ ui.icon('download') }}</span><div><span class="nir-eyebrow">Export contabil</span><h2>Descarcă registrul NIR</h2><p>Alege perioada și documentele de care ai nevoie.</p></div><a class="nir-close" href="{{ back_url }}" data-nir-modal-close aria-label="Închide">{{ ui.icon('close') }}</a></header>
+ <div class="nir-form__body">
+  <div class="nir-form-errors" data-nir-errors role="alert" tabindex="-1" hidden></div>
+  <fieldset class="nir-export-section"><legend><span>01</span>Ce vrei să descarci?</legend><p>Un registru detaliat sau dosarul complet, cu documentele justificative.</p>
+   <div class="nir-export-formats">
+    <label class="nir-export-choice"><input type="radio" name="format" value="xlsx" checked><span class="nir-export-choice__icon">{{ ui.icon('document') }}</span><span><strong>Doar registrul</strong><small>Un singur fișier Excel detaliat</small></span><i>{{ ui.icon('check') }}</i></label>
+    <label class="nir-export-choice"><input type="radio" name="format" value="zip"><span class="nir-export-choice__icon">{{ ui.icon('box') }}</span><span><strong>Registru + toate NIR-urile</strong><small>ZIP cu PDF, Excel și atașamentele fiecărui NIR</small></span><i>{{ ui.icon('check') }}</i></label>
+   </div>
+  </fieldset>
+  <fieldset class="nir-export-section"><legend><span>02</span>Pentru ce perioadă?</legend><p>Selecția folosește data documentului NIR.</p>
+   <div class="nir-export-periods">{% for key,period in periods %}<label class="nir-export-period"><input type="radio" name="period" value="{{ key }}" data-export-period data-from="{{ export_periods[key].from|default('') }}" data-to="{{ export_periods[key].to|default('') }}" data-label="{{ period[0] }}"{{ key == 'month' ? ' checked' : '' }}><span class="nir-export-period__icon">{{ ui.icon(period[2]) }}</span><span><strong>{{ period[0] }}</strong><small>{{ period[1] }}</small></span><i></i></label>{% endfor %}</div>
+   <div class="nir-fields nir-export-custom" data-export-dates>{{ ui.field('from','De la',export_periods.month.from|default(''),{}, {type:'date'}) }}{{ ui.field('to','Până la',export_periods.month.to|default(''),{}, {type:'date'}) }}</div>
+  </fieldset>
+  <details class="nir-export-filters"><summary>{{ ui.icon('search') }}Filtrează după starea documentelor{{ ui.icon('chevron') }}</summary><fieldset><legend class="sr-only">Documente incluse</legend>{% for key,label in {'':'Toate stările','confirmed':'Confirmate','draft':'În lucru','supplier_return':'Retururi furnizor'} %}<label><input type="radio" name="status" value="{{ key }}"{{ key == '' ? ' checked' : '' }}><span>{{ label }}</span></label>{% endfor %}</fieldset></details>
+  <div class="nir-export-result" aria-live="polite"><span>{{ ui.icon('check') }}</span><div><small>Se va genera</small><strong data-export-preview-title>Registru Excel · Luna curentă</strong><p data-export-preview-period>{{ export_periods.month.from|default('')|date('d.m.Y') }} — {{ export_periods.month.to|default('')|date('d.m.Y') }}</p><span data-export-preview-status>Toate stările</span></div></div>
+  <p data-export-progress hidden class="nir-export-progress" role="status">Pregătim documentele pentru descărcare…</p>
+ </div>
+ <footer class="nir-form__footer"><a class="nir-button nir-button--cancel" href="{{ back_url }}" data-nir-modal-close>Renunță</a><button type="submit" class="nir-button nir-button--primary">{{ ui.icon('download') }}<span>Descarcă acum</span></button></footer>
+</form>

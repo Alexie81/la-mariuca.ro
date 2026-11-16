@@ -1,0 +1,57 @@
+/* Registry exports share the compact plum and rose NIR workspace. */
+.nir-dialog:has(.nir-export-form){width:min(960px,calc(100% - 32px));border-radius:22px}
+.nir-export-form{--nir-ink:#392e3e;--nir-muted:#857789;--nir-line:#e9e0e9;--nir-rose:#854c75;--nir-rose-dark:#6d3d60;background:#fff;font-family:var(--admin-sans,Arial,sans-serif)}
+.nir-export-form .nir-form__header{padding:22px 26px;gap:15px;border-color:var(--nir-line);background:linear-gradient(110deg,#fff 40%,#f8eef4)}
+.nir-export-form .nir-form__header h2{font-family:inherit;font-size:26px;font-weight:700;letter-spacing:-.035em;color:var(--nir-ink);margin:4px 0 6px}
+.nir-export-form .nir-eyebrow{font-size:10px;letter-spacing:.12em;color:#985777}
+.nir-export-form .nir-form__mark{width:48px;height:52px;border-radius:15px;background:#f7edf4;border-color:#e9ccdf;color:#925575;box-shadow:none}
+.nir-export-form .nir-close{width:36px;height:36px;min-height:36px;border-radius:11px;color:#856d85;border-color:var(--nir-line)}
+.nir-export-form .nir-form__body{padding:22px 26px;scrollbar-color:#c9b2c8 transparent}
+.nir-export-section{min-width:0;border:0;padding:0;margin:0 0 22px}
+.nir-export-section>legend{display:flex;align-items:center;gap:10px;padding:0;font-size:14px;font-weight:700;color:var(--nir-ink)}
+.nir-export-section>legend>span{display:grid;place-items:center;width:30px;height:30px;border-radius:10px;background:#f1eaf3;color:#865a89;font-size:11px;font-variant-numeric:tabular-nums}
+.nir-export-section>p{margin:1px 0 12px 40px;color:var(--nir-muted);font-size:12px;line-height:1.5}
+.nir-export-formats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.nir-export-choice,.nir-export-period{position:relative;display:flex;align-items:center;gap:12px;min-width:0;margin:0;border:1px solid var(--nir-line);border-radius:15px;background:#fff;cursor:pointer;transition:border-color .16s,background-color .16s,box-shadow .16s}
+.nir-export-choice{min-height:86px;padding:16px}
+.nir-export-choice input,.nir-export-period input{position:absolute;width:1px;height:1px;margin:0;opacity:0}
+.nir-export-choice:has(input:checked){border-color:#9d7093;background:#f8f2f8;box-shadow:0 0 0 2px #9d709313}
+.nir-export-choice:has(input:focus-visible),.nir-export-period:has(input:focus-visible){outline:3px solid #b276a477;outline-offset:3px}
+.nir-export-choice:hover,.nir-export-period:hover{border-color:#b99ab3;background:#fcf9fc}
+.nir-export-choice__icon{display:grid;place-items:center;flex:none;width:42px;height:44px;border-radius:12px;background:#f5f1f6;color:#947e9b}
+.nir-export-choice:has(input:checked) .nir-export-choice__icon{background:#eaddec;color:#85527c}
+.nir-export-choice>span:nth-of-type(2){flex:1;min-width:0}
+.nir-export-choice strong,.nir-export-period strong{display:block;font-weight:650;font-size:13px;line-height:1.4;color:var(--nir-ink)}
+.nir-export-choice small,.nir-export-period small{display:block;margin-top:4px;font-size:11px;line-height:1.5;color:var(--nir-muted)}
+.nir-export-choice>i{display:grid;place-items:center;flex:none;width:18px;height:18px;border:1.5px solid #d9cbd9;border-radius:50%;color:transparent}
+.nir-export-choice>i svg{width:12px;height:12px;stroke-width:2.5}
+.nir-export-choice:has(input:checked)>i{border-color:#85527c;background:#85527c;color:#fff}
+.nir-export-periods{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.nir-export-period{min-height:79px;padding:12px;gap:9px}
+.nir-export-period__icon{display:grid;place-items:center;flex:none;width:31px;height:34px;border:1px solid #e9e0e9;border-radius:10px;background:#faf7fb;color:#a083a3}
+.nir-export-period__icon svg{width:17px;height:17px}
+.nir-export-period strong{font-size:12px}.nir-export-period small{font-size:10px;line-height:1.4}
+.nir-export-period:has(input:checked){border-color:#bd708c;background:#fff4f7;box-shadow:0 0 0 2px #bd708c0d}
+.nir-export-period:has(input:checked) .nir-export-period__icon{border-color:#edc8d6;background:#f9e5ed;color:#ad5b79}
+.nir-export-period>i{position:absolute;top:8px;right:8px;width:5px;height:5px;border-radius:50%;background:transparent}
+.nir-export-period:has(input:checked)>i{background:#b25d7e}
+.nir-export-custom{padding:14px;margin-top:12px;border:1px solid #e7d9e5;border-radius:13px;background:#faf7fb}
+.nir-export-custom .nir-field{min-width:0;margin:0}.nir-export-custom input{min-width:0;max-width:100%;color-scheme:light}
+.nir-export-filters{border:1px solid var(--nir-line);border-radius:12px;margin-bottom:16px;background:#fff}
+.nir-export-filters summary{display:flex;align-items:center;gap:8px;padding:12px 14px;list-style:none;cursor:pointer;font-size:12px;color:#806b82}
+.nir-export-filters summary::-webkit-details-marker{display:none}.nir-export-filters summary svg{width:16px;height:16px}.nir-export-filters summary svg:last-child{margin-left:auto;width:13px;height:13px;transition:transform .16s}.nir-export-filters[open] summary svg:last-child{transform:rotate(90deg)}
+.nir-export-filters fieldset{display:flex;flex-wrap:wrap;gap:8px;padding:0 14px 14px;margin:0;border:0;min-width:0}
+.nir-export-filters label{display:flex;align-items:center;gap:7px;min-height:34px;padding:6px 10px;border:1px solid var(--nir-line);border-radius:8px;cursor:pointer;font-size:11px}
+.nir-export-filters label:has(input:checked){background:#f5edf5;border-color:#bc9cb6;color:#74476b}.nir-export-filters input{margin:0;accent-color:#85527c}
+.nir-export-result{display:flex;align-items:center;gap:13px;padding:17px 19px;border-radius:15px;color:#fff;background:linear-gradient(115deg,#46364f,#62475f)}
+.nir-export-result>span{display:grid;place-items:center;width:38px;height:38px;flex:none;border-radius:12px;background:#ffffff13;color:#e5cce1}
+.nir-export-result>div{display:grid;grid-template-columns:1fr auto;align-items:center;gap:3px 12px;min-width:0;flex:1}
+.nir-export-result small{grid-column:1/-1;font-size:9px;letter-spacing:.11em;text-transform:uppercase;color:#d8b8d4}
+.nir-export-result strong{grid-column:1/-1;font-size:13px;font-weight:600;line-height:1.5}
+.nir-export-result p{margin:0;font-size:11px;color:#d8cbdc;font-variant-numeric:tabular-nums}
+.nir-export-result [data-export-preview-status]{font-size:10px;color:#decfdf;padding:3px 8px;background:#ffffff0c;border:1px solid #ffffff12;border-radius:6px}
+.nir-export-form .nir-form__footer{justify-content:flex-end;background:#fff;border-color:var(--nir-line);padding:15px 26px}
+.nir-export-form .nir-form__footer>button{margin-left:0}.nir-export-form .nir-form__footer .nir-button{min-height:42px;font-size:12px;border-radius:11px}
+@media(max-width:700px){.nir-export-periods{grid-template-columns:repeat(2,minmax(0,1fr))}.nir-export-choice{padding:13px;gap:9px}.nir-export-choice__icon{width:32px;height:38px}.nir-export-choice strong{font-size:12px}.nir-export-choice small{font-size:10px}}
+@media(max-width:480px){.nir-dialog:has(.nir-export-form){width:calc(100% - 12px);max-height:calc(100dvh - 20px);border-radius:18px}.nir-dialog .nir-export-form{max-height:calc(100dvh - 20px)}.nir-export-form .nir-form__header{padding:17px 16px;gap:10px}.nir-export-form .nir-form__header>.nir-form__mark{display:none}.nir-export-form .nir-form__header h2{font-size:21px;line-height:1.2}.nir-export-form .nir-form__header p{font-size:11px}.nir-export-form .nir-form__body{padding:16px}.nir-export-section{margin-bottom:20px}.nir-export-section>p{margin-left:0;font-size:11px;margin-top:8px}.nir-export-formats{grid-template-columns:1fr;gap:9px}.nir-export-choice{min-height:70px;padding:12px}.nir-export-choice__icon{width:36px;height:38px}.nir-export-choice strong{font-size:12px}.nir-export-choice small{font-size:11px}.nir-export-period{padding:11px 9px;gap:7px;min-height:76px}.nir-export-period__icon{width:27px;height:31px}.nir-export-period strong{font-size:11px}.nir-export-period small{font-size:10px}.nir-export-custom{grid-template-columns:1fr;padding:12px}.nir-export-filters summary{font-size:11px;gap:6px}.nir-export-result{padding:14px;gap:10px}.nir-export-result>div{grid-template-columns:1fr}.nir-export-result [data-export-preview-status]{justify-self:start;margin-top:4px}.nir-export-result strong{font-size:12px}.nir-export-result>span{width:31px;height:33px}.nir-export-form .nir-form__footer{padding:12px 16px;display:flex;gap:8px}.nir-export-form .nir-form__footer .nir-button{width:auto;padding:10px 12px;white-space:nowrap}.nir-export-form .nir-form__footer>button{flex:1}.nir-export-form .nir-form__footer .nir-button svg{width:16px;height:16px}}
+@media(prefers-reduced-motion:reduce){.nir-export-choice,.nir-export-period,.nir-export-filters summary svg:last-child{transition:none}}

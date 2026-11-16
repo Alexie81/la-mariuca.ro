@@ -349,7 +349,7 @@ final class NirExportService
             $sheet->getStyle('X'.$row.':AE'.$row)->getNumberFormat()->setFormatCode('#,##0.00');
         }
         $last=max(7,count($documents)+6);
-        $sheet->freezePane('C7');
+        $sheet->freezePane(null);
         $this->table($sheet,38,$last,6);
         $this->styleRegistry($sheet,$documents,$period,$costs,$last);
         return $book;
@@ -400,7 +400,7 @@ final class NirExportService
             $sheet->getStyle($cell)->getNumberFormat()->setFormatCode($format);
         }
         $sheet->mergeCells('L4:N4');
-        $filter=match($period['status']??''){'draft'=>'Drafturi','confirmed'=>'Confirmate','reversed'=>'Stornate',default=>'Toate stările'};
+        $filter=match($period['status']??''){'draft'=>'Drafturi','confirmed'=>'Confirmate','reversed'=>'Stornate','supplier_return'=>'Retururi furnizor',default=>'Toate stările'};
         $this->cell($sheet,12,4,'FILTRU · '.$filter.(empty($period['search'])?'':' · '.$period['search']));
         $sheet->getStyle('L4:N4')->applyFromArray(['font'=>['size'=>11,'color'=>['rgb'=>'766976']],'alignment'=>['vertical'=>Alignment::VERTICAL_CENTER,'wrapText'=>true,'indent'=>1]]);
         foreach(['A6:H6'=>'75485F','I6:N6'=>'8C6277','O6:R6'=>'81718D','S6:W6'=>'507C75','X6:AE6'=>'75485F','AF6:AL6'=>'737686'] as $range=>$color){

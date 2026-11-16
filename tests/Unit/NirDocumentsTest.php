@@ -395,7 +395,7 @@ final class NirDocumentsTest extends TestCase
         self::assertEquals(-1,$sheet->getCell('H13')->getCalculatedValue());
         $book->disconnectWorksheets();
         $registry=$exporter->registry([$document],'xlsx',['from'=>'2026-11-01','to'=>'2026-11-30'],false);$this->exports[]=$registry['path'];
-        $book=IOFactory::load($registry['path']);$sheet=$book->getActiveSheet();self::assertSame('C7',$sheet->getFreezePane());self::assertNull($sheet->getCell('X7')->getValue());self::assertSame('AL',$sheet->getHighestColumn());$book->disconnectWorksheets();
+        $book=IOFactory::load($registry['path']);$sheet=$book->getActiveSheet();self::assertNull($sheet->getFreezePane());self::assertNull($sheet->getCell('X7')->getValue());self::assertSame('AL',$sheet->getHighestColumn());$book->disconnectWorksheets();
     }
 
     public function testPdfAndZipContainRealDocumentsAndOriginalFiles(): void
@@ -428,7 +428,7 @@ final class NirDocumentsTest extends TestCase
         self::assertSame(['Registru NIR'],$book->getSheetNames());
         self::assertSame('AL',$sheet->getHighestColumn());
         self::assertSame('A6:AL8',$sheet->getAutoFilter()->getRange());
-        self::assertSame('C7',$sheet->getFreezePane());
+        self::assertNull($sheet->getFreezePane());
         self::assertFalse($sheet->getShowGridlines());
         self::assertCount(1,$sheet->getDrawingCollection());
         self::assertSame('LM-NIR-2026-1',$sheet->getCell('B7')->getValue());

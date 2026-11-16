@@ -59,6 +59,55 @@ final class NirAdminHttpTest extends DatabaseTestCase
         self::assertSame(303,$this->request('GET','/admin/nir-uri/')->getStatusCode());
     }
 
+    public function testExportCardsExposeTheSameBucharestPeriodsAsTheDownloadedRegistry(): void
+    {
+        $response=$this->request('GET','/admin/nir-uri/export/modal/');
+        self::assertSame(200,$response->getStatusCode());
+        $html=(string)$response->getBody();
+        $dom=new \DOMDocument();
+        $previous=libxml_use_internal_errors(true);
+        try { $dom->loadHTML('<?xml encoding="UTF-8">'.$html); }
+        finally { libxml_clear_errors(); libxml_use_internal_errors($previous); }
+        $xpath=new \DOMXPath($dom);
+        self::assertSame(7,$xpath->query('//input[@name="period"]')->length);
+        self::assertSame(2,$xpath->query('//input[@name="format"]')->length);
+        self::assertSame('get',$xpath->query('//form')->item(0)->getAttribute('method'));
+        self::assertSame('/admin/nir-uri/export/',$xpath->query('//form')->item(0)->getAttribute('action'));
+        $today=new \DateTimeImmutable('today',new \DateTimeZone('Europe/Bucharest'));
+        $periods=[
+            'all'=>['',''],
+            'year'=>[$today->format('Y').'-01-01',$today->format('Y-m-d')],
+            '6months'=>[$today->modify('first day of this month')->modify('-5 months')->format('Y-m-d'),$today->format('Y-m-d')],
+            '3months'=>[$today->modify('first day of this month')->modify('-2 months')->format('Y-m-d'),$today->format('Y-m-d')],
+            'previous_month'=>[$today->modify('first day of last month')->format('Y-m-d'),$today->modify('last day of last month')->format('Y-m-d')],
+            'month'=>[$today->format('Y-m').'-01',$today->format('Y-m-d')],
+        ];
+        $app=AppFactory::create($this->root);
+        foreach($periods as $period=>[$from,$to]) {
+            $radio=$xpath->query('//input[@name="period" and @value="'.$period.'"]')->item(0);
+            self::assertSame($from,$radio->getAttribute('data-from'));
+            self::assertSame($to,$radio->getAttribute('data-to'));
+            // This is also the native GET form destination, without the JS download enhancer.
+            $request=(new ServerRequestFactory())->createServerRequest('GET','http://localhost/admin/nir-uri/export/')->withQueryParams(['format'=>'xlsx','period'=>$period,'from'=>'1999-01-01','to'=>'1999-01-02']);
+            $export=$app->handle($request);
+            self::assertSame(200,$export->getStatusCode(),$period);
+            $file=tempnam(sys_get_temp_dir(),'nir-card-');
+            file_put_contents($file,(string)$export->getBody());
+            try {
+                $book=\PhpOffice\PhpSpreadsheet\IOFactory::load($file);
+                $caption=$book->getActiveSheet()->getCell('I2')->getValue();
+                if($from==='') { self::assertStringContainsString('Toate datele',$caption); }
+                else {
+                    self::assertStringContainsString((new \DateTimeImmutable($from))->format('d.m.Y'),$caption);
+                    self::assertStringContainsString((new \DateTimeImmutable($to))->format('d.m.Y'),$caption);
+                }
+                $book->disconnectWorksheets();
+            } finally { unlink($file); }
+        }
+        unset($app);
+        gc_collect_cycles();
+    }
+
     public function testAddingRowWithoutJavascriptDoesNotPersistOrLoseValues(): void
     {
         $response=$this->request('POST','/admin/nir-uri/nou/',['_csrf'=>$_SESSION['_csrf'],'intent'=>'add_line','invoice_number'=>'Factura păstrată','lines'=>[['supplier_name'=>'Produs păstrat','unit_price'=>'12.34']]]);

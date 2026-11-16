@@ -795,8 +795,17 @@ final class OutgoingInvoiceTest extends DatabaseTestCase
         self::assertSame($tracked,$nir['cost_complete']); self::assertSame($tracked,$nir['lines'][0]['cost_complete']);
         self::assertSame($invoice['id'],$nir['original_invoices'][0]['id']);
         $nirPage=$app->handle($factory->createServerRequest('GET','http://localhost/admin/nir-uri/'.$nir['id'].'/'));
-        self::assertSame(200,$nirPage->getStatusCode()); self::assertStringContainsString('Factura inițială:',(string)$nirPage->getBody());
-        if(!$tracked) { self::assertStringContainsString('Cost de achiziție neînregistrat',(string)$nirPage->getBody()); }
+        self::assertSame(200,$nirPage->getStatusCode()); self::assertStringContainsString('Factura inițială',(string)$nirPage->getBody());
+        self::assertStringContainsString('nir-linked-invoice',(string)$nirPage->getBody());
+        if(!$tracked) {
+            self::assertStringContainsString('Valoare înregistrată',(string)$nirPage->getBody());
+            self::assertStringContainsString('0,00 <small>Lei</small>',(string)$nirPage->getBody());
+            self::assertStringContainsString('Costul de achiziție nu este încă asociat.',(string)$nirPage->getBody());
+            self::assertStringNotContainsString('<strong>Neînregistrat</strong>',(string)$nirPage->getBody());
+            $registry=$app->handle($factory->createServerRequest('GET','http://localhost/admin/nir-uri/'));
+            self::assertStringContainsString('0,00 <span>Lei</span>',(string)$registry->getBody());
+            self::assertStringNotContainsString('Cost neînregistrat',(string)$registry->getBody());
+        }
         $exporter=new \App\Modules\Inventory\NirExportService($this->root); $file=$exporter->individual($nir,'xlsx');
         try {
             $book=\PhpOffice\PhpSpreadsheet\IOFactory::load($file['path']);
